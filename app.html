@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VEILRUN — Crew Hub</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/tokens.css" />
+  <link rel="stylesheet" href="css/base.css" />
+</head>
+<body>
+  <div class="seam-v"></div>
+  <nav class="nav">
+    <span class="brand">VEIL<b>RUN</b></span>
+    <button class="menu-btn" onclick="document.getElementById('navlinks').classList.toggle('open')" aria-label="Menu">☰</button>
+    <div class="links" id="navlinks">
+      <a data-route href="#hub">Hub</a>
+      <a data-route href="#world">World</a>
+      <a data-route href="#crew">Crew</a>
+      <a data-route href="#threats">Threats</a>
+      <a data-route href="#synergy">Synergy</a>
+      <a data-route href="#gallery">Gallery</a>
+      <a data-route href="#lab">Lab</a>
+      <a data-route href="#updates">Updates</a>
+    </div>
+  </nav>
+
+  <main id="view"><!-- rendered by app.js --></main>
+
+  <div class="lightbox" id="lightbox">
+    <div class="lb-bar">
+      <button id="lb-mode" onclick="VApp.lbToggleMode()">▦ All</button>
+      <label class="lb-sizewrap">Size <input id="lb-size" type="range" min="90" max="340" value="160" oninput="VApp.lbSize(this.value)" /></label>
+      <button class="lb-close" onclick="VApp.lbClose()" aria-label="Close">×</button>
+    </div>
+    <div class="lb-single">
+      <button class="lb-nav lb-prev" onclick="VApp.lbStep(-1)" aria-label="Previous">‹</button>
+      <img class="lb-img" src="" alt="" />
+      <button class="lb-nav lb-next" onclick="VApp.lbStep(1)" aria-label="Next">›</button>
+      <button class="lb-like like" onclick="VApp.lbLike()">♡ Like</button>
+      <div class="lb-cap"></div>
+    </div>
+    <div class="lb-grid" id="lb-grid"></div>
+  </div>
+
+  <div class="modal" id="fbmodal" onclick="if(event.target===this)VApp.fbClose()">
+    <div class="modal-card">
+      <button class="modal-x" onclick="VApp.fbClose()" aria-label="Close">×</button>
+      <h3 id="fb-title">Share feedback</h3>
+      <div id="fb-context" class="mute" style="font-size:.85rem;margin:.4rem 0 1rem"></div>
+      <label class="fld">You are
+        <select id="fb-who" onchange="VApp.fbWhoChange()"></select>
+      </label>
+      <input id="fb-who-other" class="fld-in" placeholder="Your name" style="display:none" />
+      <label class="fld">Type
+        <select id="fb-type">
+          <option value="idea">New idea</option>
+          <option value="love">Love it</option>
+          <option value="change">Change this</option>
+          <option value="question">Question</option>
+        </select>
+      </label>
+      <textarea id="fb-note" class="fld-in" rows="4" placeholder="Your thoughts…"></textarea>
+      <div class="modal-actions">
+        <button class="btn ghost" onclick="VApp.fbClose()">Cancel</button>
+        <button class="btn" onclick="VApp.fbSubmit()">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="wrap section" style="text-align:center">
+    <hr class="seam" />
+    <p class="mute" style="font-size:.8rem"><a href="#" onclick="VApp.feedback('General thought','idea');return false;">Send feedback</a> · <a href="#board">Board</a> · <a href="#design">Design system</a> · <a href="#updates">Updates</a> · VEILRUN concept preview · built around us</p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/galleries.js"></script>
+  <script src="js/media.js"></script>
+  <script src="js/board.js"></script>
+  <script src="js/backend.js"></script>
+  <script src="js/components.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

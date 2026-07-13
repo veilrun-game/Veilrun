@@ -1,0 +1,663 @@
+/* VEILRUN — App shell: soft-gate check, hash router, view renderers. */
+window.VApp = (function () {
+  const D = window.VEILRUN, C = window.VC;
+  const view = () => document.getElementById("view");
+
+  function requireGate() {
+    if (sessionStorage.getItem("vr_ok") !== "1") { window.location.href = "index.html"; return false; }
+    return true;
+  }
+
+  // Crew view mode persists
+  const getCrewView = () => localStorage.getItem("vr_crewview") || "tiles";
+  function setCrewView(v) { localStorage.setItem("vr_crewview", v); views_render_crew(); }
+
+  const views = {
+    hub() {
+      const jumps = [
+        ["#world","The World","The two layers, the Sundering, the factions."],
+        ["#crew","The Crew","Nine fluent in both. Kits, codenames, synergies."],
+        ["#threats","Threats","The Severant and the roster."],
+        ["#synergy","Synergy","The matrix + combo builder."],
+        ["#gallery","Gallery","Every concept image, by category."],
+        ["#lab","The Lab","Game ideas, votes, and experiments."]
+      ].map(([h,k,d]) => `<a href="${h}"><div class="k">${k}</div><div class="d">${C.esc(d)}</div></a>`).join("");
+      const latest = D.updates[0];
+      return `
+        <section class="hub-hero wrap">
+          ${C.sectionHeader("Home base","Welcome back, crew")}
+          <div class="latest">
+            ${D.cover ? `<img src="${C.esc(D.cover)}" alt="Veilrun" loading="lazy" />` : ""}
+            <div class="l-body">
+              <p class="eyebrow">Latest update · ${C.esc(latest.date)}</p>
+              <h2 style="margin:.4rem 0">${C.esc(latest.text)}</h2>
+              <p class="mute">Dig in below, and react to anything — it only works if it's ours.</p>
+              <div style="margin-top:1rem"><a class="btn" href="#crew">Meet the crew</a> <button class="btn ghost" onclick="VApp.feedback('General thought','idea')">＋ Share a thought</button></div>
+            </div>
+          </div>
+        </section>
+        <div class="wrap">
+          <div class="jump">${jumps}</div>
+          ${C.seam()}
+          <h2>Latest updates</h2>
+          <div class="panel" style="margin-top:1rem">${D.updates.slice(0, 6).map(u => `<div class="kit-row"><span class="mute" style="font-size:.8rem">${C.esc(u.date)}</span><div>${C.esc(u.text)}</div></div>`).join("")}</div>
+          ${D.updates.length > 6 ? `<div style="margin-top:.8rem"><a class="btn ghost" href="#updates">See all updates →</a></div>` : ""}
+          <div class="panel" style="margin-top:1.5rem;border-color:var(--violet)">
+            <div class="eyebrow">See what's next</div>
+            <h3 style="margin:.3rem 0">The Board</h3>
+            <p class="mute">A live look at what's in progress, up next, and done — where Veilrun is heading and what's coming. Have a look and tell us what to prioritize.</p>
+            <div style="margin-top:.8rem"><a class="btn" href="#board">Open the board →</a></div>
+          </div>
+        </div>`;
+    },
+
+    world() {
+      const w = D.world;
+      const force = w.force.map(f => `<div class="panel"><div class="eyebrow">${C.esc(f.side)}</div><h3>${C.esc(f.name)}</h3><p class="mute">${C.esc(f.text)}</p></div>`).join("");
+      const worldItems = (window.VEILRUN.galleryItems || []).filter(i => i.cat === "World");
+      const layers = w.layers.map(l => {
+        const slug = l.name.toLowerCase().replace("the ", "").replace(/\s+/g, "");
+        const imgs = [l.img, ...worldItems.filter(w => w.name === l.name).map(w => w.src)].filter((v, i, a) => v && a.indexOf(v) === i);
+        registerSet("world_" + slug, imgs.map(s => ({ src: s, name: l.name })));
+        return `
+        <div class="wlayer" style="--accent:var(--violet)" onclick="VApp.lbOpen('world_${slug}', 0)">
+          ${l.img ? `<img src="${C.esc(l.img)}" alt="${C.esc(l.name)}" loading="lazy" />` : ""}
+          <div class="wl-body">
+            <div class="accent-bar"></div>
+            <h3>${C.esc(l.name)}</h3>
+            <div class="role">${C.esc(l.tag)}</div>
+            <p class="mute">${C.esc(l.text)}</p>
+            <span class="wl-count">${imgs.length} image${imgs.length === 1 ? "" : "s"} →</span>
+          </div>
+        </div>`;
+      }).join("");
+      const factions = w.factions.map(f => `<div class="kit-row"><span class="name">${C.esc(f.name)}</span> <span class="mute">${C.esc(f.text)}</span></div>`).join("");
+      return `<div class="wrap section">
+        ${C.sectionHeader("Part One","The World")}
+        <p class="mute" style="max-width:65ch;margin-top:1rem">${C.esc(w.premise)}</p>
+        ${C.seam()}
+        <h2>What it runs on</h2>
+        <div class="grid cols-3" style="margin-top:1rem">${force}</div>
+        ${C.seam()}
+        <h2>The two layers</h2>
+        <p class="mute" style="margin-top:.3rem">Tap a layer to page through its concept art.</p>
+        <div class="grid cols-2" style="margin-top:1rem">${layers}</div>
+        ${C.seam()}
+        <h2>The Sundering</h2>
+        <div class="panel" style="margin-top:1rem"><p class="mute">${C.esc(w.sundering)}</p></div>
+        <div class="panel" style="margin-top:1rem;border-color:var(--violet)"><div class="eyebrow">The Villain</div><h3>${C.esc(w.villain.name)}</h3><p class="mute">${C.esc(w.villain.text)}</p></div>
+        ${C.seam()}
+        <h2>Factions</h2>
+        <div class="panel" style="margin-top:1rem">${factions}</div>
+        ${worldStrip()}
+        <div style="margin-top:1rem">${C.feedbackButton("The World")}</div>
+      </div>`;
+    },
+
+    crew() {
+      const mode = getCrewView();
+      const toggle = `<div class="view-toggle">
+        <button class="${mode==='tiles'?'active':''}" onclick="VApp.crewView('tiles')">Tiles</button>
+        <button class="${mode==='full'?'active':''}" onclick="VApp.crewView('full')">Full</button>
+        <button class="${mode==='list'?'active':''}" onclick="VApp.crewView('list')">List</button>
+      </div>`;
+      let body;
+      if (mode === "list") body = `<div class="crew-list">${D.crew.map(C.characterListRow).join("")}</div>`;
+      else if (mode === "full") body = `<div style="margin-top:1.25rem">${D.crew.map(crewFullRow).join("")}</div>`;
+      else body = `<div class="grid cols-4" style="margin-top:1.25rem">${D.crew.map(C.characterCard).join("")}</div>`;
+      return `<div class="wrap section" id="crew-root">
+        ${C.sectionHeader("Part Two","The Crew")}
+        <div class="toolbar"><p class="mute" style="margin:0">Nine of us. Tap a member for kit, codenames, and every synergy they're in.</p>${toggle}</div>
+        ${body}
+      </div>`;
+    },
+
+    character(id) {
+      const ch = D.crew.find(c => c.id === id);
+      if (!ch) return views.crew();
+      const actives = ch.kit.actives.map(a => C.kitRow("active", a)).join("");
+      const ult = ch.kit.ult ? C.kitRow("ult", ch.kit.ult) : "";
+      const chips = ch.codenames.map(c => C.codenameChip(c, ch.pick)).join("");
+      const pickNote = ch.pick ? `<p class="mute" style="font-size:.85rem;margin-top:.4rem">Current lean: <strong style="color:${ch.accent}">${C.esc(ch.pick)}</strong></p>` : "";
+      const raw = (window.VEILRUN.galleries && window.VEILRUN.galleries[ch.id]) || (ch.img ? [ch.img] : []);
+      const imgs = [...raw].sort((a, b) => (isLiked(b) ? 1 : 0) - (isLiked(a) ? 1 : 0));
+      synGalleryState = { id: ch.id, imgs, i: 0 };
+      // Structured synergies with the partner emphasized (same cards as the explorer)
+      const S = D.synergy;
+      const sUni = S.universal.filter(u => u.member === ch.id).map(cardUni);
+      const sAura = S.auras.filter(a => a.members.includes(ch.id)).map(cardAura);
+      const sPair = S.pairs.filter(p => p.a === ch.id || p.b === ch.id).map(p => cardPair(p, p.a === ch.id ? p.b : p.a));
+      const sTrio = S.trios.filter(t => t.members.includes(ch.id)).map(cardTrio);
+      let syn = "";
+      if (sUni.length) syn += subhead("Field — helps everyone nearby") + sUni.join("");
+      if (sAura.length) syn += subhead("Always-on bonds") + sAura.join("");
+      syn += subhead("Paired techniques") + sPair.join("");
+      if (sTrio.length) syn += subhead("Trios they anchor") + sTrio.join("");
+      return `<div class="wrap section" style="--accent:${ch.accent}">
+        <a href="#crew" class="mute" style="font-size:.85rem">← All crew</a>
+        <div class="char-hero" style="margin:1rem 0">
+          <div>${galleryViewer(ch)}</div>
+          <div>
+            <div class="eyebrow" style="color:${ch.accent}">${C.esc(ch.role)}</div>
+            <h1 class="display" style="font-size:var(--fs-h1)">${C.esc(ch.name)}</h1>
+            <p class="mute">"${C.esc(ch.alias)}" · ${C.esc(ch.player)}</p>
+            <p style="max-width:52ch;margin-top:.8rem">${C.esc(ch.lore)}</p>
+            <p class="mute" style="font-size:.8rem;margin-top:.8rem">${imgs.length} concept renders — flip through and ♥ the ones you like.</p>
+            <div style="margin-top:1rem">${C.feedbackButton("Character: " + ch.name)}</div>
+          </div>
+        </div>
+        ${C.seam()}
+        <h2>Codenames</h2>
+        <div style="margin:1rem 0">${chips}${pickNote}</div>
+        <h2>Kit</h2>
+        <div class="panel" style="margin:1rem 0">${C.kitRow("passive", ch.kit.passive)}${actives}${ult}</div>
+        <h2>Synergies</h2>
+        <div style="margin:1rem 0">${syn}</div>
+      </div>`;
+    },
+
+    threats() {
+      (D.threats || []).forEach(t => registerSet("threat_" + t.id, (t.gallery || []).map(s => ({ src: s, name: t.name }))));
+      const mode = threatsState.view;
+      const toggle = `<div class="view-toggle">
+        <button class="${mode === 'tiles' ? 'active' : ''}" onclick="VApp.threatsView('tiles')">Tiles</button>
+        <button class="${mode === 'full' ? 'active' : ''}" onclick="VApp.threatsView('full')">Full</button>
+        <button class="${mode === 'list' ? 'active' : ''}" onclick="VApp.threatsView('list')">List</button>
+      </div>`;
+      let body;
+      if (mode === "list") body = `<div class="crew-list">${D.threats.map(threatListRow).join("")}</div>`;
+      else if (mode === "tiles") body = `<div class="grid cols-4" style="margin-top:1.25rem">${D.threats.map(threatCard).join("")}</div>`;
+      else body = `<div style="margin-top:1.25rem">${D.threats.map(threatFullRow).join("")}</div>`;
+      return `<div class="wrap section">
+        ${C.sectionHeader("Part Three","Threats")}
+        <div class="toolbar"><p class="mute" style="margin:0">The opposition — early concept art, leaning red so they read as other. Abilities aren't defined yet; drop ideas via feedback.</p>${toggle}</div>
+        ${body}
+      </div>`;
+    },
+
+    synergy() {
+      const mode = synState.mode;
+      const tabs = `<div class="mode-tabs">
+        <button class="${mode==='explore'?'active':''}" onclick="VApp.synMode('explore')">Explore one</button>
+        <button class="${mode==='build'?'active':''}" onclick="VApp.synMode('build')">Build a combo</button>
+      </div>`;
+      const avatars = `<div class="avatars">${D.crew.map(ch => {
+        const on = synState.sel.includes(ch.id);
+        const img = ch.img ? `<img src="${C.esc(ch.img)}" alt="${C.esc(ch.name)}">` : "";
+        return `<div class="avatar ${on?'on':''}" style="--accent:${ch.accent}" onclick="VApp.synPick('${ch.id}')"><div class="ring">${img}</div><div class="nm">${C.esc(ch.name)}</div></div>`;
+      }).join("")}</div>`;
+      const intro = mode==='explore'
+        ? "Tap a crew member to see everyone they connect with — their bonds and paired techniques."
+        : "Tap two or more to see what they unlock together — paired techniques, bonds, trios, and the full crew's convergence.";
+      return `<div class="wrap section">
+        ${C.sectionHeader("The System","Synergy")}
+        <p class="mute" style="max-width:64ch;margin-top:1rem">Everyone draws on the same current, so abilities chain — one person's output is another's input. ${C.esc(intro)}</p>
+        ${tabs}
+        ${avatars}
+        <div class="syn-result" id="syn-result">${renderSynResult()}</div>
+        <div style="margin-top:1.5rem" class="mute" style="font-size:.8rem">Big synergies drain the area thin, and the Weave remembers. Power has a price.</div>
+      </div>`;
+    },
+
+    gallery() {
+      const items = galleryAll();
+      const f = galState.filters, sort = galState.sort;
+      let filtered = f.size ? items.filter(i => f.has(i.cat)) : items;
+      filtered = [...filtered];
+      if (sort === "fav") filtered.sort((a, b) => (likeCount(b.src) - likeCount(a.src)) || (isLiked(b.src) ? 1 : 0) - (isLiked(a.src) ? 1 : 0) || catRank(a.cat) - catRank(b.cat));
+      else filtered.sort((a, b) => catRank(a.cat) - catRank(b.cat)); // 'char' — grouped, A–Z
+      registerSet("gallery", filtered.map(i => ({ src: i.src, name: i.name })));
+      const cats = galCats();
+      const count = f.size;
+      const dd = `<div class="dropdown ${galState.dropdownOpen ? 'open' : ''}">
+        <button class="dd-btn" onclick="VApp.galDropdown()">Filter${count ? ` · ${count}` : ""} ▾</button>
+        <div class="dd-panel">
+          <button class="dd-all" onclick="VApp.galSetAll()">Show all</button>
+          ${cats.map(c => `<label class="dd-opt"><input type="checkbox" ${f.has(c) ? "checked" : ""} onchange="VApp.galToggleFilter('${C.esc(c)}')"> ${C.esc(c)}</label>`).join("")}
+        </div>
+      </div>`;
+      const sortSel = `<select class="dd-sort" onchange="VApp.galSort(this.value)">
+        <option value="char" ${sort === "char" ? "selected" : ""}>Sort: Character (A–Z)</option>
+        <option value="fav" ${sort === "fav" ? "selected" : ""}>Sort: Favorites first</option>
+      </select>`;
+      const grid = filtered.map((it, idx) =>
+        `<img src="${C.esc(it.src)}" class="${isGroupFav(it.src) ? 'liked' : ''}" alt="${C.esc(it.name)}" loading="lazy" onclick="VApp.lbOpen('gallery', ${idx})" />`).join("");
+      return `<div class="wrap section">
+        ${C.sectionHeader("Part Three","Gallery")}
+        <p class="mute" style="max-width:64ch;margin-top:1rem">${items.length} renders, grouped by character. Filter to anyone, choose a sort, ♥ favorites glow. Tap any image for the big view — then <strong>▦ All</strong> for a resizable grid.</p>
+        <div class="filters">${dd}${sortSel}</div>
+        <div class="masonry">${grid}</div>
+      </div>`;
+    },
+
+    lab() {
+      const cta = `<div class="panel cta-card" onclick="VApp.feedback('New mode idea','idea')">
+        <div class="eyebrow">Your turn</div>
+        <h3 style="margin:.3rem 0">＋ Pitch a game mode</h3>
+        <p class="mute">Got an idea for how Veilrun could play? Add it to the list.</p>
+      </div>`;
+      const cards = D.modes.map(C.modeCard).join("");
+      return `<div class="wrap section">
+        ${C.sectionHeader("The Lab","Game ideas, votes & experiments")}
+        <p class="mute" style="max-width:62ch;margin-top:1rem">Every concept on the table — vote, react, and (soon) play prototypes in place. Naming votes and ballots fold in here.</p>
+        <div class="grid cols-3" style="margin-top:1.5rem">${cta}${cards}</div>
+      </div>`;
+    },
+
+    updates() {
+      const list = D.updates.map(u => `<div class="kit-row"><span class="mute" style="font-size:.8rem">${C.esc(u.date)}</span><div>${C.esc(u.text)}</div></div>`).join("");
+      return `<div class="wrap section">${C.sectionHeader("Log","Updates")}<div class="panel" style="margin-top:1.5rem">${list}</div></div>`;
+    },
+
+    board() {
+      const b = window.VEILRUN.board;
+      if (!b) return stub("Board", "The roadmap board is loading.");
+      const priClass = p => p === "P1" ? "p1" : p === "P2" ? "p2" : "p3";
+      const cols = b.columns.map(col => `
+        <div class="bcol">
+          <div class="bcol-h">${C.esc(col.name)} <span class="mute">${col.cards.length}</span></div>
+          ${col.cards.map(c => `<div class="bcard">
+            <div class="bcard-t">${C.esc(c.t)}</div>
+            <div class="bcard-m"><span class="bid">${C.esc(c.id)}</span> ${c.pri ? `<span class="bpri ${priClass(c.pri)}">${C.esc(c.pri)}</span>` : ""} <span class="mute">${C.esc(c.who)}</span></div>
+          </div>`).join("")}
+        </div>`).join("");
+      return `<div class="wrap section">
+        ${C.sectionHeader("The plan","Board")}
+        <p class="mute" style="max-width:64ch;margin-top:1rem">Where things stand — updated ${C.esc(b.updated)}. This mirrors our working board so everyone can see progress and what's coming.</p>
+        <div class="board" style="margin-top:1.5rem">${cols}</div>
+        <div style="margin-top:1.2rem">${C.feedbackButton("Board / priorities")}</div>
+      </div>`;
+    },
+
+    design() {
+      const colorTokens = [
+        ["--ink","Ink base"],["--ink-2","Panel"],["--violet","Violet / Weave"],["--magenta","Magenta / Seam"],
+        ["--steel","Steel / Current"],["--amber","Amber"],["--cyan","Cyan"],["--white","Text"]
+      ].map(([v,l]) => `<div class="swatch"><div class="chip-color" style="background:var(${v})"></div><div class="lbl">${C.esc(l)}<br><code>var(${v})</code></div></div>`).join("");
+      const charColors = D.crew.map(c => `<div class="swatch"><div class="chip-color" style="background:${c.accent}"></div><div class="lbl">${C.esc(c.name)}<br><code>${C.esc(c.accent)}</code></div></div>`).join("");
+      return `<div class="wrap section">
+        ${C.sectionHeader("Foundations","Design system")}
+        <p class="mute" style="max-width:64ch;margin-top:1rem">The living style guide — every token and component in one place. This is where the whole look is controlled (edit <code>css/tokens.css</code>) and where a future theme switcher will plug in. It doubles as a showcase of the web components (and, later, in-game UI).</p>
+        ${C.seam()}
+        <h2>Core colors</h2>
+        <div class="swatches" style="margin-top:1rem">${colorTokens}</div>
+        <h2 style="margin-top:2rem">Character accents</h2>
+        <div class="swatches" style="margin-top:1rem">${charColors}</div>
+        ${C.seam()}
+        <h2>Type</h2>
+        <div class="panel" style="margin-top:1rem">
+          <h1 class="display">Display heading — Oswald</h1>
+          <h2>Secondary heading</h2>
+          <p class="eyebrow">Eyebrow label (caps, used sparingly)</p>
+          <p class="mute">Body copy is Inter. Sentence case everywhere; all-caps is reserved for tiny labels and the wordmark only.</p>
+        </div>
+        ${C.seam()}
+        <h2>Components</h2>
+        <div class="grid cols-2" style="margin-top:1rem">
+          <div class="panel">
+            <p class="mute" style="font-size:.8rem">Kit pills</p>
+            <div style="margin:.5rem 0">${C.kitRow("passive",{name:"Passive example",text:"An always-on trait."})}${C.kitRow("active",{name:"Active example",text:"A spendable ability."})}${C.kitRow("ult",{name:"Ultimate example",text:"The big one."})}</div>
+          </div>
+          <div class="panel">
+            <p class="mute" style="font-size:.8rem">Codename chips (with pick)</p>
+            <div style="margin:.5rem 0">${["Cinder","Saffron","Marrow"].map(c=>C.codenameChip(c,"Cinder")).join("")}</div>
+            <p class="mute" style="font-size:.8rem;margin-top:1rem">Seam divider</p>${C.seam()}
+            <p class="mute" style="font-size:.8rem">Feedback button</p><div>${C.feedbackButton("Design system")}</div>
+          </div>
+        </div>
+        <h2 style="margin-top:2rem">Card + synergy</h2>
+        <div class="grid cols-3" style="margin-top:1rem">
+          ${C.characterCard(D.crew[0])}
+          <div>${C.synItem({name:"Example synergy",text:"How two characters combine."}, D.crew[0].accent)}${C.synItem({name:"Another pairing",text:"A second combined effect."}, D.crew[4].accent)}</div>
+        </div>
+        <p class="mute" style="margin-top:2rem;font-size:.85rem">Note: a fuller brand pass (via Claude Design) can elevate this — see the packaged prompt in the docs (VEILRUN Claude Design Brief).</p>
+      </div>`;
+    }
+  };
+
+  // Shared "full" profile row — same component as Threats. Tile-click elsewhere; this view gets a button + image row.
+  function crewFullRow(ch) {
+    const imgs = (window.VEILRUN.galleries && window.VEILRUN.galleries[ch.id]) || (ch.img ? [ch.img] : []);
+    registerSet("cfull_" + ch.id, imgs.map(s => ({ src: s, name: ch.name })));
+    const mini = imgs.slice(0, 6).map((s, idx) => `<img src="${C.esc(s)}" alt="${C.esc(ch.name)}" loading="lazy" onclick="VApp.lbOpen('cfull_${ch.id}', ${idx})" />`).join("");
+    return `<div class="threat" style="--accent:${ch.accent}">
+      ${ch.img ? `<img class="t-img" src="${C.esc(ch.img)}" alt="${C.esc(ch.name)}" loading="lazy" onclick="location.hash='#crew/${ch.id}'" />` : ""}
+      <div class="t-body">
+        <div class="accent-bar"></div>
+        <div class="eyebrow" style="color:${ch.accent}">${C.esc(ch.role)}</div>
+        <h3 style="margin:.2rem 0">${C.esc(ch.name)}</h3>
+        <p class="mute">"${C.esc(ch.alias)}" · ${C.esc(ch.player)}</p>
+        <p class="mute" style="margin-top:.3rem">${C.esc(ch.tagline)}</p>
+        ${mini ? `<div class="mini-grid">${mini}</div>` : ""}
+        <a class="btn" href="#crew/${ch.id}">Open character →</a>
+      </div>
+    </div>`;
+  }
+
+  // ---- Threats views (mirror Crew: Tiles / Full / List) ----
+  const threatsState = { view: "full" };
+  function threatsView(v) { threatsState.view = v; view().innerHTML = views.threats(); window.scrollTo(0, 0); }
+  function threatCard(t) {
+    return `<div class="card" style="--accent:var(--magenta)" onclick="VApp.lbOpen('threat_${t.id}', 0)">
+      ${t.img ? `<img class="card-img" src="${C.esc(t.img)}" alt="${C.esc(t.name)}" loading="lazy" />` : ""}
+      <div class="body"><div class="accent-bar"></div><h3>${C.esc(t.name)}</h3><div class="role">${C.esc(t.tier)}</div></div>
+    </div>`;
+  }
+  function threatListRow(t) {
+    return `<div class="row" style="--accent:var(--magenta)" onclick="VApp.lbOpen('threat_${t.id}', 0)">
+      ${t.img ? `<img src="${C.esc(t.img)}" alt="${C.esc(t.name)}" loading="lazy" />` : `<span class="accent-dot"></span>`}
+      <div><div class="nm">${C.esc(t.name)}</div><div class="rl">${C.esc(t.tier)}</div></div>
+      <span class="accent-dot"></span>
+    </div>`;
+  }
+  function threatFullRow(t) {
+    return `<div class="threat">
+      ${t.img ? `<img class="t-img" src="${C.esc(t.img)}" alt="${C.esc(t.name)}" loading="lazy" onclick="VApp.lbOpen('threat_${t.id}', 0)" />` : ""}
+      <div class="t-body">
+        <div class="eyebrow">${C.esc(t.tier)}</div>
+        <h3 style="margin:.3rem 0">${C.esc(t.name)}</h3>
+        <p class="mute">${C.esc(t.desc)}</p>
+        <p class="mute" style="font-size:.78rem;margin-top:.5rem">Palette: ${C.esc(t.palette)}</p>
+        ${t.gallery && t.gallery.length > 1 ? `<div class="t-strip">${t.gallery.map((s, idx) => `<img src="${C.esc(s)}" onclick="VApp.lbOpen('threat_${t.id}', ${idx})" alt="${C.esc(t.name)}" loading="lazy" />`).join("")}</div>` : ""}
+        <p class="mute" style="font-size:.82rem;margin-top:.7rem;font-style:italic">Abilities not yet defined — got ideas for what this enemy should do?</p>
+        <div>${C.feedbackButton("Enemy idea: " + t.name)}</div>
+      </div>
+    </div>`;
+  }
+
+  function worldStrip() {
+    const w = (window.VEILRUN.galleryItems || []).filter(i => i.cat === "World");
+    if (!w.length) return "";
+    registerSet("world", w.map(i => ({ src: i.src, name: i.name })));
+    const imgs = w.map((it, idx) => `<img src="${C.esc(it.src)}" alt="${C.esc(it.name)}" loading="lazy" onclick="VApp.lbOpen('world', ${idx})" />`).join("");
+    return `${C.seam()}<h2>Environments</h2><p class="mute" style="margin-top:.3rem">More concept shots of the layers — tap to enlarge.</p><div class="gallery-strip" style="margin-top:1rem">${imgs}</div>`;
+  }
+
+  function stub(title, text) {
+    return `<div class="wrap section">${C.sectionHeader("Coming together", title)}
+      <div class="panel" style="margin-top:1.5rem"><p class="mute">${C.esc(text)}</p><div style="margin-top:1rem">${C.feedbackButton(title)}</div></div></div>`;
+  }
+
+  // re-render crew section in place (for view toggle)
+  function views_render_crew() { view().innerHTML = views.crew(); }
+  function crewView(v) { localStorage.setItem("vr_crewview", v); views_render_crew(); }
+
+  // ---- Character gallery flip-through ----
+  let synGalleryState = { id: null, imgs: [], i: 0 };
+  // Like state hydrated from Supabase on load: mine (this person), all (group), counts (for sorting).
+  let likeMine = new Set(), likeAll = new Set(), likeCounts = {};
+  const myWho = () => localStorage.getItem("vr_who") || "anon";
+  const likeKey = (src) => "vr_like:" + src;
+  const isLiked = (src) => likeMine.has(src) || localStorage.getItem(likeKey(src)) === "1";
+  const isGroupFav = (src) => likeAll.has(src) || isLiked(src);
+  const likeCount = (src) => likeCounts[src] || 0;
+  async function hydrateLikes() {
+    if (!window.VBackend) return;
+    const rows = await window.VBackend.loadLikes();
+    likeMine = new Set(); likeAll = new Set(); likeCounts = {};
+    const who = myWho();
+    rows.forEach(r => {
+      likeAll.add(r.image_src);
+      likeCounts[r.image_src] = (likeCounts[r.image_src] || 0) + 1;
+      if (r.who === who) likeMine.add(r.image_src);
+    });
+  }
+  function applyLikeLocal(src, liked) {
+    if (liked) { likeMine.add(src); likeAll.add(src); likeCounts[src] = (likeCounts[src] || 0) + 1; localStorage.setItem(likeKey(src), "1"); }
+    else { likeMine.delete(src); likeCounts[src] = Math.max(0, (likeCounts[src] || 0) - 1); if (!likeCounts[src]) likeAll.delete(src); localStorage.removeItem(likeKey(src)); }
+  }
+
+  function galleryViewer(ch) {
+    const g = synGalleryState;
+    if (!g.imgs.length) return ch.img ? `<img src="${C.esc(ch.img)}" alt="${C.esc(ch.name)}" />` : "";
+    registerSet("char_" + ch.id, g.imgs.map(s => ({ src: s, name: ch.name })));
+    const src = g.imgs[g.i];
+    const liked = isLiked(src);
+    const thumbs = g.imgs.map((s, idx) =>
+      `<img src="${C.esc(s)}" class="${idx === g.i ? 'on' : ''}" onclick="VApp.galGo(${idx})" alt="${C.esc(ch.name)} ${idx + 1}" loading="lazy" />`).join("");
+    return `
+      <div class="viewer" style="--accent:${ch.accent}">
+        <img src="${C.esc(src)}" alt="${C.esc(ch.name)}" onclick="VApp.lbOpen('char_${ch.id}', ${g.i})" />
+        ${g.imgs.length > 1 ? `<button class="arrow prev" onclick="VApp.galStep(-1)" aria-label="Previous">‹</button>
+        <button class="arrow next" onclick="VApp.galStep(1)" aria-label="Next">›</button>` : ""}
+        <span class="count">${g.i + 1} / ${g.imgs.length}</span>
+        <button class="like ${liked ? 'on' : ''}" onclick="VApp.galLike()">${liked ? '♥ Liked' : '♡ Like'}</button>
+      </div>
+      ${g.imgs.length > 1 ? `<div class="thumbs" style="--accent:${ch.accent}">${thumbs}</div>` : ""}`;
+  }
+
+  function rerenderViewer() {
+    const ch = chById(synGalleryState.id);
+    const host = document.querySelector(".char-hero > div:first-child");
+    if (host && ch) {
+      host.innerHTML = galleryViewer(ch);
+      const on = host.querySelector(".thumbs img.on");
+      if (on) on.scrollIntoView({ inline: "center", block: "nearest" });
+    }
+  }
+  function galStep(d) {
+    const n = synGalleryState.imgs.length; if (!n) return;
+    synGalleryState.i = (synGalleryState.i + d + n) % n; rerenderViewer();
+  }
+  function galGo(idx) { synGalleryState.i = idx; rerenderViewer(); }
+  function galLike() {
+    const g = synGalleryState, src = g.imgs[g.i];
+    const nowLiked = !isLiked(src);
+    applyLikeLocal(src, nowLiked);
+    if (window.VBackend) window.VBackend.toggleLike(src);
+    rerenderViewer();
+  }
+
+  // ---- Synergy explorer state + rendering ----
+  const synState = { mode: "explore", sel: [] };
+  const chById = (id) => D.crew.find(c => c.id === id);
+  const nameTag = (id) => { const c = chById(id); return `<span class="pair-with"><span class="dot" style="background:${c.accent}"></span>${C.esc(c.name)}</span>`; };
+  const subhead = (t) => `<h3 style="margin:1.2rem 0 .6rem">${C.esc(t)}</h3>`;
+
+  const cardPair = (p, otherId) => {
+    const oc = chById(otherId);
+    return `<div class="syn" style="--accent:${oc.accent}"><div class="syn-name">${C.esc(p.name)}</div><div class="pair-with" style="margin:.2rem 0">with ${nameTag(otherId)}</div><div class="mute">${C.esc(p.effect)}</div></div>`;
+  };
+  const cardPairBoth = (p) =>
+    `<div class="syn" style="--accent:${chById(p.a).accent}"><div class="syn-name">${C.esc(p.name)}</div><div class="pair-with" style="margin:.2rem 0">${nameTag(p.a)} + ${nameTag(p.b)}</div><div class="mute">${C.esc(p.effect)}</div></div>`;
+  const cardAura = (a) =>
+    `<div class="syn" style="--accent:${chById(a.members[0]).accent}"><div class="syn-name">${C.esc(a.name)} <span class="syn-tag">aura · ${C.esc(a.rel)}</span></div><div class="pair-with" style="margin:.2rem 0">${a.members.map(nameTag).join(" + ")}</div><div class="mute">${C.esc(a.effect)}</div></div>`;
+  const cardUni = (u) =>
+    `<div class="syn" style="--accent:${chById(u.member).accent}"><div class="syn-name">${C.esc(u.name)} <span class="syn-tag">field · all allies</span></div><div class="pair-with" style="margin:.2rem 0">${nameTag(u.member)}</div><div class="mute">${C.esc(u.effect)}</div></div>`;
+  const cardTrio = (t) =>
+    `<div class="syn" style="--accent:var(--magenta)"><div class="syn-name">${C.esc(t.name)} <span class="syn-tag">trio</span></div><div class="pair-with" style="margin:.2rem 0">${t.members.map(nameTag).join(" + ")}</div><div class="mute">${C.esc(t.effect)}</div></div>`;
+
+  function renderSynResult() {
+    const S = D.synergy, sel = synState.sel;
+    if (synState.mode === "explore") {
+      if (!sel.length) return `<p class="hint">Pick a crew member above.</p>`;
+      const id = sel[0], ch = chById(id);
+      const uni = S.universal.filter(u => u.member === id);
+      const auras = S.auras.filter(a => a.members.includes(id));
+      const pairs = S.pairs.filter(p => p.a === id || p.b === id);
+      const trios = S.trios.filter(t => t.members.includes(id));
+      let out = `<h2 style="color:${ch.accent}">${C.esc(ch.name)}'s connections</h2>`;
+      if (uni.length) out += subhead("Field (helps everyone nearby)") + uni.map(cardUni).join("");
+      if (auras.length) out += subhead("Always-on bonds") + auras.map(cardAura).join("");
+      out += subhead("Paired techniques") + pairs.map(p => cardPair(p, p.a === id ? p.b : p.a)).join("");
+      if (trios.length) out += subhead("Trios they anchor") + trios.map(cardTrio).join("");
+      return out;
+    }
+    // build mode
+    if (sel.length < 2) return `<p class="hint">Pick two or more crew members to combine.</p>`;
+    const set = new Set(sel);
+    const pairs = S.pairs.filter(p => set.has(p.a) && set.has(p.b));
+    const auras = S.auras.filter(a => a.members.every(m => set.has(m)));
+    const uni = S.universal.filter(u => set.has(u.member));
+    const trios = S.trios.filter(t => t.members.every(m => set.has(m)));
+    const chorus = sel.length === 9;
+    let out = `<h2>${sel.map(id => chById(id).name).join(" + ")}</h2>`;
+    if (chorus) out += `<div class="panel" style="border-color:var(--magenta);margin:1rem 0"><div class="eyebrow">Full Chorus</div><p class="mute">${C.esc(S.fullChorus)}</p></div>`;
+    if (trios.length) out += subhead("Trio convergence") + trios.map(cardTrio).join("");
+    if (auras.length) out += subhead("Bonds active") + auras.map(cardAura).join("");
+    if (uni.length) out += subhead("Fields active") + uni.map(cardUni).join("");
+    if (pairs.length) out += subhead("Paired techniques") + pairs.map(cardPairBoth).join("");
+    if (!pairs.length && !auras.length && !trios.length && !uni.length)
+      out += `<p class="hint">No direct combo between these yet — try adding Latch (he amplifies everyone) or a bonded pair.</p>`;
+    return out;
+  }
+
+  function renderSyn() { view().innerHTML = views.synergy(); }
+  function synMode(m) { synState.mode = m; if (m === "explore" && synState.sel.length > 1) synState.sel = [synState.sel[0]]; renderSyn(); }
+  function synPick(id) {
+    if (synState.mode === "explore") synState.sel = (synState.sel[0] === id) ? [] : [id];
+    else { const i = synState.sel.indexOf(id); if (i >= 0) synState.sel.splice(i, 1); else synState.sel.push(id); }
+    renderSyn();
+  }
+
+  // ---- Gallery + lightbox (registry-based, swipeable) ----
+  const galState = { filters: new Set(), sort: "char", dropdownOpen: false };
+  let lbState = { list: [], i: 0, mode: "single" };
+  const lbSets = {};
+  function registerSet(key, arr) { lbSets[key] = arr; }
+  function galleryAll() {
+    const out = [], G = window.VEILRUN.galleries || {};
+    D.crew.forEach(ch => (G[ch.id] || []).forEach(src => out.push({ src, cat: ch.name, name: ch.name })));
+    (window.VEILRUN.galleryItems || []).forEach(it => out.push(it));
+    return out;
+  }
+  const crewNames = () => D.crew.map(c => c.name);
+  function galCats() { return [...crewNames(), "World", "Enemy"]; }
+  function catRank(cat) { const cn = crewNames().slice().sort(); const i = cn.indexOf(cat); if (i >= 0) return i; return cat === "World" ? 100 : 101; }
+  function galRender() { view().innerHTML = views.gallery(); }
+  function galDropdown() { galState.dropdownOpen = !galState.dropdownOpen; galRender(); }
+  function galSetAll() { galState.filters.clear(); galRender(); }
+  function galToggleFilter(cat) { const f = galState.filters; if (f.has(cat)) f.delete(cat); else f.add(cat); galRender(); }
+  function galSort(v) { galState.sort = v; galRender(); }
+  function lbOpen(key, idx) {
+    const list = lbSets[key] || [];
+    if (!list.length) return;
+    lbState = { list, i: idx || 0, mode: "single" };
+    const el = document.getElementById("lightbox");
+    el.classList.add("open"); el.classList.remove("grid");
+    renderLightbox();
+  }
+  function renderLightbox() {
+    const el = document.getElementById("lightbox"); if (!el) return;
+    el.classList.toggle("grid", lbState.mode === "grid");
+    const modeBtn = el.querySelector("#lb-mode");
+    if (modeBtn) modeBtn.textContent = lbState.mode === "grid" ? "◻ Single" : "▦ All";
+    if (lbState.mode === "grid") {
+      const g = el.querySelector("#lb-grid");
+      g.innerHTML = lbState.list.map((it, idx) =>
+        `<img src="${C.esc(it.src)}" class="${isGroupFav(it.src) ? 'liked' : ''}" alt="${C.esc(it.name)}" loading="lazy" onclick="VApp.lbPick(${idx})" />`).join("");
+    } else {
+      const it = lbState.list[lbState.i];
+      el.querySelector(".lb-img").src = it.src;
+      el.querySelector(".lb-cap").textContent = it.name + " · " + (lbState.i + 1) + " / " + lbState.list.length;
+      const lk = el.querySelector(".lb-like");
+      if (lk) { const on = isLiked(it.src); lk.classList.toggle("on", on); lk.textContent = on ? "♥ Liked" : "♡ Like"; }
+    }
+  }
+  function lbToggleMode() { lbState.mode = lbState.mode === "grid" ? "single" : "grid"; renderLightbox(); }
+  function lbPick(idx) { lbState.i = idx; lbState.mode = "single"; renderLightbox(); }
+  function lbSize(v) { const g = document.getElementById("lb-grid"); if (g) g.style.setProperty("--lb-size", v + "px"); }
+  function lbLike() {
+    const src = lbState.list[lbState.i] && lbState.list[lbState.i].src; if (!src) return;
+    const nowLiked = !isLiked(src);
+    applyLikeLocal(src, nowLiked);
+    if (window.VBackend) window.VBackend.toggleLike(src);
+    renderLightbox();
+  }
+  function lbStep(d) { const n = lbState.list.length; if (!n) return; lbState.i = (lbState.i + d + n) % n; renderLightbox(); }
+  function lbClose() { const el = document.getElementById("lightbox"); if (el) el.classList.remove("open"); }
+  function lbIsOpen() { const el = document.getElementById("lightbox"); return el && el.classList.contains("open"); }
+
+  // ---- Feedback modal ----
+  let fbCtx = { context: "", type: "idea" };
+  function feedback(context, type) {
+    fbCtx = { context: context || "", type: type || "idea" };
+    const el = document.getElementById("fbmodal"); if (!el) return;
+    const title = context && context.indexOf("mode idea") > -1 ? "Pitch a game mode"
+      : context && context.indexOf("General") > -1 ? "Share a thought"
+      : context ? "Share feedback" : "Share a thought";
+    el.querySelector("#fb-title").textContent = title;
+    el.querySelector("#fb-context").textContent = context ? "About: " + context : "General — anything on your mind.";
+    el.querySelector("#fb-type").value = fbCtx.type;
+    el.querySelector("#fb-note").value = "";
+    const sel = el.querySelector("#fb-who");
+    sel.value = localStorage.getItem("vr_who") || "";
+    fbWhoChange();
+    el.classList.add("open");
+    setTimeout(() => el.querySelector("#fb-note").focus(), 50);
+  }
+  function fbWhoChange() {
+    const el = document.getElementById("fbmodal");
+    const other = el.querySelector("#fb-who").value === "__other__";
+    el.querySelector("#fb-who-other").style.display = other ? "block" : "none";
+  }
+  function fbClose() { const el = document.getElementById("fbmodal"); if (el) el.classList.remove("open"); }
+  function fbSubmit() {
+    const el = document.getElementById("fbmodal");
+    let who = el.querySelector("#fb-who").value;
+    if (who === "__other__") who = el.querySelector("#fb-who-other").value.trim() || "someone";
+    if (!who) { el.querySelector("#fb-who").focus(); return; }
+    const type = el.querySelector("#fb-type").value;
+    const note = el.querySelector("#fb-note").value.trim();
+    if (!note) { el.querySelector("#fb-note").focus(); return; }
+    localStorage.setItem("vr_who", who);
+    const log = JSON.parse(localStorage.getItem("vr_feedback") || "[]");
+    log.push({ who, context: fbCtx.context, note, type, at: new Date().toISOString() });
+    localStorage.setItem("vr_feedback", JSON.stringify(log));
+    if (window.VBackend) window.VBackend.submitFeedback(fbCtx.context, note, type);
+    fbClose();
+    toast(window.VBackend ? "Thanks — sent!" : "Saved locally (backend offline).");
+  }
+  function toast(msg) {
+    let t = document.getElementById("vtoast");
+    if (!t) { t = document.createElement("div"); t.id = "vtoast"; t.className = "toast"; document.body.appendChild(t); }
+    t.textContent = msg; t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 2600);
+  }
+
+  function route() {
+    if (!requireGate()) return;
+    const hash = (location.hash || "#hub").slice(1);
+    const [name, arg] = hash.split("/");
+    let html;
+    if (name === "crew" && arg) html = views.character(arg);
+    else if (views[name]) html = views[name]();
+    else html = views.hub();
+    view().innerHTML = html;
+    document.querySelectorAll(".nav a[data-route]").forEach(a =>
+      a.classList.toggle("active", a.getAttribute("href") === "#" + name));
+    document.getElementById("navlinks")?.classList.remove("open");
+    window.scrollTo(0, 0);
+  }
+
+  function initLightboxGestures() {
+    const lb = document.getElementById("lightbox");
+    if (!lb) return;
+    let sx = 0, sy = 0;
+    lb.addEventListener("touchstart", e => { sx = e.changedTouches[0].clientX; sy = e.changedTouches[0].clientY; }, { passive: true });
+    lb.addEventListener("touchend", e => {
+      const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+      if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) lbStep(dx < 0 ? 1 : -1);
+    }, { passive: true });
+    document.addEventListener("keydown", e => {
+      if (!lbIsOpen()) return;
+      if (e.key === "ArrowRight") lbStep(1);
+      else if (e.key === "ArrowLeft") lbStep(-1);
+      else if (e.key === "Escape") lbClose();
+    });
+  }
+
+  function init() {
+    if (!requireGate()) return;
+    const sel = document.getElementById("fb-who");
+    if (sel) sel.innerHTML = '<option value="">— pick your name —</option>'
+      + D.crew.map(c => `<option value="${C.esc(c.name)}">${C.esc(c.name)} (${C.esc(c.player)})</option>`).join("")
+      + '<option value="__other__">Someone else…</option>';
+    window.addEventListener("hashchange", route); initLightboxGestures();
+    route();
+    hydrateLikes().then(() => route()); // load group likes, then re-render so hearts/favorites show
+  }
+
+  return { init, route, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView };
+})();
+document.addEventListener("DOMContentLoaded", VApp.init);

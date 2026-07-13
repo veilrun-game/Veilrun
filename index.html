@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VEILRUN</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/tokens.css" />
+  <link rel="stylesheet" href="css/base.css" />
+</head>
+<body>
+  <div class="seam-v"></div>
+  <main class="landing">
+    <div class="wrap">
+      <p class="eyebrow">A game built around us</p>
+      <h1 class="display" style="font-size: var(--fs-hero); margin-top: var(--s-4);">VEIL<span style="color:var(--magenta)">RUN</span></h1>
+      <p class="tag">Two halves of a breaking world. One crew fluent in both.</p>
+      <form class="gate" id="gate" autocomplete="off">
+        <input type="password" id="pw" placeholder="Enter passphrase" aria-label="Passphrase" />
+        <button class="btn" type="submit">Enter</button>
+      </form>
+      <div class="err" id="err"></div>
+      <p class="mute" style="margin-top: var(--s-8); font-size: var(--fs-small);">Private concept preview · not final</p>
+    </div>
+  </main>
+
+  <script>
+    // SOFT GATE ONLY — not real security (source is viewable). Real gating happens at the host on deploy.
+    // Change the passphrase here. On correct entry we set a session flag and open the app.
+    const PASSPHRASE = "bothsides"; // TODO: Jordan to change; real auth at deploy (Netlify/Cloudflare).
+    document.getElementById('gate').addEventListener('submit', function (e) {
+      e.preventDefault();
+      const val = document.getElementById('pw').value.trim().toLowerCase();
+      if (val === PASSPHRASE) {
+        sessionStorage.setItem('vr_ok', '1');
+        window.location.href = 'app.html#hub';
+      } else {
+        document.getElementById('err').textContent = "The seam doesn't open for that.";
+      }
+    });
+  </script>
+</body>
+</html>
