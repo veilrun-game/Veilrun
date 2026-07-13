@@ -205,6 +205,7 @@ h3 { font-size: 1.3rem; }
 .dropdown { position: relative; }
 .dd-btn, .dd-sort { background: var(--ink-2); color: var(--white); border: 1px solid var(--line);
   border-radius: var(--radius-sm); padding: var(--s-2) var(--s-4); cursor: pointer; font-family: var(--font-body); font-size: 0.85rem; }
+.favtoggle.active { background: rgba(214,92,220,0.18); border-color: var(--magenta); color: var(--magenta); }
 .dd-panel { display: none; position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; background: var(--ink-2);
   border: 1px solid var(--line); border-radius: var(--radius-sm); padding: var(--s-3); min-width: 210px;
   max-height: 340px; overflow-y: auto; box-shadow: var(--shadow); }

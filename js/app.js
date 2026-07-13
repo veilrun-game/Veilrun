@@ -231,6 +231,7 @@ window.VApp = (function () {
       const items = galleryAll();
       const f = galState.filters, sort = galState.sort;
       let filtered = f.size ? items.filter(i => f.has(i.cat)) : items;
+      if (galState.favOnly) filtered = filtered.filter(i => isGroupFav(i.src));
       filtered = [...filtered];
       if (sort === "fav") filtered.sort((a, b) => (likeCount(b.src) - likeCount(a.src)) || (isLiked(b.src) ? 1 : 0) - (isLiked(a.src) ? 1 : 0) || catRank(a.cat) - catRank(b.cat));
       else filtered.sort((a, b) => catRank(a.cat) - catRank(b.cat)); // 'char' — grouped, A–Z
@@ -251,12 +252,15 @@ window.VApp = (function () {
         <option value="char" ${sort === "char" ? "selected" : ""}>Sort: Character (A–Z)</option>
         <option value="fav" ${sort === "fav" ? "selected" : ""}>Sort: Favorites first</option>
       </select>`;
-      const grid = shown.map((it, idx) => galItemHTML(it, idx, `VApp.lbOpen('gallery', ${idx})`)).join("");
+      const favBtn = `<button class="dd-btn favtoggle ${galState.favOnly ? "active" : ""}" onclick="VApp.galFavOnly()">${galState.favOnly ? "★" : "☆"} Favorites only</button>`;
+      const grid = shown.length
+        ? shown.map((it, idx) => galItemHTML(it, idx, `VApp.lbOpen('gallery', ${idx})`)).join("")
+        : `<p class="hint" style="grid-column:1/-1">No favorites yet — ♥ images and they'll collect here.</p>`;
       const more = hasMore ? `<div id="gal-more"><div id="gal-sentinel" style="height:1px"></div><div style="text-align:center;margin-top:1rem"><button class="btn ghost" onclick="VApp.galMore()">Load more</button></div></div>` : "";
       return `<div class="wrap section">
         ${C.sectionHeader("Part Three","Gallery")}
         <p class="mute" style="max-width:64ch;margin-top:1rem">${items.length} renders, grouped by character. Filter to anyone, choose a sort, ♥ favorites glow. Tap any image for the big view — then <strong>▦ All</strong> for a resizable grid.</p>
-        <div class="filters">${dd}${sortSel}</div>
+        <div class="filters">${dd}${sortSel}${favBtn}</div>
         <div class="masonry" id="masonry">${grid}</div>
         ${more}
         <p class="mute" id="gal-count" style="text-align:center;margin-top:.8rem;font-size:.8rem">Showing ${shown.length} of ${filtered.length}</p>
@@ -544,7 +548,7 @@ window.VApp = (function () {
   }
 
   // ---- Gallery + lightbox (registry-based, swipeable) ----
-  const galState = { filters: new Set(), sort: "char", dropdownOpen: false, limit: 24, _filtered: [] };
+  const galState = { filters: new Set(), sort: "char", dropdownOpen: false, limit: 24, _filtered: [], favOnly: false };
   let galObserver = null;
   let lbState = { list: [], i: 0, mode: "single" };
   const lbSets = {};
@@ -568,6 +572,7 @@ window.VApp = (function () {
   function galSetAll() { galState.filters.clear(); galState.limit = 24; galRender(); }
   function galToggleFilter(cat) { const f = galState.filters; if (f.has(cat)) f.delete(cat); else f.add(cat); galState.limit = 24; galRender(); }
   function galSort(v) { galState.sort = v; galState.limit = 24; galRender(); }
+  function galFavOnly() { galState.favOnly = !galState.favOnly; galState.limit = 24; galRender(); }
   function setupGalleryLazy() {
     if (galObserver) { galObserver.disconnect(); galObserver = null; }
     const s = document.getElementById("gal-sentinel"); if (!s) return;
@@ -728,6 +733,6 @@ window.VApp = (function () {
   }
 
   const galMore = galLoadMore;
-  return { init, route, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView };
+  return { init, route, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavOnly, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);

@@ -27,7 +27,7 @@ VEILRUN.world = {
 
 VEILRUN.crew = [
   {
-    id: "saffron", name: "Cinder", player: "Zach", alias: "Soviet", accent: "var(--c-saffron)",
+    id: "saffron", name: "Cinder", player: "Zack", alias: "Soviet", accent: "var(--c-saffron)",
     img: "assets/img/saffron.png", pick: "Cinder",
     role: "Alchemist-Infiltrator", tagline: "The Cook — chemistry, brews, and quiet kills.",
     lore: "The chef whose pharmacology lets him pass unseen or drop a target without a sound. In the Weave, his cooking reads as alchemy.",
@@ -234,6 +234,8 @@ VEILRUN.modes = [
 VEILRUN.cover = "assets/img/cover.png";
 
 VEILRUN.updates = [
+  { date: "2026-07-13", text: "Gallery now has a ☆ Favorites-only filter — flip it on to see just the shots the group has ♥'d, so it's easy to spot what's moving forward." },
+  { date: "2026-07-13", text: "New environment art! The Overcity, Underweft, Seam, and Thinned were re-rendered so both worlds feel like one universe — grounded and photoreal, the tech side warm and real with arcane light bleeding in, the Weave side lifelike despite the magic." },
   { date: "2026-07-13", text: "Gallery now loads in batches as you scroll (much faster), Threats have detail pages (with a 'suggest an ability' CTA), and favorites show as group-wide across everyone's devices. Bishop added as a Vesper codename option." },
   { date: "2026-07-13", text: "Likes now stick — favorites load from the database on every visit, so ♥'d images stay ♥'d across your phone and laptop, and group favorites glow for everyone." },
   { date: "2026-07-13", text: "World: tap a layer (Overcity, Underweft, Seam, Thinned) to page through its concept art; tiles no longer overflow." },
