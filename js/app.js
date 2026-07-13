@@ -32,7 +32,7 @@ window.VApp = (function () {
               <p class="eyebrow">Latest update · ${C.esc(latest.date)}</p>
               <h2 style="margin:.4rem 0">${C.esc(latest.text)}</h2>
               <p class="mute">Dig in below, and react to anything — it only works if it's ours.</p>
-              <div style="margin-top:1rem"><a class="btn" href="#crew">Meet the crew</a> <button class="btn ghost" onclick="VApp.feedback('General thought','idea')">＋ Share a thought</button></div>
+              <div class="hero-btns"><a class="btn" href="#crew">Meet the crew</a> <button class="btn ghost" onclick="VApp.feedback('General thought','idea')">＋ Share a thought</button></div>
             </div>
           </div>
         </section>
@@ -40,8 +40,10 @@ window.VApp = (function () {
           <div class="jump">${jumps}</div>
           ${C.seam()}
           <h2>Latest updates</h2>
-          <div class="panel" style="margin-top:1rem">${D.updates.slice(0, 6).map(u => `<div class="kit-row"><span class="mute" style="font-size:.8rem">${C.esc(u.date)}</span><div>${C.esc(u.text)}</div></div>`).join("")}</div>
-          ${D.updates.length > 6 ? `<div style="margin-top:.8rem"><a class="btn ghost" href="#updates">See all updates →</a></div>` : ""}
+          <div class="panel" style="margin-top:1rem">
+            ${D.updates.slice(0, 6).map(u => `<div class="kit-row"><span class="mute" style="font-size:.8rem">${C.esc(u.date)}</span><div>${C.esc(u.text)}</div></div>`).join("")}
+            ${D.updates.length > 6 ? `<div style="text-align:center;margin-top:var(--s-6)"><a class="btn ghost" href="#updates">See all updates →</a></div>` : ""}
+          </div>
           <div class="panel" style="margin-top:1.5rem;border-color:var(--violet)">
             <div class="eyebrow">See what's next</div>
             <h3 style="margin:.3rem 0">The Board</h3>
@@ -120,7 +122,7 @@ window.VApp = (function () {
       const chips = ch.codenames.map(c => C.codenameChip(c, ch.pick)).join("");
       const pickNote = ch.pick ? `<p class="mute" style="font-size:.85rem;margin-top:.4rem">Current lean: <strong style="color:${ch.accent}">${C.esc(ch.pick)}</strong></p>` : "";
       const raw = (window.VEILRUN.galleries && window.VEILRUN.galleries[ch.id]) || (ch.img ? [ch.img] : []);
-      const imgs = [...raw].sort((a, b) => (isLiked(b) ? 1 : 0) - (isLiked(a) ? 1 : 0));
+      const imgs = [...raw].sort((a, b) => (isGroupFav(b) ? 1 : 0) - (isGroupFav(a) ? 1 : 0));
       synGalleryState = { id: ch.id, imgs, i: 0 };
       // Structured synergies with the partner emphasized (same cards as the explorer)
       const S = D.synergy;
@@ -175,6 +177,32 @@ window.VApp = (function () {
       </div>`;
     },
 
+    threat(id) {
+      const t = (D.threats || []).find(x => x.id === id);
+      if (!t) return views.threats();
+      registerSet("threat_" + t.id, (t.gallery || []).map(s => ({ src: s, name: t.name })));
+      const thumbs = (t.gallery || []).map((s, idx) => `<img src="${C.esc(s)}" onclick="VApp.lbOpen('threat_${t.id}', ${idx})" alt="${C.esc(t.name)}" loading="lazy" />`).join("");
+      return `<div class="wrap section" style="--accent:var(--magenta)">
+        <a href="#threats" class="mute" style="font-size:.85rem">← All threats</a>
+        <div class="char-hero" style="margin:1rem 0">
+          <div>${t.img ? `<img src="${C.esc(t.img)}" alt="${C.esc(t.name)}" style="border-radius:var(--radius);border:1px solid var(--line);cursor:zoom-in" onclick="VApp.lbOpen('threat_${t.id}', 0)" />` : ""}</div>
+          <div>
+            <div class="eyebrow">${C.esc(t.tier)}</div>
+            <h1 class="display" style="font-size:var(--fs-h1)">${C.esc(t.name)}</h1>
+            <p class="mute" style="margin-top:.3rem">Palette: ${C.esc(t.palette)}</p>
+            <p style="max-width:52ch;margin-top:.8rem">${C.esc(t.desc)}</p>
+          </div>
+        </div>
+        ${thumbs ? `<div class="gallery-strip">${thumbs}</div>` : ""}
+        <div class="panel" style="margin-top:1.5rem;border-color:var(--magenta)">
+          <div class="eyebrow">Abilities</div>
+          <h3 style="margin:.3rem 0">TBD</h3>
+          <p class="mute">This enemy's kit hasn't been designed yet. What should it do — attacks, behaviors, a gimmick? Pitch it.</p>
+          <div style="margin-top:.8rem">${C.feedbackButton("Enemy idea: " + t.name)}</div>
+        </div>
+      </div>`;
+    },
+
     synergy() {
       const mode = synState.mode;
       const tabs = `<div class="mode-tabs">
@@ -207,6 +235,9 @@ window.VApp = (function () {
       if (sort === "fav") filtered.sort((a, b) => (likeCount(b.src) - likeCount(a.src)) || (isLiked(b.src) ? 1 : 0) - (isLiked(a.src) ? 1 : 0) || catRank(a.cat) - catRank(b.cat));
       else filtered.sort((a, b) => catRank(a.cat) - catRank(b.cat)); // 'char' — grouped, A–Z
       registerSet("gallery", filtered.map(i => ({ src: i.src, name: i.name })));
+      galState._filtered = filtered;
+      const shown = filtered.slice(0, galState.limit);
+      const hasMore = filtered.length > galState.limit;
       const cats = galCats();
       const count = f.size;
       const dd = `<div class="dropdown ${galState.dropdownOpen ? 'open' : ''}">
@@ -220,13 +251,15 @@ window.VApp = (function () {
         <option value="char" ${sort === "char" ? "selected" : ""}>Sort: Character (A–Z)</option>
         <option value="fav" ${sort === "fav" ? "selected" : ""}>Sort: Favorites first</option>
       </select>`;
-      const grid = filtered.map((it, idx) =>
-        `<img src="${C.esc(it.src)}" class="${isGroupFav(it.src) ? 'liked' : ''}" alt="${C.esc(it.name)}" loading="lazy" onclick="VApp.lbOpen('gallery', ${idx})" />`).join("");
+      const grid = shown.map((it, idx) => galItemHTML(it, idx, `VApp.lbOpen('gallery', ${idx})`)).join("");
+      const more = hasMore ? `<div id="gal-more"><div id="gal-sentinel" style="height:1px"></div><div style="text-align:center;margin-top:1rem"><button class="btn ghost" onclick="VApp.galMore()">Load more</button></div></div>` : "";
       return `<div class="wrap section">
         ${C.sectionHeader("Part Three","Gallery")}
         <p class="mute" style="max-width:64ch;margin-top:1rem">${items.length} renders, grouped by character. Filter to anyone, choose a sort, ♥ favorites glow. Tap any image for the big view — then <strong>▦ All</strong> for a resizable grid.</p>
         <div class="filters">${dd}${sortSel}</div>
-        <div class="masonry">${grid}</div>
+        <div class="masonry" id="masonry">${grid}</div>
+        ${more}
+        <p class="mute" id="gal-count" style="text-align:center;margin-top:.8rem;font-size:.8rem">Showing ${shown.length} of ${filtered.length}</p>
       </div>`;
     },
 
@@ -338,13 +371,13 @@ window.VApp = (function () {
   const threatsState = { view: "full" };
   function threatsView(v) { threatsState.view = v; view().innerHTML = views.threats(); window.scrollTo(0, 0); }
   function threatCard(t) {
-    return `<div class="card" style="--accent:var(--magenta)" onclick="VApp.lbOpen('threat_${t.id}', 0)">
+    return `<div class="card" style="--accent:var(--magenta)" onclick="location.hash='#threats/${t.id}'">
       ${t.img ? `<img class="card-img" src="${C.esc(t.img)}" alt="${C.esc(t.name)}" loading="lazy" />` : ""}
       <div class="body"><div class="accent-bar"></div><h3>${C.esc(t.name)}</h3><div class="role">${C.esc(t.tier)}</div></div>
     </div>`;
   }
   function threatListRow(t) {
-    return `<div class="row" style="--accent:var(--magenta)" onclick="VApp.lbOpen('threat_${t.id}', 0)">
+    return `<div class="row" style="--accent:var(--magenta)" onclick="location.hash='#threats/${t.id}'">
       ${t.img ? `<img src="${C.esc(t.img)}" alt="${C.esc(t.name)}" loading="lazy" />` : `<span class="accent-dot"></span>`}
       <div><div class="nm">${C.esc(t.name)}</div><div class="rl">${C.esc(t.tier)}</div></div>
       <span class="accent-dot"></span>
@@ -360,7 +393,7 @@ window.VApp = (function () {
         <p class="mute" style="font-size:.78rem;margin-top:.5rem">Palette: ${C.esc(t.palette)}</p>
         ${t.gallery && t.gallery.length > 1 ? `<div class="t-strip">${t.gallery.map((s, idx) => `<img src="${C.esc(s)}" onclick="VApp.lbOpen('threat_${t.id}', ${idx})" alt="${C.esc(t.name)}" loading="lazy" />`).join("")}</div>` : ""}
         <p class="mute" style="font-size:.82rem;margin-top:.7rem;font-style:italic">Abilities not yet defined — got ideas for what this enemy should do?</p>
-        <div>${C.feedbackButton("Enemy idea: " + t.name)}</div>
+        <div style="display:flex;gap:var(--s-3);flex-wrap:wrap;align-items:center;margin-top:.4rem">${C.feedbackButton("Enemy idea: " + t.name)}<a class="btn ghost" href="#threats/${t.id}">Open →</a></div>
       </div>
     </div>`;
   }
@@ -412,7 +445,7 @@ window.VApp = (function () {
     if (!g.imgs.length) return ch.img ? `<img src="${C.esc(ch.img)}" alt="${C.esc(ch.name)}" />` : "";
     registerSet("char_" + ch.id, g.imgs.map(s => ({ src: s, name: ch.name })));
     const src = g.imgs[g.i];
-    const liked = isLiked(src);
+    const liked = isGroupFav(src);
     const thumbs = g.imgs.map((s, idx) =>
       `<img src="${C.esc(s)}" class="${idx === g.i ? 'on' : ''}" onclick="VApp.galGo(${idx})" alt="${C.esc(ch.name)} ${idx + 1}" loading="lazy" />`).join("");
     return `
@@ -421,7 +454,7 @@ window.VApp = (function () {
         ${g.imgs.length > 1 ? `<button class="arrow prev" onclick="VApp.galStep(-1)" aria-label="Previous">‹</button>
         <button class="arrow next" onclick="VApp.galStep(1)" aria-label="Next">›</button>` : ""}
         <span class="count">${g.i + 1} / ${g.imgs.length}</span>
-        <button class="like ${liked ? 'on' : ''}" onclick="VApp.galLike()">${liked ? '♥ Liked' : '♡ Like'}</button>
+        <button class="like ${liked ? 'on' : ''}" onclick="VApp.galLike()">${liked ? ('♥ ' + (likeCount(src) || 1)) : '♡ Like'}</button>
       </div>
       ${g.imgs.length > 1 ? `<div class="thumbs" style="--accent:${ch.accent}">${thumbs}</div>` : ""}`;
   }
@@ -511,7 +544,8 @@ window.VApp = (function () {
   }
 
   // ---- Gallery + lightbox (registry-based, swipeable) ----
-  const galState = { filters: new Set(), sort: "char", dropdownOpen: false };
+  const galState = { filters: new Set(), sort: "char", dropdownOpen: false, limit: 24, _filtered: [] };
+  let galObserver = null;
   let lbState = { list: [], i: 0, mode: "single" };
   const lbSets = {};
   function registerSet(key, arr) { lbSets[key] = arr; }
@@ -521,14 +555,47 @@ window.VApp = (function () {
     (window.VEILRUN.galleryItems || []).forEach(it => out.push(it));
     return out;
   }
+  function galItemHTML(it, idx, opener) {
+    const c = likeCount(it.src);
+    const badge = c > 1 ? `<span class="likebadge">♥ ${c}</span>` : "";
+    return `<div class="gitem ${isGroupFav(it.src) ? 'liked' : ''}"><img src="${C.esc(it.src)}" alt="${C.esc(it.name)}" loading="lazy" onclick="${opener}" />${badge}</div>`;
+  }
   const crewNames = () => D.crew.map(c => c.name);
   function galCats() { return [...crewNames(), "World", "Enemy"]; }
   function catRank(cat) { const cn = crewNames().slice().sort(); const i = cn.indexOf(cat); if (i >= 0) return i; return cat === "World" ? 100 : 101; }
-  function galRender() { view().innerHTML = views.gallery(); }
+  function galRender() { view().innerHTML = views.gallery(); setupGalleryLazy(); }
   function galDropdown() { galState.dropdownOpen = !galState.dropdownOpen; galRender(); }
-  function galSetAll() { galState.filters.clear(); galRender(); }
-  function galToggleFilter(cat) { const f = galState.filters; if (f.has(cat)) f.delete(cat); else f.add(cat); galRender(); }
-  function galSort(v) { galState.sort = v; galRender(); }
+  function galSetAll() { galState.filters.clear(); galState.limit = 24; galRender(); }
+  function galToggleFilter(cat) { const f = galState.filters; if (f.has(cat)) f.delete(cat); else f.add(cat); galState.limit = 24; galRender(); }
+  function galSort(v) { galState.sort = v; galState.limit = 24; galRender(); }
+  function setupGalleryLazy() {
+    if (galObserver) { galObserver.disconnect(); galObserver = null; }
+    const s = document.getElementById("gal-sentinel"); if (!s) return;
+    galObserver = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) galLoadMore(); }, { rootMargin: "800px" });
+    galObserver.observe(s);
+  }
+  function galLoadMore() {
+    const f = galState._filtered || []; const start = galState.limit;
+    if (start >= f.length) return;
+    galState.limit = Math.min(f.length, start + 24);
+    const m = document.getElementById("masonry");
+    if (!m) { galRender(); return; }
+    for (let idx = start; idx < galState.limit; idx++) {
+      const it = f[idx];
+      const wrap = document.createElement("div");
+      wrap.className = "gitem" + (isGroupFav(it.src) ? " liked" : "");
+      const img = document.createElement("img");
+      img.src = it.src; img.loading = "lazy"; img.alt = it.name;
+      const j = idx;
+      img.addEventListener("click", () => lbOpen("gallery", j));
+      wrap.appendChild(img);
+      const c = likeCount(it.src);
+      if (c > 1) { const b = document.createElement("span"); b.className = "likebadge"; b.textContent = "♥ " + c; wrap.appendChild(b); }
+      m.appendChild(wrap);
+    }
+    const cnt = document.getElementById("gal-count"); if (cnt) cnt.textContent = "Showing " + galState.limit + " of " + f.length;
+    if (galState.limit >= f.length) { const mo = document.getElementById("gal-more"); if (mo) mo.remove(); if (galObserver) galObserver.disconnect(); }
+  }
   function lbOpen(key, idx) {
     const list = lbSets[key] || [];
     if (!list.length) return;
@@ -544,14 +611,13 @@ window.VApp = (function () {
     if (modeBtn) modeBtn.textContent = lbState.mode === "grid" ? "◻ Single" : "▦ All";
     if (lbState.mode === "grid") {
       const g = el.querySelector("#lb-grid");
-      g.innerHTML = lbState.list.map((it, idx) =>
-        `<img src="${C.esc(it.src)}" class="${isGroupFav(it.src) ? 'liked' : ''}" alt="${C.esc(it.name)}" loading="lazy" onclick="VApp.lbPick(${idx})" />`).join("");
+      g.innerHTML = lbState.list.map((it, idx) => galItemHTML(it, idx, `VApp.lbPick(${idx})`)).join("");
     } else {
       const it = lbState.list[lbState.i];
       el.querySelector(".lb-img").src = it.src;
       el.querySelector(".lb-cap").textContent = it.name + " · " + (lbState.i + 1) + " / " + lbState.list.length;
       const lk = el.querySelector(".lb-like");
-      if (lk) { const on = isLiked(it.src); lk.classList.toggle("on", on); lk.textContent = on ? "♥ Liked" : "♡ Like"; }
+      if (lk) { const on = isGroupFav(it.src); lk.classList.toggle("on", on); lk.textContent = on ? ("♥ " + (likeCount(it.src) || 1)) : "♡ Like"; }
     }
   }
   function lbToggleMode() { lbState.mode = lbState.mode === "grid" ? "single" : "grid"; renderLightbox(); }
@@ -619,11 +685,14 @@ window.VApp = (function () {
     if (!requireGate()) return;
     const hash = (location.hash || "#hub").slice(1);
     const [name, arg] = hash.split("/");
+    if (name === "gallery") galState.limit = 24; // reset paging before render
     let html;
     if (name === "crew" && arg) html = views.character(arg);
+    else if (name === "threats" && arg) html = views.threat(arg);
     else if (views[name]) html = views[name]();
     else html = views.hub();
     view().innerHTML = html;
+    if (name === "gallery") setupGalleryLazy();
     document.querySelectorAll(".nav a[data-route]").forEach(a =>
       a.classList.toggle("active", a.getAttribute("href") === "#" + name));
     document.getElementById("navlinks")?.classList.remove("open");
@@ -658,6 +727,7 @@ window.VApp = (function () {
     hydrateLikes().then(() => route()); // load group likes, then re-render so hearts/favorites show
   }
 
-  return { init, route, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView };
+  const galMore = galLoadMore;
+  return { init, route, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);

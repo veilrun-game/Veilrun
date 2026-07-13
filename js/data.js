@@ -60,7 +60,7 @@ VEILRUN.crew = [
     img: "assets/img/vesper.png",
     role: "Phantom Assassin", tagline: "The unseen one — stealth and resilience in one.",
     lore: "Sits in a corner of a room unnoticed. Resilient where most stealth classes are fragile. Brother to Rook.",
-    codenames: ["Vesper","Dusk","Hush","Gloam","Still","Wraith"],
+    codenames: ["Vesper","Dusk","Hush","Gloam","Still","Wraith","Bishop"],
     kit: { passive: { name:"Shroud (metered)", text:"Moving and acting drain a stealth meter; going still refills it fast. Bank cloak by being patient." },
       actives: [ {name:"Veilstep", text:"Spend meter for a short blink that breaks line of sight."},
                  {name:"Execute", text:"A guaranteed silent takedown from stealth."} ],
@@ -234,6 +234,7 @@ VEILRUN.modes = [
 VEILRUN.cover = "assets/img/cover.png";
 
 VEILRUN.updates = [
+  { date: "2026-07-13", text: "Gallery now loads in batches as you scroll (much faster), Threats have detail pages (with a 'suggest an ability' CTA), and favorites show as group-wide across everyone's devices. Bishop added as a Vesper codename option." },
   { date: "2026-07-13", text: "Likes now stick — favorites load from the database on every visit, so ♥'d images stay ♥'d across your phone and laptop, and group favorites glow for everyone." },
   { date: "2026-07-13", text: "World: tap a layer (Overcity, Underweft, Seam, Thinned) to page through its concept art; tiles no longer overflow." },
   { date: "2026-07-12", text: "We're live! And feedback now saves for real — a proper form (pick your name, type, note), a 'Share a thought' button on the Hub, and a 'Pitch a game mode' card in the Lab." },

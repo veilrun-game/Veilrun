@@ -133,7 +133,7 @@ h3 { font-size: 1.3rem; }
 
 /* ---- Kit / synergy ---- */
 .kit-row { padding: var(--s-3) 0; border-bottom: 1px solid var(--line); }
-.kit-row:last-child { border-bottom: none; }
+.kit-row:last-child, .kit-row:last-of-type { border-bottom: none; }
 .kit-row .name { font-weight: 600; color: var(--white); }
 .syn { padding: var(--s-4); border: 1px solid var(--line); border-radius: var(--radius-sm); margin-bottom: var(--s-3);
   border-left: 3px solid var(--accent, var(--magenta)); }
@@ -174,6 +174,7 @@ h3 { font-size: 1.3rem; }
   border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--ink-2); margin-top: var(--s-6); }
 .latest img { width: 100%; height: 100%; object-fit: cover; max-height: 240px; }
 .latest .l-body { padding: var(--s-6); }
+.hero-btns { display: flex; flex-wrap: wrap; gap: var(--s-3); margin-top: var(--s-4); }
 .jump { display: grid; grid-template-columns: 1fr; gap: var(--s-4); }
 .jump a { display: block; padding: var(--s-6); border: 1px solid var(--line); border-radius: var(--radius);
   background: var(--ink-2); color: var(--white); }
@@ -213,8 +214,12 @@ h3 { font-size: 1.3rem; }
 .dd-all { display: block; width: 100%; text-align: left; background: none; border: none; color: var(--magenta);
   cursor: pointer; padding: 2px 2px 8px; font-size: 0.85rem; border-bottom: 1px solid var(--line); margin-bottom: var(--s-2); }
 .masonry { columns: 2; column-gap: var(--s-3); }
-.masonry img { width: 100%; margin-bottom: var(--s-3); border-radius: var(--radius-sm); border: 1px solid var(--line); cursor: pointer; display: block; }
-.masonry img.liked { outline: 2px solid var(--magenta); outline-offset: -2px; box-shadow: 0 0 14px rgba(214,92,220,0.5); }
+.masonry img { width: 100%; border-radius: var(--radius-sm); border: 1px solid var(--line); cursor: pointer; display: block; }
+.gitem { position: relative; }
+.masonry .gitem { break-inside: avoid; margin-bottom: var(--s-3); }
+.gitem.liked img { outline: 2px solid var(--magenta); outline-offset: -2px; box-shadow: 0 0 14px rgba(214,92,220,0.5); }
+.likebadge { position: absolute; top: 8px; right: 8px; z-index: 1; background: rgba(11,8,24,0.85);
+  border: 1px solid var(--magenta); color: var(--magenta); border-radius: 999px; padding: 1px 8px; font-size: 0.72rem; }
 @media (min-width: 640px) { .masonry { columns: 3; } }
 @media (min-width: 1040px) { .masonry { columns: 4; } }
 
