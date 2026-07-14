@@ -24,6 +24,19 @@
     async vote(poll, choice) {
       try { await sb.from("votes").insert({ who: who(), poll, choice }); } catch (e) { console.warn(e); }
     },
+    // Toggle a single up-vote per person per poll (used by the Lab).
+    async toggleVote(poll) {
+      try {
+        const w = who();
+        const { data } = await sb.from("votes").select("poll").eq("who", w).eq("poll", poll).limit(1);
+        if (data && data.length) await sb.from("votes").delete().eq("who", w).eq("poll", poll);
+        else await sb.from("votes").insert({ who: w, poll, choice: "up" });
+      } catch (e) { console.warn(e); }
+    },
+    async loadVotes() {
+      try { const { data } = await sb.from("votes").select("who,poll"); return data || []; }
+      catch (e) { return []; }
+    },
     // All like rows [{who, image_src}] — used to hydrate the UI (mine + group counts).
     async loadLikes() {
       try { const { data } = await sb.from("image_likes").select("who,image_src"); return data || []; }

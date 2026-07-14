@@ -62,8 +62,23 @@ h3 { font-size: 1.3rem; }
 .nav a { font-family: var(--font-body); letter-spacing: 0.01em; font-size: 0.9rem;
   color: var(--mute); padding: var(--s-2) var(--s-3); border-radius: var(--radius-sm); }
 .nav a:hover, .nav a.active { color: var(--white); background: rgba(214,92,220,0.14); }
-.nav .menu-btn { display: none; margin-left: auto; background: none; border: 1px solid var(--line);
-  color: var(--white); border-radius: var(--radius-sm); padding: var(--s-2) var(--s-3); font-size: 1.1rem; }
+/* Ever-present Feedback CTA (right side desktop, right side of mobile bottom bar). */
+.nav .nav-fb { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0;
+  padding: 0.5rem 1.1rem; font-size: 0.85rem; line-height: 1; }
+.nav .nav-fb .fb-ico { width: 15px; height: 15px; flex-shrink: 0; }
+.nav .menu-btn { display: none; align-items: center; justify-content: center; margin-left: 0;
+  background: none; border: 1px solid var(--line); color: var(--white);
+  border-radius: var(--radius-sm); width: 46px; height: 40px; cursor: pointer; }
+/* Hamburger that morphs into an X. */
+.nav .menu-btn .ham, .nav .menu-btn .ham::before, .nav .menu-btn .ham::after {
+  display: block; width: 22px; height: 2px; border-radius: 2px; background: var(--white); }
+.nav .menu-btn .ham { position: relative; transition: background 0.12s ease; }
+.nav .menu-btn .ham::before, .nav .menu-btn .ham::after { content: ""; position: absolute; left: 0; transition: transform 0.28s ease; }
+.nav .menu-btn .ham::before { top: -7px; }
+.nav .menu-btn .ham::after { top: 7px; }
+.nav .menu-btn.open .ham { background: transparent; }
+.nav .menu-btn.open .ham::before { transform: translateY(7px) rotate(45deg); }
+.nav .menu-btn.open .ham::after { transform: translateY(-7px) rotate(-45deg); }
 
 /* ---- Buttons ---- */
 .btn { font-family: var(--font-body); font-weight: 600; letter-spacing: 0.01em;
@@ -199,6 +214,15 @@ h3 { font-size: 1.3rem; }
 .status.default { color: var(--mute); }
 .status { align-self: flex-start; width: fit-content; }
 .modecard .status { margin-bottom: 0; }
+.modecard-top { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); }
+.votebtn { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
+  background: transparent; color: var(--mute); border: 1px solid var(--line);
+  border-radius: 999px; padding: 4px 12px; font-size: 0.85rem; cursor: pointer;
+  font-family: var(--font-body); transition: color .15s, background .15s, border-color .15s, transform .1s; }
+.votebtn:hover { color: var(--white); border-color: var(--magenta); }
+.votebtn:active { transform: scale(0.94); }
+.votebtn.on { color: #140a16; background: var(--magenta); border-color: var(--magenta); font-weight: 600; }
+.votebtn .vc { font-variant-numeric: tabular-nums; }
 
 /* ---- Gallery ---- */
 .filters { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center; margin: var(--s-6) 0; }
@@ -347,10 +371,32 @@ h3 { font-size: 1.3rem; }
   .swatches { grid-template-columns: repeat(4,1fr); }
 }
 @media (max-width: 639px) {
-  .nav .links { display: none; position: absolute; top: var(--nav-h); left: 0; right: 0;
-    flex-direction: column; background: var(--ink-2); border-bottom: 1px solid var(--line); padding: var(--s-3); }
-  .nav .links.open { display: flex; }
-  .nav .menu-btn { display: block; }
+  /* Nav lives at the bottom on mobile so it's within thumb reach:
+     [logo]  [menu ☰/✕]  [Feedback] evenly spaced. */
+  .nav { position: fixed; top: auto; bottom: 0; left: 0; right: 0; z-index: 40;
+    justify-content: space-between; gap: var(--s-3);
+    border-bottom: none; border-top: 1px solid var(--line);
+    padding-bottom: calc(var(--s-2) + env(safe-area-inset-bottom, 0px)); }
+  body { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px)); }
+  /* Menu opens as a sheet that slides up from just above the bottom bar. */
+  .nav .links { display: none; position: fixed; top: auto; left: 0; right: 0;
+    bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+    flex-direction: column; gap: var(--s-1);
+    background: var(--ink-2); border-top: 1px solid var(--line);
+    border-radius: 18px 18px 0 0; padding: var(--s-4) var(--s-4) var(--s-3);
+    box-shadow: 0 -14px 40px rgba(0,0,0,0.55); }
+  .nav .links::before { content: ""; display: block; width: 42px; height: 4px; border-radius: 4px;
+    background: var(--line); margin: 0 auto var(--s-3); }
+  .nav .links.open { display: flex; animation: sheetUp 0.22s ease; }
+  .nav .links a { padding: var(--s-3); font-size: 1rem; }
+  @keyframes sheetUp { from { transform: translateY(14px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  /* Backdrop behind the open sheet. */
+  .nav-backdrop { position: fixed; inset: 0; z-index: 39; background: rgba(5,3,12,0.5);
+    opacity: 0; pointer-events: none; transition: opacity 0.2s ease; }
+  .nav-backdrop.show { opacity: 1; pointer-events: auto; }
+  .nav .menu-btn { display: flex; }
+  .nav .nav-fb { padding: 0.5rem 0.95rem; }
+  .toast { bottom: calc(var(--nav-h) + 20px + env(safe-area-inset-bottom, 0px)); }
   .view-toggle { margin-left: 0; }
   /* Character portrait was dominating the screen on mobile — cap it so text isn't dwarfed. */
   .viewer { aspect-ratio: auto; height: 54vh; max-height: 520px; }

@@ -49,8 +49,11 @@ window.VC = (function () {
 
   const modeCard = (m) => `
     <div class="panel modecard">
-      ${statusPill(m.status)}
-      <h3 style="margin:.7rem 0 .35rem">${esc(m.name)}</h3>
+      <div class="modecard-top">
+        ${statusPill(m.status)}
+        <button class="votebtn" data-poll="${esc(m.id)}" onclick="VApp.labVote('${esc(m.id)}')" title="Up-vote this idea" aria-label="Up-vote">▲ <span class="vc">0</span></button>
+      </div>
+      <h3 style="margin:.5rem 0 .35rem">${esc(m.name)}</h3>
       <p class="mute">${esc(m.text)}</p>
       <p class="mute" style="font-size:.8rem;margin-top:.6rem">Characters: ${esc(m.chars)}</p>
       <div style="margin-top:.7rem">${feedbackButton("Mode: " + m.name)}</div>

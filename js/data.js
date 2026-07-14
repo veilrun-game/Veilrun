@@ -216,24 +216,27 @@ VEILRUN.synergy = {
 };
 
 VEILRUN.modes = [
-  { name: "Rook — Map Recon", status: "prototyping", text: "Fog-of-war board; Rook's Sixth Sense reveals, Blink shuttles allies. Cheapest digital test.", chars: "All (Rook headlines)" },
-  { name: "Seam Strike (heist/extraction)", status: "idea", text: "Co-op infiltration across the seam; loud crew vs quiet crew routes.", chars: "3–4" },
-  { name: "Warded Sanctum (defense)", status: "idea", text: "Magpie's base against waves; build traps between rounds (Orcs Must Die energy).", chars: "All" },
-  { name: "Rig the Ride (escort)", status: "idea", text: "Deliver something fragile across a thinning district in the enchanted vehicle.", chars: "All" },
-  { name: "2D Pair Levels", status: "idea", text: "Levels only clearable with a specific pair's combo. Purest synergy test.", chars: "Pairs" },
-  { name: "Tactics RPG", status: "idea", text: "Turn-based grid squad tactics; positioning = the proximity-bond system.", chars: "Squad" },
-  { name: "Choose-Your-Adventure", status: "idea", text: "A branching mission; each reader plays their character. Tests tone + the Severant.", chars: "All" },
-  { name: "Underweft Dive (roguelite)", status: "idea", text: "Short runs into a rearranging Underweft; combos are the build system.", chars: "2 per run" },
-  { name: "Reunion Royale", status: "idea", text: "Battle-royale twist — the crew scattered on a Sundering map must find each other and converge.", chars: "8" },
-  { name: "Severant Boss Duel", status: "idea", text: "One plays the Severant; the others must chain a Convergence to win.", chars: "1 vs many" },
-  { name: "Anthology (all of it)", status: "idea", text: "One world; each character headlines the genre that fits them.", chars: "All" },
-  { name: "Seam Command (RTS)", status: "idea", text: "Command & Conquer view; field all nine as hero units across both layers.", chars: "All 9 at once" },
-  { name: "Party / Hub structure", status: "direction", text: "One game: Story + a pile of character party games + a training hangout.", chars: "All" }
+  { id: "rook-recon", name: "Rook — Map Recon", status: "prototyping", text: "Fog-of-war board; Rook's Sixth Sense reveals, Blink shuttles allies. Cheapest digital test.", chars: "All (Rook headlines)" },
+  { id: "seam-strike", name: "Seam Strike (heist/extraction)", status: "idea", text: "Co-op infiltration across the seam; loud crew vs quiet crew routes.", chars: "3–4" },
+  { id: "warded-sanctum", name: "Warded Sanctum (defense)", status: "idea", text: "Magpie's base against waves; build traps between rounds (Orcs Must Die energy).", chars: "All" },
+  { id: "rig-the-ride", name: "Rig the Ride (escort)", status: "idea", text: "Deliver something fragile across a thinning district in the enchanted vehicle.", chars: "All" },
+  { id: "pair-levels", name: "2D Pair Levels", status: "idea", text: "Levels only clearable with a specific pair's combo. Purest synergy test.", chars: "Pairs" },
+  { id: "tactics-rpg", name: "Tactics RPG", status: "idea", text: "Turn-based grid squad tactics; positioning = the proximity-bond system.", chars: "Squad" },
+  { id: "choose-adventure", name: "Choose-Your-Adventure", status: "idea", text: "A branching mission; each reader plays their character. Tests tone + the Severant.", chars: "All" },
+  { id: "underweft-dive", name: "Underweft Dive (roguelite)", status: "idea", text: "Short runs into a rearranging Underweft; combos are the build system.", chars: "2 per run" },
+  { id: "reunion-royale", name: "Reunion Royale", status: "idea", text: "Battle-royale twist — the crew scattered on a Sundering map must find each other and converge.", chars: "8" },
+  { id: "severant-duel", name: "Severant Boss Duel", status: "idea", text: "One plays the Severant; the others must chain a Convergence to win.", chars: "1 vs many" },
+  { id: "anthology", name: "Anthology (all of it)", status: "idea", text: "One world; each character headlines the genre that fits them.", chars: "All" },
+  { id: "seam-command", name: "Seam Command (RTS)", status: "idea", text: "Command & Conquer view; field all nine as hero units across both layers.", chars: "All 9 at once" },
+  { id: "party-hub", name: "Party / Hub structure", status: "direction", text: "One game: Story + a pile of character party games + a training hangout.", chars: "All" }
 ];
 
 VEILRUN.cover = "assets/img/cover.png";
 
 VEILRUN.updates = [
+  { date: "2026-07-13", text: "The Lab is now votable — tap ▲ on any game idea to up-vote it. Counts are shared across the whole crew, so we can see which concepts are rising." },
+  { date: "2026-07-13", text: "The nav moved to the bottom on phones (easier on the thumb): tap the middle button to open the menu as a slide-up sheet. And there's now an ever-present Feedback button, so you can chime in from any page." },
+  { date: "2026-07-13", text: "Naming locked in: the crew is The Last Fluent; Veilrun is the game." },
   { date: "2026-07-13", text: "Gallery now has a ☆ Favorites-only filter — flip it on to see just the shots the group has ♥'d, so it's easy to spot what's moving forward." },
   { date: "2026-07-13", text: "New environment art! The Overcity, Underweft, Seam, and Thinned were re-rendered so both worlds feel like one universe — grounded and photoreal, the tech side warm and real with arcane light bleeding in, the Weave side lifelike despite the magic." },
   { date: "2026-07-13", text: "Gallery now loads in batches as you scroll (much faster), Threats have detail pages (with a 'suggest an ability' CTA), and favorites show as group-wide across everyone's devices. Bishop added as a Vesper codename option." },

@@ -16,7 +16,7 @@ window.VApp = (function () {
     hub() {
       const jumps = [
         ["#world","The World","The two layers, the Sundering, the factions."],
-        ["#crew","The Crew","Nine fluent in both. Kits, codenames, synergies."],
+        ["#crew","The Last Fluent","The nine fluent in both. Kits, codenames, synergies."],
         ["#threats","Threats","The Severant and the roster."],
         ["#synergy","Synergy","The matrix + combo builder."],
         ["#gallery","Gallery","Every concept image, by category."],
@@ -92,7 +92,6 @@ window.VApp = (function () {
         <h2>Factions</h2>
         <div class="panel" style="margin-top:1rem">${factions}</div>
         ${worldStrip()}
-        <div style="margin-top:1rem">${C.feedbackButton("The World")}</div>
       </div>`;
     },
 
@@ -108,8 +107,8 @@ window.VApp = (function () {
       else if (mode === "full") body = `<div style="margin-top:1.25rem">${D.crew.map(crewFullRow).join("")}</div>`;
       else body = `<div class="grid cols-4" style="margin-top:1.25rem">${D.crew.map(C.characterCard).join("")}</div>`;
       return `<div class="wrap section" id="crew-root">
-        ${C.sectionHeader("Part Two","The Crew")}
-        <div class="toolbar"><p class="mute" style="margin:0">Nine of us. Tap a member for kit, codenames, and every synergy they're in.</p>${toggle}</div>
+        ${C.sectionHeader("Part Two","The Last Fluent")}
+        <div class="toolbar"><p class="mute" style="margin:0">The crew — the last nine fluent in both realms. Tap a member for kit, codenames, and every synergy they're in.</p>${toggle}</div>
         ${body}
       </div>`;
     },
@@ -444,6 +443,36 @@ window.VApp = (function () {
     else { likeMine.delete(src); likeCounts[src] = Math.max(0, (likeCounts[src] || 0) - 1); if (!likeCounts[src]) likeAll.delete(src); localStorage.removeItem(likeKey(src)); }
   }
 
+  /* ---- Lab votes (one up-vote per person per idea, counted group-wide) ---- */
+  let voteMine = new Set(), voteCounts = {};
+  const voteKey = (poll) => "vr_vote:" + poll;
+  const iVoted = (poll) => voteMine.has(poll) || localStorage.getItem(voteKey(poll)) === "1";
+  const voteCount = (poll) => voteCounts[poll] || 0;
+  async function hydrateVotes() {
+    if (!window.VBackend) return;
+    const rows = await window.VBackend.loadVotes();
+    voteMine = new Set(); voteCounts = {};
+    const who = myWho();
+    rows.forEach(r => { voteCounts[r.poll] = (voteCounts[r.poll] || 0) + 1; if (r.who === who) voteMine.add(r.poll); });
+  }
+  function applyVoteLocal(poll, voted) {
+    if (voted) { voteMine.add(poll); voteCounts[poll] = (voteCounts[poll] || 0) + 1; localStorage.setItem(voteKey(poll), "1"); }
+    else { voteMine.delete(poll); voteCounts[poll] = Math.max(0, (voteCounts[poll] || 0) - 1); localStorage.removeItem(voteKey(poll)); }
+  }
+  function refreshVotes() {
+    document.querySelectorAll(".votebtn").forEach(b => {
+      const poll = b.getAttribute("data-poll");
+      b.classList.toggle("on", iVoted(poll));
+      const c = b.querySelector(".vc"); if (c) c.textContent = voteCount(poll);
+    });
+  }
+  function labVote(poll) {
+    const now = !iVoted(poll);
+    applyVoteLocal(poll, now);
+    if (window.VBackend) window.VBackend.toggleVote(poll);
+    refreshVotes();
+  }
+
   function galleryViewer(ch) {
     const g = synGalleryState;
     if (!g.imgs.length) return ch.img ? `<img src="${C.esc(ch.img)}" alt="${C.esc(ch.name)}" />` : "";
@@ -642,6 +671,13 @@ window.VApp = (function () {
   // ---- Feedback modal ----
   let fbCtx = { context: "", type: "idea" };
   function feedback(context, type) {
+    // Global nav button passes no context — auto-tag with the page you're on.
+    if (!context) {
+      const r = (location.hash || "#hub").slice(1).split("/")[0];
+      const map = { world: "The World", crew: "The Crew", threats: "Threats", synergy: "Synergy",
+        gallery: "Gallery", lab: "The Lab", updates: "Updates", board: "Board / priorities", design: "Design system" };
+      context = map[r] || "";
+    }
     fbCtx = { context: context || "", type: type || "idea" };
     const el = document.getElementById("fbmodal"); if (!el) return;
     const title = context && context.indexOf("mode idea") > -1 ? "Pitch a game mode"
@@ -698,11 +734,23 @@ window.VApp = (function () {
     else html = views.hub();
     view().innerHTML = html;
     if (name === "gallery") setupGalleryLazy();
+    if (name === "lab") refreshVotes();
     document.querySelectorAll(".nav a[data-route]").forEach(a =>
       a.classList.toggle("active", a.getAttribute("href") === "#" + name));
-    document.getElementById("navlinks")?.classList.remove("open");
+    closeMenu();
     window.scrollTo(0, 0);
   }
+
+  function toggleMenu(force) {
+    const links = document.getElementById("navlinks");
+    const back = document.getElementById("nav-backdrop");
+    const btn = document.getElementById("menu-btn");
+    const open = force === undefined ? !links.classList.contains("open") : force;
+    links.classList.toggle("open", open);
+    back?.classList.toggle("show", open);
+    btn?.classList.toggle("open", open);
+  }
+  function closeMenu() { toggleMenu(false); }
 
   function initLightboxGestures() {
     const lb = document.getElementById("lightbox");
@@ -729,10 +777,11 @@ window.VApp = (function () {
       + '<option value="__other__">Someone else…</option>';
     window.addEventListener("hashchange", route); initLightboxGestures();
     route();
-    hydrateLikes().then(() => route()); // load group likes, then re-render so hearts/favorites show
+    // Load group likes + lab votes, then re-render so hearts/favorites/vote counts show.
+    Promise.all([hydrateLikes(), hydrateVotes()]).then(() => route());
   }
 
   const galMore = galLoadMore;
-  return { init, route, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavOnly, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView };
+  return { init, route, toggleMenu, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavOnly, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);
