@@ -44,6 +44,18 @@
     </div>
   </main>
 
+  <div class="handle-modal" id="handleModal" style="display:none">
+    <div class="handle-card">
+      <p class="eyebrow">Welcome back</p>
+      <h3>Which name should we use?</h3>
+      <p class="mute" id="handleMsg"></p>
+      <div class="handle-btns">
+        <button class="btn" id="keepHandle"></button>
+        <button class="btn ghost" id="useGoogle"></button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/config.js"></script>
   <script>
@@ -55,6 +67,7 @@
     const $ = (id) => document.getElementById(id);
     const PASSPHRASE = "bothsides"; // soft fallback; not real security (source is viewable).
     let mode = "signin";
+    let entered = false;
 
     function setMode(m) {
       mode = m;
@@ -69,6 +82,7 @@
     $("toggleCode").onclick = () => { const g = $("gate"); g.style.display = g.style.display === "none" ? "flex" : "none"; };
 
     function enter(name) {
+      entered = true;
       sessionStorage.setItem("vr_ok", "1");
       if (name) { localStorage.setItem("vr_who", name); localStorage.setItem("vr_account", name); }
       window.location.href = "app.html#hub";
@@ -124,13 +138,31 @@
     });
 
     // Auto-enter when a Supabase session exists — both on OAuth return and for already-signed-in users.
-    let entered = false;
     function enterFromSession(session) {
       if (entered || !session || !session.user) return;
-      entered = true;
       const u = session.user, m = u.user_metadata || {};
-      const name = m.display_name || m.full_name || m.name || (u.email ? u.email.split("@")[0] : "Crew");
+      const googleName = m.display_name || m.full_name || m.name || (u.email ? u.email.split("@")[0] : "Crew");
+      const prev = (localStorage.getItem("vr_who") || "").trim();
+      // First Google login with no chosen handle yet, and a different name already in use → offer to keep it.
+      if (!m.display_name && prev && prev.toLowerCase() !== googleName.trim().toLowerCase() && !localStorage.getItem("vr_handle_asked")) {
+        showHandlePrompt(prev, googleName);
+        return;
+      }
+      enter(googleName);
+    }
+    async function chooseHandle(name) {
+      localStorage.setItem("vr_handle_asked", "1");
+      if (sb) { try { await sb.auth.updateUser({ data: { display_name: name } }); } catch (e) {} }
       enter(name);
+    }
+    function showHandlePrompt(prev, googleName) {
+      $("handleMsg").textContent = "You've been going by “" + prev + "”. Keep that as your handle, or switch to your Google name?";
+      const keep = $("keepHandle"), useG = $("useGoogle");
+      keep.textContent = "Keep “" + prev + "”";
+      useG.textContent = "Use “" + googleName + "”";
+      keep.onclick = () => chooseHandle(prev);
+      useG.onclick = () => chooseHandle(googleName);
+      $("handleModal").style.display = "flex";
     }
     if (sb) {
       sb.auth.onAuthStateChange((_e, session) => { if (session) enterFromSession(session); });
