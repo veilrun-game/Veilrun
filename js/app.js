@@ -285,6 +285,14 @@ window.VApp = (function () {
       return `<div class="wrap section">${C.sectionHeader("Log","Updates")}<div class="panel" style="margin-top:1.5rem">${list}</div></div>`;
     },
 
+    leaderboard() {
+      return `<div class="wrap section">
+        ${C.sectionHeader("The crew","Leaderboard")}
+        <p class="mute" style="max-width:62ch;margin-top:1rem">Who's shaping Veilrun the most. Points for contributing — <strong>feedback counts triple</strong>, likes and votes count too. Crew-only for now; once logins are in, activity will factor in as well.</p>
+        <div id="lb-board" style="margin-top:1.5rem"><p class="mute">Loading…</p></div>
+      </div>`;
+    },
+
     board() {
       const b = window.VEILRUN.board;
       if (!b) return stub("Board", "The roadmap board is loading.");
@@ -471,6 +479,45 @@ window.VApp = (function () {
     applyVoteLocal(poll, now);
     if (window.VBackend) window.VBackend.toggleVote(poll);
     refreshVotes();
+  }
+
+  /* ---- Leaderboard (contribution ranking from feedback + likes + votes) ---- */
+  const lbName = (w) => !w || w === "anon" ? "Anonymous" : w;
+  async function loadLeaderboard() {
+    const el = document.getElementById("lb-board");
+    if (!el) return;
+    if (!window.VBackend) { el.innerHTML = `<div class="panel"><p class="mute">The leaderboard needs the backend connected. It's live once feedback is saving to the database.</p></div>`; return; }
+    const [fb, likes, votes] = await Promise.all([
+      window.VBackend.loadFeedback ? window.VBackend.loadFeedback() : [],
+      window.VBackend.loadLikes(),
+      window.VBackend.loadVotes()
+    ]);
+    const weekAgo = Date.now() - 7 * 864e5;
+    const P = {};
+    const ensure = (w) => (P[w] = P[w] || { who: w, fb: 0, likes: 0, votes: 0, week: 0 });
+    fb.forEach(r => { const o = ensure(r.who || "anon"); o.fb++; if (r.created_at && new Date(r.created_at).getTime() >= weekAgo) o.week++; });
+    likes.forEach(r => ensure(r.who || "anon").likes++);
+    votes.forEach(r => ensure(r.who || "anon").votes++);
+    const rows = Object.values(P);
+    rows.forEach(o => o.points = o.fb * 3 + o.likes + o.votes);
+    rows.sort((a, b) => b.points - a.points || b.fb - a.fb);
+    if (!rows.length) { el.innerHTML = `<div class="panel"><p class="mute">No contributions yet — be the first to leave feedback and top the board.</p></div>`; return; }
+    const weekTop = rows.filter(o => o.week > 0).sort((a, b) => b.week - a.week || b.points - a.points)[0];
+    const medal = (i) => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `<span class="lb-rank">${i + 1}</span>`;
+    const highlight = weekTop ? `
+      <div class="panel lb-weekly">
+        <div class="eyebrow">Most active this week</div>
+        <div class="lb-weekly-name">${C.esc(lbName(weekTop.who))}</div>
+        <p class="mute" style="margin:.2rem 0 0">${weekTop.week} piece${weekTop.week === 1 ? "" : "s"} of feedback in the last 7 days. 🔥</p>
+      </div>` : "";
+    const list = rows.map((o, i) => `
+      <div class="lb-row${i < 3 ? " lb-top" : ""}">
+        <div class="lb-pos">${medal(i)}</div>
+        <div class="lb-who">${C.esc(lbName(o.who))}</div>
+        <div class="lb-detail mute">${o.fb} feedback · ${o.likes} likes · ${o.votes} votes</div>
+        <div class="lb-pts">${o.points}<span class="mute"> pts</span></div>
+      </div>`).join("");
+    el.innerHTML = highlight + `<div class="lb-list panel">${list}</div>`;
   }
 
   function galleryViewer(ch) {
@@ -737,9 +784,13 @@ window.VApp = (function () {
     view().innerHTML = html;
     if (name === "gallery") setupGalleryLazy();
     if (name === "lab") refreshVotes();
+    if (name === "leaderboard") loadLeaderboard();
     if (name === "landing" && window.VLanding) VLanding.init();
     document.querySelectorAll(".nav a[data-route]").forEach(a =>
       a.classList.toggle("active", a.getAttribute("href") === "#" + name));
+    const drop = document.getElementById("navdrop-characters");
+    if (drop) drop.classList.toggle("active", ["crew", "threats", "synergy"].includes(name));
+    document.querySelectorAll(".navdrop.open").forEach(d => d.classList.remove("open"));
     closeMenu();
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }
@@ -754,6 +805,14 @@ window.VApp = (function () {
     btn?.classList.toggle("open", open);
   }
   function closeMenu() { toggleMenu(false); }
+
+  function toggleDrop(e) {
+    e.stopPropagation();
+    const d = e.currentTarget.closest(".navdrop");
+    const open = !d.classList.contains("open");
+    document.querySelectorAll(".navdrop.open").forEach(x => x.classList.remove("open"));
+    d.classList.toggle("open", open);
+  }
 
   function initLightboxGestures() {
     const lb = document.getElementById("lightbox");
@@ -779,12 +838,15 @@ window.VApp = (function () {
       + D.crew.map(c => `<option value="${C.esc(c.name)}">${C.esc(c.name)} (${C.esc(c.player)})</option>`).join("")
       + '<option value="__other__">Someone else…</option>';
     window.addEventListener("hashchange", route); initLightboxGestures();
+    document.addEventListener("click", e => {
+      if (!e.target.closest(".navdrop")) document.querySelectorAll(".navdrop.open").forEach(d => d.classList.remove("open"));
+    });
     route();
     // Load group likes + lab votes, then re-render so hearts/favorites/vote counts show.
     Promise.all([hydrateLikes(), hydrateVotes()]).then(() => route());
   }
 
   const galMore = galLoadMore;
-  return { init, route, toggleMenu, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavOnly, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote };
+  return { init, route, toggleMenu, toggleDrop, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavOnly, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);

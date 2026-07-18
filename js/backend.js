@@ -37,6 +37,11 @@
       try { const { data } = await sb.from("votes").select("who,poll"); return data || []; }
       catch (e) { return []; }
     },
+    // Feedback rows (who + when) — powers the contribution leaderboard.
+    async loadFeedback() {
+      try { const { data } = await sb.from("feedback").select("who,created_at"); return data || []; }
+      catch (e) { return []; }
+    },
     // All like rows [{who, image_src}] — used to hydrate the UI (mine + group counts).
     async loadLikes() {
       try { const { data } = await sb.from("image_likes").select("who,image_src"); return data || []; }

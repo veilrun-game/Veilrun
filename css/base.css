@@ -62,6 +62,19 @@ h3 { font-size: 1.3rem; }
 .nav a { font-family: var(--font-body); letter-spacing: 0.01em; font-size: 0.9rem;
   color: var(--mute); padding: var(--s-2) var(--s-3); border-radius: var(--radius-sm); }
 .nav a:hover, .nav a.active { color: var(--white); background: rgba(214,92,220,0.14); }
+/* ---- Nav dropdown (Characters) ---- */
+.nav .navdrop { position: relative; }
+.nav .navdrop-btn { font-family: var(--font-body); letter-spacing: 0.01em; font-size: 0.9rem;
+  color: var(--mute); background: none; border: none; cursor: pointer;
+  padding: var(--s-2) var(--s-3); border-radius: var(--radius-sm); display: inline-flex; align-items: center; gap: 4px; }
+.nav .navdrop-btn .caret { font-size: 0.7rem; transition: transform 0.2s ease; }
+.nav .navdrop:hover .navdrop-btn, .nav .navdrop.active .navdrop-btn { color: var(--white); }
+.nav .navdrop-menu { display: none; position: absolute; top: 100%; left: 0; margin-top: 6px;
+  flex-direction: column; min-width: 168px; background: var(--ink-2); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); padding: var(--s-2); z-index: 30; box-shadow: var(--shadow); }
+.nav .navdrop:hover .navdrop-menu, .nav .navdrop.open .navdrop-menu { display: flex; }
+.nav .navdrop:hover .caret, .nav .navdrop.open .caret { transform: rotate(180deg); }
+
 /* Ever-present Feedback CTA (right side desktop, right side of mobile bottom bar). */
 .nav .nav-fb { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0;
   padding: 0.5rem 1.1rem; font-size: 0.85rem; line-height: 1; }
@@ -230,6 +243,22 @@ html { scroll-behavior: smooth; }
 .votebtn:active { transform: scale(0.94); }
 .votebtn.on { color: #140a16; background: var(--magenta); border-color: var(--magenta); font-weight: 600; }
 .votebtn .vc { font-variant-numeric: tabular-nums; }
+
+/* ---- Leaderboard ---- */
+.lb-weekly { margin-bottom: var(--s-4); border-color: var(--magenta);
+  background: linear-gradient(180deg, rgba(214,92,220,0.10), transparent); }
+.lb-weekly-name { font-family: var(--font-display); font-size: 1.5rem; color: var(--white); margin-top: 0.2rem; }
+.lb-list { padding: var(--s-2) var(--s-4); }
+.lb-row { display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: var(--s-3);
+  padding: var(--s-3) 0; border-bottom: 1px solid var(--line); }
+.lb-row:last-child { border-bottom: none; }
+.lb-pos { font-size: 1.2rem; text-align: center; grid-row: 1 / span 2; }
+.lb-rank { color: var(--mute); font-family: var(--font-display); font-size: 0.95rem; }
+.lb-who { font-weight: 600; color: var(--white); }
+.lb-top .lb-who { color: var(--magenta); }
+.lb-detail { grid-column: 2; font-size: 0.78rem; margin-top: 2px; }
+.lb-pts { grid-row: 1 / span 2; grid-column: 3; font-family: var(--font-display); font-size: 1.15rem; color: var(--white); text-align: right; }
+.lb-pts .mute { font-size: 0.7rem; }
 
 /* ---- Gallery ---- */
 .filters { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center; margin: var(--s-6) 0; }
@@ -406,6 +435,12 @@ html { scroll-behavior: smooth; }
   .nav-backdrop.show { opacity: 1; pointer-events: auto; }
   .nav .menu-btn { display: flex; }
   .nav .nav-fb { padding: 0.5rem 0.95rem; }
+  /* In the bottom sheet, the dropdown expands inline (no popover). */
+  .nav .navdrop { width: 100%; }
+  .nav .navdrop-btn { width: 100%; justify-content: space-between; font-size: 1rem; padding: var(--s-3); }
+  .nav .navdrop-btn .caret { display: none; }
+  .nav .navdrop-menu { display: flex; position: static; margin: 0; padding: 0 0 var(--s-2) var(--s-4);
+    min-width: 0; background: transparent; border: none; box-shadow: none; }
   .toast { bottom: calc(var(--nav-h) + 20px + env(safe-area-inset-bottom, 0px)); }
   .view-toggle { margin-left: 0; }
   /* Character portrait was dominating the screen on mobile — cap it so text isn't dwarfed. */

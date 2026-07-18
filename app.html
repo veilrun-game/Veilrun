@@ -20,11 +20,17 @@
       <a data-route href="#hub">Hub</a>
       <a data-route href="#landing">Landing</a>
       <a data-route href="#world">World</a>
-      <a data-route href="#crew">Crew</a>
-      <a data-route href="#threats">Threats</a>
-      <a data-route href="#synergy">Synergy</a>
+      <div class="navdrop" id="navdrop-characters">
+        <button class="navdrop-btn" onclick="VApp.toggleDrop(event)" aria-haspopup="true">Characters <span class="caret">▾</span></button>
+        <div class="navdrop-menu">
+          <a data-route href="#crew">Crew</a>
+          <a data-route href="#threats">Threats</a>
+          <a data-route href="#synergy">Synergy</a>
+        </div>
+      </div>
       <a data-route href="#gallery">Gallery</a>
       <a data-route href="#lab">Lab</a>
+      <a data-route href="#leaderboard">Leaderboard</a>
       <a data-route href="#updates">Updates</a>
     </div>
     <!-- Ever-present CTA. Swap this to Discord / Play when the site opens up more broadly. -->

@@ -11,6 +11,14 @@ window.VLanding = (function () {
       `<div class="sil slot"><span class="slot-tag">SIL ${i + 1}</span></div>`).join("");
     return `
     <div id="landing">
+      <div class="wf-note" id="wf-note">
+        <div class="wf-note-card">
+          <div class="wf-note-eyebrow">Concept preview</div>
+          <h3>This page is a wireframe</h3>
+          <p>You're looking at the structure and the interactions. The real art, animation, and copy will follow — this is here so we can shape the experience first.</p>
+          <button class="btn" onclick="VLanding.dismissNote()">Got it — take a look</button>
+        </div>
+      </div>
       <div class="wf-banner">Landing · wireframe — interactions are live, art slots are labeled placeholders</div>
 
       <section class="hero">
@@ -75,6 +83,9 @@ window.VLanding = (function () {
     teardown();
     const root = document.getElementById("landing");
     if (!root) return;
+    // One-time-per-session wireframe notice.
+    const note = root.querySelector("#wf-note");
+    if (note && !sessionStorage.getItem("vr_wf_note")) note.classList.add("show");
     const layers = [...root.querySelectorAll(".hero-layer")];
     const tear = root.querySelector("#tear");
     const hL = root.querySelector(".tear-left"), hR = root.querySelector(".tear-right"), hS = root.querySelector(".tear-seam");
@@ -88,10 +99,16 @@ window.VLanding = (function () {
           const r = tear.getBoundingClientRect();
           const denom = (r.height - window.innerHeight) || 1;
           const p = Math.min(1, Math.max(0, -r.top / denom));
-          const shift = p * 55;
+          const eased = p * p * (3 - 2 * p); // smoothstep for a less linear feel
+          const shift = eased * 58;
           if (hL) hL.style.transform = `translateX(${-shift}%)`;
           if (hR) hR.style.transform = `translateX(${shift}%)`;
-          if (hS) hS.style.opacity = String(Math.min(1, p * 2));
+          if (hS) {
+            // The seam widens and glows brighter as the worlds pull apart.
+            hS.style.opacity = String(Math.min(1, eased * 2.2));
+            hS.style.width = (3 + eased * 15) + "px";
+            hS.style.boxShadow = `0 0 ${20 + eased * 46}px ${2 + eased * 7}px rgba(214,92,220,${0.45 + eased * 0.45})`;
+          }
         }
         ticking = false;
       });
@@ -132,5 +149,11 @@ window.VLanding = (function () {
     if (io) { io.disconnect(); io = null; }
   }
 
-  return { view, init, teardown };
+  function dismissNote() {
+    const n = document.getElementById("wf-note");
+    if (n) n.classList.remove("show");
+    try { sessionStorage.setItem("vr_wf_note", "1"); } catch (e) {}
+  }
+
+  return { view, init, teardown, dismissNote };
 })();
