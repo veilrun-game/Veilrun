@@ -10,7 +10,8 @@ VEILRUN.board = {
     { name: "Up next", cards: [
       { id: "VR-21", t: "Manafest — kit drafted; pick codename + squad kits", who: "Jordan", pri: "P2" },
       { id: "VR-63", t: "Landing assets: paired scenes + silhouettes (MJ) + seam-tear (Weave)", who: "Jordan", pri: "P2" },
-      { id: "VR-65", t: "Profiles: change password, reorder your own pictures", who: "Claude", pri: "P3" },
+      { id: "VR-66", t: "Google sign-in — wire button + login return (once you enable it)", who: "Both", pri: "P2" },
+      { id: "VR-65", t: "Profile v2: change password, reorder your own pictures", who: "Claude", pri: "P3" },
       { id: "VR-46", t: "Expand the design system (document all patterns)", who: "Claude", pri: "P3" },
       { id: "VR-18", t: "Rook map-recon prototype (fog of war)", who: "Claude", pri: "P2" }
     ]},
@@ -22,6 +23,7 @@ VEILRUN.board = {
       { id: "VR-34", t: "Art pipeline: AI-assisted → toward original", who: "Both", pri: "P2" }
     ]},
     { name: "Done (recent)", cards: [
+      { id: "★", t: "Profile page — display name, pick your character, sign out", who: "Claude", pri: "" },
       { id: "★", t: "Accounts — email sign-in / create-account flow (Supabase Auth)", who: "Claude", pri: "" },
       { id: "★", t: "Characters overview page + tidied nav dropdown", who: "Claude", pri: "" },
       { id: "★", t: "Crew leaderboard live — contribution ranking + weekly spotlight", who: "Claude", pri: "" },

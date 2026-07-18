@@ -234,6 +234,8 @@ VEILRUN.modes = [
 VEILRUN.cover = "assets/img/cover.png";
 
 VEILRUN.updates = [
+  { date: "2026-07-17", text: "You've got a Profile page now — click your avatar (top-right) to set a fun display name (it's what shows on the leaderboard and your feedback), pick which crew character you are, and sign out from there." },
+  { date: "2026-07-17", text: "Polish: clearer sign-in messages, tidier spacing on the Hub ‘Recently’ dashboard, and the dashboard now reads the real date so ‘last 24 hours’ counts today's changes." },
   { date: "2026-07-14", text: "The Hub has a new ‘Recently’ dashboard: the latest update stays up top, with a quick summary of how much changed in the last 24 hours and the past 7 days." },
   { date: "2026-07-14", text: "You can now make your own account. On the first screen: Create account (or Sign in) with an email + password, and your feedback is tied to the real you — so the leaderboard is accurate. A shared code still works for quick guest access. Signed in, you'll see your initial top-right; click it to sign out." },
   { date: "2026-07-14", text: "New: a Characters overview page (in the nav) — a hero highlighting the crew and the threats, with quick jumps into Crew, Threats, and Synergy. The nav is grouped under a tidied ‘Characters’ menu." },

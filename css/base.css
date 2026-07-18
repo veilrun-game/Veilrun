@@ -255,11 +255,11 @@ html { scroll-behavior: smooth; }
 .votebtn .vc { font-variant-numeric: tabular-nums; }
 
 /* ---- Hub "Recently" dashboard ---- */
-.dash-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-4); flex-wrap: wrap; margin-top: var(--s-2); }
+.dash-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); flex-wrap: wrap; margin-top: var(--s-6); margin-bottom: var(--s-2); }
 .dash-stats { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-4); margin-top: var(--s-4); }
-.dash-stat { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: var(--s-4) var(--s-5); background: var(--ink-2); }
-.dash-stat .dash-n { font-family: var(--font-display); font-size: 2rem; color: var(--magenta); line-height: 1; }
-.dash-stat .mute { font-size: 0.82rem; margin-top: 4px; }
+.dash-stat { border: 1px solid var(--line); border-radius: var(--radius); padding: var(--s-5) var(--s-6); background: var(--ink-2); }
+.dash-stat .dash-n { font-family: var(--font-display); font-size: 2.4rem; color: var(--magenta); line-height: 1; margin-bottom: var(--s-2); }
+.dash-stat .mute { font-size: 0.85rem; }
 
 /* ---- Characters overview page ---- */
 .chero-split { display: grid; grid-template-columns: 1fr; gap: var(--s-4); margin-top: var(--s-6); }
@@ -282,6 +282,26 @@ html { scroll-behavior: smooth; }
 .cp-role { font-size: 0.76rem; margin-top: 2px; }
 @media (min-width: 640px) { .chero-split { grid-template-columns: 1fr 1fr; } .cp-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (min-width: 1040px) { .cp-grid { grid-template-columns: repeat(5, 1fr); } }
+
+/* ---- Profile page ---- */
+.pf-head { display: flex; align-items: center; gap: var(--s-5); flex-wrap: wrap; }
+.pf-avatar { width: 84px; height: 84px; border-radius: 50%; flex-shrink: 0; background-size: cover; background-position: 50% 20%;
+  border: 2px solid var(--magenta); }
+.pf-avatar.pf-initial { display: flex; align-items: center; justify-content: center; background: rgba(214,92,220,0.16);
+  font-family: var(--font-display); font-size: 2rem; color: var(--white); }
+.pf-head-txt { min-width: 0; }
+.pf-signout { margin-left: auto; }
+.pf-name-row { display: flex; gap: var(--s-3); flex-wrap: wrap; }
+.pf-name-row .fld-in { flex: 1; min-width: 180px; background: var(--ink); color: var(--white); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); padding: var(--s-3) var(--s-4); font-size: 1rem; }
+.pf-char-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-3); }
+.pf-char { background: none; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: var(--s-2);
+  cursor: pointer; color: var(--mute); font-family: var(--font-body); font-size: 0.78rem; display: flex; flex-direction: column;
+  align-items: center; gap: 6px; transition: border-color .15s, color .15s; }
+.pf-char:hover { border-color: var(--magenta); color: var(--white); }
+.pf-char.sel { border-color: var(--magenta); color: var(--white); background: rgba(214,92,220,0.12); }
+.pf-char-img { width: 100%; aspect-ratio: 1 / 1; border-radius: var(--radius-sm); background-size: cover; background-position: 50% 18%; }
+@media (min-width: 640px) { .pf-char-grid { grid-template-columns: repeat(5, 1fr); } }
 
 /* ---- Leaderboard ---- */
 .lb-weekly { margin-bottom: var(--s-4); border-color: var(--magenta);
@@ -428,6 +448,11 @@ html { scroll-behavior: smooth; }
 .gate input { background: var(--ink-2); border: 1px solid var(--line); color: var(--white);
   border-radius: var(--radius-sm); padding: var(--s-3) var(--s-4); font-size: 1rem; min-width: 220px; }
 .gate .err { color: var(--magenta); font-size: 0.85rem; margin-top: var(--s-3); min-height: 1.2em; }
+/* Auth error callout — bolder + colored so it stands out, with room to breathe. */
+.err { color: #ff6f91; font-weight: 700; font-size: 0.95rem; letter-spacing: 0.01em;
+  margin-top: var(--s-5); min-height: 1.2em; line-height: 1.4; }
+.err:not(:empty) { padding: var(--s-3) var(--s-4); border: 1px solid rgba(255,111,145,0.4);
+  border-radius: var(--radius-sm); background: rgba(255,111,145,0.08); max-width: 340px; margin-left: auto; margin-right: auto; }
 
 /* ---- Auth panel on the gate page ---- */
 .auth { max-width: 340px; margin: var(--s-6) auto 0; text-align: left; }

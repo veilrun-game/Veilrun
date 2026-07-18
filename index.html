@@ -91,7 +91,11 @@
           enter(name);
         }
       } catch (err) {
-        $("err").textContent = (err && err.message) || "Something went wrong.";
+        const m = (err && err.message) || "Something went wrong.";
+        $("err").textContent = /email not confirmed/i.test(m)
+          ? "Almost there — check your inbox and click the confirmation link, then sign in."
+          : /invalid login/i.test(m) ? "That email and password don't match."
+          : m;
       }
       $("authSubmit").disabled = false;
     });

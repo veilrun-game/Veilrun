@@ -53,7 +53,7 @@ window.VApp = (function () {
           </div>
           <div class="panel" style="margin-top:1rem">
             <div class="eyebrow">Last 24 hours</div>
-            ${upd24.length ? upd24.slice(0, 6).map(uRow).join("") : `<p class="mute" style="margin:.5rem 0 0">No changes in the last 24 hours.</p>`}
+            ${upd24.length ? upd24.slice(0, 6).map(uRow).join("") : `<p class="mute" style="margin:.5rem 0 .8rem">No changes today — here's the latest:</p>${D.updates.slice(0, 2).map(uRow).join("")}`}
             ${updWeekOnly.length ? `<hr class="seam" /><div class="eyebrow">Earlier this week</div>${updWeekOnly.slice(0, 6).map(uRow).join("")}` : ""}
           </div>
           <div class="panel" style="margin-top:1.5rem;border-color:var(--violet)">
@@ -351,6 +351,52 @@ window.VApp = (function () {
         ${C.sectionHeader("The crew","Leaderboard")}
         <p class="mute" style="max-width:62ch;margin-top:1rem">Who's shaping Veilrun the most. Points for contributing — <strong>feedback counts triple</strong>, likes and votes count too. Crew-only for now; once logins are in, activity will factor in as well.</p>
         <div id="lb-board" style="margin-top:1.5rem"><p class="mute">Loading…</p></div>
+      </div>`;
+    },
+
+    profile() {
+      const name = localStorage.getItem("vr_account") || localStorage.getItem("vr_who") || "";
+      const charId = localStorage.getItem("vr_char") || "";
+      const ch = (D.crew || []).find(c => c.id === charId);
+      const avatar = ch
+        ? `<div class="pf-avatar" style="background-image:url('${C.esc(ch.img)}')"></div>`
+        : `<div class="pf-avatar pf-initial">${C.esc((name[0] || "?").toUpperCase())}</div>`;
+      const charGrid = (D.crew || []).map(c => `
+        <button class="pf-char${c.id === charId ? " sel" : ""}" onclick="VApp.profilePickChar('${c.id}')" title="${C.esc(c.name)}">
+          <div class="pf-char-img" style="background-image:url('${C.esc(c.img)}')"></div>
+          <span>${C.esc(c.name)}</span>
+        </button>`).join("");
+      return `<div class="wrap section">
+        <div class="pf-head">
+          ${avatar}
+          <div class="pf-head-txt">
+            <p class="eyebrow">Your profile</p>
+            <h1 class="display" style="font-size:var(--fs-h1);margin:.2rem 0">${C.esc(name || "Signed in")}</h1>
+            <p class="mute" style="margin:0">${ch ? "Playing as " + C.esc(ch.name) : "Pick your character below."}</p>
+          </div>
+          <button class="btn ghost pf-signout" onclick="VApp.signOut()">Sign out</button>
+        </div>
+
+        ${C.seam()}
+        <div class="panel" style="margin-top:1.5rem">
+          <div class="eyebrow">Display name</div>
+          <p class="mute" style="font-size:.85rem;margin:.3rem 0 .7rem">Go with a fun handle — it beats your real name. This is what shows on the leaderboard and your feedback.</p>
+          <div class="pf-name-row">
+            <input id="pf-name" class="fld-in" value="${C.esc(name)}" maxlength="24" placeholder="Your display name" />
+            <button class="btn" onclick="VApp.profileSaveName()">Save</button>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top:1.5rem">
+          <div class="eyebrow">Your character</div>
+          <p class="mute" style="font-size:.85rem;margin:.3rem 0 .8rem">Which of the crew are you? Tap to set it.</p>
+          <div class="pf-char-grid">${charGrid}</div>
+        </div>
+
+        <div class="panel" style="margin-top:1.5rem">
+          <div class="eyebrow">Password</div>
+          <p class="mute" style="font-size:.85rem;margin:.3rem 0 0">Changing your password is coming soon. If you signed in with Google, you won't need one.</p>
+        </div>
       </div>`;
     },
 
@@ -845,7 +891,7 @@ window.VApp = (function () {
     const hash = (location.hash || "#hub").slice(1);
     const [name, arg] = hash.split("/");
     // Landing + Leaderboard are for signed-in accounts only; guests get bounced to the Hub.
-    if ((name === "landing" || name === "leaderboard") && !isAccount()) { location.hash = "#hub"; return; }
+    if ((name === "landing" || name === "leaderboard" || name === "profile") && !isAccount()) { location.hash = "#hub"; return; }
     if (name === "gallery") galState.limit = 24; // reset paging before render
     if (window.VLanding) VLanding.teardown(); // clean any landing listeners before leaving/re-render
     let html;
@@ -884,6 +930,21 @@ window.VApp = (function () {
     localStorage.removeItem("vr_account");
     sessionStorage.removeItem("vr_ok");
     window.location.href = "index.html";
+  }
+  function profileSaveName() {
+    const el = document.getElementById("pf-name");
+    const v = (el && el.value.trim()) || "";
+    if (!v) { if (el) el.focus(); return; }
+    localStorage.setItem("vr_who", v);
+    localStorage.setItem("vr_account", v);
+    const chip = document.getElementById("nav-profile");
+    if (chip) { chip.textContent = v[0].toUpperCase(); chip.title = "Signed in as " + v; }
+    toast("Display name saved");
+    route();
+  }
+  function profilePickChar(id) {
+    localStorage.setItem("vr_char", id);
+    route();
   }
 
   function toggleDrop(e) {
@@ -935,6 +996,6 @@ window.VApp = (function () {
   }
 
   const galMore = galLoadMore;
-  return { init, route, toggleMenu, toggleDrop, signOut, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavOnly, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote };
+  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, profilePickChar, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavOnly, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);
