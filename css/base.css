@@ -26,7 +26,7 @@ h2 { font-size: var(--fs-h2); font-weight: 500; }
 h3 { font-size: 1.3rem; }
 /* Caps reserved for tiny labels only — used sparingly. */
 .eyebrow { font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.18em;
-  font-size: var(--fs-small); color: var(--magenta); font-weight: 600; }
+  font-size: var(--fs-small); color: var(--magenta); font-weight: 600; margin: 0 0 var(--s-2); }
 .mute { color: var(--mute); }
 
 /* ---- The seam motif ---- */
@@ -294,14 +294,24 @@ html { scroll-behavior: smooth; }
 .pf-name-row { display: flex; gap: var(--s-3); flex-wrap: wrap; }
 .pf-name-row .fld-in { flex: 1; min-width: 180px; background: var(--ink); color: var(--white); border: 1px solid var(--line);
   border-radius: var(--radius-sm); padding: var(--s-3) var(--s-4); font-size: 1rem; }
-.pf-char-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-3); }
-.pf-char { background: none; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: var(--s-2);
-  cursor: pointer; color: var(--mute); font-family: var(--font-body); font-size: 0.78rem; display: flex; flex-direction: column;
-  align-items: center; gap: 6px; transition: border-color .15s, color .15s; }
-.pf-char:hover { border-color: var(--magenta); color: var(--white); }
-.pf-char.sel { border-color: var(--magenta); color: var(--white); background: rgba(214,92,220,0.12); }
-.pf-char-img { width: 100%; aspect-ratio: 1 / 1; border-radius: var(--radius-sm); background-size: cover; background-position: 50% 18%; }
-@media (min-width: 640px) { .pf-char-grid { grid-template-columns: repeat(5, 1fr); } }
+.pf-cols { display: grid; grid-template-columns: 1fr; gap: var(--s-4); margin-top: var(--s-6); }
+.pf-cols .panel { margin: 0; }
+@media (min-width: 720px) { .pf-cols { grid-template-columns: 1fr 1fr; align-items: start; } }
+/* Image reprioritizer */
+.pf-img-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s-3); }
+.pf-img { border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; background: var(--ink); }
+.pf-img-thumb { position: relative; aspect-ratio: 3 / 4; background-size: cover; background-position: 50% 18%; }
+.pf-img-rank { position: absolute; top: 6px; left: 6px; width: 24px; height: 24px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; background: rgba(6,4,14,0.75); color: var(--white);
+  font-family: var(--font-display); font-size: 0.8rem; }
+.pf-img-ctrls { display: flex; }
+.pf-img-ctrls button { flex: 1; background: var(--ink-2); border: none; border-top: 1px solid var(--line); color: var(--white);
+  padding: var(--s-2); cursor: pointer; font-size: 1rem; }
+.pf-img-ctrls button:first-child { border-right: 1px solid var(--line); }
+.pf-img-ctrls button:hover:not(:disabled) { background: rgba(214,92,220,0.18); }
+.pf-img-ctrls button:disabled { color: var(--mute); opacity: 0.4; cursor: default; }
+@media (min-width: 640px) { .pf-img-grid { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 1040px) { .pf-img-grid { grid-template-columns: repeat(6, 1fr); } }
 
 /* ---- Leaderboard ---- */
 .lb-weekly { margin-bottom: var(--s-4); border-color: var(--magenta);

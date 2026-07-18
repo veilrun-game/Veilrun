@@ -181,8 +181,10 @@ window.VApp = (function () {
       const ult = ch.kit.ult ? C.kitRow("ult", ch.kit.ult) : "";
       const chips = ch.codenames.map(c => C.codenameChip(c, ch.pick)).join("");
       const pickNote = ch.pick ? `<p class="mute" style="font-size:.85rem;margin-top:.4rem">Current lean: <strong style="color:${ch.accent}">${C.esc(ch.pick)}</strong></p>` : "";
-      const raw = (window.VEILRUN.galleries && window.VEILRUN.galleries[ch.id]) || (ch.img ? [ch.img] : []);
-      const imgs = [...raw].sort((a, b) => (isGroupFav(b) ? 1 : 0) - (isGroupFav(a) ? 1 : 0));
+      const g = orderedGallery(ch.id);
+      const raw = g.length ? g : (ch.img ? [ch.img] : []);
+      // If the crew member set a custom order in their profile, respect it; otherwise float favorites up.
+      const imgs = hasImgOrder(ch.id) ? raw : [...raw].sort((a, b) => (isGroupFav(b) ? 1 : 0) - (isGroupFav(a) ? 1 : 0));
       synGalleryState = { id: ch.id, imgs, i: 0 };
       // Structured synergies with the partner emphasized (same cards as the explorer)
       const S = D.synergy;
@@ -356,47 +358,55 @@ window.VApp = (function () {
 
     profile() {
       const name = localStorage.getItem("vr_account") || localStorage.getItem("vr_who") || "";
-      const charId = localStorage.getItem("vr_char") || "";
-      const ch = (D.crew || []).find(c => c.id === charId);
+      const ch = myCharacter();
       const avatar = ch
         ? `<div class="pf-avatar" style="background-image:url('${C.esc(ch.img)}')"></div>`
         : `<div class="pf-avatar pf-initial">${C.esc((name[0] || "?").toUpperCase())}</div>`;
-      const charGrid = (D.crew || []).map(c => `
-        <button class="pf-char${c.id === charId ? " sel" : ""}" onclick="VApp.profilePickChar('${c.id}')" title="${C.esc(c.name)}">
-          <div class="pf-char-img" style="background-image:url('${C.esc(c.img)}')"></div>
-          <span>${C.esc(c.name)}</span>
-        </button>`).join("");
+      const gallery = ch ? orderedGallery(ch.id) : [];
+      const imgTiles = gallery.map((s, i) => `
+        <div class="pf-img">
+          <div class="pf-img-thumb" style="background-image:url('${C.esc(s)}')"><span class="pf-img-rank">${i + 1}</span></div>
+          <div class="pf-img-ctrls">
+            <button ${i === 0 ? "disabled" : ""} onclick="VApp.profileMoveImg('${ch.id}',${i},-1)" aria-label="Move up">↑</button>
+            <button ${i === gallery.length - 1 ? "disabled" : ""} onclick="VApp.profileMoveImg('${ch.id}',${i},1)" aria-label="Move down">↓</button>
+          </div>
+        </div>`).join("");
       return `<div class="wrap section">
         <div class="pf-head">
           ${avatar}
           <div class="pf-head-txt">
             <p class="eyebrow">Your profile</p>
-            <h1 class="display" style="font-size:var(--fs-h1);margin:.2rem 0">${C.esc(name || "Signed in")}</h1>
-            <p class="mute" style="margin:0">${ch ? "Playing as " + C.esc(ch.name) : "Pick your character below."}</p>
+            <h1 class="display" style="font-size:var(--fs-h1);margin:0 0 var(--s-2)">${C.esc(name || "Signed in")}</h1>
+            <p class="mute" style="margin:0">${ch ? "Playing as " + C.esc(ch.name) : "Crew account"}</p>
           </div>
           <button class="btn ghost pf-signout" onclick="VApp.signOut()">Sign out</button>
         </div>
 
         ${C.seam()}
-        <div class="panel" style="margin-top:1.5rem">
-          <div class="eyebrow">Display name</div>
-          <p class="mute" style="font-size:.85rem;margin:.3rem 0 .7rem">Go with a fun handle — it beats your real name. This is what shows on the leaderboard and your feedback.</p>
-          <div class="pf-name-row">
-            <input id="pf-name" class="fld-in" value="${C.esc(name)}" maxlength="24" placeholder="Your display name" />
-            <button class="btn" onclick="VApp.profileSaveName()">Save</button>
+        <div class="pf-cols">
+          <div class="panel">
+            <div class="eyebrow">Display name</div>
+            <p class="mute" style="font-size:.85rem;margin:0 0 .8rem">A fun handle beats your real name — it's what shows on the leaderboard and your feedback.</p>
+            <div class="pf-name-row">
+              <input id="pf-name" class="fld-in" value="${C.esc(name)}" maxlength="24" placeholder="Your display name" />
+              <button class="btn" onclick="VApp.profileSaveName()">Save</button>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="eyebrow">Password</div>
+            <p class="mute" style="font-size:.85rem;margin:0">Changing your password is coming soon. If you signed in with Google, you won't need one.</p>
           </div>
         </div>
 
+        ${ch ? `
         <div class="panel" style="margin-top:1.5rem">
-          <div class="eyebrow">Your character</div>
-          <p class="mute" style="font-size:.85rem;margin:.3rem 0 .8rem">Which of the crew are you? Tap to set it.</p>
-          <div class="pf-char-grid">${charGrid}</div>
-        </div>
-
+          <div class="eyebrow">Your images — ${C.esc(ch.name)}</div>
+          <p class="mute" style="font-size:.85rem;margin:0 0 var(--s-4)">Reorder how ${C.esc(ch.name)}'s concept art appears on the character page. #1 shows first.</p>
+          <div class="pf-img-grid">${imgTiles}</div>
+        </div>` : `
         <div class="panel" style="margin-top:1.5rem">
-          <div class="eyebrow">Password</div>
-          <p class="mute" style="font-size:.85rem;margin:.3rem 0 0">Changing your password is coming soon. If you signed in with Google, you won't need one.</p>
-        </div>
+          <p class="mute" style="margin:0">We couldn't match your name to a crew character, so there's nothing to reorder yet. Set your display name to your codename or handle and it'll link up.</p>
+        </div>`}
       </div>`;
     },
 
@@ -468,7 +478,8 @@ window.VApp = (function () {
 
   // Shared "full" profile row — same component as Threats. Tile-click elsewhere; this view gets a button + image row.
   function crewFullRow(ch) {
-    const imgs = (window.VEILRUN.galleries && window.VEILRUN.galleries[ch.id]) || (ch.img ? [ch.img] : []);
+    const gg = orderedGallery(ch.id);
+    const imgs = gg.length ? gg : (ch.img ? [ch.img] : []);
     registerSet("cfull_" + ch.id, imgs.map(s => ({ src: s, name: ch.name })));
     const mini = imgs.slice(0, 6).map((s, idx) => `<img src="${C.esc(s)}" alt="${C.esc(ch.name)}" loading="lazy" onclick="VApp.lbOpen('cfull_${ch.id}', ${idx})" />`).join("");
     return `<div class="threat" style="--accent:${ch.accent}">
@@ -942,8 +953,33 @@ window.VApp = (function () {
     toast("Display name saved");
     route();
   }
-  function profilePickChar(id) {
-    localStorage.setItem("vr_char", id);
+  // Effective image order for a character (user's saved order first, else the default gallery).
+  function orderedGallery(charId) {
+    const base = (window.VEILRUN.galleries && window.VEILRUN.galleries[charId]) || [];
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem("vr_imgorder_" + charId) || "null"); } catch (e) {}
+    if (!saved || !saved.length) return base.slice();
+    const inSaved = saved.filter(s => base.includes(s));
+    const rest = base.filter(s => !inSaved.includes(s));
+    return [...inSaved, ...rest];
+  }
+  function hasImgOrder(charId) {
+    try { const s = JSON.parse(localStorage.getItem("vr_imgorder_" + charId) || "null"); return !!(s && s.length); }
+    catch (e) { return false; }
+  }
+  // Map the signed-in account to a crew character (by name / alias / player / id).
+  function myCharacter() {
+    const who = (localStorage.getItem("vr_account") || localStorage.getItem("vr_who") || "").toLowerCase();
+    if (!who) return null;
+    return (D.crew || []).find(c => [c.name, c.alias, c.player, c.id].some(v => v && String(v).toLowerCase() === who)) || null;
+  }
+  function profileMoveImg(charId, index, dir) {
+    const cur = orderedGallery(charId);
+    const j = index + dir;
+    if (j < 0 || j >= cur.length) return;
+    const arr = cur.slice();
+    const t = arr[index]; arr[index] = arr[j]; arr[j] = t;
+    localStorage.setItem("vr_imgorder_" + charId, JSON.stringify(arr));
     route();
   }
 
@@ -996,6 +1032,6 @@ window.VApp = (function () {
   }
 
   const galMore = galLoadMore;
-  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, profilePickChar, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavOnly, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote };
+  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, profileMoveImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavOnly, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);
