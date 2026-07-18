@@ -64,8 +64,8 @@ h3 { font-size: 1.3rem; }
 .nav a:hover, .nav a.active { color: var(--white); background: rgba(214,92,220,0.14); }
 /* ---- Nav dropdown (Characters) ---- */
 .nav .navdrop { position: relative; display: inline-flex; align-items: center; }
-.nav .navdrop-btn { font-family: var(--font-body); letter-spacing: 0.01em; font-size: 0.9rem; line-height: 1;
-  color: var(--mute); background: none; border: none; cursor: pointer;
+.nav .navdrop-btn { font-family: var(--font-body); letter-spacing: 0.01em; font-size: 0.9rem;
+  color: var(--mute); background: none; border: none; cursor: pointer; text-decoration: none;
   padding: var(--s-2) var(--s-3); border-radius: var(--radius-sm); display: inline-flex; align-items: center; gap: 6px; }
 .nav .navdrop-btn .caret { width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent;
   border-top: 5px solid currentColor; transition: transform 0.2s ease; }
@@ -254,11 +254,18 @@ html { scroll-behavior: smooth; }
 .votebtn.on { color: #140a16; background: var(--magenta); border-color: var(--magenta); font-weight: 600; }
 .votebtn .vc { font-variant-numeric: tabular-nums; }
 
+/* ---- Hub "Recently" dashboard ---- */
+.dash-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-4); flex-wrap: wrap; margin-top: var(--s-2); }
+.dash-stats { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-4); margin-top: var(--s-4); }
+.dash-stat { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: var(--s-4) var(--s-5); background: var(--ink-2); }
+.dash-stat .dash-n { font-family: var(--font-display); font-size: 2rem; color: var(--magenta); line-height: 1; }
+.dash-stat .mute { font-size: 0.82rem; margin-top: 4px; }
+
 /* ---- Characters overview page ---- */
 .chero-split { display: grid; grid-template-columns: 1fr; gap: var(--s-4); margin-top: var(--s-6); }
-.chero-panel { position: relative; display: flex; align-items: flex-end; min-height: 180px;
+.chero-panel { position: relative; display: flex; align-items: flex-end; min-height: 200px;
   border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden;
-  background-size: cover; background-position: center; padding: var(--s-5);
+  background-size: cover; background-position: center; padding: var(--s-6) var(--s-6) var(--s-5);
   transition: transform .15s, border-color .15s; }
 .chero-panel:hover { transform: translateY(-3px); border-color: var(--magenta); }
 .chero-cta { font-family: var(--font-display); color: var(--white); font-size: 1.15rem; margin-top: .25rem; }

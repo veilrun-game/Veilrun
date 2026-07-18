@@ -23,6 +23,13 @@ window.VApp = (function () {
         ["#lab","The Lab","Game ideas, votes, and experiments."]
       ].map(([h,k,d]) => `<a href="${h}"><div class="k">${k}</div><div class="d">${C.esc(d)}</div></a>`).join("");
       const latest = D.updates[0];
+      const parseD = s => { const [y, m, d] = String(s).split("-").map(Number); return new Date(y, (m || 1) - 1, d || 1); };
+      const today0 = new Date(); today0.setHours(0, 0, 0, 0);
+      const diffDays = u => Math.floor((today0 - parseD(u.date)) / 864e5);
+      const upd24 = D.updates.filter(u => diffDays(u) <= 0);
+      const updWeek = D.updates.filter(u => diffDays(u) < 7);
+      const updWeekOnly = updWeek.filter(u => diffDays(u) > 0);
+      const uRow = u => `<div class="kit-row"><span class="mute" style="font-size:.8rem">${C.esc(u.date)}</span><div>${C.esc(u.text)}</div></div>`;
       return `
         <section class="hub-hero wrap">
           ${C.sectionHeader("Home base","Welcome back, crew")}
@@ -39,10 +46,15 @@ window.VApp = (function () {
         <div class="wrap">
           <div class="jump">${jumps}</div>
           ${C.seam()}
-          <h2>Latest updates</h2>
+          <div class="dash-head"><h2 style="margin:0">Recently</h2><a class="btn ghost" href="#updates">See all updates →</a></div>
+          <div class="dash-stats">
+            <div class="dash-stat"><div class="dash-n">${upd24.length}</div><div class="mute">in the last 24 hours</div></div>
+            <div class="dash-stat"><div class="dash-n">${updWeek.length}</div><div class="mute">in the past 7 days</div></div>
+          </div>
           <div class="panel" style="margin-top:1rem">
-            ${D.updates.slice(0, 6).map(u => `<div class="kit-row"><span class="mute" style="font-size:.8rem">${C.esc(u.date)}</span><div>${C.esc(u.text)}</div></div>`).join("")}
-            ${D.updates.length > 6 ? `<div style="text-align:center;margin-top:var(--s-6)"><a class="btn ghost" href="#updates">See all updates →</a></div>` : ""}
+            <div class="eyebrow">Last 24 hours</div>
+            ${upd24.length ? upd24.slice(0, 6).map(uRow).join("") : `<p class="mute" style="margin:.5rem 0 0">No changes in the last 24 hours.</p>`}
+            ${updWeekOnly.length ? `<hr class="seam" /><div class="eyebrow">Earlier this week</div>${updWeekOnly.slice(0, 6).map(uRow).join("")}` : ""}
           </div>
           <div class="panel" style="margin-top:1.5rem;border-color:var(--violet)">
             <div class="eyebrow">See what's next</div>
@@ -827,10 +839,13 @@ window.VApp = (function () {
     setTimeout(() => t.classList.remove("show"), 2600);
   }
 
+  const isAccount = () => !!localStorage.getItem("vr_account");
   function route() {
     if (!requireGate()) return;
     const hash = (location.hash || "#hub").slice(1);
     const [name, arg] = hash.split("/");
+    // Landing + Leaderboard are for signed-in accounts only; guests get bounced to the Hub.
+    if ((name === "landing" || name === "leaderboard") && !isAccount()) { location.hash = "#hub"; return; }
     if (name === "gallery") galState.limit = 24; // reset paging before render
     if (window.VLanding) VLanding.teardown(); // clean any landing listeners before leaving/re-render
     let html;
@@ -912,6 +927,8 @@ window.VApp = (function () {
       if (acct) { chip.textContent = acct.trim()[0].toUpperCase(); chip.style.display = "flex"; chip.title = "Signed in as " + acct + " — click to sign out"; }
       else chip.style.display = "none";
     }
+    // Reveal account-only nav items (Landing, Leaderboard) for signed-in accounts.
+    document.querySelectorAll("[data-account]").forEach(el => { el.style.display = acct ? "" : "none"; });
     route();
     // Load group likes + lab votes, then re-render so hearts/favorites/vote counts show.
     Promise.all([hydrateLikes(), hydrateVotes()]).then(() => route());

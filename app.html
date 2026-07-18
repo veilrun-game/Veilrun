@@ -18,7 +18,7 @@
     <button class="menu-btn" id="menu-btn" onclick="VApp.toggleMenu()" aria-label="Menu"><span class="ham"></span></button>
     <div class="links" id="navlinks">
       <a data-route href="#hub">Hub</a>
-      <a data-route href="#landing">Landing</a>
+      <a data-route data-account href="#landing" style="display:none">Landing</a>
       <a data-route href="#world">World</a>
       <div class="navdrop" id="navdrop-characters">
         <a class="navdrop-btn" data-route href="#characters" aria-haspopup="true">Characters <span class="caret" aria-hidden="true"></span></a>
@@ -31,7 +31,7 @@
       </div>
       <a data-route href="#gallery">Gallery</a>
       <a data-route href="#lab">Lab</a>
-      <a data-route href="#leaderboard">Leaderboard</a>
+      <a data-route data-account href="#leaderboard" style="display:none">Leaderboard</a>
       <a data-route href="#updates">Updates</a>
     </div>
     <!-- Ever-present CTA. Swap this to Discord / Play when the site opens up more broadly. -->
