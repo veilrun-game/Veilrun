@@ -727,14 +727,17 @@ window.VApp = (function () {
     const hash = (location.hash || "#hub").slice(1);
     const [name, arg] = hash.split("/");
     if (name === "gallery") galState.limit = 24; // reset paging before render
+    if (window.VLanding) VLanding.teardown(); // clean any landing listeners before leaving/re-render
     let html;
     if (name === "crew" && arg) html = views.character(arg);
     else if (name === "threats" && arg) html = views.threat(arg);
+    else if (name === "landing" && window.VLanding) html = VLanding.view();
     else if (views[name]) html = views[name]();
     else html = views.hub();
     view().innerHTML = html;
     if (name === "gallery") setupGalleryLazy();
     if (name === "lab") refreshVotes();
+    if (name === "landing" && window.VLanding) VLanding.init();
     document.querySelectorAll(".nav a[data-route]").forEach(a =>
       a.classList.toggle("active", a.getAttribute("href") === "#" + name));
     closeMenu();

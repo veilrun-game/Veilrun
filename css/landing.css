@@ -1,0 +1,121 @@
+/* VEILRUN — Landing page (WIREFRAME). Working interactions + labeled placeholder art slots.
+   Real art replaces the .slot placeholders later. Scoped under #landing. */
+
+/* The global page-enter animation leaves a transform on #view > * which would create a
+   containing block and break the landing's position:sticky sections — opt out here. */
+#landing { display: block; animation: none !important; }
+#landing .lwrap { max-width: 1100px; margin: 0 auto; padding-inline: clamp(1.15rem, 5vw, 2rem); }
+
+/* Wireframe banner */
+#landing .wf-banner { position: sticky; top: 0; z-index: 5; text-align: center;
+  font-family: var(--font-body); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--violet-lt); background: rgba(124,74,182,0.14); border-bottom: 1px dashed var(--violet);
+  padding: 6px 10px; }
+
+/* Generic placeholder "asset slot" */
+#landing .slot { position: relative; display: flex; align-items: center; justify-content: center; text-align: center;
+  border: 1.5px dashed rgba(214,92,220,0.5); border-radius: var(--radius-sm);
+  color: var(--mute); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.72rem;
+  letter-spacing: 0.04em; padding: 1rem; overflow: hidden; }
+#landing .slot .slot-tag { position: relative; z-index: 2; max-width: 30ch; line-height: 1.5; }
+
+/* Placeholder "world" fills (stand-ins for real renders) */
+.fill-overcity { background:
+  radial-gradient(120% 90% at 20% 10%, rgba(217,138,58,0.55), transparent 60%),
+  radial-gradient(120% 120% at 90% 100%, rgba(214,92,220,0.5), transparent 55%),
+  linear-gradient(160deg, #241726, #120a1c); }
+.fill-underweft { background:
+  radial-gradient(120% 90% at 80% 10%, rgba(42,167,181,0.5), transparent 60%),
+  radial-gradient(130% 120% at 10% 100%, rgba(124,74,182,0.6), transparent 55%),
+  linear-gradient(160deg, #10202a, #0b0a1e); }
+
+/* ---------- HERO (parallax) ---------- */
+#landing .hero { position: relative; height: 100vh; min-height: 560px; overflow: hidden;
+  display: flex; align-items: center; justify-content: center; text-align: center; }
+#landing .hero-layer { position: absolute; inset: -10% 0 0 0; will-change: transform; }
+#landing .hero-far   { background: linear-gradient(180deg, #0d0820, #160c26); }
+#landing .hero-mid   { background:
+  radial-gradient(80% 60% at 50% 100%, rgba(124,74,182,0.35), transparent 70%);
+  opacity: 0.9; }
+#landing .hero-city { position: absolute; inset: auto 0 0 0; height: 62%;
+  background: linear-gradient(180deg, transparent, rgba(6,4,14,0.2));
+  -webkit-mask: linear-gradient(180deg, transparent, #000 40%); mask: linear-gradient(180deg, transparent, #000 40%); }
+/* Greybox skyline built from repeating blocks (placeholder for real city art) */
+#landing .skyline { position: absolute; bottom: 0; left: 0; right: 0; height: 100%;
+  background:
+    repeating-linear-gradient(90deg, rgba(180,150,220,0.10) 0 42px, transparent 42px 88px),
+    repeating-linear-gradient(90deg, rgba(120,90,170,0.14) 0 18px, transparent 18px 60px);
+  -webkit-mask: linear-gradient(180deg, transparent 8%, #000 55%); mask: linear-gradient(180deg, transparent 8%, #000 55%); }
+#landing .hero-content { position: relative; z-index: 3; padding: 0 1rem; }
+#landing .hero .wordmark { font-family: var(--font-display); font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.14em; font-size: clamp(3rem, 12vw, 8rem); line-height: 0.9; color: var(--white); margin: 0; }
+#landing .hero .wordmark b { color: var(--magenta); }
+#landing .hero .hook { font-family: var(--font-body); color: var(--mute); font-size: clamp(1rem, 2.4vw, 1.4rem);
+  margin: 1.1rem auto 1.8rem; max-width: 40ch; }
+#landing .hero-btns { display: flex; gap: var(--s-3); justify-content: center; flex-wrap: wrap; }
+#landing .scrollcue { position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 3;
+  color: var(--mute); font-size: 1.4rem; animation: cueBob 1.8s ease-in-out infinite; }
+@keyframes cueBob { 0%,100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, 8px); } }
+
+/* ---------- THE TEAR (scroll split) ---------- */
+#landing .tear { position: relative; height: 120vh; }
+#landing .tear-sticky { position: sticky; top: 0; height: 100vh; overflow: hidden; display: flex; }
+#landing .tear-half { position: absolute; top: 0; bottom: 0; width: 50%; will-change: transform;
+  display: flex; align-items: center; justify-content: center; }
+#landing .tear-left  { left: 0; }
+#landing .tear-right { right: 0; }
+#landing .tear-seam { position: absolute; top: 0; bottom: 0; left: 50%; width: 3px; transform: translateX(-50%);
+  background: linear-gradient(180deg, transparent, var(--magenta), var(--violet-lt), var(--magenta), transparent);
+  box-shadow: 0 0 24px 4px rgba(214,92,220,0.6); opacity: 0; z-index: 2; }
+#landing .tear-label { position: absolute; z-index: 3; top: 50%; transform: translateY(-50%);
+  font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.2em; color: var(--white);
+  font-size: clamp(1rem, 3vw, 1.8rem); opacity: 0.85; }
+#landing .tear-left .tear-label { left: 8%; } #landing .tear-right .tear-label { right: 8%; }
+
+/* ---------- Section shell ---------- */
+#landing .lsection { padding: clamp(3.5rem, 9vw, 7rem) 0; }
+#landing .eyebrow { font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.18em;
+  color: var(--violet-lt); font-size: 0.78rem; margin: 0 0 0.6rem; }
+#landing .lsection h2 { font-family: var(--font-display); color: var(--white); font-size: clamp(1.6rem, 4vw, 2.6rem); margin: 0 0 0.8rem; }
+#landing .premise { font-size: clamp(1.3rem, 3.4vw, 2rem); line-height: 1.4; color: var(--white); max-width: 24ch; }
+#landing .premise .mag { color: var(--magenta); }
+
+/* ---------- SEAM SLIDER (the signature interaction) ---------- */
+#landing .seam-slider { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 14px;
+  overflow: hidden; touch-action: none; user-select: none; cursor: ew-resize; border: 1px solid var(--line);
+  --pos: 50%; }
+#landing .ss-layer { position: absolute; inset: 0; display: flex; align-items: flex-end; }
+#landing .ss-over { clip-path: inset(0 calc(100% - var(--pos)) 0 0); }
+#landing .ss-tag { position: absolute; top: 12px; padding: 4px 10px; border-radius: 999px; font-size: 0.72rem;
+  font-family: var(--font-body); letter-spacing: 0.04em; background: rgba(6,4,14,0.55); color: var(--white); z-index: 4; }
+#landing .ss-over .ss-tag { left: 12px; } #landing .ss-under .ss-tag { right: 12px; }
+#landing .ss-slot { position: absolute; bottom: 12px; left: 0; right: 0; text-align: center; z-index: 3;
+  font-family: ui-monospace, monospace; font-size: 0.68rem; color: rgba(255,255,255,0.6); }
+/* The divider = the Seam */
+#landing .ss-divider { position: absolute; top: 0; bottom: 0; left: var(--pos); width: 2px; transform: translateX(-1px); z-index: 5;
+  background: linear-gradient(180deg, transparent, #fff, var(--violet-lt), #fff, transparent);
+  box-shadow: 0 0 22px 3px rgba(214,92,220,0.75); }
+#landing .ss-handle { position: absolute; top: 50%; left: var(--pos); z-index: 6; width: 44px; height: 44px;
+  transform: translate(-50%, -50%) rotate(45deg); border: 2px solid #fff; border-radius: 8px;
+  background: rgba(18,10,28,0.7); box-shadow: 0 0 22px rgba(214,92,220,0.7); }
+#landing .ss-handle::before { content: "⟷"; position: absolute; inset: 0; transform: rotate(-45deg);
+  display: flex; align-items: center; justify-content: center; color: #fff; font-size: 1rem; }
+#landing .ss-hint { margin-top: 0.8rem; color: var(--mute); font-size: 0.85rem; text-align: center; }
+
+/* ---------- CREW SILHOUETTES ---------- */
+#landing .crew-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-4); }
+#landing .sil { aspect-ratio: 3 / 4; opacity: 0; transform: translateY(20px);
+  transition: opacity 0.6s ease, transform 0.6s ease; }
+#landing .sil.in { opacity: 1; transform: translateY(0); }
+
+/* ---------- CTA ---------- */
+#landing .lcta { text-align: center; padding: clamp(4rem, 10vw, 8rem) 0; }
+#landing .lcta h2 { margin-bottom: 1.2rem; }
+#landing .lcta .hero-btns { display: flex; gap: var(--s-3); justify-content: center; flex-wrap: wrap; }
+
+@media (min-width: 760px) {
+  #landing .crew-row { grid-template-columns: repeat(9, 1fr); gap: var(--s-2); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #landing .hero-layer, #landing .tear-half { transform: none !important; }
+}

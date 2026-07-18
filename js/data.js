@@ -234,6 +234,7 @@ VEILRUN.modes = [
 VEILRUN.cover = "assets/img/cover.png";
 
 VEILRUN.updates = [
+  { date: "2026-07-14", text: "New: a Landing page (wireframe) in the nav — an early look at the outward-facing front door. It has a draggable ‘Seam Slider’ that wipes a scene between the two worlds, plus scroll parallax and a seam-tear. Art is placeholder for now; we're building it up slowly to get it right." },
   { date: "2026-07-13", text: "The Lab is now votable — tap ▲ on any game idea to up-vote it. Counts are shared across the whole crew, so we can see which concepts are rising." },
   { date: "2026-07-13", text: "The nav moved to the bottom on phones (easier on the thumb): tap the middle button to open the menu as a slide-up sheet. And there's now an ever-present Feedback button, so you can chime in from any page." },
   { date: "2026-07-13", text: "Naming locked in: the crew is The Last Fluent; Veilrun is the game." },

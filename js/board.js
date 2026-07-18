@@ -4,8 +4,8 @@ VEILRUN.board = {
   updated: "2026-07-13",
   columns: [
     { name: "In progress", cards: [
-      { id: "VR-21", t: "Build Manafest + squad (codename + full kit)", who: "Claude", pri: "P2" },
-      { id: "VR-58", t: "Gameplay-view environment renders (unified recipe)", who: "Claude", pri: "P2" }
+      { id: "VR-60", t: "Landing page — wireframe live; building the full experience", who: "Claude", pri: "P2" },
+      { id: "VR-21", t: "Manafest — kit drafted; pick codename + squad kits", who: "Jordan", pri: "P2" }
     ]},
     { name: "Up next", cards: [
       { id: "VR-46", t: "Expand the design system (document all patterns)", who: "Claude", pri: "P3" },
