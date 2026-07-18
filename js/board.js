@@ -4,12 +4,13 @@ VEILRUN.board = {
   updated: "2026-07-13",
   columns: [
     { name: "In progress", cards: [
-      { id: "VR-60", t: "Landing page — wireframe live; paused pending Weave/MJ assets", who: "Both", pri: "P2" },
-      { id: "VR-21", t: "Manafest — kit drafted; pick codename + squad kits", who: "Jordan", pri: "P2" }
+      { id: "VR-64", t: "Accounts — create/sign-in built; verify Supabase email setting + test", who: "Both", pri: "P1" },
+      { id: "VR-60", t: "Landing page — wireframe live; paused pending Weave/MJ assets", who: "Both", pri: "P2" }
     ]},
     { name: "Up next", cards: [
-      { id: "VR-62", t: "Accounts (Supabase Auth) — you create logins, I build sign-in + profiles", who: "Both", pri: "P2" },
+      { id: "VR-21", t: "Manafest — kit drafted; pick codename + squad kits", who: "Jordan", pri: "P2" },
       { id: "VR-63", t: "Landing assets: paired scenes + silhouettes (MJ) + seam-tear (Weave)", who: "Jordan", pri: "P2" },
+      { id: "VR-65", t: "Profiles: change password, reorder your own pictures", who: "Claude", pri: "P3" },
       { id: "VR-46", t: "Expand the design system (document all patterns)", who: "Claude", pri: "P3" },
       { id: "VR-18", t: "Rook map-recon prototype (fog of war)", who: "Claude", pri: "P2" }
     ]},
@@ -21,6 +22,8 @@ VEILRUN.board = {
       { id: "VR-34", t: "Art pipeline: AI-assisted → toward original", who: "Both", pri: "P2" }
     ]},
     { name: "Done (recent)", cards: [
+      { id: "★", t: "Accounts — email sign-in / create-account flow (Supabase Auth)", who: "Claude", pri: "" },
+      { id: "★", t: "Characters overview page + tidied nav dropdown", who: "Claude", pri: "" },
       { id: "★", t: "Crew leaderboard live — contribution ranking + weekly spotlight", who: "Claude", pri: "" },
       { id: "★", t: "Nav tidied — Characters dropdown + Leaderboard link", who: "Claude", pri: "" },
       { id: "★", t: "Landing wireframe — parallax, seam-tear, draggable Seam Slider", who: "Claude", pri: "" },

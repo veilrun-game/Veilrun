@@ -53,6 +53,55 @@ window.VApp = (function () {
         </div>`;
     },
 
+    characters() {
+      const crew = D.crew || [], threats = D.threats || [];
+      const villain = (D.world && D.world.villain) || null;
+      const cover = D.cover || "assets/img/cover.png";
+      const threatBg = (threats[0] && threats[0].img) || cover;
+      const crewCards = crew.map(c => `
+        <a class="cp-card" href="#crew/${c.id}">
+          <div class="cp-img" style="background-image:url('${C.esc(c.img)}')"></div>
+          <div class="cp-meta"><div class="cp-name">${C.esc(c.name)}</div><div class="cp-role mute">${C.esc(c.role || "")}</div></div>
+        </a>`).join("");
+      const threatCards = threats.slice(0, 8).map(t => `
+        <a class="cp-card" href="#threats/${t.id}">
+          <div class="cp-img" style="background-image:url('${C.esc(t.img || cover)}')"></div>
+          <div class="cp-meta"><div class="cp-name">${C.esc(t.name)}</div><div class="cp-role mute">${C.esc(t.tier || "")}</div></div>
+        </a>`).join("");
+      return `<div class="wrap section chars-page">
+        ${C.sectionHeader("The cast","Characters")}
+        <p class="mute" style="max-width:62ch;margin-top:1rem">The people you play — and the forces against them. Meet the crew fluent in both worlds, and the threats trying to finish the split.</p>
+        <div class="chero-split">
+          <a class="chero-panel" href="#crew" style="background-image:linear-gradient(180deg,rgba(11,8,24,.25),rgba(11,8,24,.9)),url('${C.esc(cover)}')">
+            <div><div class="eyebrow">The Last Fluent</div><div class="chero-cta">The nine playable crew →</div></div>
+          </a>
+          <a class="chero-panel" href="#threats" style="background-image:linear-gradient(180deg,rgba(11,8,24,.25),rgba(11,8,24,.9)),url('${C.esc(threatBg)}')">
+            <div><div class="eyebrow">The Threats</div><div class="chero-cta">${villain ? C.esc(villain.name) + " &amp; the roster →" : "The roster →"}</div></div>
+          </a>
+        </div>
+
+        ${C.seam()}
+        <section class="chars-block">
+          <div class="chars-block-head"><h2>The Last Fluent</h2><a class="btn ghost" href="#crew">Meet the full crew →</a></div>
+          <p class="mute" style="max-width:62ch">Nine friends, each fluent in both realms — every one a distinct kit and codename. Tap anyone to dive in.</p>
+          <div class="cp-grid">${crewCards}</div>
+        </section>
+
+        ${C.seam()}
+        <section class="chars-block">
+          <div class="chars-block-head"><h2>The Threats</h2><a class="btn ghost" href="#threats">See all threats →</a></div>
+          ${villain ? `<div class="panel" style="border-color:var(--violet);margin:0 0 1rem"><div class="eyebrow">The Villain</div><h3 style="margin:.2rem 0">${C.esc(villain.name)}</h3><p class="mute">${C.esc(villain.text)}</p></div>` : ""}
+          <div class="cp-grid">${threatCards}</div>
+        </section>
+
+        ${C.seam()}
+        <section class="chars-block">
+          <div class="chars-block-head"><h2>Synergy</h2><a class="btn ghost" href="#synergy">Explore the matrix →</a></div>
+          <p class="mute" style="max-width:62ch">How the crew combine — pairs, auras, and the hive-mind. See who amplifies whom.</p>
+        </section>
+      </div>`;
+    },
+
     world() {
       const w = D.world;
       const force = w.force.map(f => `<div class="panel"><div class="eyebrow">${C.esc(f.side)}</div><h3>${C.esc(f.name)}</h3><p class="mute">${C.esc(f.text)}</p></div>`).join("");
@@ -735,8 +784,17 @@ window.VApp = (function () {
     el.querySelector("#fb-type").value = fbCtx.type;
     el.querySelector("#fb-note").value = "";
     const sel = el.querySelector("#fb-who");
-    sel.value = localStorage.getItem("vr_who") || "";
-    fbWhoChange();
+    const acct = localStorage.getItem("vr_account");
+    if (acct) {
+      // Signed in — lock attribution to the account so the leaderboard stays honest.
+      if (![...sel.options].some(o => o.value === acct)) sel.add(new Option(acct, acct), 1);
+      sel.value = acct; sel.disabled = true;
+      el.querySelector("#fb-who-other").style.display = "none";
+    } else {
+      sel.disabled = false;
+      sel.value = localStorage.getItem("vr_who") || "";
+      fbWhoChange();
+    }
     el.classList.add("open");
     setTimeout(() => el.querySelector("#fb-note").focus(), 50);
   }
@@ -789,7 +847,7 @@ window.VApp = (function () {
     document.querySelectorAll(".nav a[data-route]").forEach(a =>
       a.classList.toggle("active", a.getAttribute("href") === "#" + name));
     const drop = document.getElementById("navdrop-characters");
-    if (drop) drop.classList.toggle("active", ["crew", "threats", "synergy"].includes(name));
+    if (drop) drop.classList.toggle("active", ["characters", "crew", "threats", "synergy"].includes(name));
     document.querySelectorAll(".navdrop.open").forEach(d => d.classList.remove("open"));
     closeMenu();
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
@@ -805,6 +863,13 @@ window.VApp = (function () {
     btn?.classList.toggle("open", open);
   }
   function closeMenu() { toggleMenu(false); }
+
+  function signOut() {
+    if (!window.confirm("Sign out?")) return;
+    localStorage.removeItem("vr_account");
+    sessionStorage.removeItem("vr_ok");
+    window.location.href = "index.html";
+  }
 
   function toggleDrop(e) {
     e.stopPropagation();
@@ -841,12 +906,18 @@ window.VApp = (function () {
     document.addEventListener("click", e => {
       if (!e.target.closest(".navdrop")) document.querySelectorAll(".navdrop.open").forEach(d => d.classList.remove("open"));
     });
+    const acct = localStorage.getItem("vr_account");
+    const chip = document.getElementById("nav-profile");
+    if (chip) {
+      if (acct) { chip.textContent = acct.trim()[0].toUpperCase(); chip.style.display = "flex"; chip.title = "Signed in as " + acct + " — click to sign out"; }
+      else chip.style.display = "none";
+    }
     route();
     // Load group likes + lab votes, then re-render so hearts/favorites/vote counts show.
     Promise.all([hydrateLikes(), hydrateVotes()]).then(() => route());
   }
 
   const galMore = galLoadMore;
-  return { init, route, toggleMenu, toggleDrop, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavOnly, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote };
+  return { init, route, toggleMenu, toggleDrop, signOut, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavOnly, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);

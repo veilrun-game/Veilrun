@@ -234,6 +234,8 @@ VEILRUN.modes = [
 VEILRUN.cover = "assets/img/cover.png";
 
 VEILRUN.updates = [
+  { date: "2026-07-14", text: "You can now make your own account. On the first screen: Create account (or Sign in) with an email + password, and your feedback is tied to the real you — so the leaderboard is accurate. A shared code still works for quick guest access. Signed in, you'll see your initial top-right; click it to sign out." },
+  { date: "2026-07-14", text: "New: a Characters overview page (in the nav) — a hero highlighting the crew and the threats, with quick jumps into Crew, Threats, and Synergy. The nav is grouped under a tidied ‘Characters’ menu." },
   { date: "2026-07-14", text: "New: a crew Leaderboard — earn points for shaping Veilrun (feedback counts triple, plus likes and votes), with a ‘most active this week’ spotlight. It's live off our feedback so far; logins will feed it once accounts are in." },
   { date: "2026-07-14", text: "The nav is tidier: Crew, Threats, and Synergy now live under a ‘Characters’ menu, and there's a Leaderboard link up top." },
   { date: "2026-07-14", text: "New: a Landing page (wireframe) in the nav — an early look at the outward-facing front door. It has a draggable ‘Seam Slider’ that wipes a scene between the two worlds, plus scroll parallax and a seam-tear. Art is placeholder for now; we're building it up slowly to get it right." },

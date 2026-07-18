@@ -17,29 +17,96 @@
       <p class="eyebrow">A game built around us</p>
       <h1 class="display" style="font-size: var(--fs-hero); margin-top: var(--s-4);">VEIL<span style="color:var(--magenta)">RUN</span></h1>
       <p class="tag">Two halves of a breaking world. One crew fluent in both.</p>
-      <form class="gate" id="gate" autocomplete="off">
-        <input type="password" id="pw" placeholder="Enter passphrase" aria-label="Passphrase" />
-        <button class="btn" type="submit">Enter</button>
-      </form>
+      <div class="auth" id="auth">
+        <div class="auth-tabs">
+          <button type="button" class="auth-tab active" id="tab-signin">Sign in</button>
+          <button type="button" class="auth-tab" id="tab-signup">Create account</button>
+        </div>
+        <form id="authForm" autocomplete="off">
+          <input id="displayName" class="fld-in" placeholder="Display name" style="display:none" autocomplete="off" />
+          <input id="email" class="fld-in" type="email" placeholder="Email" autocomplete="off" />
+          <input id="password" class="fld-in" type="password" placeholder="Password (min 6 characters)" autocomplete="off" />
+          <button class="btn" type="submit" id="authSubmit">Sign in</button>
+        </form>
+        <button type="button" class="linklike" id="toggleCode">Or enter with a shared code</button>
+        <form class="gate" id="gate" autocomplete="off" style="display:none">
+          <input type="password" id="pw" placeholder="Shared passphrase" aria-label="Passphrase" />
+          <button class="btn ghost" type="submit">Enter</button>
+        </form>
+      </div>
       <div class="err" id="err"></div>
       <p class="mute" style="margin-top: var(--s-8); font-size: var(--fs-small);">Private concept preview · not final</p>
     </div>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
   <script>
-    // SOFT GATE ONLY — not real security (source is viewable). Real gating happens at the host on deploy.
-    // Change the passphrase here. On correct entry we set a session flag and open the app.
-    const PASSPHRASE = "bothsides"; // TODO: Jordan to change; real auth at deploy (Netlify/Cloudflare).
-    document.getElementById('gate').addEventListener('submit', function (e) {
+    // Individual accounts via Supabase Auth (accurate attribution for the leaderboard).
+    // The shared passphrase stays as a soft fallback for quick/guest access.
+    const cfg = window.VEILRUN_CONFIG || {};
+    const sb = (cfg.supabaseUrl && cfg.supabaseAnonKey && window.supabase)
+      ? window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey) : null;
+    const $ = (id) => document.getElementById(id);
+    const PASSPHRASE = "bothsides"; // soft fallback; not real security (source is viewable).
+    let mode = "signin";
+
+    function setMode(m) {
+      mode = m;
+      $("tab-signin").classList.toggle("active", m === "signin");
+      $("tab-signup").classList.toggle("active", m === "signup");
+      $("displayName").style.display = m === "signup" ? "block" : "none";
+      $("authSubmit").textContent = m === "signup" ? "Create account" : "Sign in";
+      $("err").textContent = "";
+    }
+    $("tab-signin").onclick = () => setMode("signin");
+    $("tab-signup").onclick = () => setMode("signup");
+    $("toggleCode").onclick = () => { const g = $("gate"); g.style.display = g.style.display === "none" ? "flex" : "none"; };
+
+    function enter(name) {
+      sessionStorage.setItem("vr_ok", "1");
+      if (name) { localStorage.setItem("vr_who", name); localStorage.setItem("vr_account", name); }
+      window.location.href = "app.html#hub";
+    }
+
+    $("authForm").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const val = document.getElementById('pw').value.trim().toLowerCase();
-      if (val === PASSPHRASE) {
-        sessionStorage.setItem('vr_ok', '1');
-        window.location.href = 'app.html#hub';
-      } else {
-        document.getElementById('err').textContent = "The seam doesn't open for that.";
+      $("err").textContent = "";
+      if (!sb) { $("err").textContent = "Accounts aren't available right now — use a shared code below."; return; }
+      const email = $("email").value.trim(), password = $("password").value;
+      if (!email || !password) { $("err").textContent = "Enter your email and password."; return; }
+      $("authSubmit").disabled = true;
+      try {
+        if (mode === "signup") {
+          const name = $("displayName").value.trim();
+          if (!name) { $("err").textContent = "Pick a display name."; $("authSubmit").disabled = false; return; }
+          const { data, error } = await sb.auth.signUp({ email, password, options: { data: { display_name: name } } });
+          if (error) throw error;
+          if (data.session) enter(name);
+          else { $("err").textContent = "Account created — check your email to confirm, then sign in."; setMode("signin"); }
+        } else {
+          const { data, error } = await sb.auth.signInWithPassword({ email, password });
+          if (error) throw error;
+          const name = (data.user && data.user.user_metadata && data.user.user_metadata.display_name) || email.split("@")[0];
+          enter(name);
+        }
+      } catch (err) {
+        $("err").textContent = (err && err.message) || "Something went wrong.";
       }
+      $("authSubmit").disabled = false;
     });
+
+    $("gate").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const val = $("pw").value.trim().toLowerCase();
+      if (val === PASSPHRASE) {
+        sessionStorage.setItem("vr_ok", "1");
+        localStorage.removeItem("vr_account"); // shared-code users keep pick-your-name
+        window.location.href = "app.html#hub";
+      } else { $("err").textContent = "The seam doesn't open for that."; }
+    });
+
+    setMode("signin");
   </script>
 </body>
 </html>
