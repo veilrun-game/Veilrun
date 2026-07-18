@@ -54,8 +54,14 @@ window.VLanding = (function () {
         <p class="eyebrow">One place, both worlds</p>
         <h2>The Seam Slider</h2>
         <div class="seam-slider" id="seam-slider">
-          <div class="ss-layer ss-under fill-underweft"><span class="ss-tag">Underweft</span><span class="ss-slot">ASSET: paired scene — Underweft render</span></div>
-          <div class="ss-layer ss-over fill-overcity"><span class="ss-tag">Overcity</span><span class="ss-slot">ASSET: paired scene — Overcity render (identical framing)</span></div>
+          <div class="ss-layer ss-under fill-underweft">
+            <img class="ss-real" src="assets/landing/seam/underweft.png" alt="" onerror="this.remove()" />
+            <span class="ss-tag">Underweft</span><span class="ss-slot">ASSET: paired scene — Underweft render</span>
+          </div>
+          <div class="ss-layer ss-over fill-overcity">
+            <img class="ss-real" src="assets/landing/seam/overcity.png" alt="" onerror="this.remove()" />
+            <span class="ss-tag">Overcity</span><span class="ss-slot">ASSET: paired scene — Overcity render (identical framing)</span>
+          </div>
           <div class="ss-divider"></div>
           <div class="ss-handle" id="ss-handle"></div>
         </div>

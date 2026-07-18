@@ -24,11 +24,15 @@ window.VApp = (function () {
       ].map(([h,k,d]) => `<a href="${h}"><div class="k">${k}</div><div class="d">${C.esc(d)}</div></a>`).join("");
       const latest = D.updates[0];
       const parseD = s => { const [y, m, d] = String(s).split("-").map(Number); return new Date(y, (m || 1) - 1, d || 1); };
-      const today0 = new Date(); today0.setHours(0, 0, 0, 0);
-      const diffDays = u => Math.floor((today0 - parseD(u.date)) / 864e5);
-      const upd24 = D.updates.filter(u => diffDays(u) <= 0);
-      const updWeek = D.updates.filter(u => diffDays(u) < 7);
-      const updWeekOnly = updWeek.filter(u => diffDays(u) > 0);
+      const dayN = d => Math.round(d.getTime() / 864e5);
+      // Bucket relative to the NEWEST entry in the log (not wall-clock) so "recent" never goes stale to 0.
+      const newestN = D.updates.reduce((mx, u) => Math.max(mx, dayN(parseD(u.date))), -Infinity);
+      const daysBack = u => newestN - dayN(parseD(u.date)); // 0 = newest day
+      const upd24 = D.updates.filter(u => daysBack(u) <= 0);        // the latest drop
+      const updWeek = D.updates.filter(u => daysBack(u) < 7);       // within a week of it
+      const updWeekOnly = updWeek.filter(u => daysBack(u) > 0);     // earlier that week
+      const newestLabel = (() => { const d = D.updates.map(u => parseD(u.date)).sort((a, b) => b - a)[0];
+        return d ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) : ""; })();
       const uRow = u => `<div class="kit-row"><span class="mute" style="font-size:.8rem">${C.esc(u.date)}</span><div>${C.esc(u.text)}</div></div>`;
       return `
         <section class="hub-hero wrap">
@@ -48,12 +52,12 @@ window.VApp = (function () {
           ${C.seam()}
           <div class="dash-head"><h2 style="margin:0">Recently</h2><a class="btn ghost" href="#updates">See all updates →</a></div>
           <div class="dash-stats">
-            <div class="dash-stat"><div class="dash-n">${upd24.length}</div><div class="mute">in the last 24 hours</div></div>
-            <div class="dash-stat"><div class="dash-n">${updWeek.length}</div><div class="mute">in the past 7 days</div></div>
+            <div class="dash-stat"><div class="dash-n">${upd24.length}</div><div class="mute">in the latest drop${newestLabel ? " · " + newestLabel : ""}</div></div>
+            <div class="dash-stat"><div class="dash-n">${updWeek.length}</div><div class="mute">in the last week of changes</div></div>
           </div>
           <div class="panel" style="margin-top:1rem">
-            <div class="eyebrow">Last 24 hours</div>
-            ${upd24.length ? upd24.slice(0, 6).map(uRow).join("") : `<p class="mute" style="margin:.5rem 0 .8rem">No changes today — here's the latest:</p>${D.updates.slice(0, 2).map(uRow).join("")}`}
+            <div class="eyebrow">Latest${newestLabel ? " · " + newestLabel : ""}</div>
+            ${upd24.slice(0, 8).map(uRow).join("")}
             ${updWeekOnly.length ? `<hr class="seam" /><div class="eyebrow">Earlier this week</div>${updWeekOnly.slice(0, 6).map(uRow).join("")}` : ""}
           </div>
           <div class="panel" style="margin-top:1.5rem;border-color:var(--violet)">
