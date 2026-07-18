@@ -46,13 +46,11 @@
 
   <div class="handle-modal" id="handleModal" style="display:none">
     <div class="handle-card">
-      <p class="eyebrow">Welcome back</p>
-      <h3>Which name should we use?</h3>
-      <p class="mute" id="handleMsg"></p>
-      <div class="handle-btns">
-        <button class="btn" id="keepHandle"></button>
-        <button class="btn ghost" id="useGoogle"></button>
-      </div>
+      <p class="eyebrow">One thing first</p>
+      <h3>Pick your display name</h3>
+      <p class="mute">This is what shows on the leaderboard and your feedback. Go with a fun handle — you can change it anytime in your profile.</p>
+      <input id="handleInput" class="fld-in" maxlength="24" placeholder="Your handle" autocomplete="off" />
+      <div class="handle-btns"><button class="btn" id="handleSave">Continue</button></div>
     </div>
   </div>
 
@@ -138,32 +136,34 @@
     });
 
     // Auto-enter when a Supabase session exists — both on OAuth return and for already-signed-in users.
+    let pendingName = "";
     function enterFromSession(session) {
       if (entered || !session || !session.user) return;
       const u = session.user, m = u.user_metadata || {};
       const googleName = m.display_name || m.full_name || m.name || (u.email ? u.email.split("@")[0] : "Crew");
-      const prev = (localStorage.getItem("vr_who") || "").trim();
-      // First Google login with no chosen handle yet, and a different name already in use → offer to keep it.
-      if (!m.display_name && prev && prev.toLowerCase() !== googleName.trim().toLowerCase() && !localStorage.getItem("vr_handle_asked")) {
-        showHandlePrompt(prev, googleName);
+      // No chosen handle on the account yet → let them pick one (fun handle beats a real name).
+      if (!m.display_name) {
+        const prev = (localStorage.getItem("vr_who") || "").trim();
+        const suggested = (prev && prev.toLowerCase() !== (m.full_name || "").toLowerCase()) ? prev : googleName;
+        pendingName = googleName;
+        entered = true; // stop the other session callback from double-firing
+        showHandlePrompt(suggested);
         return;
       }
       enter(googleName);
     }
     async function chooseHandle(name) {
-      localStorage.setItem("vr_handle_asked", "1");
-      if (sb) { try { await sb.auth.updateUser({ data: { display_name: name } }); } catch (e) {} }
-      enter(name);
+      const v = (name || "").trim() || pendingName || "Crew";
+      if (sb) { try { await sb.auth.updateUser({ data: { display_name: v } }); } catch (e) {} }
+      enter(v);
     }
-    function showHandlePrompt(prev, googleName) {
-      $("handleMsg").textContent = "You've been going by “" + prev + "”. Keep that as your handle, or switch to your Google name?";
-      const keep = $("keepHandle"), useG = $("useGoogle");
-      keep.textContent = "Keep “" + prev + "”";
-      useG.textContent = "Use “" + googleName + "”";
-      keep.onclick = () => chooseHandle(prev);
-      useG.onclick = () => chooseHandle(googleName);
+    function showHandlePrompt(suggested) {
+      $("handleInput").value = suggested || "";
       $("handleModal").style.display = "flex";
+      setTimeout(() => { $("handleInput").focus(); $("handleInput").select(); }, 60);
     }
+    $("handleSave").addEventListener("click", () => chooseHandle($("handleInput").value));
+    $("handleModal").addEventListener("keydown", (e) => { if (e.key === "Enter") chooseHandle($("handleInput").value); });
     if (sb) {
       sb.auth.onAuthStateChange((_e, session) => { if (session) enterFromSession(session); });
       sb.auth.getSession().then(({ data }) => { if (data && data.session) enterFromSession(data.session); });
