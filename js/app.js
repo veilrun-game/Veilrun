@@ -738,7 +738,7 @@ window.VApp = (function () {
     document.querySelectorAll(".nav a[data-route]").forEach(a =>
       a.classList.toggle("active", a.getAttribute("href") === "#" + name));
     closeMenu();
-    window.scrollTo(0, 0);
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }
 
   function toggleMenu(force) {

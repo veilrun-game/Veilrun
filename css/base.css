@@ -80,6 +80,13 @@ h3 { font-size: 1.3rem; }
 .nav .menu-btn.open .ham::before { transform: translateY(7px) rotate(45deg); }
 .nav .menu-btn.open .ham::after { transform: translateY(-7px) rotate(-45deg); }
 
+/* ---- Motion: gentle page-enter + smooth in-page scrolling ---- */
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: no-preference) {
+  #view > * { animation: viewIn 0.3s ease both; }
+}
+@keyframes viewIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
 /* ---- Buttons ---- */
 .btn { font-family: var(--font-body); font-weight: 600; letter-spacing: 0.01em;
   background: var(--magenta); color: #140a16; border: none; border-radius: var(--radius-sm);
@@ -378,18 +385,21 @@ h3 { font-size: 1.3rem; }
     border-bottom: none; border-top: 1px solid var(--line);
     padding-bottom: calc(var(--s-2) + env(safe-area-inset-bottom, 0px)); }
   body { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px)); }
-  /* Menu opens as a sheet that slides up from just above the bottom bar. */
-  .nav .links { display: none; position: fixed; top: auto; left: 0; right: 0;
+  /* Menu is always in the DOM as a sheet; it slides fully up from the bottom on open
+     and back down on close (transform-based so BOTH directions animate smoothly). */
+  .nav .links { display: flex; position: fixed; top: auto; left: 0; right: 0;
     bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
     flex-direction: column; gap: var(--s-1);
     background: var(--ink-2); border-top: 1px solid var(--line);
     border-radius: 18px 18px 0 0; padding: var(--s-4) var(--s-4) var(--s-3);
-    box-shadow: 0 -14px 40px rgba(0,0,0,0.55); }
+    box-shadow: 0 -14px 40px rgba(0,0,0,0.55);
+    transform: translateY(calc(100% + var(--nav-h))); opacity: 0; visibility: hidden;
+    transition: transform 0.34s cubic-bezier(0.22,0.61,0.36,1), opacity 0.24s ease, visibility 0s 0.34s; }
   .nav .links::before { content: ""; display: block; width: 42px; height: 4px; border-radius: 4px;
     background: var(--line); margin: 0 auto var(--s-3); }
-  .nav .links.open { display: flex; animation: sheetUp 0.22s ease; }
+  .nav .links.open { transform: translateY(0); opacity: 1; visibility: visible;
+    transition: transform 0.36s cubic-bezier(0.22,0.61,0.36,1), opacity 0.2s ease; }
   .nav .links a { padding: var(--s-3); font-size: 1rem; }
-  @keyframes sheetUp { from { transform: translateY(14px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
   /* Backdrop behind the open sheet. */
   .nav-backdrop { position: fixed; inset: 0; z-index: 39; background: rgba(5,3,12,0.5);
     opacity: 0; pointer-events: none; transition: opacity 0.2s ease; }
