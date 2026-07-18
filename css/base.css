@@ -470,6 +470,11 @@ html { scroll-behavior: smooth; }
 .auth-tab { flex: 1; background: transparent; border: 1px solid var(--line); color: var(--mute);
   padding: var(--s-2); border-radius: var(--radius-sm); cursor: pointer; font-family: var(--font-body); font-size: 0.9rem; }
 .auth-tab.active { color: var(--white); border-color: var(--magenta); background: rgba(214,92,220,0.12); }
+.auth .google-btn { display: flex; align-items: center; justify-content: center; gap: var(--s-3); width: 100%;
+  background: #fff; color: #1f1f1f; font-weight: 600; }
+.auth .google-btn:hover { filter: brightness(0.95); }
+.auth-or { display: flex; align-items: center; gap: var(--s-3); color: var(--mute); font-size: 0.8rem; margin: var(--s-4) 0; }
+.auth-or::before, .auth-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .auth form { display: flex; flex-direction: column; gap: var(--s-3); }
 .auth .fld-in, .auth .gate input { width: 100%; background: var(--ink-2); border: 1px solid var(--line); color: var(--white);
   border-radius: var(--radius-sm); padding: var(--s-3) var(--s-4); font-size: 1rem; }

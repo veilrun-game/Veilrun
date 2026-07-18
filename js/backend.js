@@ -42,6 +42,9 @@
       try { const { data } = await sb.from("feedback").select("who,created_at"); return data || []; }
       catch (e) { return []; }
     },
+    async signOut() { try { await sb.auth.signOut(); } catch (e) {} },
+    // Persist a chosen display name to the account so it survives across devices/sessions.
+    async updateDisplayName(name) { try { await sb.auth.updateUser({ data: { display_name: name } }); } catch (e) {} },
     // All like rows [{who, image_src}] — used to hydrate the UI (mine + group counts).
     async loadLikes() {
       try { const { data } = await sb.from("image_likes").select("who,image_src"); return data || []; }

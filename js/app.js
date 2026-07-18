@@ -936,10 +936,11 @@ window.VApp = (function () {
   }
   function closeMenu() { toggleMenu(false); }
 
-  function signOut() {
+  async function signOut() {
     if (!window.confirm("Sign out?")) return;
     localStorage.removeItem("vr_account");
     sessionStorage.removeItem("vr_ok");
+    if (window.VBackend && window.VBackend.signOut) { try { await window.VBackend.signOut(); } catch (e) {} }
     window.location.href = "index.html";
   }
   function profileSaveName() {
@@ -948,6 +949,7 @@ window.VApp = (function () {
     if (!v) { if (el) el.focus(); return; }
     localStorage.setItem("vr_who", v);
     localStorage.setItem("vr_account", v);
+    if (window.VBackend && window.VBackend.updateDisplayName) window.VBackend.updateDisplayName(v);
     const chip = document.getElementById("nav-profile");
     if (chip) { chip.textContent = v[0].toUpperCase(); chip.title = "Signed in as " + v; }
     toast("Display name saved");
