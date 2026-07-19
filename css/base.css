@@ -540,8 +540,10 @@ html { scroll-behavior: smooth; }
   .nav-backdrop.show { opacity: 1; pointer-events: auto; }
   .nav .menu-btn { display: flex; }
   .nav .nav-fb { padding: 0.5rem 0.95rem; }
-  /* In the bottom sheet, the dropdown expands inline (no popover). */
-  .nav .navdrop { width: 100%; }
+  /* In the bottom sheet, the dropdown expands inline (no popover). Force a vertical stack —
+     otherwise it inherits the desktop `display:inline-flex` (row) and the button + submenu
+     links sit side-by-side and overflow. */
+  .nav .navdrop { width: 100%; display: flex; flex-direction: column; align-items: stretch; }
   .nav .navdrop-btn { width: 100%; justify-content: space-between; font-size: 1rem; padding: var(--s-3); }
   .nav .navdrop-btn .caret { display: none; }
   .nav .navdrop-menu { display: flex; position: static; margin: 0; padding: 0 0 var(--s-2) var(--s-4);
