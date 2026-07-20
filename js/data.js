@@ -234,6 +234,8 @@ VEILRUN.modes = [
 VEILRUN.cover = "assets/img/cover.png";
 
 VEILRUN.updates = [
+  { date: "2026-07-19", text: "The Landing's Seam Slider leveled up: you can now toggle between three scenes (Market Row, The Grand Mile, Foundry Row), and grabbing the seam turns it into a living rift — hold or drag it and it pulses and throws off sparks in the world's colors (violet, teal, magenta, white), then settles when you let go. Art is still wireframe while we dial in the real paired scenes for each world." },
+  { date: "2026-07-19", text: "Fix: on phones, the Characters menu now stacks neatly down the page instead of spilling sideways off the screen." },
   { date: "2026-07-18", text: "The Hub's ‘Recently’ now always shows the newest batch of changes (with its date) instead of a stale ‘last 24 hours’ that could read 0 — it tracks the latest updates in the log, however recent they are." },
   { date: "2026-07-17", text: "Signing in with Google now respects your handle: if you've already been going by a codename, we ask whether to keep it or use your Google name — so you never lose your identity switching sign-in methods." },
   { date: "2026-07-17", text: "You can now sign in with Google — one tap, no password, and it drops you straight into the Hub. Email sign-up and the shared code still work too. Signing out fully logs you out now." },
