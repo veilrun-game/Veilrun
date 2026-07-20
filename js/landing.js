@@ -147,84 +147,105 @@ window.VLanding = (function () {
         el.onerror = () => el.classList.add("ss-missing");
       };
       bindImg(imgOver); bindImg(imgUnder);
-      const loadScene = (sc) => { imgOver.src = sc.over; imgUnder.src = sc.under; };
-      loadScene(SEAM_SCENES[0]);
+      // Scene load with a soft crossfade (fade current out, swap src, fade new in).
+      let swapTimer = null;
+      const loadScene = (sc, initial) => {
+        const apply = () => { imgOver.src = sc.over; imgUnder.src = sc.under; slider.classList.remove("ss-swapping"); };
+        if (initial) { apply(); return; }
+        slider.classList.add("ss-swapping");
+        clearTimeout(swapTimer);
+        swapTimer = setTimeout(apply, 180);
+      };
+      loadScene(SEAM_SCENES[0], true);
 
-      // Scene tabs — swap the paired art, keep the drag position.
+      // Scene tabs — crossfade to the paired art, keep the drag position.
       root.querySelectorAll(".ss-tab").forEach(btn => {
         btn.addEventListener("click", () => {
           const sc = SEAM_SCENES.find(s => s.id === btn.dataset.scene);
-          if (!sc) return;
+          if (!sc || btn.classList.contains("on")) return;
           root.querySelectorAll(".ss-tab").forEach(b => b.classList.toggle("on", b === btn));
           loadScene(sc);
         });
       });
 
-      // ---- Seam shrapnel: glowing shards fling off the seam as it's dragged. ----
+      // ---- Seam energy: while held, the line stays alive — pulses + throws sparks. ----
       const canvas = root.querySelector("#ss-fx");
       const ctx = canvas.getContext("2d");
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      let parts = [], raf = null, lastX = null;
+      const DPR = Math.min(window.devicePixelRatio || 1, 2);
+      let parts = [], raf = null, rect = null, active = false, curPct = 50;
       const sizeCanvas = () => {
-        const r = slider.getBoundingClientRect();
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        canvas.width = r.width * dpr; canvas.height = r.height * dpr;
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        return r;
+        rect = slider.getBoundingClientRect();
+        canvas.width = rect.width * DPR; canvas.height = rect.height * DPR;
+        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
       };
-      const spawn = (xPct, dir, r) => {
-        if (reduce) return;
-        const x = (xPct / 100) * r.width;
-        const n = 5 + Math.floor(Math.random() * 4);
-        for (let i = 0; i < n; i++) {
-          const up = Math.random() < 0.5 ? -1 : 1;
-          parts.push({
-            x, y: Math.random() * r.height,
-            vx: dir * (0.6 + Math.random() * 2.6) + (Math.random() - 0.5),
-            vy: up * (0.4 + Math.random() * 2.2),
-            life: 1, decay: 0.018 + Math.random() * 0.03,
-            size: 1.2 + Math.random() * 2.6,
-            hue: Math.random() < 0.35 ? 0 : 288 + Math.random() * 22 // white flecks + violet/magenta
-          });
-        }
+      // Veilrun palette flying off the seam (0 = white sentinel).
+      const pickHue = () => {
+        const r = Math.random();
+        if (r < 0.32) return 0;                        // white
+        if (r < 0.56) return 286 + Math.random() * 20; // violet
+        if (r < 0.78) return 316 + Math.random() * 18; // magenta / pink
+        return 168 + Math.random() * 22;               // teal
       };
-      const tick = () => {
-        const r = { width: canvas.width / (Math.min(window.devicePixelRatio || 1, 2)), height: canvas.height / (Math.min(window.devicePixelRatio || 1, 2)) };
-        ctx.clearRect(0, 0, r.width, r.height);
+      const shard = (x, big) => ({
+        x: x + (Math.random() - 0.5) * (big ? 4 : 6),
+        y: Math.random() * rect.height,
+        vx: (Math.random() - 0.5) * (big ? 3.0 : 4.4),
+        vy: (Math.random() - 0.5) * (big ? 4.6 : 6.0),
+        life: 1,
+        decay: (big ? 0.02 : 0.045) + Math.random() * 0.02,
+        size: big ? 1.2 + Math.random() * 2.0 : 0.4 + Math.random() * 0.8,
+        hue: pickHue(),
+        jit: big ? 0.3 : 0.55   // gentle erratic wander (no chaotic flicker)
+      });
+      const emit = (xPct, count, bigRatio) => {
+        if (reduce || !rect || parts.length > 220) return;
+        const x = (xPct / 100) * rect.width;
+        for (let i = 0; i < count; i++) parts.push(shard(x, Math.random() < bigRatio));
+      };
+      const loop = () => {
+        if (!rect) { raf = null; return; }
+        ctx.clearRect(0, 0, rect.width, rect.height);
+        if (active) emit(curPct, 3, 0.62);   // steady trickle while held — alive even when stationary
         ctx.globalCompositeOperation = "lighter";
         for (let i = parts.length - 1; i >= 0; i--) {
           const p = parts[i];
-          p.x += p.vx; p.y += p.vy; p.vy += 0.04; p.vx *= 0.985; p.life -= p.decay;
+          p.vx += (Math.random() - 0.5) * p.jit; p.vy += (Math.random() - 0.5) * p.jit;
+          p.x += p.vx; p.y += p.vy; p.vy += 0.03; p.vx *= 0.95; p.life -= p.decay;
           if (p.life <= 0) { parts.splice(i, 1); continue; }
-          const a = p.life, s = p.size * p.life;
-          const col = p.hue === 0 ? `rgba(255,255,255,${a})` : `hsla(${p.hue},90%,68%,${a})`;
-          ctx.shadowBlur = 10; ctx.shadowColor = col; ctx.fillStyle = col;
-          ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(0.2, s), 0, 6.283); ctx.fill();
+          const a = Math.min(1, p.life * 1.4), s = Math.max(0.4, p.size * p.life);
+          const sp = Math.hypot(p.vx, p.vy), len = s * 2 + sp * 3; // longer when moving faster
+          const col = p.hue === 0 ? `rgba(255,255,255,${a})` : `hsla(${p.hue},95%,70%,${a})`;
+          ctx.shadowBlur = 7; ctx.shadowColor = p.hue === 0 ? `rgba(200,150,255,${a})` : col; ctx.fillStyle = col;
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(Math.atan2(p.vy, p.vx));
+          ctx.beginPath(); ctx.moveTo(len, 0); ctx.lineTo(-s * 0.8, s * 0.8); ctx.lineTo(-s * 0.8, -s * 0.8); ctx.closePath(); ctx.fill();
+          ctx.restore();
         }
         ctx.shadowBlur = 0; ctx.globalCompositeOperation = "source-over";
-        if (parts.length) { raf = requestAnimationFrame(tick); } else { raf = null; }
+        raf = (active || parts.length) ? requestAnimationFrame(loop) : null;
       };
-
-      let dragging = false, curR = null;
       const setPos = (clientX) => {
-        curR = slider.getBoundingClientRect();
-        let pct = Math.max(0, Math.min(100, ((clientX - curR.left) / curR.width) * 100));
-        const prev = parseFloat(slider.style.getPropertyValue("--pos")) || 50;
+        if (!rect) sizeCanvas();
+        const pct = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+        const d = Math.abs(pct - curPct);
+        curPct = pct;
         slider.style.setProperty("--pos", pct + "%");
-        if (dragging && Math.abs(pct - prev) > 0.15) {
-          const r = sizeCanvas();
-          spawn(pct, pct >= prev ? 1 : -1, r);
-          if (!raf) raf = requestAnimationFrame(tick);
-        }
+        if (active && d > 0.4) emit(pct, 3 + Math.min(9, d * 1.4 | 0), 0.78); // burst scales with drag speed
       };
-      const down = e => { dragging = true; sizeCanvas(); setPos(e.clientX); e.preventDefault(); };
-      const move = e => { if (dragging) setPos(e.clientX); };
-      const up = () => { dragging = false; };
+      const down = e => {
+        active = true; slider.classList.add("ss-live"); sizeCanvas();
+        curPct = parseFloat(slider.style.getPropertyValue("--pos")) || 50;
+        setPos(e.clientX); if (!raf) raf = requestAnimationFrame(loop); e.preventDefault();
+      };
+      const move = e => { if (active) setPos(e.clientX); };
+      const up = () => { active = false; slider.classList.remove("ss-live"); };
+      const onResize = () => { rect = null; }; // re-measure lazily on next drag
       slider.addEventListener("pointerdown", down);
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
-      sliderBound = { move, up };
-      fx = () => { if (raf) cancelAnimationFrame(raf); raf = null; parts = []; };
+      window.addEventListener("resize", onResize);
+      sliderBound = { move, up, resize: onResize };
+      fx = () => { if (raf) cancelAnimationFrame(raf); raf = null; parts = []; active = false; slider.classList.remove("ss-live"); clearTimeout(swapTimer); };
     }
 
     const sils = root.querySelectorAll(".sil");
@@ -238,7 +259,7 @@ window.VLanding = (function () {
 
   function teardown() {
     if (scrollBound) { window.removeEventListener("scroll", scrollBound); scrollBound = null; }
-    if (sliderBound) { window.removeEventListener("pointermove", sliderBound.move); window.removeEventListener("pointerup", sliderBound.up); sliderBound = null; }
+    if (sliderBound) { window.removeEventListener("pointermove", sliderBound.move); window.removeEventListener("pointerup", sliderBound.up); window.removeEventListener("resize", sliderBound.resize); sliderBound = null; }
     if (fx) { fx(); fx = null; }
     if (io) { io.disconnect(); io = null; }
   }
