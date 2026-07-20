@@ -268,6 +268,8 @@ html { scroll-behavior: smooth; }
 .idea-body { min-width: 0; }
 .idea-body p { margin: 0; font-size: 0.85rem; line-height: 1.5; }
 .idea-meta { font-size: 0.75rem; margin-top: 4px; }
+.resolved-check { flex-shrink: 0; width: 28px; height: 28px; border-radius: 999px; display: flex; align-items: center;
+  justify-content: center; background: rgba(214,92,220,0.16); color: var(--magenta); font-size: 0.9rem; }
 
 /* ---- Hub "Recently" dashboard ---- */
 .dash-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); flex-wrap: wrap; margin-top: var(--s-6); margin-bottom: var(--s-2); }

@@ -348,8 +348,28 @@ window.VApp = (function () {
     },
 
     updates() {
+      const total = D.updates.length;
+      const dayCounts = {};
+      D.updates.forEach(u => {
+        const [y, m, d] = String(u.date).split("-").map(Number);
+        const day = new Date(y, (m || 1) - 1, d || 1).toLocaleDateString(undefined, { weekday: "long" });
+        dayCounts[day] = (dayCounts[day] || 0) + 1;
+      });
+      const busiest = Object.entries(dayCounts).sort((a, b) => b[1] - a[1])[0];
       const list = D.updates.map(u => `<div class="kit-row"><span class="mute" style="font-size:.8rem">${C.esc(u.date)}</span><div>${C.esc(u.text)}</div></div>`).join("");
-      return `<div class="wrap section">${C.sectionHeader("Log","Updates")}<div class="panel" style="margin-top:1.5rem">${list}</div></div>`;
+      return `<div class="wrap section">
+        ${C.sectionHeader("Log","Updates")}
+        <div class="dash-stats" style="margin-top:1.5rem">
+          <div class="dash-stat"><div class="dash-n">${total}</div><div class="mute">updates shipped so far</div></div>
+          <div class="dash-stat"><div class="dash-n" style="font-size:1.7rem">${busiest ? C.esc(busiest[0]) : "—"}</div><div class="mute">${busiest ? busiest[1] + " updates — the busiest day of the week" : "not enough data yet"}</div></div>
+        </div>
+        <div class="panel" style="margin-top:1.5rem;border-color:var(--magenta)">
+          <div class="eyebrow">You asked, we listened</div>
+          <p class="mute" style="font-size:.85rem;margin:.3rem 0 0">Feedback the crew sent in that's since been acted on.</p>
+          <div id="resolved-list" class="idea-list" style="margin-top:.8rem"><p class="mute" style="font-size:.85rem;margin:.5rem 0 0">Loading…</p></div>
+        </div>
+        <div class="panel" style="margin-top:1.5rem">${list}</div>
+      </div>`;
     },
 
     leaderboard() {
@@ -614,7 +634,7 @@ window.VApp = (function () {
       <button class="votebtn idea-vote" data-poll="${C.esc(f.id)}" onclick="VApp.labVote('${C.esc(f.id)}')" title="Up-vote" aria-label="Up-vote">▲ <span class="vc">0</span></button>
       <div class="idea-body">
         <p>${C.esc(f.note)}</p>
-        <p class="mute idea-meta">${C.esc(f.who || "Anonymous")}${f.type ? " · " + C.esc(f.type) : ""}</p>
+        <p class="mute idea-meta">${C.esc(lbName(canonicalWho(f.who)))}${f.type ? " · " + C.esc(f.type) : ""}</p>
       </div>
     </div>`;
   async function loadIdeas(context, elId) {
@@ -627,8 +647,34 @@ window.VApp = (function () {
     refreshVotes();
   }
 
+  /* ---- "You asked, we listened" (Updates page) — resolved feedback, most recent first. ---- */
+  const resolvedRow = (f) => `
+    <div class="idea-row">
+      <span class="idea-vote resolved-check" title="Resolved" aria-hidden="true">✓</span>
+      <div class="idea-body">
+        <p>${C.esc(f.note)}</p>
+        <p class="mute idea-meta">${C.esc(lbName(canonicalWho(f.who)))}${f.context ? " · " + C.esc(f.context) : ""}</p>
+      </div>
+    </div>`;
+  async function loadResolved(elId) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    if (!window.VBackend || !window.VBackend.loadResolvedFeedback) { el.innerHTML = `<p class="mute" style="font-size:.85rem;margin:.5rem 0 0">Needs the backend connected.</p>`; return; }
+    const rows = await window.VBackend.loadResolvedFeedback();
+    if (!rows.length) { el.innerHTML = `<p class="mute" style="font-size:.85rem;margin:.5rem 0 0">Nothing marked resolved yet — it'll show up here once feedback gets acted on.</p>`; return; }
+    el.innerHTML = rows.map(resolvedRow).join("");
+  }
+
   /* ---- Leaderboard (contribution ranking from feedback + likes + votes) ---- */
   const lbName = (w) => !w || w === "anon" ? "Anonymous" : w;
+  // Collapse display-name variants (Toddlez / BipolarCrayons, jkrazy / Latch, etc) onto one crew
+  // identity, same matching as myCharacter() — so the leaderboard doesn't split one person into two rows.
+  function canonicalWho(who) {
+    if (!who) return "anon";
+    const w = String(who).toLowerCase();
+    const c = (D.crew || []).find(ch => [ch.name, ch.alias, ch.player, ch.id, ...(ch.aliases || [])].some(v => v && String(v).toLowerCase() === w));
+    return c ? c.name : who;
+  }
   async function loadLeaderboard() {
     const el = document.getElementById("lb-board");
     if (!el) return;
@@ -641,9 +687,9 @@ window.VApp = (function () {
     const weekAgo = Date.now() - 7 * 864e5;
     const P = {};
     const ensure = (w) => (P[w] = P[w] || { who: w, fb: 0, likes: 0, votes: 0, week: 0 });
-    fb.forEach(r => { const o = ensure(r.who || "anon"); o.fb++; if (r.created_at && new Date(r.created_at).getTime() >= weekAgo) o.week++; });
-    likes.forEach(r => ensure(r.who || "anon").likes++);
-    votes.forEach(r => ensure(r.who || "anon").votes++);
+    fb.forEach(r => { const o = ensure(canonicalWho(r.who)); o.fb++; if (r.created_at && new Date(r.created_at).getTime() >= weekAgo) o.week++; });
+    likes.forEach(r => ensure(canonicalWho(r.who)).likes++);
+    votes.forEach(r => ensure(canonicalWho(r.who)).votes++);
     const rows = Object.values(P);
     rows.forEach(o => o.points = o.fb * 3 + o.likes + o.votes);
     rows.sort((a, b) => b.points - a.points || b.fb - a.fb);
@@ -960,6 +1006,7 @@ window.VApp = (function () {
     if (name === "lab") refreshVotes();
     if (name === "leaderboard") loadLeaderboard();
     if (name === "threats" && arg) { const t = (D.threats || []).find(x => x.id === arg); if (t) loadIdeas("Enemy idea: " + t.name, "ideas-" + t.id); }
+    if (name === "updates") loadResolved("resolved-list");
     if (name === "landing" && window.VLanding) VLanding.init();
     document.querySelectorAll(".nav a[data-route]").forEach(a =>
       a.classList.toggle("active", a.getAttribute("href") === "#" + name));

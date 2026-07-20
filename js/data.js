@@ -235,6 +235,8 @@ VEILRUN.modes = [
 VEILRUN.cover = "assets/img/cover.png";
 
 VEILRUN.updates = [
+  { date: "2026-07-20", text: "Updates page now has a stats strip (total updates shipped, busiest day of the week) and a \"You asked, we listened\" section pulling in feedback that's since been resolved." },
+  { date: "2026-07-20", text: "Leaderboard fix: name variants for the same person (Toddlez/BipolarCrayons, jkrazy/Latch, etc) now count as one entry instead of splitting your points across two rows." },
   { date: "2026-07-20", text: "Profile page: photo reorder now saves for everyone (not just your own browser) once the backend migration runs — new Save button, a warning if you navigate away with unsaved changes, a drag ghost that follows your cursor, and like counts shown right on each photo." },
   { date: "2026-07-20", text: "Lightbox: double-click or scroll to zoom in on a photo, drag to pan around while zoomed." },
   { date: "2026-07-20", text: "Threat pages: the ideas-and-voting section moved up near the top (used to be buried below the gallery), and concept art now shows in a proper grid instead of a plain strip." },
