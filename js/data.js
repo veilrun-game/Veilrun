@@ -244,6 +244,7 @@ VEILRUN.modes = [
 VEILRUN.cover = "assets/img/cover.png";
 
 VEILRUN.updates = [
+  { date: "2026-07-20", text: "Fixed manual account creation: hitting Create Account used to silently bounce you back to sign-in with no message (the confirmation note got wiped instantly). Now you get a clear ‘Check your email’ screen, and after you click the link in that email you land on a ‘Welcome — account created!’ screen with a button straight into the Hub. Prefer email over Google? It works properly now." },
   { date: "2026-07-20", text: "Profile page refresh: edit your gaming name with a ✎ next to your name instead of a separate box, see your own stats (logins, feedback shared, likes given, votes cast) up top, and a new \"Your identity\" panel showing your character, gaming name, actual name, and nickname together. Password change moved in here too — hidden if you signed in with Google." },
   { date: "2026-07-20", text: "Leaderboard and profile now recognize everyone's full set of names (gaming name, nickname, real name) — should merge points correctly for the whole crew, not just a couple of test cases." },
   { date: "2026-07-20", text: "New Feedback page: every piece of feedback in one place, open items you can up-vote and resolved items with a stats header (submitted, resolved, still open, average days to resolve). Linked from the Updates page and the footer." },

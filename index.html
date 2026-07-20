@@ -54,11 +54,23 @@
     </div>
   </div>
 
+  <div class="handle-modal" id="msgModal" style="display:none">
+    <div class="handle-card">
+      <p class="eyebrow" id="msgEyebrow"></p>
+      <h3 id="msgTitle"></h3>
+      <p class="mute" id="msgBody"></p>
+      <div class="handle-btns"><button class="btn" id="msgBtn">Got it</button></div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/config.js"></script>
   <script>
     // Individual accounts via Supabase Auth (accurate attribution for the leaderboard).
     // The shared passphrase stays as a soft fallback for quick/guest access.
+    // Email-confirmation return: Supabase brings users back with #type=signup in the URL hash.
+    // Read it now, before the Supabase client loads and clears the hash.
+    const justConfirmed = new URLSearchParams((location.hash || "").replace(/^#/, "")).get("type") === "signup";
     const cfg = window.VEILRUN_CONFIG || {};
     const sb = (cfg.supabaseUrl && cfg.supabaseAnonKey && window.supabase)
       ? window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey) : null;
@@ -66,6 +78,16 @@
     const PASSPHRASE = "bothsides"; // soft fallback; not real security (source is viewable).
     let mode = "signin";
     let entered = false;
+    let welcomeShown = false;
+
+    function showMsg(o) {
+      $("msgEyebrow").textContent = o.eyebrow || "";
+      $("msgTitle").textContent = o.title || "";
+      $("msgBody").textContent = o.body || "";
+      const b = $("msgBtn"); b.textContent = o.btn || "Got it"; b.onclick = o.onBtn || hideMsg;
+      $("msgModal").style.display = "flex";
+    }
+    function hideMsg() { $("msgModal").style.display = "none"; }
 
     function setMode(m) {
       mode = m;
@@ -100,8 +122,18 @@
           if (!name) { $("err").textContent = "Pick a display name."; $("authSubmit").disabled = false; return; }
           const { data, error } = await sb.auth.signUp({ email, password, options: { data: { display_name: name } } });
           if (error) throw error;
-          if (data.session) enter(name, "password");
-          else { $("err").textContent = "Account created — check your email to confirm, then sign in."; setMode("signin"); }
+          if (data.session) { enter(name, "password"); }
+          else {
+            $("authSubmit").disabled = false;
+            showMsg({
+              eyebrow: "Almost there",
+              title: "Check your email",
+              body: "We sent a confirmation link to " + email + ". Click it to finish creating your account — then you're in. (If it's not there in a minute, check spam.)",
+              btn: "Got it",
+              onBtn: () => { hideMsg(); setMode("signin"); }
+            });
+            return;
+          }
         } else {
           const { data, error } = await sb.auth.signInWithPassword({ email, password });
           if (error) throw error;
@@ -143,6 +175,19 @@
       if (entered || !session || !session.user) return;
       const u = session.user, m = u.user_metadata || {};
       const googleName = m.display_name || m.full_name || m.name || (u.email ? u.email.split("@")[0] : "Crew");
+      // Just clicked the email confirmation link → welcome them before entering the Hub.
+      if (justConfirmed && !welcomeShown) {
+        welcomeShown = true; entered = true;
+        try { history.replaceState(null, "", location.pathname); } catch (e) {}
+        showMsg({
+          eyebrow: "You're in",
+          title: "Account created — welcome" + (m.display_name ? ", " + m.display_name : "") + "!",
+          body: "Your email is confirmed and your account is ready. Jump into the Hub whenever you're set.",
+          btn: "Continue to the Hub →",
+          onBtn: () => enter(googleName, "password")
+        });
+        return;
+      }
       // No chosen handle on the account yet → let them pick one (fun handle beats a real name).
       if (!m.display_name) {
         const prev = (localStorage.getItem("vr_who") || "").trim();
@@ -169,6 +214,23 @@
     if (sb) {
       sb.auth.onAuthStateChange((_e, session) => { if (session) enterFromSession(session); });
       sb.auth.getSession().then(({ data }) => { if (data && data.session) enterFromSession(data.session); });
+    }
+
+    if (justConfirmed) {
+      // Confirm link returned but no session materialized (link already used / expired) → still acknowledge.
+      setTimeout(() => {
+        if (!welcomeShown && !entered) {
+          welcomeShown = true;
+          try { history.replaceState(null, "", location.pathname); } catch (e) {}
+          showMsg({
+            eyebrow: "You're set",
+            title: "Email confirmed",
+            body: "Your account is ready — sign in with your email and password to jump in.",
+            btn: "Sign in",
+            onBtn: () => { hideMsg(); setMode("signin"); $("email").focus(); }
+          });
+        }
+      }, 2500);
     }
 
     setMode("signin");
