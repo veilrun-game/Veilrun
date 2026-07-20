@@ -179,14 +179,22 @@ window.VLanding = (function () {
         canvas.width = rect.width * DPR; canvas.height = rect.height * DPR;
         ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
       };
-      // Veilrun palette flying off the seam (0 = white sentinel).
-      const pickHue = () => {
-        const r = Math.random();
-        if (r < 0.32) return 0;                        // white
-        if (r < 0.56) return 286 + Math.random() * 20; // violet
-        if (r < 0.78) return 316 + Math.random() * 18; // magenta / pink
-        return 168 + Math.random() * 22;               // teal
+      // Pre-render glow once as sprites — stamping them with drawImage is far cheaper
+      // than setting ctx.shadowBlur on every particle every frame (that was the stutter).
+      const makeGlow = (r, g, b) => {
+        const c = document.createElement("canvas"); c.width = c.height = 32;
+        const gx = c.getContext("2d"), grd = gx.createRadialGradient(16, 16, 0, 16, 16, 16);
+        grd.addColorStop(0, `rgba(${r},${g},${b},0.9)`); grd.addColorStop(0.4, `rgba(${r},${g},${b},0.32)`); grd.addColorStop(1, `rgba(${r},${g},${b},0)`);
+        gx.fillStyle = grd; gx.fillRect(0, 0, 32, 32); return c;
       };
+      // Veilrun palette: white, violet, magenta, teal — each a glow sprite + a bright core.
+      const PAL = [
+        { glow: makeGlow(255, 255, 255), core: "255,255,255" },
+        { glow: makeGlow(180, 130, 255), core: "210,175,255" },
+        { glow: makeGlow(232, 110, 222), core: "244,155,236" },
+        { glow: makeGlow(90, 220, 210),  core: "158,242,228" }
+      ];
+      const pick = () => { const r = Math.random(); return r < 0.32 ? PAL[0] : r < 0.56 ? PAL[1] : r < 0.78 ? PAL[2] : PAL[3]; };
       const shard = (x, big) => ({
         x: x + (Math.random() - 0.5) * (big ? 4 : 6),
         y: Math.random() * rect.height,
@@ -195,8 +203,8 @@ window.VLanding = (function () {
         life: 1,
         decay: (big ? 0.02 : 0.045) + Math.random() * 0.02,
         size: big ? 1.2 + Math.random() * 2.0 : 0.4 + Math.random() * 0.8,
-        hue: pickHue(),
-        jit: big ? 0.3 : 0.55   // gentle erratic wander (no chaotic flicker)
+        pal: pick(),
+        jit: big ? 0.3 : 0.55   // gentle erratic wander
       });
       const emit = (xPct, count, bigRatio) => {
         if (reduce || !rect || parts.length > 220) return;
@@ -215,13 +223,16 @@ window.VLanding = (function () {
           if (p.life <= 0) { parts.splice(i, 1); continue; }
           const a = Math.min(1, p.life * 1.4), s = Math.max(0.4, p.size * p.life);
           const sp = Math.hypot(p.vx, p.vy), len = s * 2 + sp * 3; // longer when moving faster
-          const col = p.hue === 0 ? `rgba(255,255,255,${a})` : `hsla(${p.hue},95%,70%,${a})`;
-          ctx.shadowBlur = 7; ctx.shadowColor = p.hue === 0 ? `rgba(200,150,255,${a})` : col; ctx.fillStyle = col;
+          const gd = (len + s * 3) * 1.7;            // glow sprite size
+          ctx.globalAlpha = a * 0.8;
+          ctx.drawImage(p.pal.glow, p.x - gd / 2, p.y - gd / 2, gd, gd);
+          ctx.globalAlpha = a;
+          ctx.fillStyle = `rgba(${p.pal.core},1)`;
           ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(Math.atan2(p.vy, p.vx));
           ctx.beginPath(); ctx.moveTo(len, 0); ctx.lineTo(-s * 0.8, s * 0.8); ctx.lineTo(-s * 0.8, -s * 0.8); ctx.closePath(); ctx.fill();
           ctx.restore();
         }
-        ctx.shadowBlur = 0; ctx.globalCompositeOperation = "source-over";
+        ctx.globalAlpha = 1; ctx.globalCompositeOperation = "source-over";
         raf = (active || parts.length) ? requestAnimationFrame(loop) : null;
       };
       const setPos = (clientX) => {
