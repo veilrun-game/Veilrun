@@ -235,6 +235,9 @@ VEILRUN.modes = [
 VEILRUN.cover = "assets/img/cover.png";
 
 VEILRUN.updates = [
+  { date: "2026-07-20", text: "Profile page: photo reorder now saves for everyone (not just your own browser) once the backend migration runs — new Save button, a warning if you navigate away with unsaved changes, a drag ghost that follows your cursor, and like counts shown right on each photo." },
+  { date: "2026-07-20", text: "Lightbox: double-click or scroll to zoom in on a photo, drag to pan around while zoomed." },
+  { date: "2026-07-20", text: "Threat pages: the ideas-and-voting section moved up near the top (used to be buried below the gallery), and concept art now shows in a proper grid instead of a plain strip." },
   { date: "2026-07-20", text: "Threats pages now show everyone's submitted ideas for that enemy right on the page, with an up-vote button — no more ideas disappearing into a form no one else sees." },
   { date: "2026-07-20", text: "New Lab idea: Companion Games — a standalone game per character telling their origin story, all linking into the main game. Pitched by BipolarCrayons — go vote on it." },
   { date: "2026-07-20", text: "Your profile page: reorder your character's photos by dragging the ⠿ handle or typing a position, not just one-at-a-time arrows — works on phones too." },

@@ -259,17 +259,13 @@ window.VApp = (function () {
             <p style="max-width:52ch;margin-top:.8rem">${C.esc(t.desc)}</p>
           </div>
         </div>
-        ${thumbs ? `<div class="gallery-strip">${thumbs}</div>` : ""}
-        <div class="panel" style="margin-top:1.5rem;border-color:var(--magenta)">
-          <div class="eyebrow">Abilities</div>
-          <h3 style="margin:.3rem 0">TBD</h3>
-          <p class="mute">This enemy's kit hasn't been designed yet. What should it do — attacks, behaviors, a gimmick? Pitch it.</p>
+        <div class="panel" style="margin-top:1rem;border-color:var(--magenta)">
+          <div class="eyebrow">Ideas for this enemy</div>
+          <p class="mute" style="font-size:.85rem;margin:.3rem 0 0">This enemy's kit hasn't been designed yet — vote up what should stick.</p>
+          <div id="ideas-${t.id}" class="idea-list"><p class="mute" style="font-size:.85rem;margin:.5rem 0 0">Loading…</p></div>
           <div style="margin-top:.8rem">${C.feedbackButton("Enemy idea: " + t.name)}</div>
         </div>
-        <div class="panel" style="margin-top:1rem">
-          <div class="eyebrow">Ideas for this enemy</div>
-          <div id="ideas-${t.id}" class="idea-list"><p class="mute" style="font-size:.85rem;margin:.5rem 0 0">Loading…</p></div>
-        </div>
+        ${thumbs ? `<div class="gallery-strip" style="margin-top:1.5rem">${thumbs}</div>` : ""}
       </div>`;
     },
 
@@ -370,19 +366,7 @@ window.VApp = (function () {
       const avatar = ch
         ? `<div class="pf-avatar" style="background-image:url('${C.esc(ch.img)}')"></div>`
         : `<div class="pf-avatar pf-initial">${C.esc((name[0] || "?").toUpperCase())}</div>`;
-      const gallery = ch ? orderedGallery(ch.id) : [];
-      const imgTiles = gallery.map((s, i) => `
-        <div class="pf-img" data-idx="${i}">
-          <div class="pf-img-thumb" style="background-image:url('${C.esc(s)}')">
-            <span class="pf-img-rank">${i + 1}</span>
-            <button class="pf-img-handle" onpointerdown="VApp.pfDragStart(event,'${ch.id}')" aria-label="Drag to reorder" title="Drag to reorder">⠿</button>
-          </div>
-          <div class="pf-img-ctrls">
-            <button ${i === 0 ? "disabled" : ""} onclick="VApp.profileMoveImg('${ch.id}',${i},-1)" aria-label="Move up">↑</button>
-            <input class="pf-img-pos" type="number" min="1" max="${gallery.length}" value="${i + 1}" inputmode="numeric" aria-label="Move to position" onchange="VApp.profileMoveImgTo('${ch.id}',${i},this.value)" />
-            <button ${i === gallery.length - 1 ? "disabled" : ""} onclick="VApp.profileMoveImg('${ch.id}',${i},1)" aria-label="Move down">↓</button>
-          </div>
-        </div>`).join("");
+      const imgTiles = ch ? pfImgTilesHTML(ch, pfDraftFor(ch.id)) : "";
       return `<div class="wrap section">
         <div class="pf-head">
           ${avatar}
@@ -413,8 +397,13 @@ window.VApp = (function () {
         ${ch ? `
         <div class="panel" style="margin-top:1.5rem">
           <div class="eyebrow">Your images — ${C.esc(ch.name)}</div>
-          <p class="mute" style="font-size:.85rem;margin:0 0 var(--s-4)">Reorder how ${C.esc(ch.name)}'s concept art appears on the character page. #1 shows first — drag the ⠿ handle, type a position, or use the arrows.</p>
-          <div class="pf-img-grid">${imgTiles}</div>
+          <p class="mute" style="font-size:.85rem;margin:0 0 var(--s-4)">Reorder how ${C.esc(ch.name)}'s concept art appears on the character page, for everyone. #1 shows first — drag the ⠿ handle, type a position, or use the arrows. ♥ shows how many likes that shot has.</p>
+          <div id="pf-savebar" class="pf-savebar${pfDirty && pfDraft && pfDraft.charId === ch.id ? " show" : ""}">
+            <span class="mute" style="font-size:.82rem">Unsaved changes</span>
+            <button class="btn" onclick="VApp.pfSaveOrder('${ch.id}')">Save order</button>
+            <button class="btn ghost" onclick="VApp.pfDiscardOrder('${ch.id}')">Discard</button>
+          </div>
+          <div id="pf-img-grid" class="pf-img-grid">${imgTiles}</div>
         </div>` : `
         <div class="panel" style="margin-top:1.5rem">
           <p class="mute" style="margin:0">We couldn't match your name to a crew character, so there's nothing to reorder yet. Set your display name to your codename or handle and it'll link up.</p>
@@ -783,7 +772,14 @@ window.VApp = (function () {
   // ---- Gallery + lightbox (registry-based, swipeable) ----
   const galState = { filters: new Set(), sort: "char", dropdownOpen: false, limit: 24, _filtered: [], favOnly: false };
   let galObserver = null;
-  let lbState = { list: [], i: 0, mode: "single" };
+  let lbState = { list: [], i: 0, mode: "single", zoom: 1, panX: 0, panY: 0 };
+  function lbResetZoom() { lbState.zoom = 1; lbState.panX = 0; lbState.panY = 0; }
+  function applyLbTransform() {
+    const img = document.querySelector("#lightbox .lb-img");
+    if (!img) return;
+    img.style.transform = `translate(${lbState.panX}px, ${lbState.panY}px) scale(${lbState.zoom})`;
+    img.style.cursor = lbState.zoom > 1 ? "grab" : "zoom-in";
+  }
   const lbSets = {};
   function registerSet(key, arr) { lbSets[key] = arr; }
   function galleryAll() {
@@ -837,7 +833,7 @@ window.VApp = (function () {
   function lbOpen(key, idx) {
     const list = lbSets[key] || [];
     if (!list.length) return;
-    lbState = { list, i: idx || 0, mode: "single" };
+    lbState = { list, i: idx || 0, mode: "single", zoom: 1, panX: 0, panY: 0 };
     const el = document.getElementById("lightbox");
     el.classList.add("open"); el.classList.remove("grid");
     renderLightbox();
@@ -856,10 +852,11 @@ window.VApp = (function () {
       el.querySelector(".lb-cap").textContent = it.name + " · " + (lbState.i + 1) + " / " + lbState.list.length;
       const lk = el.querySelector(".lb-like");
       if (lk) { const on = isGroupFav(it.src); lk.classList.toggle("on", on); lk.textContent = on ? ("♥ " + (likeCount(it.src) || 1)) : "♡ Like"; }
+      applyLbTransform();
     }
   }
   function lbToggleMode() { lbState.mode = lbState.mode === "grid" ? "single" : "grid"; renderLightbox(); }
-  function lbPick(idx) { lbState.i = idx; lbState.mode = "single"; renderLightbox(); }
+  function lbPick(idx) { lbState.i = idx; lbState.mode = "single"; lbResetZoom(); renderLightbox(); }
   function lbSize(v) { const g = document.getElementById("lb-grid"); if (g) g.style.setProperty("--lb-size", v + "px"); }
   function lbLike() {
     const src = lbState.list[lbState.i] && lbState.list[lbState.i].src; if (!src) return;
@@ -868,7 +865,7 @@ window.VApp = (function () {
     if (window.VBackend) window.VBackend.toggleLike(src);
     renderLightbox();
   }
-  function lbStep(d) { const n = lbState.list.length; if (!n) return; lbState.i = (lbState.i + d + n) % n; renderLightbox(); }
+  function lbStep(d) { const n = lbState.list.length; if (!n) return; lbState.i = (lbState.i + d + n) % n; lbResetZoom(); renderLightbox(); }
   function lbClose() { const el = document.getElementById("lightbox"); if (el) el.classList.remove("open"); }
   function lbIsOpen() { const el = document.getElementById("lightbox"); return el && el.classList.contains("open"); }
 
@@ -937,10 +934,17 @@ window.VApp = (function () {
   }
 
   const isAccount = () => !!localStorage.getItem("vr_account");
+  let lastRouteName = null;
   function route() {
     if (!requireGate()) return;
     const hash = (location.hash || "#hub").slice(1);
     const [name, arg] = hash.split("/");
+    // Leaving the Profile page with an unsaved image order? Confirm first (Save/Discard handle clearing pfDirty).
+    if (pfDirty && lastRouteName === "profile" && name !== "profile") {
+      if (!confirm("You have unsaved image order changes. Leave without saving?")) { location.hash = "#profile"; return; }
+      pfDirty = false;
+    }
+    lastRouteName = name;
     // Landing + Leaderboard are for signed-in accounts only; guests get bounced to the Hub.
     if ((name === "landing" || name === "leaderboard" || name === "profile") && !isAccount()) { location.hash = "#hub"; return; }
     if (name === "gallery") galState.limit = 24; // reset paging before render
@@ -996,17 +1000,26 @@ window.VApp = (function () {
     toast("Display name saved");
     route();
   }
-  // Effective image order for a character (user's saved order first, else the default gallery).
+  // Effective image order for a character — shared/group-wide (from Supabase) first, falling back to
+  // this browser's local copy (pre-save-button data, or offline), else the default gallery.
+  let imgOrderShared = {};
+  async function hydrateImageOrder() {
+    if (!window.VBackend || !window.VBackend.loadImageOrder) return;
+    const rows = await window.VBackend.loadImageOrder();
+    imgOrderShared = {};
+    rows.forEach(r => { if (r.char_id && Array.isArray(r.order_json) && r.order_json.length) imgOrderShared[r.char_id] = r.order_json; });
+  }
   function orderedGallery(charId) {
     const base = (window.VEILRUN.galleries && window.VEILRUN.galleries[charId]) || [];
-    let saved = null;
-    try { saved = JSON.parse(localStorage.getItem("vr_imgorder_" + charId) || "null"); } catch (e) {}
+    let saved = imgOrderShared[charId];
+    if (!saved) { try { saved = JSON.parse(localStorage.getItem("vr_imgorder_" + charId) || "null"); } catch (e) {} }
     if (!saved || !saved.length) return base.slice();
     const inSaved = saved.filter(s => base.includes(s));
     const rest = base.filter(s => !inSaved.includes(s));
     return [...inSaved, ...rest];
   }
   function hasImgOrder(charId) {
+    if (imgOrderShared[charId] && imgOrderShared[charId].length) return true;
     try { const s = JSON.parse(localStorage.getItem("vr_imgorder_" + charId) || "null"); return !!(s && s.length); }
     catch (e) { return false; }
   }
@@ -1016,30 +1029,82 @@ window.VApp = (function () {
     if (!who) return null;
     return (D.crew || []).find(c => [c.name, c.alias, c.player, c.id, ...(c.aliases || [])].some(v => v && String(v).toLowerCase() === who)) || null;
   }
+
+  /* ---- Profile image reorder — a draft buffer, only committed (localStorage + Supabase, group-wide)
+     on explicit Save. Arrow/type/drag edits mutate the draft and re-render just the grid. ---- */
+  let pfDraft = null; // { charId, order: [src, ...] }
+  let pfDirty = false;
+  function pfDraftFor(charId) {
+    if (!pfDraft || pfDraft.charId !== charId) pfDraft = { charId, order: orderedGallery(charId).slice() };
+    return pfDraft.order;
+  }
+  function pfMarkDirty() {
+    pfDirty = true;
+    const bar = document.getElementById("pf-savebar");
+    if (bar) bar.classList.add("show");
+  }
+  function pfImgTilesHTML(ch, order) {
+    return order.map((s, i) => `
+      <div class="pf-img" data-idx="${i}">
+        <div class="pf-img-thumb" style="background-image:url('${C.esc(s)}')">
+          <span class="pf-img-rank">${i + 1}</span>
+          <button class="pf-img-handle" onpointerdown="VApp.pfDragStart(event,'${ch.id}')" aria-label="Drag to reorder" title="Drag to reorder">⠿</button>
+          ${likeCount(s) > 0 ? `<span class="pf-img-likes">♥ ${likeCount(s)}</span>` : ""}
+        </div>
+        <div class="pf-img-ctrls">
+          <button ${i === 0 ? "disabled" : ""} onclick="VApp.profileMoveImg('${ch.id}',${i},-1)" aria-label="Move up">↑</button>
+          <input class="pf-img-pos" type="number" min="1" max="${order.length}" value="${i + 1}" inputmode="numeric" aria-label="Move to position" onchange="VApp.profileMoveImgTo('${ch.id}',${i},this.value)" />
+          <button ${i === order.length - 1 ? "disabled" : ""} onclick="VApp.profileMoveImg('${ch.id}',${i},1)" aria-label="Move down">↓</button>
+        </div>
+      </div>`).join("");
+  }
+  function renderPfGrid(charId) {
+    const grid = document.getElementById("pf-img-grid");
+    const ch = (D.crew || []).find(c => c.id === charId);
+    if (!grid || !ch) return;
+    grid.innerHTML = pfImgTilesHTML(ch, pfDraftFor(charId));
+  }
   function profileMoveImg(charId, index, dir) {
-    const cur = orderedGallery(charId);
+    const arr = pfDraftFor(charId);
     const j = index + dir;
-    if (j < 0 || j >= cur.length) return;
-    const arr = cur.slice();
+    if (j < 0 || j >= arr.length) return;
     const t = arr[index]; arr[index] = arr[j]; arr[j] = t;
-    localStorage.setItem("vr_imgorder_" + charId, JSON.stringify(arr));
-    route();
+    pfMarkDirty();
+    renderPfGrid(charId);
   }
   // Move image at fromIndex to a 1-based target position (typed in the pf-img-pos field, or dropped via drag).
   function profileMoveImgTo(charId, fromIndex, toPos) {
-    const cur = orderedGallery(charId);
+    const arr = pfDraftFor(charId);
     let to = Math.round(Number(toPos)) - 1;
-    if (isNaN(to)) { route(); return; }
-    to = Math.max(0, Math.min(cur.length - 1, to));
-    if (to === fromIndex) { route(); return; }
-    const arr = cur.slice();
+    if (isNaN(to)) { renderPfGrid(charId); return; }
+    to = Math.max(0, Math.min(arr.length - 1, to));
+    if (to === fromIndex) { renderPfGrid(charId); return; }
     const [moved] = arr.splice(fromIndex, 1);
     arr.splice(to, 0, moved);
-    localStorage.setItem("vr_imgorder_" + charId, JSON.stringify(arr));
-    route();
+    pfMarkDirty();
+    renderPfGrid(charId);
   }
-  // Pointer-based drag reorder (mouse + touch) for the profile image grid. Started from the ⠿ handle
-  // so it doesn't fight with page-scroll on mobile; hit-tests sibling tiles under the pointer.
+  async function pfSaveOrder(charId) {
+    const order = pfDraftFor(charId).slice();
+    imgOrderShared[charId] = order;
+    localStorage.setItem("vr_imgorder_" + charId, JSON.stringify(order));
+    pfDirty = false;
+    const bar = document.getElementById("pf-savebar"); if (bar) bar.classList.remove("show");
+    if (window.VBackend && window.VBackend.saveImageOrder) {
+      const ok = await window.VBackend.saveImageOrder(charId, order);
+      toast(ok ? "Saved — everyone will see this order" : "Saved on this device (couldn't reach the server)");
+    } else {
+      toast("Saved on this device");
+    }
+  }
+  function pfDiscardOrder(charId) {
+    pfDraft = { charId, order: orderedGallery(charId).slice() };
+    pfDirty = false;
+    const bar = document.getElementById("pf-savebar"); if (bar) bar.classList.remove("show");
+    renderPfGrid(charId);
+  }
+  // Pointer-based drag reorder (mouse + touch) for the profile image grid, with a ghost tile that
+  // follows the cursor. Started from the ⠿ handle so it doesn't fight with page-scroll on mobile.
   function pfDragStart(e, charId) {
     e.preventDefault();
     const handle = e.currentTarget;
@@ -1050,6 +1115,17 @@ window.VApp = (function () {
     let hoverIdx = fromIdx;
     tile.classList.add("dragging");
     try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+    const thumb = tile.querySelector(".pf-img-thumb");
+    const rect = tile.getBoundingClientRect();
+    const ghost = document.createElement("div");
+    ghost.className = "pf-img-ghost";
+    if (thumb) ghost.style.backgroundImage = thumb.style.backgroundImage;
+    ghost.style.width = rect.width + "px";
+    ghost.style.height = (rect.height + (thumb ? 0 : 0)) + "px";
+    ghost.style.left = rect.left + "px";
+    ghost.style.top = rect.top + "px";
+    document.body.appendChild(ghost);
+    const offX = e.clientX - rect.left, offY = e.clientY - rect.top;
     const tileAt = (x, y) => {
       const tiles = [...container.querySelectorAll(".pf-img")];
       return tiles.find(t => {
@@ -1058,6 +1134,8 @@ window.VApp = (function () {
       });
     };
     const onMove = (ev) => {
+      ghost.style.left = (ev.clientX - offX) + "px";
+      ghost.style.top = (ev.clientY - offY) + "px";
       const t = tileAt(ev.clientX, ev.clientY);
       container.querySelectorAll(".pf-img").forEach(x => x.classList.remove("drop-target"));
       if (t) { hoverIdx = Number(t.dataset.idx); t.classList.add("drop-target"); }
@@ -1065,6 +1143,7 @@ window.VApp = (function () {
     const onUp = () => {
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerup", onUp);
+      ghost.remove();
       tile.classList.remove("dragging");
       container.querySelectorAll(".pf-img").forEach(x => x.classList.remove("drop-target"));
       if (hoverIdx !== fromIdx) profileMoveImgTo(charId, fromIdx, hoverIdx + 1);
@@ -1087,6 +1166,7 @@ window.VApp = (function () {
     let sx = 0, sy = 0;
     lb.addEventListener("touchstart", e => { sx = e.changedTouches[0].clientX; sy = e.changedTouches[0].clientY; }, { passive: true });
     lb.addEventListener("touchend", e => {
+      if (lbState.zoom > 1) return; // panning/pinched — don't also treat as a page-swipe
       const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
       if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) lbStep(dx < 0 ? 1 : -1);
     }, { passive: true });
@@ -1096,6 +1176,43 @@ window.VApp = (function () {
       else if (e.key === "ArrowLeft") lbStep(-1);
       else if (e.key === "Escape") lbClose();
     });
+    initLightboxZoom();
+  }
+  // Double-click/double-tap to zoom, scroll to zoom, drag to pan when zoomed in.
+  function initLightboxZoom() {
+    const img = document.querySelector("#lightbox .lb-img");
+    if (!img) return;
+    img.style.transition = "transform .15s ease";
+    img.style.touchAction = "none";
+    const zoomAt = (clientX, clientY, z) => {
+      const rect = img.getBoundingClientRect();
+      img.style.transformOrigin = (((clientX - rect.left) / rect.width) * 100) + "% " + (((clientY - rect.top) / rect.height) * 100) + "%";
+      lbState.zoom = z;
+      if (z === 1) { lbState.panX = 0; lbState.panY = 0; }
+      applyLbTransform();
+    };
+    img.addEventListener("wheel", e => {
+      if (!lbIsOpen() || lbState.mode !== "single") return;
+      e.preventDefault();
+      zoomAt(e.clientX, e.clientY, Math.min(4, Math.max(1, +(lbState.zoom + (e.deltaY < 0 ? 0.3 : -0.3)).toFixed(2))));
+    }, { passive: false });
+    img.addEventListener("dblclick", e => zoomAt(e.clientX, e.clientY, lbState.zoom > 1 ? 1 : 2.5));
+    let panStart = null;
+    img.addEventListener("pointerdown", e => {
+      if (lbState.zoom <= 1) return;
+      panStart = { x: e.clientX, y: e.clientY, panX: lbState.panX, panY: lbState.panY };
+      try { img.setPointerCapture(e.pointerId); } catch (err) {}
+      img.style.transition = "none";
+    });
+    img.addEventListener("pointermove", e => {
+      if (!panStart) return;
+      lbState.panX = panStart.panX + (e.clientX - panStart.x);
+      lbState.panY = panStart.panY + (e.clientY - panStart.y);
+      applyLbTransform();
+    });
+    const endPan = () => { if (panStart) { panStart = null; img.style.transition = "transform .15s ease"; } };
+    img.addEventListener("pointerup", endPan);
+    img.addEventListener("pointercancel", endPan);
   }
 
   function init() {
@@ -1105,6 +1222,7 @@ window.VApp = (function () {
       + D.crew.map(c => `<option value="${C.esc(c.name)}">${C.esc(c.name)} (${C.esc(c.player)})</option>`).join("")
       + '<option value="__other__">Someone else…</option>';
     window.addEventListener("hashchange", route); initLightboxGestures();
+    window.addEventListener("beforeunload", e => { if (pfDirty) { e.preventDefault(); e.returnValue = ""; } });
     document.addEventListener("click", e => {
       if (!e.target.closest(".navdrop")) document.querySelectorAll(".navdrop.open").forEach(d => d.classList.remove("open"));
     });
@@ -1118,10 +1236,10 @@ window.VApp = (function () {
     document.querySelectorAll("[data-account]").forEach(el => { el.style.display = acct ? "" : "none"; });
     route();
     // Load group likes + lab votes, then re-render so hearts/favorites/vote counts show.
-    Promise.all([hydrateLikes(), hydrateVotes()]).then(() => route());
+    Promise.all([hydrateLikes(), hydrateVotes(), hydrateImageOrder()]).then(() => route());
   }
 
   const galMore = galLoadMore;
-  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, profileMoveImg, profileMoveImgTo, pfDragStart, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavOnly, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote };
+  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavOnly, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);

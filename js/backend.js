@@ -56,6 +56,18 @@
     async loadLikes() {
       try { const { data } = await sb.from("image_likes").select("who,image_src"); return data || []; }
       catch (e) { return []; }
+    },
+    // Saved per-character image order — shared/group-wide, not per-browser. No-ops quietly if the
+    // image_order table hasn't been created yet (see VEILRUN Backend Setup.md for the SQL).
+    async loadImageOrder() {
+      try { const { data } = await sb.from("image_order").select("char_id,order_json"); return data || []; }
+      catch (e) { return []; }
+    },
+    async saveImageOrder(charId, order) {
+      try {
+        await sb.from("image_order").upsert({ char_id: charId, order_json: order, updated_by: who(), updated_at: new Date().toISOString() });
+        return true;
+      } catch (e) { console.warn(e); return false; }
     }
   };
   console.info("VEILRUN backend connected.");
