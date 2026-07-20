@@ -34,7 +34,7 @@
       } catch (e) { console.warn(e); }
     },
     async loadVotes() {
-      try { const { data } = await sb.from("votes").select("who,poll"); return data || []; }
+      try { const { data } = await sb.from("votes").select("who,poll,created_at"); return data || []; }
       catch (e) { return []; }
     },
     // Feedback rows (who + when) — powers the contribution leaderboard.
@@ -49,20 +49,37 @@
         return data || [];
       } catch (e) { return []; }
     },
-    // Feedback that's since been acted on — powers the "you asked, we listened" panel on Updates.
-    async loadResolvedFeedback() {
+    // Feedback that's since been acted on — powers "you asked, we listened" on Updates + the Feedback page.
+    async loadResolvedFeedback(limit) {
       try {
         const { data } = await sb.from("feedback").select("who,context,note,type,resolved_at")
-          .eq("resolved", true).order("resolved_at", { ascending: false }).limit(12);
+          .eq("resolved", true).order("resolved_at", { ascending: false }).limit(limit || 500);
         return data || [];
       } catch (e) { return []; }
+    },
+    // Counts + average turnaround for the Feedback page header stats.
+    async loadFeedbackStats() {
+      try {
+        const { data } = await sb.from("feedback").select("id,resolved,created_at,resolved_at");
+        const rows = data || [];
+        const resolvedRows = rows.filter(r => r.resolved);
+        const turns = resolvedRows
+          .map(r => r.resolved_at && r.created_at ? (new Date(r.resolved_at) - new Date(r.created_at)) / 864e5 : null)
+          .filter(v => v != null && v >= 0);
+        return {
+          total: rows.length,
+          resolved: resolvedRows.length,
+          open: rows.length - resolvedRows.length,
+          avgDays: turns.length ? turns.reduce((a, b) => a + b, 0) / turns.length : null
+        };
+      } catch (e) { return { total: 0, resolved: 0, open: 0, avgDays: null }; }
     },
     async signOut() { try { await sb.auth.signOut(); } catch (e) {} },
     // Persist a chosen display name to the account so it survives across devices/sessions.
     async updateDisplayName(name) { try { await sb.auth.updateUser({ data: { display_name: name } }); } catch (e) {} },
     // All like rows [{who, image_src}] — used to hydrate the UI (mine + group counts).
     async loadLikes() {
-      try { const { data } = await sb.from("image_likes").select("who,image_src"); return data || []; }
+      try { const { data } = await sb.from("image_likes").select("who,image_src,created_at"); return data || []; }
       catch (e) { return []; }
     },
     // Saved per-character image order — shared/group-wide, not per-browser. No-ops quietly if the

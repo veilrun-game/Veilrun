@@ -235,6 +235,9 @@ VEILRUN.modes = [
 VEILRUN.cover = "assets/img/cover.png";
 
 VEILRUN.updates = [
+  { date: "2026-07-20", text: "New Feedback page: every piece of feedback in one place, open items you can up-vote and resolved items with a stats header (submitted, resolved, still open, average days to resolve). Linked from the Updates page and the footer." },
+  { date: "2026-07-20", text: "Updates page: \"You asked, we listened\" now shows just the 5 most recent resolved items with a link to the full Feedback page, plus a new \"feedback items resolved\" stat." },
+  { date: "2026-07-20", text: "Leaderboard now shows the actual display name you go by, with a small tag for your character — points still merge across any name variants you've used, they just don't hide your name anymore." },
   { date: "2026-07-20", text: "Updates page now has a stats strip (total updates shipped, busiest day of the week) and a \"You asked, we listened\" section pulling in feedback that's since been resolved." },
   { date: "2026-07-20", text: "Leaderboard fix: name variants for the same person (Toddlez/BipolarCrayons, jkrazy/Latch, etc) now count as one entry instead of splitting your points across two rows." },
   { date: "2026-07-20", text: "Profile page: photo reorder now saves for everyone (not just your own browser) once the backend migration runs — new Save button, a warning if you navigate away with unsaved changes, a drag ghost that follows your cursor, and like counts shown right on each photo." },
