@@ -28,6 +28,7 @@ VEILRUN.world = {
 VEILRUN.crew = [
   {
     id: "saffron", name: "Cinder", player: "Zack", alias: "Soviet", accent: "var(--c-saffron)",
+    gamingName: "SovietEspionage", actualName: "Zack", nickname: "Soviet",
     img: "assets/img/saffron.png", pick: "Cinder",
     role: "Alchemist-Infiltrator", tagline: "The Cook — chemistry, brews, and quiet kills.",
     lore: "The chef whose pharmacology lets him pass unseen or drop a target without a sound. In the Weave, his cooking reads as alchemy.",
@@ -42,7 +43,8 @@ VEILRUN.crew = [
                  {name:"Old Recipes", text:"With Magpie: ritual herbalism meets chemistry for brews neither makes alone."} ]
   },
   {
-    id: "temper", name: "Temper", player: "Todd", alias: "Toddlez", aliases: ["Toddlez", "BipolarCrayons"], accent: "var(--c-temper)",
+    id: "temper", name: "Temper", player: "Todd", alias: "Toddlez", aliases: ["Toddlez", "BipolarCrayons", "Toddles"], accent: "var(--c-temper)",
+    gamingName: "BipolarCrayons", actualName: "Todd", nickname: "Toddlez",
     img: "assets/img/temper.png",
     role: "Weaverforge Blademaster", tagline: "Master of all weapons, peerless with the blade.",
     lore: "He doesn't just build weapons — he binds properties into steel. Dangerous at range, lethal up close, unmatched in a duel.",
@@ -56,7 +58,8 @@ VEILRUN.crew = [
                  {name:"Quenched Steel (aura)", text:"With Saffron (roommates): pre-treated poison/sear blades."} ]
   },
   {
-    id: "vesper", name: "Vesper", player: "Ramon", alias: "Ramos the Wise", accent: "var(--c-vesper)",
+    id: "vesper", name: "Vesper", player: "Ramon", alias: "Ramos the Wise", aliases: ["RamosTheWise"], accent: "var(--c-vesper)",
+    gamingName: "RamosTheWise", actualName: "Ramon", nickname: "Ramos",
     img: "assets/img/vesper.png",
     role: "Phantom Assassin", tagline: "The unseen one — stealth and resilience in one.",
     lore: "Sits in a corner of a room unnoticed. Resilient where most stealth classes are fragile. Brother to Rook.",
@@ -69,7 +72,8 @@ VEILRUN.crew = [
                  {name:"Threadlink: Sever", text:"With Latch (best friends): the hive mind — Execute through a marked target without line of sight."} ]
   },
   {
-    id: "citrine", name: "Citrine", player: "Julian", alias: "Mango", accent: "var(--c-citrine)",
+    id: "citrine", name: "Citrine", player: "Julian", alias: "Mango", aliases: ["ItsBabyMango"], accent: "var(--c-citrine)",
+    gamingName: "ItsBabyMango", actualName: "Julian", nickname: "Mango",
     img: "assets/img/citrine.png",
     role: "Electrician / Trap Engineer", tagline: "Everything electrical — from a single device to a whole city.",
     lore: "Traps, EMPs, and current at any scale. In the Weave, he commands the lightning-spirit in the wire.",
@@ -84,6 +88,7 @@ VEILRUN.crew = [
   },
   {
     id: "latch", name: "Latch", player: "Jordan", alias: "jkrazy", accent: "var(--c-latch)",
+    gamingName: "Jkrazy", actualName: "Jordan", nickname: "J",
     img: "assets/img/latch.png",
     role: "Dimensional Technologist · The Keystone", tagline: "Hacker, creative technologist, martial artist — the crew's multiplier.",
     lore: "Reads and rewrites the threads of how things are bound. Weaker solo by design; built to make everyone else better.",
@@ -97,7 +102,8 @@ VEILRUN.crew = [
                  {name:"Two Tongues (aura)", text:"With Magpie (partners): rune + tech binding open any lock instantly."} ]
   },
   {
-    id: "wren", name: "Wren", player: "Zaylee", alias: "krayzay", accent: "var(--c-wren)",
+    id: "wren", name: "Wren", player: "Zaylee", alias: "krayzay", aliases: ["KrayZay"], accent: "var(--c-wren)",
+    gamingName: "KrayZay", actualName: "Zaylee", nickname: "Zay",
     img: "assets/img/wren.png",
     role: "Prodigy", tagline: "Small but mighty — natural talent, maxed-out gear.",
     lore: "The most naturally gifted of the crew, and she's 17. She doesn't cast — she dances, and the current follows her movement. Her dad (Latch) builds her gear; Magpie is her stepmom.",
@@ -112,6 +118,7 @@ VEILRUN.crew = [
   },
   {
     id: "anvil", name: "Anvil", player: "Mike", alias: "Maddog", accent: "var(--c-anvil)",
+    gamingName: "Maddog", actualName: "Mike", nickname: null, // Jordan flagged unsure (7/20) — ask Mike
     img: "assets/img/anvil.png",
     role: "Juggernaut", tagline: "The immovable wall — the loud option, and the sleeper.",
     lore: "Nearly indestructible. He scales his own size — small enough to blend into a crowd, then erupts into a towering wall of armor.",
@@ -125,7 +132,8 @@ VEILRUN.crew = [
                  {name:"Doorbreaker", text:"Augmented by Latch, he carries enemies THROUGH the seam into the Weave."} ]
   },
   {
-    id: "magpie", name: "Magpie", player: "Ali", alias: "inaudiblerooster", accent: "var(--c-magpie)",
+    id: "magpie", name: "Magpie", player: "Ali", alias: "inaudiblerooster", aliases: ["inaudibleRooster"], accent: "var(--c-magpie)",
+    gamingName: "inaudibleRooster", actualName: "Ali", nickname: "rooster",
     img: "assets/img/magpie.png",
     role: "Hexwright · Witch-Mechanic", tagline: "Part grease-monkey, part witch — she builds, and her engineering is craft-work.",
     lore: "The crew's witch-fixer. She provides through Weave-craft: half-machine, half-fetish contraptions, warding a sanctum, and reading what's coming. The hearth and protector of the crew. Partner to Latch; stepmom to Wren.",
@@ -140,7 +148,8 @@ VEILRUN.crew = [
                  {name:"Old Recipes", text:"With Saffron: ritual herbalism meets chemistry."} ]
   },
   {
-    id: "rook", name: "Rook", player: "Nas", alias: "Darz", accent: "var(--c-rook)",
+    id: "rook", name: "Rook", player: "Nas", alias: "Darz", aliases: ["OfficerBucky", "Naz"], accent: "var(--c-rook)",
+    gamingName: "OfficerBucky", actualName: "Nas", nickname: "Darz", // Jordan wrote "Naz" (7/20) — double-checking spelling vs "Nas" already on file
     img: "assets/img/rook.png",
     role: "Psionic · Vesper's Brother", tagline: "Telepathy, teleport, telekinesis — the crew's sixth sense.",
     lore: "In a wheelchair, with overwhelming mental power. A sixth sense for his brother on covert missions. The seen world has no words for what he does.",
@@ -235,6 +244,8 @@ VEILRUN.modes = [
 VEILRUN.cover = "assets/img/cover.png";
 
 VEILRUN.updates = [
+  { date: "2026-07-20", text: "Profile page refresh: edit your gaming name with a ✎ next to your name instead of a separate box, see your own stats (logins, feedback shared, likes given, votes cast) up top, and a new \"Your identity\" panel showing your character, gaming name, actual name, and nickname together. Password change moved in here too — hidden if you signed in with Google." },
+  { date: "2026-07-20", text: "Leaderboard and profile now recognize everyone's full set of names (gaming name, nickname, real name) — should merge points correctly for the whole crew, not just a couple of test cases." },
   { date: "2026-07-20", text: "New Feedback page: every piece of feedback in one place, open items you can up-vote and resolved items with a stats header (submitted, resolved, still open, average days to resolve). Linked from the Updates page and the footer." },
   { date: "2026-07-20", text: "Updates page: \"You asked, we listened\" now shows just the 5 most recent resolved items with a link to the full Feedback page, plus a new \"feedback items resolved\" stat." },
   { date: "2026-07-20", text: "Leaderboard now shows the actual display name you go by, with a small tag for your character — points still merge across any name variants you've used, they just don't hide your name anymore." },

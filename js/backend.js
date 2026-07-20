@@ -93,6 +93,22 @@
         await sb.from("image_order").upsert({ char_id: charId, order_json: order, updated_by: who(), updated_at: new Date().toISOString() });
         return true;
       } catch (e) { console.warn(e); return false; }
+    },
+    // One row per session for a signed-in account — powers the "logins" stat on the profile page.
+    async logLogin() {
+      try { await sb.from("logins").insert({ who: who() }); } catch (e) { console.warn(e); }
+    },
+    async loadLogins() {
+      try { const { data } = await sb.from("logins").select("who,created_at"); return data || []; }
+      catch (e) { return []; }
+    },
+    // Only meaningful for email/password accounts — Google accounts don't set a Veilrun password.
+    async updatePassword(newPassword) {
+      try {
+        const { error } = await sb.auth.updateUser({ password: newPassword });
+        if (error) throw error;
+        return { ok: true };
+      } catch (e) { return { ok: false, message: (e && e.message) || "Couldn't update password." }; }
     }
   };
   console.info("VEILRUN backend connected.");

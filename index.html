@@ -79,10 +79,11 @@
     $("tab-signup").onclick = () => setMode("signup");
     $("toggleCode").onclick = () => { const g = $("gate"); g.style.display = g.style.display === "none" ? "flex" : "none"; };
 
-    function enter(name) {
+    function enter(name, provider) {
       entered = true;
       sessionStorage.setItem("vr_ok", "1");
       if (name) { localStorage.setItem("vr_who", name); localStorage.setItem("vr_account", name); }
+      if (provider) localStorage.setItem("vr_auth_provider", provider);
       window.location.href = "app.html#hub";
     }
 
@@ -99,13 +100,13 @@
           if (!name) { $("err").textContent = "Pick a display name."; $("authSubmit").disabled = false; return; }
           const { data, error } = await sb.auth.signUp({ email, password, options: { data: { display_name: name } } });
           if (error) throw error;
-          if (data.session) enter(name);
+          if (data.session) enter(name, "password");
           else { $("err").textContent = "Account created — check your email to confirm, then sign in."; setMode("signin"); }
         } else {
           const { data, error } = await sb.auth.signInWithPassword({ email, password });
           if (error) throw error;
           const name = (data.user && data.user.user_metadata && data.user.user_metadata.display_name) || email.split("@")[0];
-          enter(name);
+          enter(name, "password");
         }
       } catch (err) {
         const m = (err && err.message) || "Something went wrong.";
@@ -123,6 +124,7 @@
       if (val === PASSPHRASE) {
         sessionStorage.setItem("vr_ok", "1");
         localStorage.removeItem("vr_account"); // shared-code users keep pick-your-name
+        localStorage.removeItem("vr_auth_provider");
         window.location.href = "app.html#hub";
       } else { $("err").textContent = "The seam doesn't open for that."; }
     });
@@ -150,12 +152,12 @@
         showHandlePrompt(suggested);
         return;
       }
-      enter(googleName);
+      enter(googleName, "google");
     }
     async function chooseHandle(name) {
       const v = (name || "").trim() || pendingName || "Crew";
       if (sb) { try { await sb.auth.updateUser({ data: { display_name: v } }); } catch (e) {} }
-      enter(v);
+      enter(v, "google");
     }
     function showHandlePrompt(suggested) {
       $("handleInput").value = suggested || "";

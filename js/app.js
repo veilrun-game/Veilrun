@@ -405,6 +405,7 @@ window.VApp = (function () {
     profile() {
       const name = localStorage.getItem("vr_account") || localStorage.getItem("vr_who") || "";
       const ch = myCharacter();
+      const provider = localStorage.getItem("vr_auth_provider");
       const avatar = ch
         ? `<div class="pf-avatar" style="background-image:url('${C.esc(ch.img)}')"></div>`
         : `<div class="pf-avatar pf-initial">${C.esc((name[0] || "?").toUpperCase())}</div>`;
@@ -414,26 +415,40 @@ window.VApp = (function () {
           ${avatar}
           <div class="pf-head-txt">
             <p class="eyebrow">Your profile</p>
-            <h1 class="display" style="font-size:var(--fs-h1);margin:0 0 var(--s-2)">${C.esc(name || "Signed in")}</h1>
+            <div class="pf-name-wrap">
+              <h1 class="display pf-name-display" style="font-size:var(--fs-h1);margin:0 0 var(--s-2)">${C.esc(name || "Signed in")}<button class="pf-edit-btn" onclick="VApp.pfToggleNameEdit()" aria-label="Edit gaming name" title="Edit gaming name">✎</button></h1>
+              <div class="pf-name-edit pf-name-row" id="pf-name-edit" style="display:none">
+                <input id="pf-name" class="fld-in" value="${C.esc(name)}" maxlength="24" placeholder="Your gaming name" />
+                <button class="btn" onclick="VApp.profileSaveName()">Save</button>
+                <button class="btn ghost" onclick="VApp.pfToggleNameEdit()">Cancel</button>
+              </div>
+            </div>
             <p class="mute" style="margin:0">${ch ? "Playing as " + C.esc(ch.name) : "Crew account"}</p>
           </div>
           <button class="btn ghost pf-signout" onclick="VApp.signOut()">Sign out</button>
         </div>
 
+        <div id="pf-stats" class="dash-stats cols-4" style="margin-top:1.5rem"><div class="dash-stat"><p class="mute">Loading…</p></div></div>
+
         ${C.seam()}
-        <div class="pf-cols">
-          <div class="panel">
-            <div class="eyebrow">Display name</div>
-            <p class="mute" style="font-size:.85rem;margin:0 0 .8rem">A fun handle beats your real name — it's what shows on the leaderboard and your feedback.</p>
-            <div class="pf-name-row">
-              <input id="pf-name" class="fld-in" value="${C.esc(name)}" maxlength="24" placeholder="Your display name" />
-              <button class="btn" onclick="VApp.profileSaveName()">Save</button>
+        <div class="panel">
+          <div class="eyebrow">Your identity</div>
+          <p class="mute" style="font-size:.85rem;margin:0 0 .8rem">Your gaming name is a fun handle — it's what shows on the leaderboard and your feedback (edit it with the ✎ above). Character, actual name, and nickname come from the crew roster.</p>
+          <div class="pf-id-grid">
+            <div class="pf-id-field"><span class="mute">Character</span><div>${ch ? C.esc(ch.name) : "Not linked yet"}</div></div>
+            <div class="pf-id-field"><span class="mute">Gaming name</span><div>${C.esc(name || "—")}</div></div>
+            <div class="pf-id-field"><span class="mute">Actual name</span><div>${ch && ch.actualName ? C.esc(ch.actualName) : "—"}</div></div>
+            <div class="pf-id-field"><span class="mute">Nickname</span><div>${ch && ch.nickname ? C.esc(ch.nickname) : "—"}</div></div>
+          </div>
+          ${!ch ? `<p class="mute" style="font-size:.8rem;margin-top:.8rem">We couldn't match your gaming name to a crew character — set it above to your codename/handle and this fills in.</p>` : ""}
+          ${provider !== "google" ? `
+          <div style="margin-top:1rem;border-top:1px solid var(--line);padding-top:1rem">
+            <button class="btn ghost" onclick="VApp.pfTogglePwEdit()">Change password</button>
+            <div id="pf-pw-edit" class="pf-name-row" style="display:none;margin-top:.6rem">
+              <input id="pf-pw-new" type="password" class="fld-in" placeholder="New password (min 6 characters)" />
+              <button class="btn" onclick="VApp.pfChangePassword()">Save password</button>
             </div>
-          </div>
-          <div class="panel">
-            <div class="eyebrow">Password</div>
-            <p class="mute" style="font-size:.85rem;margin:0">Changing your password is coming soon. If you signed in with Google, you won't need one.</p>
-          </div>
+          </div>` : `<p class="mute" style="font-size:.8rem;margin-top:1rem">Signed in with Google — no Veilrun password needed.</p>`}
         </div>
 
         ${ch ? `
@@ -727,20 +742,29 @@ window.VApp = (function () {
   /* ---- Leaderboard (contribution ranking from feedback + likes + votes) ---- */
   const lbName = (w) => !w || w === "anon" ? "Anonymous" : w;
   // Which crew member (if any) a raw display-name string belongs to — same matching as myCharacter().
+  // Every field a raw display-name string might match against for a given crew member.
+  function crewMatchFields(ch) {
+    return [ch.name, ch.alias, ch.player, ch.id, ch.gamingName, ch.actualName, ch.nickname, ...(ch.aliases || [])];
+  }
+  function findCrewByWho(who) {
+    const w = String(who || "").toLowerCase();
+    if (!w) return null;
+    return (D.crew || []).find(ch => crewMatchFields(ch).some(v => v && String(v).toLowerCase() === w)) || null;
+  }
   function identityFor(who) {
     const w = String(who || "").toLowerCase();
     if (!w) return { key: "anon", charName: null };
-    const c = (D.crew || []).find(ch => [ch.name, ch.alias, ch.player, ch.id, ...(ch.aliases || [])].some(v => v && String(v).toLowerCase() === w));
+    const c = findCrewByWho(w);
     return c ? { key: c.id, charName: c.name } : { key: w, charName: null };
   }
   // Collapse display-name variants (Toddlez / BipolarCrayons, jkrazy / Latch, etc) onto one crew
-  // identity for scoring, but keep showing whichever name they've used most recently, tagged with
-  // their character — so the board merges points without hiding the name people actually go by.
+  // identity for scoring. Display prefers the crew member's authoritative gaming name when we have
+  // one on file; otherwise falls back to whichever raw name they've used most recently.
   function canonicalWho(who) { const { key, charName } = identityFor(who); return charName || who || "anon"; }
-  async function loadLeaderboard() {
-    const el = document.getElementById("lb-board");
-    if (!el) return;
-    if (!window.VBackend) { el.innerHTML = `<div class="panel"><p class="mute">The leaderboard needs the backend connected. It's live once feedback is saving to the database.</p></div>`; return; }
+  // Shared aggregation (feedback + likes + votes → per-person contribution totals). Used by both the
+  // Leaderboard and the Profile page's own-stats panel, so the numbers always agree.
+  async function computeContributions() {
+    if (!window.VBackend) return null;
     const [fb, likes, votes] = await Promise.all([
       window.VBackend.loadFeedback ? window.VBackend.loadFeedback() : [],
       window.VBackend.loadLikes(),
@@ -748,21 +772,29 @@ window.VApp = (function () {
     ]);
     const weekAgo = Date.now() - 7 * 864e5;
     const P = {};
-    const ensure = (key) => (P[key] = P[key] || { key, displayName: null, charName: null, fb: 0, likes: 0, votes: 0, week: 0, lastAt: 0 });
+    const ensure = (key) => (P[key] = P[key] || { key, charName: null, gamingName: null, lastWho: null, lastAt: 0, fb: 0, likes: 0, votes: 0, week: 0 });
     const bump = (r, field) => {
-      const { key, charName } = identityFor(r.who);
+      const c = findCrewByWho(r.who);
+      const key = c ? c.id : (String(r.who || "").toLowerCase() || "anon");
       const o = ensure(key);
-      if (charName) o.charName = charName;
+      if (c) { o.charName = c.name; o.gamingName = c.gamingName || null; }
       o[field]++;
       const t = r.created_at ? new Date(r.created_at).getTime() : 0;
-      if (t >= o.lastAt) { o.lastAt = t; if (r.who) o.displayName = r.who; }
+      if (t >= o.lastAt) { o.lastAt = t; if (r.who) o.lastWho = r.who; }
       return o;
     };
     fb.forEach(r => { const o = bump(r, "fb"); if (r.created_at && new Date(r.created_at).getTime() >= weekAgo) o.week++; });
     likes.forEach(r => bump(r, "likes"));
     votes.forEach(r => bump(r, "votes"));
     const rows = Object.values(P);
-    rows.forEach(o => { o.points = o.fb * 3 + o.likes + o.votes; if (!o.displayName) o.displayName = o.key; });
+    rows.forEach(o => { o.points = o.fb * 3 + o.likes + o.votes; o.displayName = o.gamingName || o.lastWho || o.key; });
+    return rows;
+  }
+  async function loadLeaderboard() {
+    const el = document.getElementById("lb-board");
+    if (!el) return;
+    if (!window.VBackend) { el.innerHTML = `<div class="panel"><p class="mute">The leaderboard needs the backend connected. It's live once feedback is saving to the database.</p></div>`; return; }
+    const rows = (await computeContributions()) || [];
     rows.sort((a, b) => b.points - a.points || b.fb - a.fb);
     if (!rows.length) { el.innerHTML = `<div class="panel"><p class="mute">No contributions yet — be the first to leave feedback and top the board.</p></div>`; return; }
     const weekTop = rows.filter(o => o.week > 0).sort((a, b) => b.week - a.week || b.points - a.points)[0];
@@ -1079,6 +1111,7 @@ window.VApp = (function () {
     if (name === "threats" && arg) { const t = (D.threats || []).find(x => x.id === arg); if (t) loadIdeas("Enemy idea: " + t.name, "ideas-" + t.id); }
     if (name === "updates") { loadResolved("resolved-list", 5); loadUpdatesResolvedStat(); }
     if (name === "feedback") loadFeedbackPage();
+    if (name === "profile") loadProfileStats("pf-stats");
     if (name === "landing" && window.VLanding) VLanding.init();
     document.querySelectorAll(".nav a[data-route]").forEach(a =>
       a.classList.toggle("active", a.getAttribute("href") === "#" + name));
@@ -1116,8 +1149,50 @@ window.VApp = (function () {
     if (window.VBackend && window.VBackend.updateDisplayName) window.VBackend.updateDisplayName(v);
     const chip = document.getElementById("nav-profile");
     if (chip) { chip.textContent = v[0].toUpperCase(); chip.title = "Signed in as " + v; }
-    toast("Display name saved");
+    toast("Gaming name saved");
     route();
+  }
+  function pfToggleNameEdit() {
+    const disp = document.querySelector(".pf-name-display");
+    const edit = document.getElementById("pf-name-edit");
+    if (!disp || !edit) return;
+    const show = edit.style.display === "none";
+    edit.style.display = show ? "flex" : "none";
+    disp.style.display = show ? "none" : "";
+    if (show) { const inp = document.getElementById("pf-name"); if (inp) { inp.focus(); inp.select(); } }
+  }
+  function pfTogglePwEdit() {
+    const el = document.getElementById("pf-pw-edit");
+    if (!el) return;
+    el.style.display = el.style.display === "none" ? "flex" : "none";
+  }
+  async function pfChangePassword() {
+    const inp = document.getElementById("pf-pw-new");
+    const v = (inp && inp.value || "").trim();
+    if (v.length < 6) { toast("Password needs at least 6 characters"); if (inp) inp.focus(); return; }
+    if (!window.VBackend || !window.VBackend.updatePassword) { toast("Backend not connected"); return; }
+    const res = await window.VBackend.updatePassword(v);
+    toast(res.ok ? "Password updated" : (res.message || "Couldn't update password"));
+    if (res.ok && inp) inp.value = "";
+  }
+  // Profile page's own-stats strip — logins + this person's slice of computeContributions().
+  async function loadProfileStats(elId) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    if (!window.VBackend) { el.innerHTML = ""; return; }
+    const myWhoRaw = localStorage.getItem("vr_account") || localStorage.getItem("vr_who") || "";
+    const mine0 = identityFor(myWhoRaw);
+    const [rows, logins] = await Promise.all([
+      computeContributions(),
+      window.VBackend.loadLogins ? window.VBackend.loadLogins() : []
+    ]);
+    const mine = (rows || []).find(o => o.key === mine0.key) || { fb: 0, likes: 0, votes: 0 };
+    const loginCount = (logins || []).filter(r => identityFor(r.who).key === mine0.key).length;
+    el.innerHTML = `
+      <div class="dash-stat"><div class="dash-n">${loginCount}</div><div class="mute">logins</div></div>
+      <div class="dash-stat"><div class="dash-n">${mine.fb}</div><div class="mute">feedback shared</div></div>
+      <div class="dash-stat"><div class="dash-n">${mine.likes}</div><div class="mute">likes given</div></div>
+      <div class="dash-stat"><div class="dash-n">${mine.votes}</div><div class="mute">votes cast</div></div>`;
   }
   // Effective image order for a character — shared/group-wide (from Supabase) first, falling back to
   // this browser's local copy (pre-save-button data, or offline), else the default gallery.
@@ -1144,9 +1219,8 @@ window.VApp = (function () {
   }
   // Map the signed-in account to a crew character (by name / alias / player / id).
   function myCharacter() {
-    const who = (localStorage.getItem("vr_account") || localStorage.getItem("vr_who") || "").toLowerCase();
-    if (!who) return null;
-    return (D.crew || []).find(c => [c.name, c.alias, c.player, c.id, ...(c.aliases || [])].some(v => v && String(v).toLowerCase() === who)) || null;
+    const who = localStorage.getItem("vr_account") || localStorage.getItem("vr_who") || "";
+    return findCrewByWho(who);
   }
 
   /* ---- Profile image reorder — a draft buffer, only committed (localStorage + Supabase, group-wide)
@@ -1353,12 +1427,17 @@ window.VApp = (function () {
     }
     // Reveal account-only nav items (Landing, Leaderboard) for signed-in accounts.
     document.querySelectorAll("[data-account]").forEach(el => { el.style.display = acct ? "" : "none"; });
+    // Log one login per browser session (not per page-view) for the profile stats.
+    if (acct && window.VBackend && window.VBackend.logLogin && !sessionStorage.getItem("vr_login_logged")) {
+      sessionStorage.setItem("vr_login_logged", "1");
+      window.VBackend.logLogin();
+    }
     route();
     // Load group likes + lab votes, then re-render so hearts/favorites/vote counts show.
     Promise.all([hydrateLikes(), hydrateVotes(), hydrateImageOrder()]).then(() => route());
   }
 
   const galMore = galLoadMore;
-  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavOnly, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote };
+  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavOnly, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);
