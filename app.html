@@ -45,13 +45,13 @@
 
   <main id="view"><!-- rendered by app.js --></main>
 
-  <div class="lightbox" id="lightbox">
+  <div class="lightbox" id="lightbox" onclick="if(event.target===this) VApp.lbClose()">
     <div class="lb-bar">
       <button id="lb-mode" onclick="VApp.lbToggleMode()">▦ All</button>
       <label class="lb-sizewrap">Size <input id="lb-size" type="range" min="90" max="340" value="160" oninput="VApp.lbSize(this.value)" /></label>
       <button class="lb-close" onclick="VApp.lbClose()" aria-label="Close">×</button>
     </div>
-    <div class="lb-single">
+    <div class="lb-single" onclick="if(event.target===this) VApp.lbClose()">
       <button class="lb-nav lb-prev" onclick="VApp.lbStep(-1)" aria-label="Previous">‹</button>
       <img class="lb-img" src="" alt="" />
       <button class="lb-nav lb-next" onclick="VApp.lbStep(1)" aria-label="Next">›</button>

@@ -266,6 +266,10 @@ window.VApp = (function () {
           <p class="mute">This enemy's kit hasn't been designed yet. What should it do — attacks, behaviors, a gimmick? Pitch it.</p>
           <div style="margin-top:.8rem">${C.feedbackButton("Enemy idea: " + t.name)}</div>
         </div>
+        <div class="panel" style="margin-top:1rem">
+          <div class="eyebrow">Ideas for this enemy</div>
+          <div id="ideas-${t.id}" class="idea-list"><p class="mute" style="font-size:.85rem;margin:.5rem 0 0">Loading…</p></div>
+        </div>
       </div>`;
     },
 
@@ -368,10 +372,14 @@ window.VApp = (function () {
         : `<div class="pf-avatar pf-initial">${C.esc((name[0] || "?").toUpperCase())}</div>`;
       const gallery = ch ? orderedGallery(ch.id) : [];
       const imgTiles = gallery.map((s, i) => `
-        <div class="pf-img">
-          <div class="pf-img-thumb" style="background-image:url('${C.esc(s)}')"><span class="pf-img-rank">${i + 1}</span></div>
+        <div class="pf-img" data-idx="${i}">
+          <div class="pf-img-thumb" style="background-image:url('${C.esc(s)}')">
+            <span class="pf-img-rank">${i + 1}</span>
+            <button class="pf-img-handle" onpointerdown="VApp.pfDragStart(event,'${ch.id}')" aria-label="Drag to reorder" title="Drag to reorder">⠿</button>
+          </div>
           <div class="pf-img-ctrls">
             <button ${i === 0 ? "disabled" : ""} onclick="VApp.profileMoveImg('${ch.id}',${i},-1)" aria-label="Move up">↑</button>
+            <input class="pf-img-pos" type="number" min="1" max="${gallery.length}" value="${i + 1}" inputmode="numeric" aria-label="Move to position" onchange="VApp.profileMoveImgTo('${ch.id}',${i},this.value)" />
             <button ${i === gallery.length - 1 ? "disabled" : ""} onclick="VApp.profileMoveImg('${ch.id}',${i},1)" aria-label="Move down">↓</button>
           </div>
         </div>`).join("");
@@ -405,7 +413,7 @@ window.VApp = (function () {
         ${ch ? `
         <div class="panel" style="margin-top:1.5rem">
           <div class="eyebrow">Your images — ${C.esc(ch.name)}</div>
-          <p class="mute" style="font-size:.85rem;margin:0 0 var(--s-4)">Reorder how ${C.esc(ch.name)}'s concept art appears on the character page. #1 shows first.</p>
+          <p class="mute" style="font-size:.85rem;margin:0 0 var(--s-4)">Reorder how ${C.esc(ch.name)}'s concept art appears on the character page. #1 shows first — drag the ⠿ handle, type a position, or use the arrows.</p>
           <div class="pf-img-grid">${imgTiles}</div>
         </div>` : `
         <div class="panel" style="margin-top:1.5rem">
@@ -600,6 +608,33 @@ window.VApp = (function () {
     const now = !iVoted(poll);
     applyVoteLocal(poll, now);
     if (window.VBackend) window.VBackend.toggleVote(poll);
+    refreshVotes();
+  }
+
+  /* ---- Per-section idea lists (Threats, etc) — same vote mechanism as the Lab, ----
+     just a read view that pulls live feedback for a given context tag. */
+  let feedbackCache = null;
+  async function allFeedback() {
+    if (feedbackCache) return feedbackCache;
+    if (!window.VBackend || !window.VBackend.loadFeedbackFull) return [];
+    feedbackCache = await window.VBackend.loadFeedbackFull();
+    return feedbackCache;
+  }
+  const ideaRow = (f) => `
+    <div class="idea-row">
+      <button class="votebtn idea-vote" data-poll="${C.esc(f.id)}" onclick="VApp.labVote('${C.esc(f.id)}')" title="Up-vote" aria-label="Up-vote">▲ <span class="vc">0</span></button>
+      <div class="idea-body">
+        <p>${C.esc(f.note)}</p>
+        <p class="mute idea-meta">${C.esc(f.who || "Anonymous")}${f.type ? " · " + C.esc(f.type) : ""}</p>
+      </div>
+    </div>`;
+  async function loadIdeas(context, elId) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const rows = (await allFeedback()).filter(f => f.context === context);
+    if (!rows.length) { el.innerHTML = `<p class="mute" style="font-size:.85rem;margin:.5rem 0 0">No ideas submitted yet — be the first.</p>`; return; }
+    rows.sort((a, b) => voteCount(b.id) - voteCount(a.id));
+    el.innerHTML = rows.map(ideaRow).join("");
     refreshVotes();
   }
 
@@ -890,6 +925,7 @@ window.VApp = (function () {
     log.push({ who, context: fbCtx.context, note, type, at: new Date().toISOString() });
     localStorage.setItem("vr_feedback", JSON.stringify(log));
     if (window.VBackend) window.VBackend.submitFeedback(fbCtx.context, note, type);
+    feedbackCache = null;
     fbClose();
     toast(window.VBackend ? "Thanks — sent!" : "Saved locally (backend offline).");
   }
@@ -919,6 +955,7 @@ window.VApp = (function () {
     if (name === "gallery") setupGalleryLazy();
     if (name === "lab") refreshVotes();
     if (name === "leaderboard") loadLeaderboard();
+    if (name === "threats" && arg) { const t = (D.threats || []).find(x => x.id === arg); if (t) loadIdeas("Enemy idea: " + t.name, "ideas-" + t.id); }
     if (name === "landing" && window.VLanding) VLanding.init();
     document.querySelectorAll(".nav a[data-route]").forEach(a =>
       a.classList.toggle("active", a.getAttribute("href") === "#" + name));
@@ -977,7 +1014,7 @@ window.VApp = (function () {
   function myCharacter() {
     const who = (localStorage.getItem("vr_account") || localStorage.getItem("vr_who") || "").toLowerCase();
     if (!who) return null;
-    return (D.crew || []).find(c => [c.name, c.alias, c.player, c.id].some(v => v && String(v).toLowerCase() === who)) || null;
+    return (D.crew || []).find(c => [c.name, c.alias, c.player, c.id, ...(c.aliases || [])].some(v => v && String(v).toLowerCase() === who)) || null;
   }
   function profileMoveImg(charId, index, dir) {
     const cur = orderedGallery(charId);
@@ -987,6 +1024,53 @@ window.VApp = (function () {
     const t = arr[index]; arr[index] = arr[j]; arr[j] = t;
     localStorage.setItem("vr_imgorder_" + charId, JSON.stringify(arr));
     route();
+  }
+  // Move image at fromIndex to a 1-based target position (typed in the pf-img-pos field, or dropped via drag).
+  function profileMoveImgTo(charId, fromIndex, toPos) {
+    const cur = orderedGallery(charId);
+    let to = Math.round(Number(toPos)) - 1;
+    if (isNaN(to)) { route(); return; }
+    to = Math.max(0, Math.min(cur.length - 1, to));
+    if (to === fromIndex) { route(); return; }
+    const arr = cur.slice();
+    const [moved] = arr.splice(fromIndex, 1);
+    arr.splice(to, 0, moved);
+    localStorage.setItem("vr_imgorder_" + charId, JSON.stringify(arr));
+    route();
+  }
+  // Pointer-based drag reorder (mouse + touch) for the profile image grid. Started from the ⠿ handle
+  // so it doesn't fight with page-scroll on mobile; hit-tests sibling tiles under the pointer.
+  function pfDragStart(e, charId) {
+    e.preventDefault();
+    const handle = e.currentTarget;
+    const tile = handle.closest(".pf-img");
+    const container = tile.parentElement;
+    if (!tile || !container) return;
+    const fromIdx = Number(tile.dataset.idx);
+    let hoverIdx = fromIdx;
+    tile.classList.add("dragging");
+    try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+    const tileAt = (x, y) => {
+      const tiles = [...container.querySelectorAll(".pf-img")];
+      return tiles.find(t => {
+        const r = t.getBoundingClientRect();
+        return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+      });
+    };
+    const onMove = (ev) => {
+      const t = tileAt(ev.clientX, ev.clientY);
+      container.querySelectorAll(".pf-img").forEach(x => x.classList.remove("drop-target"));
+      if (t) { hoverIdx = Number(t.dataset.idx); t.classList.add("drop-target"); }
+    };
+    const onUp = () => {
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      tile.classList.remove("dragging");
+      container.querySelectorAll(".pf-img").forEach(x => x.classList.remove("drop-target"));
+      if (hoverIdx !== fromIdx) profileMoveImgTo(charId, fromIdx, hoverIdx + 1);
+    };
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
   }
 
   function toggleDrop(e) {
@@ -1038,6 +1122,6 @@ window.VApp = (function () {
   }
 
   const galMore = galLoadMore;
-  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, profileMoveImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavOnly, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote };
+  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, profileMoveImg, profileMoveImgTo, pfDragStart, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavOnly, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);

@@ -42,7 +42,7 @@ VEILRUN.crew = [
                  {name:"Old Recipes", text:"With Magpie: ritual herbalism meets chemistry for brews neither makes alone."} ]
   },
   {
-    id: "temper", name: "Temper", player: "Todd", alias: "Toddlez", accent: "var(--c-temper)",
+    id: "temper", name: "Temper", player: "Todd", alias: "Toddlez", aliases: ["Toddlez", "BipolarCrayons"], accent: "var(--c-temper)",
     img: "assets/img/temper.png",
     role: "Weaverforge Blademaster", tagline: "Master of all weapons, peerless with the blade.",
     lore: "He doesn't just build weapons — he binds properties into steel. Dangerous at range, lethal up close, unmatched in a duel.",
@@ -227,6 +227,7 @@ VEILRUN.modes = [
   { id: "reunion-royale", name: "Reunion Royale", status: "idea", text: "Battle-royale twist — the crew scattered on a Sundering map must find each other and converge.", chars: "8" },
   { id: "severant-duel", name: "Severant Boss Duel", status: "idea", text: "One plays the Severant; the others must chain a Convergence to win.", chars: "1 vs many" },
   { id: "anthology", name: "Anthology (all of it)", status: "idea", text: "One world; each character headlines the genre that fits them.", chars: "All" },
+  { id: "companion-games", name: "Companion Games (origin stories)", status: "idea", text: "Each character gets their own smaller standalone game telling their backstory, all linking into the main Veilrun game. Related to Anthology (genre-per-character in one game) but distinct — this is separate titles, backstory-focused. Pitched by BipolarCrayons.", chars: "All (one per character)" },
   { id: "seam-command", name: "Seam Command (RTS)", status: "idea", text: "Command & Conquer view; field all nine as hero units across both layers.", chars: "All 9 at once" },
   { id: "party-hub", name: "Party / Hub structure", status: "direction", text: "One game: Story + a pile of character party games + a training hangout.", chars: "All" }
 ];
@@ -234,6 +235,10 @@ VEILRUN.modes = [
 VEILRUN.cover = "assets/img/cover.png";
 
 VEILRUN.updates = [
+  { date: "2026-07-20", text: "Threats pages now show everyone's submitted ideas for that enemy right on the page, with an up-vote button — no more ideas disappearing into a form no one else sees." },
+  { date: "2026-07-20", text: "New Lab idea: Companion Games — a standalone game per character telling their origin story, all linking into the main game. Pitched by BipolarCrayons — go vote on it." },
+  { date: "2026-07-20", text: "Your profile page: reorder your character's photos by dragging the ⠿ handle or typing a position, not just one-at-a-time arrows — works on phones too." },
+  { date: "2026-07-20", text: "Tap outside an enlarged photo in the gallery lightbox to close it." },
   { date: "2026-07-19", text: "The Landing's Seam Slider leveled up: you can now toggle between three scenes (Market Row, The Grand Mile, Foundry Row), and grabbing the seam turns it into a living rift — hold or drag it and it pulses and throws off sparks in the world's colors (violet, teal, magenta, white), then settles when you let go. Art is still wireframe while we dial in the real paired scenes for each world." },
   { date: "2026-07-19", text: "Fix: on phones, the Characters menu now stacks neatly down the page instead of spilling sideways off the screen." },
   { date: "2026-07-18", text: "The Hub's ‘Recently’ now always shows the newest batch of changes (with its date) instead of a stale ‘last 24 hours’ that could read 0 — it tracks the latest updates in the log, however recent they are." },

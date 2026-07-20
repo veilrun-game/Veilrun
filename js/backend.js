@@ -42,6 +42,13 @@
       try { const { data } = await sb.from("feedback").select("who,created_at"); return data || []; }
       catch (e) { return []; }
     },
+    // Full feedback rows (id, context, note, type, who, created_at) — powers per-section idea lists (Threats, etc).
+    async loadFeedbackFull() {
+      try {
+        const { data } = await sb.from("feedback").select("id,who,context,note,type,created_at").eq("resolved", false);
+        return data || [];
+      } catch (e) { return []; }
+    },
     async signOut() { try { await sb.auth.signOut(); } catch (e) {} },
     // Persist a chosen display name to the account so it survives across devices/sessions.
     async updateDisplayName(name) { try { await sb.auth.updateUser({ data: { display_name: name } }); } catch (e) {} },
