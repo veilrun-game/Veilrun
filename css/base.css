@@ -370,6 +370,28 @@ html { scroll-behavior: smooth; }
 .lb-top .lb-who { color: var(--magenta); }
 .lb-anon { opacity: 0.5; border-top: 1px solid var(--line); }
 .lb-anon .lb-who { color: var(--mute); }
+
+/* ---- Threat group rosters + member cards ---- */
+.threat-roster { display: grid; grid-template-columns: 1fr; gap: var(--s-3); }
+@media (min-width: 640px) { .threat-roster { grid-template-columns: 1fr 1fr; } }
+.threat-mem { display: flex; gap: var(--s-3); background: var(--ink-2); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: var(--s-2); text-decoration: none; color: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease; }
+.threat-mem:hover { border-color: var(--magenta); background: rgba(214,92,220,0.06); }
+.threat-mem-art { position: relative; flex: 0 0 66px; width: 66px; height: 66px; border-radius: var(--radius-sm); overflow: hidden; }
+.threat-mem-art img { width: 100%; height: 100%; object-fit: cover; }
+.threat-mem-body { min-width: 0; }
+.threat-mem-name { font-weight: 600; color: var(--white); margin-bottom: 2px; }
+.threat-mem-body p { font-size: 0.82rem; margin: 0; }
+.threat-tbd { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; line-height: 1.1;
+  font-size: 0.62rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--mute); text-align: center;
+  background: repeating-linear-gradient(45deg, rgba(214,92,220,0.10) 0 7px, transparent 7px 14px), var(--ink);
+  border: 1px dashed var(--line); border-radius: var(--radius-sm); }
+.threat-tbd-lg { flex-direction: column; gap: 5px; height: 260px; font-size: 0.95rem; }
+.threat-tbd-lg span { font-size: 0.72rem; text-transform: none; letter-spacing: 0; }
+.threat-badge { display: inline-block; font-size: 0.6rem; font-weight: 500; background: rgba(214,92,220,0.85);
+  color: #fff; padding: 2px 8px; border-radius: 999px; vertical-align: middle; }
+.threat-mem-art .threat-badge { position: absolute; top: 4px; left: 4px; font-size: 0.52rem; padding: 1px 5px; }
 .lb-tag { display: inline-block; margin-left: 8px; font-family: var(--font-body); font-weight: 400; font-size: 0.7rem;
   color: var(--mute); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; vertical-align: middle; }
 .lb-weekly-name .lb-tag { vertical-align: middle; }

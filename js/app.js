@@ -243,11 +243,28 @@ window.VApp = (function () {
       </div>`;
     },
 
-    threat(id) {
+    threat(id, sub) {
       const t = (D.threats || []).find(x => x.id === id);
       if (!t) return views.threats();
+      const members = (D.threatMembers || {})[id] || [];
+      // A member sub-page (#threats/<group>/<member>).
+      if (sub) { const m = members.find(x => x.id === sub); if (m) return threatMemberPage(t, m); }
       registerSet("threat_" + t.id, (t.gallery || []).map(s => ({ src: s, name: t.name })));
       const thumbs = (t.gallery || []).map((s, idx) => `<img src="${C.esc(s)}" onclick="VApp.lbOpen('threat_${t.id}', ${idx})" alt="${C.esc(t.name)}" loading="lazy" />`).join("");
+      const hasRoster = members.length > 0;
+      const roster = hasRoster ? `
+        <div class="panel" style="margin-top:1rem">
+          <div class="eyebrow">In this group — ${members.length}</div>
+          <p class="mute" style="font-size:.85rem;margin:.3rem 0 .8rem">Each has its own page to build out. Tap in to read the concept and pitch its kit.</p>
+          <div class="threat-roster">${members.map(m => threatMemberCard(t.id, m)).join("")}</div>
+        </div>` : "";
+      const ideas = `
+        <div class="panel" style="margin-top:1rem;border-color:var(--magenta)">
+          <div class="eyebrow">${hasRoster ? "Ideas for the group" : "Ideas for this enemy"}</div>
+          <p class="mute" style="font-size:.85rem;margin:.3rem 0 0">${hasRoster ? "Speak to the collection as a whole — kit direction for the group, or pitch a brand-new member." : "This enemy's kit hasn't been designed yet — vote up what should stick."}</p>
+          <div id="ideas-${t.id}" class="idea-list"><p class="mute" style="font-size:.85rem;margin:.5rem 0 0">Loading…</p></div>
+          <div style="margin-top:.8rem">${C.feedbackButton("Enemy idea: " + t.name)}</div>
+        </div>`;
       return `<div class="wrap section" style="--accent:var(--magenta)">
         <a href="#threats" class="mute" style="font-size:.85rem">← All threats</a>
         <div class="char-hero" style="margin:1rem 0">
@@ -259,12 +276,8 @@ window.VApp = (function () {
             <p style="max-width:52ch;margin-top:.8rem">${C.esc(t.desc)}</p>
           </div>
         </div>
-        <div class="panel" style="margin-top:1rem;border-color:var(--magenta)">
-          <div class="eyebrow">Ideas for this enemy</div>
-          <p class="mute" style="font-size:.85rem;margin:.3rem 0 0">This enemy's kit hasn't been designed yet — vote up what should stick.</p>
-          <div id="ideas-${t.id}" class="idea-list"><p class="mute" style="font-size:.85rem;margin:.5rem 0 0">Loading…</p></div>
-          <div style="margin-top:.8rem">${C.feedbackButton("Enemy idea: " + t.name)}</div>
-        </div>
+        ${roster}
+        ${ideas}
         ${thumbs ? `<div class="gallery-strip" style="margin-top:1.5rem">${thumbs}</div>` : ""}
       </div>`;
     },
@@ -582,7 +595,46 @@ window.VApp = (function () {
         <p class="mute" style="font-size:.78rem;margin-top:.5rem">Palette: ${C.esc(t.palette)}</p>
         ${t.gallery && t.gallery.length > 1 ? `<div class="t-strip">${t.gallery.map((s, idx) => `<img src="${C.esc(s)}" onclick="VApp.lbOpen('threat_${t.id}', ${idx})" alt="${C.esc(t.name)}" loading="lazy" />`).join("")}</div>` : ""}
         <p class="mute" style="font-size:.82rem;margin-top:.7rem;font-style:italic">Abilities not yet defined — got ideas for what this enemy should do?</p>
-        <div style="display:flex;gap:var(--s-3);flex-wrap:wrap;align-items:center;margin-top:.4rem">${C.feedbackButton("Enemy idea: " + t.name)}<a class="btn ghost" href="#threats/${t.id}">Open →</a></div>
+        <div style="display:flex;gap:var(--s-3);flex-wrap:wrap;align-items:center;margin-top:.4rem">${C.feedbackButton("Enemy idea: " + t.name)}<a class="btn ghost" href="#threats/${t.id}">Open${((D.threatMembers || {})[t.id] || []).length ? " · " + (D.threatMembers[t.id]).length + " inside" : ""} →</a></div>
+      </div>
+    </div>`;
+  }
+  // A member card on a group page — links to its own sub-page (#threats/<group>/<member>).
+  function threatMemberCard(groupId, m) {
+    const mirror = m.mirrors ? `<span class="lb-tag">mirrors ${C.esc(m.mirrors)}</span>` : (m.role ? `<span class="lb-tag">${C.esc(m.role)}</span>` : "");
+    const art = m.img ? `<img src="${C.esc(m.img)}" alt="${C.esc(m.name)}" loading="lazy" />` : `<div class="threat-tbd">Art<br>TBD</div>`;
+    const badge = m.proposed ? `<span class="threat-badge">Proposed</span>` : "";
+    return `<a class="threat-mem" href="#threats/${groupId}/${m.id}">
+      <div class="threat-mem-art">${art}${badge}</div>
+      <div class="threat-mem-body">
+        <div class="threat-mem-name">${C.esc(m.name)} ${mirror}</div>
+        <p class="mute">${C.esc(m.desc)}</p>
+      </div>
+    </a>`;
+  }
+  // A member's own build-out page: concept + its own ideas/feedback thread.
+  function threatMemberPage(t, m) {
+    const badge = m.proposed ? `<span class="threat-badge">Proposed concept</span>` : "";
+    const art = m.img
+      ? `<img src="${C.esc(m.img)}" alt="${C.esc(m.name)}" style="border-radius:var(--radius);border:1px solid var(--line)" />`
+      : `<div class="threat-tbd threat-tbd-lg">Art TBD<span>queue it in Midjourney</span></div>`;
+    return `<div class="wrap section" style="--accent:var(--magenta)">
+      <a href="#threats/${t.id}" class="mute" style="font-size:.85rem">← ${C.esc(t.name)}</a>
+      <div class="char-hero" style="margin:1rem 0">
+        <div>${art}</div>
+        <div>
+          <div class="eyebrow">${C.esc(t.name)}${m.role ? " · " + C.esc(m.role) : ""}</div>
+          <h1 class="display" style="font-size:var(--fs-h1)">${C.esc(m.name)} ${badge}</h1>
+          ${m.mirrors ? `<p class="mute" style="margin-top:.3rem">Mirrors <strong style="color:var(--white)">${C.esc(m.mirrors)}</strong> — their virtue, turned to a vice.</p>` : ""}
+          ${m.palette ? `<p class="mute" style="margin-top:.2rem">Palette: ${C.esc(m.palette)}</p>` : ""}
+          <p style="max-width:52ch;margin-top:.8rem">${C.esc(m.desc)}</p>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:1rem;border-color:var(--magenta)">
+        <div class="eyebrow">Kit &amp; ideas for ${C.esc(m.name)}</div>
+        <p class="mute" style="font-size:.85rem;margin:.3rem 0 0">Abilities aren't locked — pitch a kit, a signature move, or a twist, and vote up what should stick.</p>
+        <div id="ideas-${t.id}-${m.id}" class="idea-list"><p class="mute" style="font-size:.85rem;margin:.5rem 0 0">Loading…</p></div>
+        <div style="margin-top:.8rem">${C.feedbackButton("Threat member: " + t.name + " — " + m.name)}</div>
       </div>
     </div>`;
   }
@@ -1100,7 +1152,7 @@ window.VApp = (function () {
   function route() {
     if (!requireGate()) return;
     const hash = (location.hash || "#hub").slice(1);
-    const [name, arg] = hash.split("/");
+    const [name, arg, sub] = hash.split("/");
     // Leaving the Profile page with an unsaved image order? Confirm first (Save/Discard handle clearing pfDirty).
     if (pfDirty && lastRouteName === "profile" && name !== "profile") {
       if (!confirm("You have unsaved image order changes. Leave without saving?")) { location.hash = "#profile"; return; }
@@ -1113,7 +1165,7 @@ window.VApp = (function () {
     if (window.VLanding) VLanding.teardown(); // clean any landing listeners before leaving/re-render
     let html;
     if (name === "crew" && arg) html = views.character(arg);
-    else if (name === "threats" && arg) html = views.threat(arg);
+    else if (name === "threats" && arg) html = views.threat(arg, sub);
     else if (name === "landing" && window.VLanding) html = VLanding.view();
     else if (views[name]) html = views[name]();
     else html = views.hub();
@@ -1121,7 +1173,15 @@ window.VApp = (function () {
     if (name === "gallery") setupGalleryLazy();
     if (name === "lab") refreshVotes();
     if (name === "leaderboard") loadLeaderboard();
-    if (name === "threats" && arg) { const t = (D.threats || []).find(x => x.id === arg); if (t) loadIdeas("Enemy idea: " + t.name, "ideas-" + t.id); }
+    if (name === "threats" && arg) {
+      const t = (D.threats || []).find(x => x.id === arg);
+      if (t) {
+        const members = (D.threatMembers || {})[arg] || [];
+        const m = sub && members.find(x => x.id === sub);
+        if (m) loadIdeas("Threat member: " + t.name + " — " + m.name, "ideas-" + arg + "-" + sub);
+        else loadIdeas("Enemy idea: " + t.name, "ideas-" + arg);
+      }
+    }
     if (name === "updates") { loadResolved("resolved-list", 5); loadUpdatesResolvedStat(); }
     if (name === "feedback") loadFeedbackPage();
     if (name === "profile") loadProfileStats("pf-stats");

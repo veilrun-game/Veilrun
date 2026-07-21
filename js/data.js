@@ -25,6 +25,66 @@ VEILRUN.world = {
   ]
 };
 
+// Members / sub-types inside the "collection" threats. Keyed by threat id (VEILRUN.threats).
+// Singles (severant, wardens) have no entry → they render as a single build-out page.
+// `proposed: true` marks concepts we're floating for feedback (art stays TBD until generated).
+VEILRUN.threatMembers = {
+  lieutenants: [
+    { id: "choir", name: "The Choir", mirrors: "Rook", role: "Named mini-boss", palette: "sickly pale-green / bone",
+      desc: "Rook reads minds with serene control; the Choir cages them. A gaunt psionic wreck streaming sickly green light, haloed by overlapping screaming faces — the minds he's trapped. Telepathy turned into a prison." },
+    { id: "slag", name: "Slag", mirrors: "Temper", role: "Named mini-boss", palette: "molten red-orange / charcoal",
+      desc: "Temper masters every weapon; Slag just hoards them. A hulking figure draped in dozens of crudely fused blades, molten light bleeding through blackened armor, dragging an ugly cleaver. Craft replaced by quantity — grafting, not forging." },
+    { id: "tithe", name: "Tithe", mirrors: "Magpie", role: "Named mini-boss", palette: "sickly crimson / ashen grey",
+      desc: "Magpie salvages the discarded; Tithe drains the living. A witch-mechanic hung with stolen bone-charms and crimson siphons, tubes pulling grey Current from withered victims. Resourcefulness twisted into parasitism." },
+    { id: "gall", name: "Gall", mirrors: "Cinder", role: "Named mini-boss (proposed)", palette: "bilious green / black", proposed: true,
+      desc: "Cinder feeds the crew; Gall feeds them rot. A banquet-master who turns nourishment into poison — brewing plagues where Cinder brews buffs, a feast that hollows you from the inside." },
+    { id: "wake", name: "Wake", mirrors: "Vesper", role: "Named mini-boss (proposed)", palette: "deep indigo / void", proposed: true,
+      desc: "Vesper guards unseen; Wake erases without a trace. A hollow that dissolves into shadow and unmakes people mid-sentence — the quiet protector inverted into a stalker you never wake from." },
+    { id: "fault", name: "Fault", mirrors: "Citrine", role: "Named mini-boss (proposed)", palette: "sickly yellow / red", proposed: true,
+      desc: "Citrine powers the crew; Fault overloads the district. A live-wire trapmaster who wires whole streets into a killing grid — current turned from a tool into an execution." },
+    { id: "lock", name: "Lock", mirrors: "Latch", role: "Named mini-boss (proposed)", palette: "corrupted electric-blue / white", proposed: true,
+      desc: "Latch opens doors between worlds; Lock seals them shut. A dimensional jailer who folds people into pocket-cells and severs every link that could reach them — connection turned to solitary." },
+    { id: "rapture", name: "Rapture", mirrors: "Wren", role: "Named mini-boss (proposed)", palette: "blinding magenta / white", proposed: true,
+      desc: "Wren holds immense power barely in check; Rapture lets all of it go. An ecstatic surge of raw arcane force with no restraint and no mercy — the power without the person to hold it back." },
+    { id: "ruin", name: "Ruin", mirrors: "Anvil", role: "Named mini-boss (proposed)", palette: "gunmetal / iron-red", proposed: true,
+      desc: "Anvil is the immovable shield; Ruin is the unstoppable wreck. A siege-engine of a man built only to flatten — protection inverted into pure demolition." }
+  ],
+  concord: [
+    { id: "enforcer", name: "Concord Enforcer", role: "Fodder", palette: "gunmetal + red",
+      desc: "A faceless visored riot trooper with one glowing red slit, sleek dark industrial-arcane armor, a current-powered rifle. Disciplined and anonymous — the boot of the surveillance state." },
+    { id: "hunter", name: "Concord Hunter", role: "Elite", palette: "black / steel + searing red",
+      desc: "An elite tracker built to run down seam-crossers: heavy black armor, red optics, rune-dampening tech, a current-charged glaive. Cold and predatory." },
+    { id: "warrant", name: "The Warrant", role: "Elite · commander (proposed)", palette: "steel + cold red", proposed: true,
+      desc: "The inquisitor who signs the hunts — a Concord commander who never dirties their own hands, only authorizes. A face for the empire's cruelty." }
+  ],
+  hollowmen: [
+    { id: "cultist", name: "Hollowman Cultist", role: "Fodder", palette: "crimson + black",
+      desc: "A fanatic in torn crimson-and-black robes, cracked bone mask, dull-red rune-scars, a curved ritual blade. Gaunt and zealous — the rank and file of the apocalypse." },
+    { id: "chant", name: "The Chant", role: "Elite (proposed)", palette: "crimson + ash", proposed: true,
+      desc: "Where cultists cut, the Chant unmakes — a robed priest droning the severance-hymn, thinning the very air around them. The order's voice, and its worst idea." },
+    { id: "scarred", name: "Rune-Scarred", role: "Elite (proposed)", palette: "raw red + bone", proposed: true,
+      desc: "A convert so covered in glowing rune-scars the flesh barely holds — a walking wound where the severance is already half-finished. What true belief costs." }
+  ],
+  thinned: [
+    { id: "husk", name: "Thinned Husk", role: "Fodder", palette: "grey + dying ember",
+      desc: "A hollowed-out human drained of color and life — ashen cracked skin, empty flickering eyes, a listless shamble. The human cost of the drift made into an enemy. Tragic more than evil." },
+    { id: "beast", name: "Drained Beast", role: "Creature", palette: "grey + bone-white",
+      desc: "A once-living predator hollowed by the thinning — emaciated grey hide over bone, hollow white eyes, trailing dead Current. Gaunt, unnatural, and still hunting." }
+  ],
+  "weave-horrors": [
+    { id: "horror", name: "Weave-horror", role: "Monster", palette: "toxic green + violet",
+      desc: "A body that folds wrong through space — too many angles, limbs of crystallized arcane light, no face, only drifting runic glyphs. Not a soldier; a wound in geometry." },
+    { id: "maw", name: "The Maw", role: "Environmental mini-boss", palette: "void + green / violet",
+      desc: "A massive tear in reality shaped like a circling mouth of fractured light and shadow, ringed by broken runes and grasping tendrils, swallowing the light around it." }
+  ],
+  scrye: [
+    { id: "drone", name: "Scrye Drone", role: "World-flavor", palette: "current-blue + violet",
+      desc: "A single hovering Concord eye — one glowing blue lens ringed by orbiting glyphs, sweeping scan-beams across the streets. Alone it's nothing; the swarm is everywhere." },
+    { id: "scryemother", name: "Scryemother", role: "??? (proposed)", palette: "deep blue + violet", proposed: true,
+      desc: "The rumored hub the swarm reports to, where every feed converges. Blind it and you blind the Concord — if it exists at all." }
+  ]
+};
+
 VEILRUN.crew = [
   {
     id: "saffron", name: "Cinder", player: "Zack", alias: "Soviet", accent: "var(--c-saffron)",
@@ -244,6 +304,7 @@ VEILRUN.modes = [
 VEILRUN.cover = "assets/img/cover.png";
 
 VEILRUN.updates = [
+  { date: "2026-07-20", text: "Threats got real depth. The group enemies — Lieutenants, Concord, Hollowmen, Thinned, Weave-horrors, Scrye — now have individual member pages you can open and build out, each with its own concept and its own ideas/feedback thread, while the group page still collects big-picture feedback for the whole collection. The Severant's Lieutenants are fleshed out: the three we knew (Choir/mirrors Rook, Slag/Temper, Tithe/Magpie) plus six proposed to mirror the rest of the crew — Gall (Cinder), Wake (Vesper), Fault (Citrine), Lock (Latch), Rapture (Wren), Ruin (Anvil). Pitch more or vote on these. Art is marked ‘TBD’ so none of it waits on Midjourney." },
   { date: "2026-07-20", text: "Mobile menu tidy-up: Leaderboard and Updates now live under a Hub dropdown (shorter top nav, no more two-line stacking on tablets). On phones the Hub and Characters menus collapse — tap a header to expand it, and opening one closes the other so the sheet stays small. The bottom bar swapped Feedback and Menu, and Feedback is now a compact icon button. Plus: the profile ‘Unsaved changes’ label now sits above its buttons, and the leaderboard's ‘Anonymous’ bucket no longer holds a top spot — it shows de-emphasized at the bottom so named folks fill the ranks." },
   { date: "2026-07-20", text: "Fixed manual account creation: hitting Create Account used to silently bounce you back to sign-in with no message (the confirmation note got wiped instantly). Now you get a clear ‘Check your email’ screen, and after you click the link in that email you land on a ‘Welcome — account created!’ screen with a button straight into the Hub. Prefer email over Google? It works properly now." },
   { date: "2026-07-20", text: "Profile page refresh: edit your gaming name with a ✎ next to your name instead of a separate box, see your own stats (logins, feedback shared, likes given, votes cast) up top, and a new \"Your identity\" panel showing your character, gaming name, actual name, and nickname together. Password change moved in here too — hidden if you signed in with Google." },
