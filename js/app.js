@@ -599,10 +599,17 @@ window.VApp = (function () {
       </div>
     </div>`;
   }
+  // Resolve a member's image set: an explicit gallery, or a folder (dir + count), or none.
+  function memGallery(m) {
+    if (m.gallery && m.gallery.length) return m.gallery;
+    if (m.dir && m.count) return Array.from({ length: m.count }, (_, i) => m.dir + "/" + String(i + 1).padStart(2, "0") + ".png");
+    return [];
+  }
   // A member card on a group page — links to its own sub-page (#threats/<group>/<member>).
   function threatMemberCard(groupId, m) {
     const mirror = m.mirrors ? `<span class="lb-tag">mirrors ${C.esc(m.mirrors)}</span>` : (m.role ? `<span class="lb-tag">${C.esc(m.role)}</span>` : "");
-    const art = m.img ? `<img src="${C.esc(m.img)}" alt="${C.esc(m.name)}" loading="lazy" />` : `<div class="threat-tbd">Art<br>TBD</div>`;
+    const hero = memGallery(m)[0] || m.img;
+    const art = hero ? `<img src="${C.esc(hero)}" alt="${C.esc(m.name)}" loading="lazy" />` : `<div class="threat-tbd">Art<br>TBD</div>`;
     const badge = m.proposed ? `<span class="threat-badge">Proposed</span>` : "";
     return `<a class="threat-mem" href="#threats/${groupId}/${m.id}">
       <div class="threat-mem-art">${art}${badge}</div>
@@ -612,12 +619,18 @@ window.VApp = (function () {
       </div>
     </a>`;
   }
-  // A member's own build-out page: concept + its own ideas/feedback thread.
+  // A member's own build-out page: hero + gallery + its own ideas/feedback thread.
   function threatMemberPage(t, m) {
+    const imgs = memGallery(m);
+    const setId = "threatmem_" + t.id + "_" + m.id;
+    if (imgs.length) registerSet(setId, imgs.map(s => ({ src: s, name: m.name })));
     const badge = m.proposed ? `<span class="threat-badge">Proposed concept</span>` : "";
-    const art = m.img
-      ? `<img src="${C.esc(m.img)}" alt="${C.esc(m.name)}" style="border-radius:var(--radius);border:1px solid var(--line)" />`
+    const art = imgs.length
+      ? `<img src="${C.esc(imgs[0])}" alt="${C.esc(m.name)}" style="border-radius:var(--radius);border:1px solid var(--line);cursor:zoom-in" onclick="VApp.lbOpen('${setId}', 0)" />`
       : `<div class="threat-tbd threat-tbd-lg">Art TBD<span>queue it in Midjourney</span></div>`;
+    const strip = imgs.length > 1
+      ? `<div class="gallery-strip" style="margin-top:1.5rem">${imgs.map((s, idx) => `<img src="${C.esc(s)}" onclick="VApp.lbOpen('${setId}', ${idx})" alt="${C.esc(m.name)}" loading="lazy" />`).join("")}</div>`
+      : "";
     return `<div class="wrap section" style="--accent:var(--magenta)">
       <a href="#threats/${t.id}" class="mute" style="font-size:.85rem">← ${C.esc(t.name)}</a>
       <div class="char-hero" style="margin:1rem 0">
@@ -636,6 +649,7 @@ window.VApp = (function () {
         <div id="ideas-${t.id}-${m.id}" class="idea-list"><p class="mute" style="font-size:.85rem;margin:.5rem 0 0">Loading…</p></div>
         <div style="margin-top:.8rem">${C.feedbackButton("Threat member: " + t.name + " — " + m.name)}</div>
       </div>
+      ${strip}
     </div>`;
   }
 
