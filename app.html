@@ -17,7 +17,14 @@
     <span class="brand">VEIL<b>RUN</b></span>
     <button class="menu-btn" id="menu-btn" onclick="VApp.toggleMenu()" aria-label="Menu"><span class="ham"></span></button>
     <div class="links" id="navlinks">
-      <a data-route href="#hub">Hub</a>
+      <div class="navdrop" id="navdrop-hub">
+        <a class="navdrop-btn" data-route href="#hub" aria-haspopup="true">Hub <span class="caret" aria-hidden="true"></span></a>
+        <div class="navdrop-menu">
+          <a data-route href="#hub">Hub home</a>
+          <a data-route data-account href="#leaderboard" style="display:none">Leaderboard</a>
+          <a data-route href="#updates">Updates</a>
+        </div>
+      </div>
       <a data-route data-account href="#landing" style="display:none">Landing</a>
       <a data-route href="#world">World</a>
       <div class="navdrop" id="navdrop-characters">
@@ -31,8 +38,6 @@
       </div>
       <a data-route href="#gallery">Gallery</a>
       <a data-route href="#lab">Lab</a>
-      <a data-route data-account href="#leaderboard" style="display:none">Leaderboard</a>
-      <a data-route href="#updates">Updates</a>
     </div>
     <!-- Ever-present CTA. Swap this to Discord / Play when the site opens up more broadly. -->
     <button class="btn nav-fb" onclick="VApp.feedback()">

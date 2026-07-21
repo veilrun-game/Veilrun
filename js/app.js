@@ -457,8 +457,10 @@ window.VApp = (function () {
           <p class="mute" style="font-size:.85rem;margin:0 0 var(--s-4)">Reorder how ${C.esc(ch.name)}'s concept art appears on the character page, for everyone. #1 shows first — drag the ⠿ handle, type a position, or use the arrows. ♥ shows how many likes that shot has.</p>
           <div id="pf-savebar" class="pf-savebar${pfDirty && pfDraft && pfDraft.charId === ch.id ? " show" : ""}">
             <span class="mute" style="font-size:.82rem">Unsaved changes</span>
-            <button class="btn" onclick="VApp.pfSaveOrder('${ch.id}')">Save order</button>
-            <button class="btn ghost" onclick="VApp.pfDiscardOrder('${ch.id}')">Discard</button>
+            <div class="pf-savebar-btns">
+              <button class="btn" onclick="VApp.pfSaveOrder('${ch.id}')">Save order</button>
+              <button class="btn ghost" onclick="VApp.pfDiscardOrder('${ch.id}')">Discard</button>
+            </div>
           </div>
           <div id="pf-img-grid" class="pf-img-grid">${imgTiles}</div>
         </div>` : `
@@ -794,9 +796,11 @@ window.VApp = (function () {
     const el = document.getElementById("lb-board");
     if (!el) return;
     if (!window.VBackend) { el.innerHTML = `<div class="panel"><p class="mute">The leaderboard needs the backend connected. It's live once feedback is saving to the database.</p></div>`; return; }
-    const rows = (await computeContributions()) || [];
+    const all = (await computeContributions()) || [];
+    const anon = all.find(o => o.key === "anon");           // unattributed shared-code feedback
+    const rows = all.filter(o => o.key !== "anon");         // real people fill the ranked spots
     rows.sort((a, b) => b.points - a.points || b.fb - a.fb);
-    if (!rows.length) { el.innerHTML = `<div class="panel"><p class="mute">No contributions yet — be the first to leave feedback and top the board.</p></div>`; return; }
+    if (!rows.length && !(anon && anon.points > 0)) { el.innerHTML = `<div class="panel"><p class="mute">No contributions yet — be the first to leave feedback and top the board.</p></div>`; return; }
     const weekTop = rows.filter(o => o.week > 0).sort((a, b) => b.week - a.week || b.points - a.points)[0];
     const medal = (i) => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `<span class="lb-rank">${i + 1}</span>`;
     const highlight = weekTop ? `
@@ -812,7 +816,16 @@ window.VApp = (function () {
         <div class="lb-detail mute">${o.fb} feedback · ${o.likes} likes · ${o.votes} votes</div>
         <div class="lb-pts">${o.points}<span class="mute"> pts</span></div>
       </div>`).join("");
-    el.innerHTML = highlight + `<div class="lb-list panel">${list}</div>`;
+    // Unattributed feedback (no name) lands in one shared bucket — show it, but off the ranked
+    // ladder (no medal/rank, de-emphasized) so it can't hold a top spot.
+    const anonRow = (anon && anon.points > 0) ? `
+      <div class="lb-row lb-anon">
+        <div class="lb-pos" aria-hidden="true">·</div>
+        <div class="lb-who">Anonymous<span class="lb-tag">shared code</span></div>
+        <div class="lb-detail mute">${anon.fb} feedback · ${anon.likes} likes · ${anon.votes} votes</div>
+        <div class="lb-pts">${anon.points}<span class="mute"> pts</span></div>
+      </div>` : "";
+    el.innerHTML = highlight + `<div class="lb-list panel">${list}${anonRow}</div>`;
   }
 
   function galleryViewer(ch) {
@@ -1115,8 +1128,10 @@ window.VApp = (function () {
     if (name === "landing" && window.VLanding) VLanding.init();
     document.querySelectorAll(".nav a[data-route]").forEach(a =>
       a.classList.toggle("active", a.getAttribute("href") === "#" + name));
-    const drop = document.getElementById("navdrop-characters");
-    if (drop) drop.classList.toggle("active", ["characters", "crew", "threats", "synergy"].includes(name));
+    const cdrop = document.getElementById("navdrop-characters");
+    if (cdrop) cdrop.classList.toggle("active", ["characters", "crew", "threats", "synergy"].includes(name));
+    const hdrop = document.getElementById("navdrop-hub");
+    if (hdrop) hdrop.classList.toggle("active", ["hub", "leaderboard", "updates"].includes(name));
     document.querySelectorAll(".navdrop.open").forEach(d => d.classList.remove("open"));
     closeMenu();
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
@@ -1418,6 +1433,18 @@ window.VApp = (function () {
     window.addEventListener("beforeunload", e => { if (pfDirty) { e.preventDefault(); e.returnValue = ""; } });
     document.addEventListener("click", e => {
       if (!e.target.closest(".navdrop")) document.querySelectorAll(".navdrop.open").forEach(d => d.classList.remove("open"));
+    });
+    // Mobile: a dropdown header (Hub / Characters) toggles its submenu as an accordion —
+    // opening one closes the other, so the bottom sheet stays short. Desktop keeps hover + navigation.
+    document.querySelectorAll(".navdrop-btn").forEach(btn => {
+      btn.addEventListener("click", e => {
+        if (!window.matchMedia("(max-width: 639px)").matches) return;
+        e.preventDefault();
+        const d = btn.closest(".navdrop");
+        const willOpen = !d.classList.contains("open");
+        document.querySelectorAll(".navdrop.open").forEach(x => x.classList.remove("open"));
+        if (willOpen) d.classList.add("open");
+      });
     });
     const acct = localStorage.getItem("vr_account");
     const chip = document.getElementById("nav-profile");

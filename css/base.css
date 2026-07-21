@@ -337,9 +337,10 @@ html { scroll-behavior: smooth; }
 .pf-img-ghost { position: fixed; pointer-events: none; z-index: 999; border-radius: var(--radius-sm);
   background-size: cover; background-position: 50% 18%; opacity: 0.85; box-shadow: var(--shadow);
   border: 2px solid var(--magenta); }
-.pf-savebar { display: none; align-items: center; gap: var(--s-3); background: var(--ink); border: 1px solid var(--magenta);
+.pf-savebar { display: none; flex-direction: column; align-items: stretch; gap: var(--s-2); background: var(--ink); border: 1px solid var(--magenta);
   border-radius: var(--radius-sm); padding: var(--s-3); margin-bottom: var(--s-3); }
 .pf-savebar.show { display: flex; }
+.pf-savebar-btns { display: flex; gap: var(--s-3); }
 .pf-img-handle:active { cursor: grabbing; background: rgba(214,92,220,0.5); }
 .pf-img-ctrls { display: flex; }
 .pf-img-ctrls button { flex: 1; background: var(--ink-2); border: none; border-top: 1px solid var(--line); color: var(--white);
@@ -367,6 +368,8 @@ html { scroll-behavior: smooth; }
 .lb-rank { color: var(--mute); font-family: var(--font-display); font-size: 0.95rem; }
 .lb-who { font-weight: 600; color: var(--white); }
 .lb-top .lb-who { color: var(--magenta); }
+.lb-anon { opacity: 0.5; border-top: 1px solid var(--line); }
+.lb-anon .lb-who { color: var(--mute); }
 .lb-tag { display: inline-block; margin-left: 8px; font-family: var(--font-body); font-weight: 400; font-size: 0.7rem;
   color: var(--mute); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; vertical-align: middle; }
 .lb-weekly-name .lb-tag { vertical-align: middle; }
@@ -584,15 +587,23 @@ html { scroll-behavior: smooth; }
     opacity: 0; pointer-events: none; transition: opacity 0.2s ease; }
   .nav-backdrop.show { opacity: 1; pointer-events: auto; }
   .nav .menu-btn { display: flex; }
-  .nav .nav-fb { padding: 0.5rem 0.95rem; }
+  /* Bottom bar order (left→right): logo · Feedback · Menu · profile. Feedback is icon-only. */
+  .nav .brand { order: 0; }
+  .nav .nav-fb { order: 1; width: 46px; height: 40px; padding: 0; justify-content: center; }
+  .nav .nav-fb span { display: none; }
+  .nav .nav-fb .fb-ico { width: 19px; height: 19px; }
+  .nav .menu-btn { order: 2; }
+  .nav .nav-profile { order: 3; }
   /* In the bottom sheet, the dropdown expands inline (no popover). Force a vertical stack —
      otherwise it inherits the desktop `display:inline-flex` (row) and the button + submenu
      links sit side-by-side and overflow. */
   .nav .navdrop { width: 100%; display: flex; flex-direction: column; align-items: stretch; }
   .nav .navdrop-btn { width: 100%; justify-content: space-between; font-size: 1rem; padding: var(--s-3); }
-  .nav .navdrop-btn .caret { display: none; }
-  .nav .navdrop-menu { display: flex; position: static; margin: 0; padding: 0 0 var(--s-2) var(--s-4);
+  /* Accordion: the caret is the open/close indicator; submenu is collapsed until its header is tapped. */
+  .nav .navdrop-btn .caret { display: inline-block; }
+  .nav .navdrop-menu { display: none; position: static; margin: 0; padding: 0 0 var(--s-2) var(--s-4);
     min-width: 0; background: transparent; border: none; box-shadow: none; }
+  .nav .navdrop.open .navdrop-menu { display: flex; }
   .toast { bottom: calc(var(--nav-h) + 20px + env(safe-area-inset-bottom, 0px)); }
   .view-toggle { margin-left: 0; }
   /* Character portrait was dominating the screen on mobile — cap it so text isn't dwarfed. */
