@@ -39,17 +39,23 @@ VEILRUN.threatMembers = {
     { id: "tithe", name: "Tithe", mirrors: "Magpie", role: "Named mini-boss", palette: "sickly crimson / ashen grey",
       dir: "assets/enemies/lieutenants/tithe", count: 16,
       desc: "Magpie salvages the discarded; Tithe drains the living. A witch-mechanic hung with stolen bone-charms and crimson siphons, tubes pulling grey Current from withered victims. Resourcefulness twisted into parasitism." },
-    { id: "gall", name: "Gall", mirrors: "Cinder", role: "Named mini-boss (proposed)", palette: "bilious green / black", proposed: true,
+    { id: "gall", name: "Gall", mirrors: "Cinder", role: "Named mini-boss", palette: "bilious green / black",
+      dir: "assets/enemies/lieutenants/gall", count: 12,
       desc: "Cinder feeds the crew; Gall feeds them rot. A banquet-master who turns nourishment into poison — brewing plagues where Cinder brews buffs, a feast that hollows you from the inside." },
-    { id: "wake", name: "Wake", mirrors: "Vesper", role: "Named mini-boss (proposed)", palette: "deep indigo / void", proposed: true,
+    { id: "wake", name: "Wake", mirrors: "Vesper", role: "Named mini-boss", palette: "deep indigo / void",
+      dir: "assets/enemies/lieutenants/wake", count: 8,
       desc: "Vesper guards unseen; Wake erases without a trace. A hollow that dissolves into shadow and unmakes people mid-sentence — the quiet protector inverted into a stalker you never wake from." },
-    { id: "fault", name: "Fault", mirrors: "Citrine", role: "Named mini-boss (proposed)", palette: "sickly yellow / red", proposed: true,
+    { id: "fault", name: "Fault", mirrors: "Citrine", role: "Named mini-boss", palette: "sickly yellow / red",
+      dir: "assets/enemies/lieutenants/fault", count: 8,
       desc: "Citrine powers the crew; Fault overloads the district. A live-wire trapmaster who wires whole streets into a killing grid — current turned from a tool into an execution." },
-    { id: "lock", name: "Lock", mirrors: "Latch", role: "Named mini-boss (proposed)", palette: "corrupted electric-blue / white", proposed: true,
+    { id: "lock", name: "Lock", mirrors: "Latch", role: "Named mini-boss", palette: "corrupted electric-blue / white",
+      dir: "assets/enemies/lieutenants/lock", count: 24,
       desc: "Latch opens doors between worlds; Lock seals them shut. A dimensional jailer who folds people into pocket-cells and severs every link that could reach them — connection turned to solitary." },
-    { id: "rapture", name: "Rapture", mirrors: "Wren", role: "Named mini-boss (proposed)", palette: "blinding magenta / white", proposed: true,
+    { id: "rapture", name: "Rapture", mirrors: "Wren", role: "Named mini-boss", palette: "blinding magenta / white",
+      dir: "assets/enemies/lieutenants/rapture", count: 12,
       desc: "Wren holds immense power barely in check; Rapture lets all of it go. An ecstatic surge of raw arcane force with no restraint and no mercy — the power without the person to hold it back." },
-    { id: "ruin", name: "Ruin", mirrors: "Anvil", role: "Named mini-boss (proposed)", palette: "gunmetal / iron-red", proposed: true,
+    { id: "ruin", name: "Ruin", mirrors: "Anvil", role: "Named mini-boss", palette: "gunmetal / iron-red",
+      dir: "assets/enemies/lieutenants/ruin", count: 12,
       desc: "Anvil is the immovable shield; Ruin is the unstoppable wreck. A siege-engine of a man built only to flatten — protection inverted into pure demolition." }
   ],
   concord: [
@@ -59,16 +65,19 @@ VEILRUN.threatMembers = {
     { id: "hunter", name: "Concord Hunter", role: "Elite", palette: "black / steel + searing red",
       dir: "assets/enemies/concord/hunter", count: 16,
       desc: "An elite tracker built to run down seam-crossers: heavy black armor, red optics, rune-dampening tech, a current-charged glaive. Cold and predatory." },
-    { id: "warrant", name: "The Warrant", role: "Elite · commander (proposed)", palette: "steel + cold red", proposed: true,
+    { id: "warrant", name: "The Warrant", role: "Elite · commander", palette: "steel + cold red",
+      dir: "assets/enemies/concord/warrant", count: 4,
       desc: "The inquisitor who signs the hunts — a Concord commander who never dirties their own hands, only authorizes. A face for the empire's cruelty." }
   ],
   hollowmen: [
     { id: "cultist", name: "Hollowman Cultist", role: "Fodder", palette: "crimson + black",
       dir: "assets/enemies/hollowmen/cultist", count: 12,
       desc: "A fanatic in torn crimson-and-black robes, cracked bone mask, dull-red rune-scars, a curved ritual blade. Gaunt and zealous — the rank and file of the apocalypse." },
-    { id: "chant", name: "The Chant", role: "Elite (proposed)", palette: "crimson + ash", proposed: true,
+    { id: "chant", name: "The Chant", role: "Elite", palette: "crimson + ash",
+      dir: "assets/enemies/hollowmen/chant", count: 4,
       desc: "Where cultists cut, the Chant unmakes — a robed priest droning the severance-hymn, thinning the very air around them. The order's voice, and its worst idea." },
-    { id: "scarred", name: "Rune-Scarred", role: "Elite (proposed)", palette: "raw red + bone", proposed: true,
+    { id: "scarred", name: "Rune-Scarred", role: "Elite", palette: "raw red + bone",
+      dir: "assets/enemies/hollowmen/scarred", count: 4,
       desc: "A convert so covered in glowing rune-scars the flesh barely holds — a walking wound where the severance is already half-finished. What true belief costs." }
   ],
   thinned: [
@@ -91,7 +100,8 @@ VEILRUN.threatMembers = {
     { id: "drone", name: "Scrye Drone", role: "World-flavor", palette: "current-blue + violet",
       dir: "assets/enemies/scrye/drone", count: 12,
       desc: "A single hovering Concord eye — one glowing blue lens ringed by orbiting glyphs, sweeping scan-beams across the streets. Alone it's nothing; the swarm is everywhere." },
-    { id: "scryemother", name: "Scryemother", role: "??? (proposed)", palette: "deep blue + violet", proposed: true,
+    { id: "scryemother", name: "Scryemother", role: "??? · rumored hub", palette: "deep blue + violet",
+      dir: "assets/enemies/scrye/scryemother", count: 8,
       desc: "The rumored hub the swarm reports to, where every feed converges. Blind it and you blind the Concord — if it exists at all." }
   ]
 };
@@ -315,6 +325,9 @@ VEILRUN.modes = [
 VEILRUN.cover = "assets/img/cover.png";
 
 VEILRUN.updates = [
+  { date: "2026-07-25", title: "The Lieutenants (and the elites) have faces now", text: "Concept art landed for the six proposed Lieutenants — Lock, Ruin, Rapture, Gall, Wake, and Fault — plus the Scryemother, the Warrant, the Chant, and the Rune-Scarred. The ‘art TBD’ tiles across the Threats pages are gone; every enemy now has a gallery to react to. Temper's redesign came in too: 40 fresh frames in his gallery. Dig through, and use the new ⊘ archive button to cull the ones that miss." },
+  { date: "2026-07-21", title: "Archive images you don't want to feature", text: "On your profile, every shot in the reorder grid now has a ⊘ button — tap it to archive that image. Archived shots drop off the character page and collect in an ‘Archived’ strip right below, where a Restore button brings any of them back. Saves group-wide like the ordering does, so it's easy to curate galleries down as we pour in more art." },
+  { date: "2026-07-21", title: "Cleaner updates + de-duped World galleries", text: "The Hub's ‘Latest update’ now leads with a short headline and puts the details in a blurb underneath, instead of one giant run-on line — and the Updates page reads the same clean way. Also fixed the World galleries: each layer's hero image was quietly showing up twice in its lightbox." },
   { date: "2026-07-21", text: "Enemy pages now have real art. Pulled the full Midjourney sets out of the archive and split them per sub-type: the three Lieutenants have their own galleries (Slag ×8, The Choir ×12, Tithe ×16), and Concord (Enforcer/Hunter), Hollowmen (Cultist), Thinned (Husk/Beast), Weave-horrors (Weave-horror/the Maw), and Scrye (Drone) all show their images on their own pages with a lightbox. The ten still-in-design members — the six new Lieutenants plus a few proposed sub-types — show an ‘Art TBD’ tile, with Midjourney prompts queued so none of them are blocked." },
   { date: "2026-07-20", text: "Threats got real depth. The group enemies — Lieutenants, Concord, Hollowmen, Thinned, Weave-horrors, Scrye — now have individual member pages you can open and build out, each with its own concept and its own ideas/feedback thread, while the group page still collects big-picture feedback for the whole collection. The Severant's Lieutenants are fleshed out: the three we knew (Choir/mirrors Rook, Slag/Temper, Tithe/Magpie) plus six proposed to mirror the rest of the crew — Gall (Cinder), Wake (Vesper), Fault (Citrine), Lock (Latch), Rapture (Wren), Ruin (Anvil). Pitch more or vote on these. Art is marked ‘TBD’ so none of it waits on Midjourney." },
   { date: "2026-07-20", text: "Mobile menu tidy-up: Leaderboard and Updates now live under a Hub dropdown (shorter top nav, no more two-line stacking on tablets). On phones the Hub and Characters menus collapse — tap a header to expand it, and opening one closes the other so the sheet stays small. The bottom bar swapped Feedback and Menu, and Feedback is now a compact icon button. Plus: the profile ‘Unsaved changes’ label now sits above its buttons, and the leaderboard's ‘Anonymous’ bucket no longer holds a top spot — it shows de-emphasized at the bottom so named folks fill the ranks." },

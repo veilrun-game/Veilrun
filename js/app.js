@@ -1,6 +1,13 @@
 /* VEILRUN — App shell: soft-gate check, hash router, view renderers. */
 window.VApp = (function () {
   const D = window.VEILRUN, C = window.VC;
+  // Split an update into a short title + blurb: use an explicit u.title, else the first sentence/colon.
+  function updParts(u) {
+    if (u.title) return { title: u.title, body: u.text || "" };
+    const t = String(u.text || "");
+    const m = t.match(/^([\s\S]{6,90}?[.:!])\s+([\s\S]+)$/);
+    return m ? { title: m[1].replace(/[.:!]$/, ""), body: m[2] } : { title: t, body: "" };
+  }
   const view = () => document.getElementById("view");
 
   function requireGate() {
@@ -33,7 +40,7 @@ window.VApp = (function () {
       const updWeekOnly = updWeek.filter(u => daysBack(u) > 0);     // earlier that week
       const newestLabel = (() => { const d = D.updates.map(u => parseD(u.date)).sort((a, b) => b - a)[0];
         return d ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) : ""; })();
-      const uRow = u => `<div class="kit-row"><span class="mute" style="font-size:.8rem">${C.esc(u.date)}</span><div>${C.esc(u.text)}</div></div>`;
+      const uRow = u => { const p = updParts(u); return `<div class="kit-row"><span class="mute" style="font-size:.8rem">${C.esc(u.date)}</span><div><strong style="color:var(--white)">${C.esc(p.title)}</strong>${p.body ? `<br><span class="mute">${C.esc(p.body)}</span>` : ""}</div></div>`; };
       return `
         <section class="hub-hero wrap">
           ${C.sectionHeader("Home base","Welcome back, crew")}
@@ -41,7 +48,8 @@ window.VApp = (function () {
             ${D.cover ? `<img src="${C.esc(D.cover)}" alt="Veilrun" loading="lazy" />` : ""}
             <div class="l-body">
               <p class="eyebrow">Latest update · ${C.esc(latest.date)}</p>
-              <h2 style="margin:.4rem 0">${C.esc(latest.text)}</h2>
+              <h2 style="margin:.4rem 0">${C.esc(updParts(latest).title)}</h2>
+              ${updParts(latest).body ? `<p class="mute" style="margin:.2rem 0 .6rem">${C.esc(updParts(latest).body)}</p>` : ""}
               <p class="mute">Dig in below, and react to anything — it only works if it's ours.</p>
               <div class="hero-btns"><a class="btn" href="#crew">Meet the crew</a> <button class="btn ghost" onclick="VApp.feedback('General thought','idea')">＋ Share a thought</button></div>
             </div>
@@ -124,7 +132,11 @@ window.VApp = (function () {
       const worldItems = (window.VEILRUN.galleryItems || []).filter(i => i.cat === "World");
       const layers = w.layers.map(l => {
         const slug = l.name.toLowerCase().replace("the ", "").replace(/\s+/g, "");
-        const imgs = [l.img, ...worldItems.filter(w => w.name === l.name).map(w => w.src)].filter((v, i, a) => v && a.indexOf(v) === i);
+        // The layer's gallery already starts with the hero frame (…/01.png is byte-identical to
+        // l.img), so use the gallery when present and only fall back to l.img if there's no set —
+        // otherwise the hero showed twice in the lightbox.
+        const g = worldItems.filter(w => w.name === l.name).map(w => w.src);
+        const imgs = (g.length ? g : (l.img ? [l.img] : [])).filter((v, i, a) => v && a.indexOf(v) === i);
         registerSet("world_" + slug, imgs.map(s => ({ src: s, name: l.name })));
         return `
         <div class="wlayer" style="--accent:var(--violet)" onclick="VApp.lbOpen('world_${slug}', 0)">
@@ -369,7 +381,7 @@ window.VApp = (function () {
         dayCounts[day] = (dayCounts[day] || 0) + 1;
       });
       const busiest = Object.entries(dayCounts).sort((a, b) => b[1] - a[1])[0];
-      const list = D.updates.map(u => `<div class="kit-row"><span class="mute" style="font-size:.8rem">${C.esc(u.date)}</span><div>${C.esc(u.text)}</div></div>`).join("");
+      const list = D.updates.map(u => { const p = updParts(u); return `<div class="kit-row"><span class="mute" style="font-size:.8rem">${C.esc(u.date)}</span><div><strong style="color:var(--white)">${C.esc(p.title)}</strong>${p.body ? `<br><span class="mute">${C.esc(p.body)}</span>` : ""}</div></div>`; }).join("");
       return `<div class="wrap section">
         ${C.sectionHeader("Log","Updates")}
         <div class="dash-stats cols-3" style="margin-top:1.5rem">
@@ -423,6 +435,7 @@ window.VApp = (function () {
         ? `<div class="pf-avatar" style="background-image:url('${C.esc(ch.img)}')"></div>`
         : `<div class="pf-avatar pf-initial">${C.esc((name[0] || "?").toUpperCase())}</div>`;
       const imgTiles = ch ? pfImgTilesHTML(ch, pfDraftFor(ch.id)) : "";
+      const archTiles = ch ? pfArchiveHTML(ch, pfDraft.hidden) : "";
       return `<div class="wrap section">
         <div class="pf-head">
           ${avatar}
@@ -467,7 +480,7 @@ window.VApp = (function () {
         ${ch ? `
         <div class="panel" style="margin-top:1.5rem">
           <div class="eyebrow">Your images — ${C.esc(ch.name)}</div>
-          <p class="mute" style="font-size:.85rem;margin:0 0 var(--s-4)">Reorder how ${C.esc(ch.name)}'s concept art appears on the character page, for everyone. #1 shows first — drag the ⠿ handle, type a position, or use the arrows. ♥ shows how many likes that shot has.</p>
+          <p class="mute" style="font-size:.85rem;margin:0 0 var(--s-4)">Reorder how ${C.esc(ch.name)}'s concept art appears on the character page, for everyone. #1 shows first — drag the ⠿ handle, type a position, or use the arrows. Tap ⊘ to archive a shot (it drops off the page but stays below to restore). ♥ shows likes.</p>
           <div id="pf-savebar" class="pf-savebar${pfDirty && pfDraft && pfDraft.charId === ch.id ? " show" : ""}">
             <span class="mute" style="font-size:.82rem">Unsaved changes</span>
             <div class="pf-savebar-btns">
@@ -476,6 +489,7 @@ window.VApp = (function () {
             </div>
           </div>
           <div id="pf-img-grid" class="pf-img-grid">${imgTiles}</div>
+          <div id="pf-archive" class="pf-archive">${archTiles}</div>
         </div>` : `
         <div class="panel" style="margin-top:1.5rem">
           <p class="mute" style="margin:0">We couldn't match your name to a crew character, so there's nothing to reorder yet. Set your display name to your codename or handle and it'll link up.</p>
@@ -1285,20 +1299,35 @@ window.VApp = (function () {
   }
   // Effective image order for a character — shared/group-wide (from Supabase) first, falling back to
   // this browser's local copy (pre-save-button data, or offline), else the default gallery.
-  let imgOrderShared = {};
+  let imgOrderShared = {}, imgHiddenShared = {};
   async function hydrateImageOrder() {
     if (!window.VBackend || !window.VBackend.loadImageOrder) return;
     const rows = await window.VBackend.loadImageOrder();
-    imgOrderShared = {};
-    rows.forEach(r => { if (r.char_id && Array.isArray(r.order_json) && r.order_json.length) imgOrderShared[r.char_id] = r.order_json; });
+    imgOrderShared = {}; imgHiddenShared = {};
+    rows.forEach(r => {
+      if (!r.char_id) return;
+      const oj = r.order_json;
+      if (Array.isArray(oj)) { if (oj.length) imgOrderShared[r.char_id] = oj; }        // legacy: bare order array
+      else if (oj && typeof oj === "object") {
+        if (Array.isArray(oj.order) && oj.order.length) imgOrderShared[r.char_id] = oj.order;
+        if (Array.isArray(oj.hidden) && oj.hidden.length) imgHiddenShared[r.char_id] = oj.hidden;
+      }
+    });
+  }
+  function hiddenFor(charId) {
+    let h = imgHiddenShared[charId];
+    if (!h) { try { h = JSON.parse(localStorage.getItem("vr_imghidden_" + charId) || "null"); } catch (e) {} }
+    return Array.isArray(h) ? h : [];
   }
   function orderedGallery(charId) {
     const base = (window.VEILRUN.galleries && window.VEILRUN.galleries[charId]) || [];
+    const hidden = hiddenFor(charId);
+    const vis = base.filter(s => !hidden.includes(s));   // archived shots drop off the character page
     let saved = imgOrderShared[charId];
     if (!saved) { try { saved = JSON.parse(localStorage.getItem("vr_imgorder_" + charId) || "null"); } catch (e) {} }
-    if (!saved || !saved.length) return base.slice();
-    const inSaved = saved.filter(s => base.includes(s));
-    const rest = base.filter(s => !inSaved.includes(s));
+    if (!saved || !saved.length) return vis.slice();
+    const inSaved = saved.filter(s => vis.includes(s));
+    const rest = vis.filter(s => !inSaved.includes(s));
     return [...inSaved, ...rest];
   }
   function hasImgOrder(charId) {
@@ -1317,7 +1346,7 @@ window.VApp = (function () {
   let pfDraft = null; // { charId, order: [src, ...] }
   let pfDirty = false;
   function pfDraftFor(charId) {
-    if (!pfDraft || pfDraft.charId !== charId) pfDraft = { charId, order: orderedGallery(charId).slice() };
+    if (!pfDraft || pfDraft.charId !== charId) pfDraft = { charId, order: orderedGallery(charId).slice(), hidden: hiddenFor(charId).slice() };
     return pfDraft.order;
   }
   function pfMarkDirty() {
@@ -1331,6 +1360,7 @@ window.VApp = (function () {
         <div class="pf-img-thumb" style="background-image:url('${C.esc(s)}')">
           <span class="pf-img-rank">${i + 1}</span>
           <button class="pf-img-handle" onpointerdown="VApp.pfDragStart(event,'${ch.id}')" aria-label="Drag to reorder" title="Drag to reorder">⠿</button>
+          <button class="pf-img-hide" onclick="VApp.pfHideImg('${ch.id}',${i})" aria-label="Archive this image" title="Hide from the page (archive)">⊘</button>
           ${likeCount(s) > 0 ? `<span class="pf-img-likes">♥ ${likeCount(s)}</span>` : ""}
         </div>
         <div class="pf-img-ctrls">
@@ -1340,11 +1370,35 @@ window.VApp = (function () {
         </div>
       </div>`).join("");
   }
+  function pfArchiveHTML(ch, hidden) {
+    if (!hidden || !hidden.length) return "";
+    return `<div class="pf-arch-head">Archived · ${hidden.length} <span class="mute" style="font-weight:400;text-transform:none;letter-spacing:0">— hidden from ${C.esc(ch.name)}'s page</span></div>
+      <div class="pf-arch-grid">${hidden.map((s, i) => `
+        <div class="pf-arch">
+          <div class="pf-arch-thumb" style="background-image:url('${C.esc(s)}')">${likeCount(s) > 0 ? `<span class="pf-img-likes">♥ ${likeCount(s)}</span>` : ""}</div>
+          <button class="pf-restore" onclick="VApp.pfRestoreImg('${ch.id}',${i})">↩ Restore</button>
+        </div>`).join("")}</div>`;
+  }
   function renderPfGrid(charId) {
     const grid = document.getElementById("pf-img-grid");
     const ch = (D.crew || []).find(c => c.id === charId);
     if (!grid || !ch) return;
-    grid.innerHTML = pfImgTilesHTML(ch, pfDraftFor(charId));
+    pfDraftFor(charId);
+    grid.innerHTML = pfImgTilesHTML(ch, pfDraft.order);
+    const arch = document.getElementById("pf-archive");
+    if (arch) arch.innerHTML = pfArchiveHTML(ch, pfDraft.hidden);
+  }
+  function pfHideImg(charId, index) {
+    pfDraftFor(charId);
+    const [s] = pfDraft.order.splice(index, 1);
+    if (s) pfDraft.hidden.push(s);
+    pfMarkDirty(); renderPfGrid(charId);
+  }
+  function pfRestoreImg(charId, index) {
+    pfDraftFor(charId);
+    const [s] = pfDraft.hidden.splice(index, 1);
+    if (s) pfDraft.order.push(s);
+    pfMarkDirty(); renderPfGrid(charId);
   }
   function profileMoveImg(charId, index, dir) {
     const arr = pfDraftFor(charId);
@@ -1367,20 +1421,22 @@ window.VApp = (function () {
     renderPfGrid(charId);
   }
   async function pfSaveOrder(charId) {
-    const order = pfDraftFor(charId).slice();
-    imgOrderShared[charId] = order;
+    pfDraftFor(charId);
+    const order = pfDraft.order.slice(), hidden = pfDraft.hidden.slice();
+    imgOrderShared[charId] = order; imgHiddenShared[charId] = hidden;
     localStorage.setItem("vr_imgorder_" + charId, JSON.stringify(order));
+    localStorage.setItem("vr_imghidden_" + charId, JSON.stringify(hidden));
     pfDirty = false;
     const bar = document.getElementById("pf-savebar"); if (bar) bar.classList.remove("show");
     if (window.VBackend && window.VBackend.saveImageOrder) {
-      const ok = await window.VBackend.saveImageOrder(charId, order);
-      toast(ok ? "Saved — everyone will see this order" : "Saved on this device (couldn't reach the server)");
+      const ok = await window.VBackend.saveImageOrder(charId, order, hidden);
+      toast(ok ? "Saved — everyone will see this" : "Saved on this device (couldn't reach the server)");
     } else {
       toast("Saved on this device");
     }
   }
   function pfDiscardOrder(charId) {
-    pfDraft = { charId, order: orderedGallery(charId).slice() };
+    pfDraft = { charId, order: orderedGallery(charId).slice(), hidden: hiddenFor(charId).slice() };
     pfDirty = false;
     const bar = document.getElementById("pf-savebar"); if (bar) bar.classList.remove("show");
     renderPfGrid(charId);
@@ -1539,6 +1595,6 @@ window.VApp = (function () {
   }
 
   const galMore = galLoadMore;
-  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavOnly, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote };
+  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavOnly, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);

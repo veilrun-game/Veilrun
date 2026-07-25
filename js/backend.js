@@ -88,9 +88,10 @@
       try { const { data } = await sb.from("image_order").select("char_id,order_json"); return data || []; }
       catch (e) { return []; }
     },
-    async saveImageOrder(charId, order) {
+    // order_json now stores { order, hidden }. Legacy rows are a bare array (order only) — handled on load.
+    async saveImageOrder(charId, order, hidden) {
       try {
-        await sb.from("image_order").upsert({ char_id: charId, order_json: order, updated_by: who(), updated_at: new Date().toISOString() });
+        await sb.from("image_order").upsert({ char_id: charId, order_json: { order: order, hidden: hidden || [] }, updated_by: who(), updated_at: new Date().toISOString() });
         return true;
       } catch (e) { console.warn(e); return false; }
     },
