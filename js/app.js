@@ -615,9 +615,13 @@ window.VApp = (function () {
   }
   // Resolve a member's image set: an explicit gallery, or a folder (dir + count), or none.
   function memGallery(m) {
-    if (m.gallery && m.gallery.length) return m.gallery;
-    if (m.dir && m.count) return Array.from({ length: m.count }, (_, i) => m.dir + "/" + String(i + 1).padStart(2, "0") + ".png");
-    return [];
+    let arr;
+    if (m.gallery && m.gallery.length) arr = m.gallery.slice();
+    else if (m.dir && m.count) arr = Array.from({ length: m.count }, (_, i) => m.dir + "/" + String(i + 1).padStart(2, "0") + ".png");
+    else return [];
+    // Prioritize enemy art by community likes — most-liked first, so the hero + strip
+    // reflect what people are gravitating to. Stable for ties, so natural order holds.
+    return arr.map((s, i) => [s, i]).sort((a, b) => (likeCount(b[0]) - likeCount(a[0])) || (a[1] - b[1])).map(x => x[0]);
   }
   // A member card on a group page — links to its own sub-page (#threats/<group>/<member>).
   function threatMemberCard(groupId, m) {

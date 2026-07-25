@@ -198,7 +198,7 @@ VEILRUN.crew = [
                  {name:"Hearth (aura)", text:"With Magpie (stepmom): her ward raises Wren's strain ceiling."} ]
   },
   {
-    id: "anvil", name: "Anvil", player: "Mike", alias: "Maddog", accent: "var(--c-anvil)",
+    id: "anvil", name: "Anvil", player: "Michael", alias: "Maddog", aliases: ["Mike"], accent: "var(--c-anvil)",
     gamingName: "Maddog", actualName: "Mike", nickname: null, // Jordan flagged unsure (7/20) — ask Mike
     img: "assets/img/anvil.png",
     role: "Juggernaut", tagline: "The immovable wall — the loud option, and the sleeper.",
@@ -229,7 +229,7 @@ VEILRUN.crew = [
                  {name:"Old Recipes", text:"With Saffron: ritual herbalism meets chemistry."} ]
   },
   {
-    id: "rook", name: "Rook", player: "Nas", alias: "Darz", aliases: ["OfficerBucky", "Naz"], accent: "var(--c-rook)",
+    id: "rook", name: "Rook", player: "Naz", alias: "Darz", aliases: ["OfficerBucky"], accent: "var(--c-rook)",
     gamingName: "OfficerBucky", actualName: "Nas", nickname: "Darz", // Jordan wrote "Naz" (7/20) — double-checking spelling vs "Nas" already on file
     img: "assets/img/rook.png",
     role: "Psionic · Vesper's Brother", tagline: "Telepathy, teleport, telekinesis — the crew's sixth sense.",
@@ -325,6 +325,7 @@ VEILRUN.modes = [
 VEILRUN.cover = "assets/img/cover.png";
 
 VEILRUN.updates = [
+  { date: "2026-07-25", title: "Enemy concepts now sort by your likes", text: "On the Lieutenant and enemy pages, the shot the group likes most rises to the top — the hero and the strip both order by likes now. So heart the directions you want to see more of; your votes literally reshuffle which concept leads. (Also corrected two names: Naz and Michael.)" },
   { date: "2026-07-25", title: "The Lieutenants (and the elites) have faces now", text: "Concept art landed for the six proposed Lieutenants — Lock, Ruin, Rapture, Gall, Wake, and Fault — plus the Scryemother, the Warrant, the Chant, and the Rune-Scarred. The ‘art TBD’ tiles across the Threats pages are gone; every enemy now has a gallery to react to. Temper's redesign came in too: 40 fresh frames in his gallery. Dig through, and use the new ⊘ archive button to cull the ones that miss." },
   { date: "2026-07-21", title: "Archive images you don't want to feature", text: "On your profile, every shot in the reorder grid now has a ⊘ button — tap it to archive that image. Archived shots drop off the character page and collect in an ‘Archived’ strip right below, where a Restore button brings any of them back. Saves group-wide like the ordering does, so it's easy to curate galleries down as we pour in more art." },
   { date: "2026-07-21", title: "Cleaner updates + de-duped World galleries", text: "The Hub's ‘Latest update’ now leads with a short headline and puts the details in a blurb underneath, instead of one giant run-on line — and the Updates page reads the same clean way. Also fixed the World galleries: each layer's hero image was quietly showing up twice in its lightbox." },
