@@ -15,8 +15,12 @@ window.VLanding = (function () {
   function slot(tag) { return `<div class="slot"><span class="slot-tag">${tag}</span></div>`; }
 
   function view() {
-    const sils = Array.from({ length: 9 }, (_, i) =>
-      `<div class="sil slot"><span class="slot-tag">SIL ${i + 1}</span></div>`).join("");
+    const crew = (window.VEILRUN && window.VEILRUN.crew) || [];
+    const sils = crew.map(c =>
+      `<a class="sil" href="#crew/${c.id}" title="${c.name}">
+         <img src="assets/landing/silhouettes/${c.id}.webp" alt="${c.name}" loading="lazy" />
+         <span class="sil-name">${c.name}</span>
+       </a>`).join("");
     return `
     <div id="landing">
       <div class="wf-note" id="wf-note">
