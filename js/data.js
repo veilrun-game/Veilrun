@@ -9,10 +9,10 @@ VEILRUN.world = {
     { name: "The Rule", side: "The catch", text: "The Current is conserved, and it remembers. Drain a place and it goes 'thin'. Big effects always cost something." }
   ],
   layers: [
-    { name: "The Overcity", tag: "Topside · the Current", img: "assets/img/overcity.png", text: "A vertical industrial-arcane metropolis, surveilled. Most live and die here never knowing the other layer is real." },
-    { name: "The Underweft", tag: "The Weave", img: "assets/img/underweft.png", text: "The same city's hidden self, rearranged by meaning not distance. Beautiful and wrong-feeling." },
-    { name: "The Seam", tag: "The border", img: "assets/img/seam.png", text: "A translation gradient. Cross it and words, visuals, even item names shift. The crew is fluent on both sides." },
-    { name: "The Thinned", tag: "The blight", img: "assets/img/thinned.png", text: "When too much Current is drained, a place goes thin — colorless, listless. The endpoint of the drift." }
+    { name: "The Overcity", tag: "Topside · the Current", img: "assets/img/overcity.webp", text: "A vertical industrial-arcane metropolis, surveilled. Most live and die here never knowing the other layer is real." },
+    { name: "The Underweft", tag: "The Weave", img: "assets/img/underweft.webp", text: "The same city's hidden self, rearranged by meaning not distance. Beautiful and wrong-feeling." },
+    { name: "The Seam", tag: "The border", img: "assets/img/seam.webp", text: "A translation gradient. Cross it and words, visuals, even item names shift. The crew is fluent on both sides." },
+    { name: "The Thinned", tag: "The blight", img: "assets/img/thinned.webp", text: "When too much Current is drained, a place goes thin — colorless, listless. The endpoint of the drift." }
   ],
   sundering: "~200 years ago someone tried to seize the Current at scale and tore the translation apart. The seams hardened overnight; families were split across a border that had been a doorway. The two languages keep drifting — and it's accelerating. If the drift completes, the layers separate for good.",
   villain: { name: "The Severant", text: "A former Warden, grieving and half-right, fluent in both layers, trying to FINISH the Sundering. He believes separation is mercy. The crew's dark mirror." },
@@ -110,7 +110,7 @@ VEILRUN.crew = [
   {
     id: "saffron", name: "Cinder", player: "Zack", alias: "Soviet", accent: "var(--c-saffron)",
     gamingName: "SovietEspionage", actualName: "Zack", nickname: "Soviet",
-    img: "assets/img/saffron.png", pick: "Cinder",
+    img: "assets/img/saffron.webp", pick: "Cinder",
     role: "Alchemist-Infiltrator", tagline: "The Cook — chemistry, brews, and quiet kills.",
     lore: "The chef whose pharmacology lets him pass unseen or drop a target without a sound. In the Weave, his cooking reads as alchemy.",
     codenames: ["Cinder","Saffron","Marrow","Brine","Hemlock","Decoct"],
@@ -126,7 +126,7 @@ VEILRUN.crew = [
   {
     id: "temper", name: "Temper", player: "Todd", alias: "Toddlez", aliases: ["Toddlez", "BipolarCrayons", "Toddles"], accent: "var(--c-temper)",
     gamingName: "BipolarCrayons", actualName: "Todd", nickname: "Toddlez",
-    img: "assets/img/temper.png",
+    img: "assets/img/temper.webp",
     role: "Weaverforge Blademaster", tagline: "Master of all weapons, peerless with the blade.",
     lore: "He doesn't just build weapons — he binds properties into steel. Dangerous at range, lethal up close, unmatched in a duel.",
     codenames: ["Temper","Cooper","Sever","Quench","Forge","Ward"],
@@ -141,7 +141,7 @@ VEILRUN.crew = [
   {
     id: "vesper", name: "Vesper", player: "Ramon", alias: "Ramos the Wise", aliases: ["RamosTheWise"], accent: "var(--c-vesper)",
     gamingName: "RamosTheWise", actualName: "Ramon", nickname: "Ramos",
-    img: "assets/img/vesper.png",
+    img: "assets/img/vesper.webp",
     role: "Phantom Assassin", tagline: "The unseen one — stealth and resilience in one.",
     lore: "Sits in a corner of a room unnoticed. Resilient where most stealth classes are fragile. Brother to Rook.",
     codenames: ["Vesper","Dusk","Hush","Gloam","Still","Wraith","Bishop"],
@@ -155,7 +155,7 @@ VEILRUN.crew = [
   {
     id: "citrine", name: "Citrine", player: "Julian", alias: "Mango", aliases: ["ItsBabyMango"], accent: "var(--c-citrine)",
     gamingName: "ItsBabyMango", actualName: "Julian", nickname: "Mango",
-    img: "assets/img/citrine.png",
+    img: "assets/img/citrine.webp",
     role: "Electrician / Trap Engineer", tagline: "Everything electrical — from a single device to a whole city.",
     lore: "Traps, EMPs, and current at any scale. In the Weave, he commands the lightning-spirit in the wire.",
     codenames: ["Citrine","Fuse","Arc","Filament","Ground","Stormwire"],
@@ -170,7 +170,7 @@ VEILRUN.crew = [
   {
     id: "latch", name: "Latch", player: "Jordan", alias: "jkrazy", accent: "var(--c-latch)",
     gamingName: "Jkrazy", actualName: "Jordan", nickname: "J",
-    img: "assets/img/latch.png",
+    img: "assets/img/latch.webp",
     role: "Dimensional Technologist · The Keystone", tagline: "Hacker, creative technologist, martial artist — the crew's multiplier.",
     lore: "Reads and rewrites the threads of how things are bound. Weaker solo by design; built to make everyone else better.",
     codenames: ["Latch","Loomhand","Warp","Cipher","Key","Tangent"],
@@ -185,7 +185,7 @@ VEILRUN.crew = [
   {
     id: "wren", name: "Wren", player: "Zaylee", alias: "krayzay", aliases: ["KrayZay"], accent: "var(--c-wren)",
     gamingName: "KrayZay", actualName: "Zaylee", nickname: "Zay",
-    img: "assets/img/wren.png",
+    img: "assets/img/wren.webp",
     role: "Prodigy", tagline: "Small but mighty — natural talent, maxed-out gear.",
     lore: "The most naturally gifted of the crew, and she's 17. She doesn't cast — she dances, and the current follows her movement. Her dad (Latch) builds her gear; Magpie is her stepmom.",
     codenames: ["Wren","Sparrow","Pip","Spark","Ember","Jinx"],
@@ -200,7 +200,7 @@ VEILRUN.crew = [
   {
     id: "anvil", name: "Anvil", player: "Michael", alias: "Maddog", aliases: ["Mike"], accent: "var(--c-anvil)",
     gamingName: "Maddog", actualName: "Mike", nickname: null, // Jordan flagged unsure (7/20) — ask Mike
-    img: "assets/img/anvil.png",
+    img: "assets/img/anvil.webp",
     role: "Juggernaut", tagline: "The immovable wall — the loud option, and the sleeper.",
     lore: "Nearly indestructible. He scales his own size — small enough to blend into a crowd, then erupts into a towering wall of armor.",
     codenames: ["Anvil","Rampart","Granite","Boulder","Atlas","Breaker"],
@@ -215,7 +215,7 @@ VEILRUN.crew = [
   {
     id: "magpie", name: "Magpie", player: "Ali", alias: "inaudiblerooster", aliases: ["inaudibleRooster"], accent: "var(--c-magpie)",
     gamingName: "inaudibleRooster", actualName: "Ali", nickname: "rooster",
-    img: "assets/img/magpie.png",
+    img: "assets/img/magpie.webp",
     role: "Hexwright · Witch-Mechanic", tagline: "Part grease-monkey, part witch — she builds, and her engineering is craft-work.",
     lore: "The crew's witch-fixer. She provides through Weave-craft: half-machine, half-fetish contraptions, warding a sanctum, and reading what's coming. The hearth and protector of the crew. Partner to Latch; stepmom to Wren.",
     codenames: ["Magpie","Hearth","Relic","Cache","Omen","Piston"],
@@ -231,7 +231,7 @@ VEILRUN.crew = [
   {
     id: "rook", name: "Rook", player: "Naz", alias: "Darz", aliases: ["OfficerBucky"], accent: "var(--c-rook)",
     gamingName: "OfficerBucky", actualName: "Nas", nickname: "Darz", // Jordan wrote "Naz" (7/20) — double-checking spelling vs "Nas" already on file
-    img: "assets/img/rook.png",
+    img: "assets/img/rook.webp",
     role: "Psionic · Vesper's Brother", tagline: "Telepathy, teleport, telekinesis — the crew's sixth sense.",
     lore: "In a wheelchair, with overwhelming mental power. A sixth sense for his brother on covert missions. The seen world has no words for what he does.",
     codenames: ["Rook","Augur","Pale","Oracle","Echo","Sage"],
@@ -322,9 +322,10 @@ VEILRUN.modes = [
   { id: "party-hub", name: "Party / Hub structure", status: "direction", text: "One game: Story + a pile of character party games + a training hangout.", chars: "All" }
 ];
 
-VEILRUN.cover = "assets/img/cover.png";
+VEILRUN.cover = "assets/img/cover.webp";
 
 VEILRUN.updates = [
+  { date: "2026-07-25", title: "The whole site got a lot lighter", text: "Every image is now WebP instead of PNG — the art folder went from ~970MB to ~104MB (about 89% smaller) with no visible quality drop. Pages, and especially the big galleries, load noticeably faster on phones and burn way less data. Room to keep adding art without the site getting sluggish." },
   { date: "2026-07-25", title: "Enemy concepts now sort by your likes", text: "On the Lieutenant and enemy pages, the shot the group likes most rises to the top — the hero and the strip both order by likes now. So heart the directions you want to see more of; your votes literally reshuffle which concept leads. (Also corrected two names: Naz and Michael.)" },
   { date: "2026-07-25", title: "The Lieutenants (and the elites) have faces now", text: "Concept art landed for the six proposed Lieutenants — Lock, Ruin, Rapture, Gall, Wake, and Fault — plus the Scryemother, the Warrant, the Chant, and the Rune-Scarred. The ‘art TBD’ tiles across the Threats pages are gone; every enemy now has a gallery to react to. Temper's redesign came in too: 40 fresh frames in his gallery. Dig through, and use the new ⊘ archive button to cull the ones that miss." },
   { date: "2026-07-21", title: "Archive images you don't want to feature", text: "On your profile, every shot in the reorder grid now has a ⊘ button — tap it to archive that image. Archived shots drop off the character page and collect in an ‘Archived’ strip right below, where a Restore button brings any of them back. Saves group-wide like the ordering does, so it's easy to curate galleries down as we pour in more art." },

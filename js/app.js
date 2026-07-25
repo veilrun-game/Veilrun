@@ -80,7 +80,7 @@ window.VApp = (function () {
     characters() {
       const crew = D.crew || [], threats = D.threats || [];
       const villain = (D.world && D.world.villain) || null;
-      const cover = D.cover || "assets/img/cover.png";
+      const cover = D.cover || "assets/img/cover.webp";
       const threatBg = (threats[0] && threats[0].img) || cover;
       const crewCards = crew.map(c => `
         <a class="cp-card" href="#crew/${c.id}">
@@ -132,7 +132,7 @@ window.VApp = (function () {
       const worldItems = (window.VEILRUN.galleryItems || []).filter(i => i.cat === "World");
       const layers = w.layers.map(l => {
         const slug = l.name.toLowerCase().replace("the ", "").replace(/\s+/g, "");
-        // The layer's gallery already starts with the hero frame (…/01.png is byte-identical to
+        // The layer's gallery already starts with the hero frame (…/01.webp is byte-identical to
         // l.img), so use the gallery when present and only fall back to l.img if there's no set —
         // otherwise the hero showed twice in the lightbox.
         const g = worldItems.filter(w => w.name === l.name).map(w => w.src);
@@ -617,7 +617,7 @@ window.VApp = (function () {
   function memGallery(m) {
     let arr;
     if (m.gallery && m.gallery.length) arr = m.gallery.slice();
-    else if (m.dir && m.count) arr = Array.from({ length: m.count }, (_, i) => m.dir + "/" + String(i + 1).padStart(2, "0") + ".png");
+    else if (m.dir && m.count) arr = Array.from({ length: m.count }, (_, i) => m.dir + "/" + String(i + 1).padStart(2, "0") + ".webp");
     else return [];
     // Prioritize enemy art by community likes — most-liked first, so the hero + strip
     // reflect what people are gravitating to. Stable for ties, so natural order holds.

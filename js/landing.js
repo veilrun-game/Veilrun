@@ -7,9 +7,9 @@ window.VLanding = (function () {
   // Paired scenes for the Seam Slider. Each is the SAME location in both worlds.
   // Market has real art; the others fall back to gradient placeholders until their renders land.
   const SEAM_SCENES = [
-    { id: "market",    name: "Market Row",    over: "assets/landing/seam/market/overcity.png",    under: "assets/landing/seam/market/underweft.png" },
-    { id: "boulevard", name: "The Grand Mile", over: "assets/landing/seam/boulevard/overcity.png", under: "assets/landing/seam/boulevard/underweft.png" },
-    { id: "foundry",   name: "Foundry Row",   over: "assets/landing/seam/foundry/overcity.png",   under: "assets/landing/seam/foundry/underweft.png" }
+    { id: "market",    name: "Market Row",    over: "assets/landing/seam/market/overcity.webp",    under: "assets/landing/seam/market/underweft.webp" },
+    { id: "boulevard", name: "The Grand Mile", over: "assets/landing/seam/boulevard/overcity.webp", under: "assets/landing/seam/boulevard/underweft.webp" },
+    { id: "foundry",   name: "Foundry Row",   over: "assets/landing/seam/foundry/overcity.webp",   under: "assets/landing/seam/foundry/underweft.webp" }
   ];
 
   function slot(tag) { return `<div class="slot"><span class="slot-tag">${tag}</span></div>`; }
