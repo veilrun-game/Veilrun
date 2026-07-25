@@ -263,6 +263,7 @@ window.VApp = (function () {
       if (sub) { const m = members.find(x => x.id === sub); if (m) return threatMemberPage(t, m); }
       registerSet("threat_" + t.id, (t.gallery || []).map(s => ({ src: s, name: t.name })));
       const thumbs = (t.gallery || []).map((s, idx) => `<img src="${C.esc(s)}" onclick="VApp.lbOpen('threat_${t.id}', ${idx})" alt="${C.esc(t.name)}" loading="lazy" />`).join("");
+      const counter = (id === "lieutenants" && D.counters) ? counterVoteSection() : "";
       const hasRoster = members.length > 0;
       const roster = hasRoster ? `
         <div class="panel" style="margin-top:1rem">
@@ -288,6 +289,7 @@ window.VApp = (function () {
             <p style="max-width:52ch;margin-top:.8rem">${C.esc(t.desc)}</p>
           </div>
         </div>
+        ${counter}
         ${roster}
         ${ideas}
         ${thumbs ? `<div class="gallery-strip" style="margin-top:1.5rem">${thumbs}</div>` : ""}
@@ -637,6 +639,42 @@ window.VApp = (function () {
     // Prioritize enemy art by community likes — most-liked first, so the hero + strip
     // reflect what people are gravitating to. Stable for ties, so natural order holds.
     return arr.map((s, i) => [s, i]).sort((a, b) => (likeCount(b[0]) - likeCount(a[0])) || (a[1] - b[1])).map(x => x[0]);
+  }
+  // Counter-concept voting block for the Lieutenants page: 3 takes per crew member, pick one.
+  function counterVoteSection() {
+    const c = D.counters; if (!c) return "";
+    const slots = c.slots.map(s => {
+      const accent = (chById(s.crew) || {}).accent || "var(--magenta)";
+      const polls = s.opts.map(o => "ctr_" + s.crew + "_" + o.k);
+      const groupStr = polls.join(",");
+      const opts = s.opts.map((o, i) => {
+        const poll = polls[i];
+        return `<div class="ctr-opt ${iVoted(poll) ? "picked" : ""}" id="ctropt_${poll}">
+          <div class="ctr-opt-h"><span class="ctr-tag">${C.esc(o.tag)}</span> <strong>${C.esc(o.name)}</strong></div>
+          <p class="mute" style="font-size:.82rem;margin:.35rem 0 .6rem">${C.esc(o.blurb)}</p>
+          <button class="votebtn ctr-vote ${iVoted(poll) ? "on" : ""}" data-poll="${poll}" onclick="VApp.counterVote('${poll}','${groupStr}')"><span class="vlabel">Vote</span> <span class="vc">${voteCount(poll)}</span></button>
+        </div>`;
+      }).join("");
+      return `<div class="ctr-slot">
+        <div class="ctr-slot-h">Counter to <strong style="color:${accent}">${C.esc(s.hero)}</strong> <span class="mute">— ${C.esc(s.does)}</span></div>
+        <div class="ctr-opts">${opts}</div>
+        <div style="margin-top:.6rem">${C.feedbackButton("Counter — " + s.hero)}</div>
+      </div>`;
+    }).join("");
+    return `<div class="panel" style="margin-top:1rem;border-color:var(--magenta)">
+      <div class="eyebrow">Vote the counters</div>
+      <p class="mute" style="font-size:.85rem;margin:.3rem 0 1rem;max-width:64ch">${C.esc(c.intro)}</p>
+      ${slots}
+    </div>`;
+  }
+  function counterVote(poll, groupStr) {
+    const group = (groupStr || "").split(",").filter(Boolean);
+    const now = !iVoted(poll);
+    if (now) group.forEach(p => { if (p !== poll && iVoted(p)) { applyVoteLocal(p, false); if (window.VBackend) window.VBackend.toggleVote(p); } });
+    applyVoteLocal(poll, now);
+    if (window.VBackend) window.VBackend.toggleVote(poll);
+    refreshVotes();
+    group.forEach(p => { const el = document.getElementById("ctropt_" + p); if (el) el.classList.toggle("picked", iVoted(p)); });
   }
   // A member card on a group page — links to its own sub-page (#threats/<group>/<member>).
   function threatMemberCard(groupId, m) {
@@ -1010,7 +1048,7 @@ window.VApp = (function () {
     const auras = S.auras.filter(a => a.members.every(m => set.has(m)));
     const uni = S.universal.filter(u => set.has(u.member));
     const trios = S.trios.filter(t => t.members.every(m => set.has(m)));
-    const chorus = sel.length === 9;
+    const chorus = sel.length === (D.crew || []).length;
     let out = `<h2>${sel.map(id => chById(id).name).join(" + ")}</h2>`;
     if (chorus) out += `<div class="panel" style="border-color:var(--magenta);margin:1rem 0"><div class="eyebrow">Full Chorus</div><p class="mute">${C.esc(S.fullChorus)}</p></div>`;
     if (trios.length) out += subhead("Trio convergence") + trios.map(cardTrio).join("");
@@ -1224,6 +1262,7 @@ window.VApp = (function () {
     view().innerHTML = html;
     if (name === "gallery") setupGalleryLazy();
     if (name === "lab") refreshVotes();
+    if (name === "threats") refreshVotes();
     if (name === "leaderboard") loadLeaderboard();
     if (name === "threats" && arg) {
       const t = (D.threats || []).find(x => x.id === arg);
@@ -1619,6 +1658,6 @@ window.VApp = (function () {
   }
 
   const galMore = galLoadMore;
-  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter };
+  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter, counterVote };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);

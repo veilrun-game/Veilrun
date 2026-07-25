@@ -259,6 +259,20 @@ html { scroll-behavior: smooth; }
 .votebtn:active { transform: scale(0.94); }
 .votebtn.on { color: #140a16; background: var(--magenta); border-color: var(--magenta); font-weight: 600; }
 .votebtn .vc { font-variant-numeric: tabular-nums; }
+/* Counter-concept voting (Lieutenants page) */
+.ctr-slot { padding: var(--s-4) 0; border-top: 1px solid var(--line); }
+.ctr-slot:first-of-type { border-top: none; padding-top: var(--s-2); }
+.ctr-slot-h { font-family: var(--font-display); font-size: 0.98rem; margin-bottom: var(--s-3); }
+.ctr-opts { display: grid; grid-template-columns: 1fr; gap: var(--s-2); }
+@media (min-width: 720px) { .ctr-opts { grid-template-columns: repeat(3, 1fr); } }
+.ctr-opt { background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  padding: var(--s-3); display: flex; flex-direction: column; }
+.ctr-opt.picked { border-color: var(--magenta); box-shadow: inset 0 0 0 1px var(--magenta); }
+.ctr-opt-h { display: flex; align-items: center; gap: 0.4rem; }
+.ctr-tag { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mute);
+  border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; white-space: nowrap; }
+.ctr-opt p { flex: 1; }
+.ctr-vote { align-self: flex-start; margin-top: auto; }
 
 /* ---- Per-section idea lists (Threats, etc) ---- */
 .idea-list { display: flex; flex-direction: column; gap: var(--s-3); margin-top: var(--s-3); }

@@ -230,7 +230,7 @@ VEILRUN.crew = [
   },
   {
     id: "rook", name: "Rook", player: "Naz", alias: "Darz", aliases: ["OfficerBucky"], accent: "var(--c-rook)",
-    gamingName: "OfficerBucky", actualName: "Nas", nickname: "Darz", // Jordan wrote "Naz" (7/20) — double-checking spelling vs "Nas" already on file
+    gamingName: "OfficerBucky", actualName: "Naz", nickname: "Darz", // confirmed Naz (7/25)
     img: "assets/img/rook.webp",
     role: "Psionic · Vesper's Brother", tagline: "Telepathy, teleport, telekinesis — the crew's sixth sense.",
     lore: "In a wheelchair, with overwhelming mental power. A sixth sense for his brother on covert missions. The seen world has no words for what he does.",
@@ -241,12 +241,30 @@ VEILRUN.crew = [
       ult: null },
     synergies: [ {name:"Marked Prey (aura: Blood Echo)", text:"With Vesper (brothers): marks a target through walls and blinks his brother into a guaranteed silent kill."},
                  {name:"Second Sight", text:"With Magpie: Drift-reading + Sixth Sense — the crew sees the next 10 seconds."} ]
+  },
+  {
+    id: "babel", name: "Babel", player: "Manafest", alias: "Manafest", accent: "var(--c-babel)",
+    gamingName: "ManafestDread", actualName: "Manafest", nickname: "Manafest", // real name is Jordan — omitted to avoid colliding with Latch's Jordan in identity matching (VR-64)
+    img: "assets/img/babel.webp",
+    role: "The Interpreter — linguist · commander · diplomat", tagline: "Fluent in every tongue of both halves; talks the world back together.",
+    lore: "A military linguist out of the Stranded who speaks every dialect of the Current and the Weave — and the dead tongues from before the Sundering. Where the crew are fluent in both halves, Babel is fluent in all of them, which makes him the Severant's natural opposite: living proof the two worlds can still be spoken together. Balanced field-commander and scholar-diplomat — his real edge is communication and persuasion, and he never fights alone. (Concept in progress — portrait and kit still being shaped; feedback very welcome.)",
+    codenames: ["Babel","Cipher","Tongues","Lex","Pentecost"],
+    kit: { passive: { name:"Polyglot", text:"Reads and operates any faction's tech or runes; allies near him cross the Seam with no penalty — meanings stay legible." },
+      actives: [ {name:"True Name", text:"Speak an enemy's true name to stagger, expose, or briefly disable it (bosses resist)."},
+                 {name:"Silver Tongue", text:"Talk a lesser enemy into standing down or switching sides for a short time — de-escalate or open a path without a fight."},
+                 {name:"Fireteam · Amber & Cookie", text:"Two named support fighters deploy with the same weapon kit as Babel — so he's a three-person fireteam even when solo."},
+                 {name:"Babel Field", text:"An area where language scrambles for enemies — they miscommunicate and lose coordination — while allies stay clear."} ],
+      ult: { name:"Lingua Prima", text:"Speaks the original pre-Sundering tongue for a few seconds and rewrites a slice of the battlefield — heal a Thinned zone, translate a wall into a door, silence the Weave-horrors." } },
+    synergies: [ {name:"Old Tongues", text:"With Magpie: feeds her advanced, ancient language — her salvage-hexes become precise, older, and far stronger."},
+                 {name:"Farsight", text:"With Latch: Latch opens a rift, Babel reads what's on the other side so it lands exactly right."} ]
   }
 ];
 
 /* Structured synergy data — powers the mobile explorer + combo builder. */
 VEILRUN.synergy = {
   pairs: [
+    { a:"babel",   b:"magpie",  name:"Old Tongues",     effect:"Babel feeds Magpie advanced, ancient language — her salvage-hexes become precise, older, and far stronger." },
+    { a:"babel",   b:"latch",   name:"Farsight",        effect:"Latch opens a rift; Babel reads what's on the far side so it lands exactly right, and kits the fireteam with Latch's dimensional gear." },
     { a:"saffron", b:"temper",  name:"Venomforge",      effect:"Saffron's compounds bound into Temper's steel — blades that poison or sear on contact." },
     { a:"saffron", b:"vesper",  name:"Quiet Catering",  effect:"A guaranteed traceless kill; sleep aerosols don't break Vesper's stealth meter." },
     { a:"saffron", b:"citrine", name:"Flashpoint",      effect:"Citrine sparks a Saffron gas cloud into an area bomb." },
@@ -324,7 +342,56 @@ VEILRUN.modes = [
 
 VEILRUN.cover = "assets/img/cover.webp";
 
+/* Counter-concept voting — 3 takes per crew member (Original vs two new "true counter" ideas).
+   Rendered on the Lieutenants page so the group can vote a favorite + leave feedback. */
+VEILRUN.counters = {
+  intro: "Each Lieutenant is meant to hard-counter one of us — to shut down the exact thing that crew member does best. For each, here's the original idea plus two new takes. Vote the one you like most, and leave a note if you've got thoughts.",
+  slots: [
+    { crew: "saffron", hero: "Cinder", does: "poisons, brews, buffs the crew", opts: [
+      { k: "orig", name: "Gall", tag: "Original", blurb: "Turns nourishment to rot — brews plagues where Cinder brews buffs; he is the poison, immune to it." },
+      { k: "a", name: "Gorge", tag: "New A", blurb: "No biology to poison — eats her compounds and grows stronger with every vial thrown. Cracked by Vesper or Rook." },
+      { k: "b", name: "Antibody", tag: "New B", blurb: "Adapts to any toxin instantly, turning her compounds into immunities then weapons. Cracked by Temper or Citrine." } ] },
+    { crew: "temper", hero: "Temper", does: "masters and adapts to every weapon", opts: [
+      { k: "orig", name: "Slag", tag: "Original", blurb: "Hoards crudely fused blades, molten light through blackened armor — quantity where Temper has craft." },
+      { k: "a", name: "Echo", tag: "New A", blurb: "Copies any weapon Temper draws and wields it back at his own skill. Cracked by Rook or Wren — no weapon to copy." },
+      { k: "b", name: "Quench", tag: "New B", blurb: "A formless molten mass no blade can bite. Cracked by Citrine (electrify) or Cinder (react it solid)." } ] },
+    { crew: "vesper", hero: "Vesper", does: "stealth — never seen", opts: [
+      { k: "orig", name: "Wake", tag: "Original", blurb: "Dissolves into shadow and unmakes people mid-sentence — the quiet protector inverted into a stalker." },
+      { k: "a", name: "Argus", tag: "New A", blurb: "Sees every spectrum at once — stealth simply fails. Cracked by Magpie (blind it) or Rook (cloud it)." },
+      { k: "b", name: "Tellheart", tag: "New B", blurb: "Hunts the heartbeat stealth can't hide. Cracked by Cinder (mask him) or Latch (move him out of the world)." } ] },
+    { crew: "citrine", hero: "Citrine", does: "current, traps, electricity", opts: [
+      { k: "orig", name: "Fault", tag: "Original", blurb: "Wires whole streets into a killing grid — current turned from a tool into an execution." },
+      { k: "a", name: "Sump", tag: "New A", blurb: "Drinks electricity and swells — every trap and shock only charges it hotter. Cracked by Magpie (ground it) or Temper (break it by hand)." },
+      { k: "b", name: "Earthed", tag: "New B", blurb: "An insulated colossus his grid can't touch. Cracked by Anvil (pin it) or Latch (displace it)." } ] },
+    { crew: "latch", hero: "Latch", does: "opens rifts, moves between the two halves", opts: [
+      { k: "orig", name: "Lock", tag: "Original", blurb: "A dimensional jailer who folds people into pocket-cells and severs every link — connection turned to solitary." },
+      { k: "a", name: "Bilocary", tag: "New A", blurb: "Exists in the Overcity and Underweft at once — can't be rifted away. Cracked by Babel (read both) + a partner to strike both bodies." },
+      { k: "b", name: "Oubliette", tag: "New B", blurb: "Seals every door Latch opens and folds the party into a pocket with no exit. Cracked by Magpie (pick the lock) or Wren (blast out)." } ] },
+    { crew: "wren", hero: "Wren", does: "immense raw power, barely held in check", opts: [
+      { k: "orig", name: "Rapture", tag: "Original", blurb: "Raw arcane force with no restraint and no mercy — the power without the person to hold it back." },
+      { k: "a", name: "Recoil", tag: "New A", blurb: "Returns her energy amplified — the harder she hits, the harder she's hit; a contest she can't win. Cracked by Vesper or Rook — finesse, not force." },
+      { k: "b", name: "Goad", tag: "New B", blurb: "Feeds on her restraint, egging her to unleash everything until she burns out. Cracked by Babel (channel it) or Rook (steady her)." } ] },
+    { crew: "anvil", hero: "Anvil", does: "immovable shield, protector", opts: [
+      { k: "orig", name: "Ruin", tag: "Original", blurb: "A siege-engine built only to flatten — protection inverted into pure demolition." },
+      { k: "a", name: "Throughline", tag: "New A", blurb: "Phases past his body to strike whoever he's protecting — his shield guards nothing. Cracked by Vesper or Rook." },
+      { k: "b", name: "Millstone", tag: "New B", blurb: "A slow, growing weight he can hold but never for long — endurance becomes a countdown. Cracked by Temper (cut its anchor) or Citrine (overload it)." } ] },
+    { crew: "magpie", hero: "Magpie", does: "salvage, runes, spells, machines", opts: [
+      { k: "orig", name: "Tithe", tag: "Original", blurb: "Drains grey Current from withered victims — resourcefulness twisted into parasitism." },
+      { k: "a", name: "Corrode", tag: "New A", blurb: "Unmakes her tech and hexes on touch — everything she builds rusts in her hands. Cracked by Wren (raw power) or Vesper — no gear needed." },
+      { k: "b", name: "Nullweft", tag: "New B", blurb: "A field of dead Weave where her spells won't fire. Cracked by Babel (ancient tongue) or Citrine (current is physics, not magic)." } ] },
+    { crew: "rook", hero: "Rook", does: "telepathy, telekinesis, control", opts: [
+      { k: "orig", name: "Choir", tag: "Original", blurb: "A psionic wreck haloed by the screaming minds he's trapped — telepathy turned into a prison." },
+      { k: "a", name: "Hollowmind", tag: "New A", blurb: "A mindless swarm with no thoughts to read and nothing solid to grip. Cracked by Latch (displace it) or Citrine (raw current)." },
+      { k: "b", name: "Overmind", tag: "New B", blurb: "A psychic predator that turns his own telepathy into a door inward and hijacks him. Cracked by Vesper (kill it fast) or Temper." } ] },
+    { crew: "babel", hero: "Babel", does: "language, persuasion, omni-lingual command", opts: [
+      { k: "a", name: "Static", tag: "New A", blurb: "The corruption of meaning — every word Babel speaks is scrambled or turned against him. Cracked by Vesper (act wordless) or Rook (mind, not speech)." },
+      { k: "b", name: "Mute", tag: "New B", blurb: "A wordless force that can't be named, reasoned with, or talked down. Cracked by Wren or Anvil — raw force where words don't reach." } ] }
+  ]
+};
+
 VEILRUN.updates = [
+  { date: "2026-07-25", title: "Vote on the Lieutenant counters", text: "The Lieutenants page now has a voting block: for each of us, three takes on the enemy meant to counter you — the original idea plus two new ‘true counter’ concepts — with a quick blurb each. Pick your favorite and leave a note. Helps us lock the direction before we commit the art and lore." },
+  { date: "2026-07-25", title: "Babel joined the crew (concept)", text: "Manafest's character, Babel, is on the site now — role, lore, kit, codenames, and a couple of synergies — as an in-progress concept with a placeholder portrait. Take a look on the Crew page and drop feedback on his abilities while they're still soft." },
   { date: "2026-07-25", title: "The Board is now a real tracker", text: "The Board page got refreshed to where things actually stand, plus a filter — tap ‘On me’ to see just your plate versus everything. There's a new ‘Sunday render queue’ column tracking the art that's teed up to generate. Easy to glance at from your phone." },
   { date: "2026-07-25", title: "Tap a silhouette to see the shot", text: "The nine silhouettes on the landing page now open in the full-screen gallery when you tap one, instead of jumping to a character page — so you can flip through the art up close. Character detail pages will come back later once they're ready." },
   { date: "2026-07-25", title: "Gallery likes: yours vs. everyone's", text: "The one ‘Favorites’ filter is now two — ♥ My likes shows only what you've hearted, and ★ Liked by anyone shows everything the whole group has liked. Makes it easy to see where the crew is landing versus your own picks. Also tidied the profile image tools: the drag-to-reorder handle moved to a little tab at the top-center of each image, so it's no longer stacked under the archive button." },
