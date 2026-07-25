@@ -330,8 +330,13 @@ html { scroll-behavior: smooth; }
 .pf-img-rank { position: absolute; top: 6px; left: 6px; width: 24px; height: 24px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center; background: rgba(6,4,14,0.75); color: var(--white);
   font-family: var(--font-display); font-size: 0.8rem; }
-.pf-img-handle { position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; border-radius: 50%; border: none;
-  background: rgba(6,4,14,0.75); color: var(--white); font-size: 0.95rem; line-height: 1; cursor: grab; touch-action: none; }
+/* Drag handle: a little tab centered at the top of the image (clear of the archive + rank icons) */
+.pf-img-handle { position: absolute; top: 0; left: 50%; transform: translateX(-50%); z-index: 3;
+  width: 40px; height: 17px; padding: 0; border: none; border-radius: 0 0 8px 8px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(6,4,14,0.72); color: var(--white); cursor: grab; touch-action: none; opacity: 0.8; }
+.pf-img-handle:hover { opacity: 1; background: rgba(214,92,220,0.7); }
+.pf-img-handle .grip { display: block; transform: rotate(90deg); font-size: 0.9rem; line-height: 1; }
 .pf-img-likes { position: absolute; bottom: 6px; right: 6px; background: rgba(6,4,14,0.75); color: var(--white);
   font-size: 0.72rem; padding: 2px 7px; border-radius: 999px; }
 .pf-img-ghost { position: fixed; pointer-events: none; z-index: 999; border-radius: var(--radius-sm);

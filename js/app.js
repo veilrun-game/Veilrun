@@ -322,7 +322,8 @@ window.VApp = (function () {
       const items = galleryAll();
       const f = galState.filters, sort = galState.sort;
       let filtered = f.size ? items.filter(i => f.has(i.cat)) : items;
-      if (galState.favOnly) filtered = filtered.filter(i => isGroupFav(i.src));
+      if (galState.favMode === "mine") filtered = filtered.filter(i => isLiked(i.src));
+      else if (galState.favMode === "all") filtered = filtered.filter(i => likeAll.has(i.src));
       filtered = [...filtered];
       if (sort === "fav") filtered.sort((a, b) => (likeCount(b.src) - likeCount(a.src)) || (isLiked(b.src) ? 1 : 0) - (isLiked(a.src) ? 1 : 0) || catRank(a.cat) - catRank(b.cat));
       else filtered.sort((a, b) => catRank(a.cat) - catRank(b.cat)); // 'char' — grouped, A–Z
@@ -343,15 +344,21 @@ window.VApp = (function () {
         <option value="char" ${sort === "char" ? "selected" : ""}>Sort: Character (A–Z)</option>
         <option value="fav" ${sort === "fav" ? "selected" : ""}>Sort: Favorites first</option>
       </select>`;
-      const favBtn = `<button class="dd-btn favtoggle ${galState.favOnly ? "active" : ""}" onclick="VApp.galFavOnly()">${galState.favOnly ? "★" : "☆"} Favorites only</button>`;
+      const favMine = `<button class="dd-btn favtoggle ${galState.favMode === "mine" ? "active" : ""}" onclick="VApp.galFavMode('mine')" title="Only images you've liked">♥ My likes</button>`;
+      const favAll = `<button class="dd-btn favtoggle ${galState.favMode === "all" ? "active" : ""}" onclick="VApp.galFavMode('all')" title="Images anyone in the group has liked">★ Liked by anyone</button>`;
+      const emptyMsg = galState.favMode === "mine"
+        ? "You haven't liked any images yet — tap ♥ on any image and they'll collect here."
+        : galState.favMode === "all"
+        ? "No likes from the group yet — be the first to ♥ something."
+        : "No images match this filter.";
       const grid = shown.length
         ? shown.map((it, idx) => galItemHTML(it, idx, `VApp.lbOpen('gallery', ${idx})`)).join("")
-        : `<p class="hint" style="grid-column:1/-1">No favorites yet — ♥ images and they'll collect here.</p>`;
+        : `<p class="hint" style="grid-column:1/-1">${emptyMsg}</p>`;
       const more = hasMore ? `<div id="gal-more"><div id="gal-sentinel" style="height:1px"></div><div style="text-align:center;margin-top:1rem"><button class="btn ghost" onclick="VApp.galMore()">Load more</button></div></div>` : "";
       return `<div class="wrap section">
         ${C.sectionHeader("Part Three","Gallery")}
-        <p class="mute" style="max-width:64ch;margin-top:1rem">${items.length} renders, grouped by character. Filter to anyone, choose a sort, ♥ favorites glow. Tap any image for the big view — then <strong>▦ All</strong> for a resizable grid.</p>
-        <div class="filters">${dd}${sortSel}${favBtn}</div>
+        <p class="mute" style="max-width:64ch;margin-top:1rem">${items.length} renders, grouped by character. Filter to anyone, choose a sort, then narrow to <strong>♥ My likes</strong> or <strong>★ Liked by anyone</strong>. Tap any image for the big view — then <strong>▦ All</strong> for a resizable grid.</p>
+        <div class="filters">${dd}${sortSel}${favMine}${favAll}</div>
         <div class="masonry" id="masonry">${grid}</div>
         ${more}
         <p class="mute" id="gal-count" style="text-align:center;margin-top:.8rem;font-size:.8rem">Showing ${shown.length} of ${filtered.length}</p>
@@ -501,17 +508,25 @@ window.VApp = (function () {
       const b = window.VEILRUN.board;
       if (!b) return stub("Board", "The roadmap board is loading.");
       const priClass = p => p === "P1" ? "p1" : p === "P2" ? "p2" : "p3";
-      const cols = b.columns.map(col => `
-        <div class="bcol">
-          <div class="bcol-h">${C.esc(col.name)} <span class="mute">${col.cards.length}</span></div>
-          ${col.cards.map(c => `<div class="bcard">
+      const f = boardState.filter;
+      const match = c => f === "all" || (f === "jordan" ? (c.who === "Jordan" || c.who === "Both") : (c.who === "Claude" || c.who === "Both"));
+      const cols = b.columns.map(col => {
+        const cards = col.cards.filter(match);
+        if (!cards.length) return "";
+        return `<div class="bcol">
+          <div class="bcol-h">${C.esc(col.name)} <span class="mute">${cards.length}</span></div>
+          ${cards.map(c => `<div class="bcard">
             <div class="bcard-t">${C.esc(c.t)}</div>
             <div class="bcard-m"><span class="bid">${C.esc(c.id)}</span> ${c.pri ? `<span class="bpri ${priClass(c.pri)}">${C.esc(c.pri)}</span>` : ""} <span class="mute">${C.esc(c.who)}</span></div>
           </div>`).join("")}
-        </div>`).join("");
+        </div>`;
+      }).join("");
+      const fBtn = (v, label) => `<button class="dd-btn favtoggle ${f === v ? "active" : ""}" onclick="VApp.boardFilter('${v}')">${label}</button>`;
+      const filters = `<div class="filters" style="margin-top:1rem">${fBtn("all", "Everything")}${fBtn("jordan", "On me")}${fBtn("claude", "On Claude")}</div>`;
       return `<div class="wrap section">
         ${C.sectionHeader("The plan","Board")}
-        <p class="mute" style="max-width:64ch;margin-top:1rem">Where things stand — updated ${C.esc(b.updated)}. This mirrors our working board so everyone can see progress and what's coming.</p>
+        <p class="mute" style="max-width:64ch;margin-top:1rem">Where things stand — updated ${C.esc(b.updated)}. Tap <strong>On me</strong> to see just your plate. This mirrors our working board so everyone can see progress and what's coming.</p>
+        ${filters}
         <div class="board" style="margin-top:1.5rem">${cols}</div>
         <div style="margin-top:1.2rem">${C.feedbackButton("Board / priorities")}</div>
       </div>`;
@@ -1016,7 +1031,9 @@ window.VApp = (function () {
   }
 
   // ---- Gallery + lightbox (registry-based, swipeable) ----
-  const galState = { filters: new Set(), sort: "char", dropdownOpen: false, limit: 24, _filtered: [], favOnly: false };
+  const galState = { filters: new Set(), sort: "char", dropdownOpen: false, limit: 24, _filtered: [], favMode: "off" };
+  const boardState = { filter: "all" };
+  function boardFilter(v) { boardState.filter = v; const el = view(); if (el) el.innerHTML = views.board(); }
   let galObserver = null;
   let lbState = { list: [], i: 0, mode: "single", zoom: 1, panX: 0, panY: 0 };
   function lbResetZoom() { lbState.zoom = 1; lbState.panX = 0; lbState.panY = 0; }
@@ -1047,7 +1064,7 @@ window.VApp = (function () {
   function galSetAll() { galState.filters.clear(); galState.limit = 24; galRender(); }
   function galToggleFilter(cat) { const f = galState.filters; if (f.has(cat)) f.delete(cat); else f.add(cat); galState.limit = 24; galRender(); }
   function galSort(v) { galState.sort = v; galState.limit = 24; galRender(); }
-  function galFavOnly() { galState.favOnly = !galState.favOnly; galState.limit = 24; galRender(); }
+  function galFavMode(m) { galState.favMode = (galState.favMode === m) ? "off" : m; galState.limit = 24; galRender(); }
   function setupGalleryLazy() {
     if (galObserver) { galObserver.disconnect(); galObserver = null; }
     const s = document.getElementById("gal-sentinel"); if (!s) return;
@@ -1198,7 +1215,10 @@ window.VApp = (function () {
     let html;
     if (name === "crew" && arg) html = views.character(arg);
     else if (name === "threats" && arg) html = views.threat(arg, sub);
-    else if (name === "landing" && window.VLanding) html = VLanding.view();
+    else if (name === "landing" && window.VLanding) {
+      registerSet("silhouettes", (D.crew || []).map(c => ({ src: "assets/landing/silhouettes/" + c.id + ".webp", name: c.name })));
+      html = VLanding.view();
+    }
     else if (views[name]) html = views[name]();
     else html = views.hub();
     view().innerHTML = html;
@@ -1363,7 +1383,7 @@ window.VApp = (function () {
       <div class="pf-img" data-idx="${i}">
         <div class="pf-img-thumb" style="background-image:url('${C.esc(s)}')">
           <span class="pf-img-rank">${i + 1}</span>
-          <button class="pf-img-handle" onpointerdown="VApp.pfDragStart(event,'${ch.id}')" aria-label="Drag to reorder" title="Drag to reorder">⠿</button>
+          <button class="pf-img-handle" onpointerdown="VApp.pfDragStart(event,'${ch.id}')" aria-label="Drag to reorder" title="Drag to reorder"><span class="grip">⠿</span></button>
           <button class="pf-img-hide" onclick="VApp.pfHideImg('${ch.id}',${i})" aria-label="Archive this image" title="Hide from the page (archive)">⊘</button>
           ${likeCount(s) > 0 ? `<span class="pf-img-likes">♥ ${likeCount(s)}</span>` : ""}
         </div>
@@ -1599,6 +1619,6 @@ window.VApp = (function () {
   }
 
   const galMore = galLoadMore;
-  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavOnly, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote };
+  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);

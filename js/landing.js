@@ -16,11 +16,12 @@ window.VLanding = (function () {
 
   function view() {
     const crew = (window.VEILRUN && window.VEILRUN.crew) || [];
-    const sils = crew.map(c =>
-      `<a class="sil" href="#crew/${c.id}" title="${c.name}">
+    // Open the nine in the shared lightbox (character detail pages aren't surfaced yet).
+    const sils = crew.map((c, i) =>
+      `<button type="button" class="sil" onclick="VApp.lbOpen('silhouettes', ${i})" title="${c.name}" aria-label="${c.name}">
          <img src="assets/landing/silhouettes/${c.id}.webp" alt="${c.name}" loading="lazy" />
          <span class="sil-name">${c.name}</span>
-       </a>`).join("");
+       </button>`).join("");
     return `
     <div id="landing">
       <div class="wf-note" id="wf-note">
