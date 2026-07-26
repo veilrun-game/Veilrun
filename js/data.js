@@ -329,6 +329,7 @@ VEILRUN.modes = [
   { id: "warded-sanctum", name: "Warded Sanctum (defense)", status: "idea", text: "Magpie's base against waves; build traps between rounds (Orcs Must Die energy).", chars: "All" },
   { id: "rig-the-ride", name: "Rig the Ride (escort)", status: "idea", text: "Deliver something fragile across a thinning district in the enchanted vehicle.", chars: "All" },
   { id: "pair-levels", name: "2D Pair Levels", status: "idea", text: "Levels only clearable with a specific pair's combo. Purest synergy test.", chars: "Pairs" },
+  { id: "arena-clash", name: "Arena Clash (fighting game)", status: "idea", text: "Street Fighter / Mortal Kombat-style duels — pick from the roster and fight, with tag-team 2v2 / 2v1 and round-based (and maybe circular) arenas. (Pitched by jkrazy.)", chars: "1v1 / 2v2" },
   { id: "tactics-rpg", name: "Tactics RPG", status: "idea", text: "Turn-based grid squad tactics; positioning = the proximity-bond system.", chars: "Squad" },
   { id: "choose-adventure", name: "Choose-Your-Adventure", status: "idea", text: "A branching mission; each reader plays their character. Tests tone + the Severant.", chars: "All" },
   { id: "underweft-dive", name: "Underweft Dive (roguelite)", status: "idea", text: "Short runs into a rearranging Underweft; combos are the build system.", chars: "2 per run" },
@@ -390,6 +391,7 @@ VEILRUN.counters = {
 };
 
 VEILRUN.updates = [
+  { date: "2026-07-25", title: "Silhouette row: aligned + two rows of five", text: "Jordan re-balanced the landing silhouettes so they're all the same scale and grounded on the same line, and the row is now laid out two-across-five instead of one long strip. Babel joins the roster with a placeholder until his art lands." },
   { date: "2026-07-25", title: "Likes work again everywhere", text: "When all the art moved to WebP, it accidentally orphaned every existing like (they were saved against the old file names). Fixed — your hearts are reconnected and now show up group-wide across the Gallery, character pages, enemy pages, and the landing. Like something anywhere and everyone sees it. Also made the archive button on your profile red + bolder so it's clear it removes an image from the page." },
   { date: "2026-07-25", title: "Vote on the Lieutenant counters", text: "The Lieutenants page now has a voting block: for each of us, three takes on the enemy meant to counter you — the original idea plus two new ‘true counter’ concepts — with a quick blurb each. Pick your favorite and leave a note. Helps us lock the direction before we commit the art and lore." },
   { date: "2026-07-25", title: "Babel joined the crew (concept)", text: "Manafest's character, Babel, is on the site now — role, lore, kit, codenames, and a couple of synergies — as an in-progress concept with a placeholder portrait. Take a look on the Crew page and drop feedback on his abilities while they're still soft." },

@@ -159,7 +159,7 @@
 #landing .lcta .hero-btns { display: flex; gap: var(--s-3); justify-content: center; flex-wrap: wrap; }
 
 @media (min-width: 760px) {
-  #landing .crew-row { grid-template-columns: repeat(9, 1fr); gap: var(--s-2); }
+  #landing .crew-row { grid-template-columns: repeat(5, 1fr); gap: var(--s-3); }
 }
 @media (prefers-reduced-motion: reduce) {
   #landing .hero-layer, #landing .tear-half { transform: none !important; }

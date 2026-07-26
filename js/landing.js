@@ -88,7 +88,7 @@ window.VLanding = (function () {
 
       <section class="lsection"><div class="lwrap">
         <p class="eyebrow">The Last Fluent</p>
-        <h2>Nine, fluent in both</h2>
+        <h2>The crew, fluent in both</h2>
         <div class="crew-row" id="crew-row">${sils}</div>
       </div></section>
 
