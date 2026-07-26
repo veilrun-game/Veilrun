@@ -56,6 +56,7 @@ window.VC = (function () {
       <h3 style="margin:.5rem 0 .35rem">${esc(m.name)}</h3>
       <p class="mute">${esc(m.text)}</p>
       <p class="mute" style="font-size:.8rem;margin-top:.6rem">Characters: ${esc(m.chars)}</p>
+      ${m.play ? `<div style="margin-top:.7rem"><a class="btn" href="${esc(m.play)}" target="_blank" rel="noopener" style="width:100%;text-align:center">▶ Play the prototype</a></div>` : ""}
       <div style="margin-top:.7rem">${feedbackButton("Mode: " + m.name)}</div>
     </div>`;
 
