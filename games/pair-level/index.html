@@ -17,6 +17,10 @@
   .pill { background:rgba(8,6,15,.65); border:1px solid var(--line); border-radius:999px; padding:4px 11px; }
   #who { font-weight:700; }
   #who .a{color:var(--iron)} #who .l{color:var(--blue)}
+  #hud-right { display:flex; gap:8px; align-items:center; pointer-events:auto; }
+  #timer { font-size:clamp(17px,5.4vw,22px); font-weight:800; font-variant-numeric:tabular-nums; color:var(--gold); }
+  #mapBtn { cursor:pointer; font-size:clamp(11px,2.8vw,14px); color:#fff; }
+  #mapBtn.on { background:rgba(214,92,220,.5); border-color:var(--iron); }
   #hint { position:absolute; left:50%; transform:translateX(-50%); bottom:10px; max-width:94%; text-align:center;
     background:rgba(8,6,15,.78); border:1px solid var(--line); border-radius:8px; padding:6px 12px;
     font-size:clamp(11px,3.2vw,14px); color:#cfc9e6; }
@@ -50,7 +54,10 @@
     <canvas id="c" width="960" height="560"></canvas>
     <div id="hud">
       <div class="pill" id="who">Controlling: <span class="a">Anvil</span></div>
-      <div class="pill" id="timer">0:00.0</div>
+      <div id="hud-right">
+        <div class="pill" id="timer">0:00.0</div>
+        <button class="pill" id="mapBtn" title="Toggle map view">🗺 Map</button>
+      </div>
     </div>
     <div id="overlay">
       <div class="eyebrow" style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">VEILRUN · Pair Level</div>
@@ -320,18 +327,20 @@
 
   // ---- Camera / responsive canvas ----
   const worldW=COLS*TILE, worldH=ROWS*TILE;
-  let dpr=1, zoom=1, followCam=false, cam={x:0,y:0};
+  let dpr=1, zoom=1, followCam=false, cam={x:0,y:0}, mapMode=false;
   function resize(){
     const st=document.getElementById("stage");
     dpr=Math.min(window.devicePixelRatio||1, 2);
     const cw=Math.max(1,st.clientWidth), ch=Math.max(1,st.clientHeight);
     cv.width=Math.round(cw*dpr); cv.height=Math.round(ch*dpr);
     const aspect=cw/ch;
-    if(aspect>=1.4){ zoom=Math.min(cv.width/worldW, cv.height/worldH); followCam=false; }   // desktop: whole map
+    if(mapMode || aspect>=1.4){ zoom=Math.min(cv.width/worldW, cv.height/worldH); followCam=false; } // whole map
     else { const tilesX=Math.max(6, Math.min(11, Math.round(aspect*15))); zoom=cv.width/(tilesX*TILE); followCam=true; } // phone: zoom + follow
   }
   window.addEventListener("resize",resize);
   window.addEventListener("orientationchange",()=>setTimeout(resize,200));
+  function toggleMap(){ mapMode=!mapMode; document.getElementById("mapBtn").classList.toggle("on",mapMode); resize(); updateCam(true); }
+  document.getElementById("mapBtn").addEventListener("click",toggleMap);
   function updateCam(snap){
     const viewW=cv.width/zoom, viewH=cv.height/zoom;
     let tx,ty;
