@@ -9,21 +9,21 @@
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html,body { margin:0; height:100%; background:#08060f; color:#eee;
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; overflow:hidden; }
-  #wrap { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
-  #stage { position:relative; width:min(100vw, calc(100vh * 24 / 14)); max-width:960px; }
-  canvas { display:block; width:100%; height:auto; background:#0b0a14; border-radius:10px;
-    border:1px solid var(--line); touch-action:none; }
+  #wrap { position:fixed; inset:0; display:flex; flex-direction:column; }
+  #stage { position:relative; flex:1 1 auto; min-height:0; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; background:#0b0a14; touch-action:none; display:block; }
   #hud { position:absolute; top:8px; left:10px; right:10px; display:flex; justify-content:space-between;
     align-items:flex-start; pointer-events:none; font-size:clamp(11px,2.4vw,15px); }
   .pill { background:rgba(8,6,15,.65); border:1px solid var(--line); border-radius:999px; padding:4px 11px; }
   #who { font-weight:700; }
   #who .a{color:var(--iron)} #who .l{color:var(--blue)}
-  #hint { position:absolute; left:50%; transform:translateX(-50%); bottom:calc(100% + 8px); white-space:nowrap;
-    background:rgba(8,6,15,.7); border:1px solid var(--line); border-radius:8px; padding:6px 12px;
-    font-size:clamp(11px,2.5vw,14px); color:#cfc9e6; }
+  #hint { position:absolute; left:50%; transform:translateX(-50%); bottom:10px; max-width:94%; text-align:center;
+    background:rgba(8,6,15,.78); border:1px solid var(--line); border-radius:8px; padding:6px 12px;
+    font-size:clamp(11px,3.2vw,14px); color:#cfc9e6; }
   /* touch controls */
-  #pad { width:min(100vw,960px); max-width:960px; margin-top:10px; display:flex; justify-content:space-between;
-    gap:8px; padding:0 6px; user-select:none; }
+  #pad { flex:0 0 auto; width:100%; margin:0; display:flex; justify-content:space-between;
+    gap:8px; padding:8px 8px calc(8px + env(safe-area-inset-bottom)); user-select:none;
+    background:rgba(8,6,15,.55); border-top:1px solid var(--line); }
   .cluster { display:flex; gap:8px; }
   .btn { width:64px; height:64px; border-radius:14px; background:rgba(30,26,52,.85); border:1px solid var(--line);
     color:#fff; font-size:22px; display:flex; align-items:center; justify-content:center; touch-action:none; }
@@ -303,10 +303,10 @@
 
   // Timer + start
   let started=false, t0=0, elapsed=0, state2="title";
-  function startGame(){ overlay.style.display="none"; state="play"; started=false; elapsed=0; t0=0; reset(true); updWho(); }
+  function startGame(){ overlay.style.display="none"; state="play"; started=false; elapsed=0; t0=0; reset(true); updWho(); resize(); updateCam(true); }
   document.getElementById("playBtn").addEventListener("click",startGame);
 
-  function softReset(){ reset(true); updWho(); } // reset positions + level state; timer keeps running
+  function softReset(){ reset(true); updWho(); updateCam(true); } // reset positions + level state; timer keeps running
 
   function fmt(ms){ const s=ms/1000; const m=Math.floor(s/60); const r=(s-m*60); return m+":"+(r<10?"0":"")+r.toFixed(1); }
 
@@ -318,13 +318,42 @@
     return "Door's locked open — get BOTH to the exit.";
   }
 
+  // ---- Camera / responsive canvas ----
+  const worldW=COLS*TILE, worldH=ROWS*TILE;
+  let dpr=1, zoom=1, followCam=false, cam={x:0,y:0};
+  function resize(){
+    const st=document.getElementById("stage");
+    dpr=Math.min(window.devicePixelRatio||1, 2);
+    const cw=Math.max(1,st.clientWidth), ch=Math.max(1,st.clientHeight);
+    cv.width=Math.round(cw*dpr); cv.height=Math.round(ch*dpr);
+    const aspect=cw/ch;
+    if(aspect>=1.4){ zoom=Math.min(cv.width/worldW, cv.height/worldH); followCam=false; }   // desktop: whole map
+    else { const tilesX=Math.max(6, Math.min(11, Math.round(aspect*15))); zoom=cv.width/(tilesX*TILE); followCam=true; } // phone: zoom + follow
+  }
+  window.addEventListener("resize",resize);
+  window.addEventListener("orientationchange",()=>setTimeout(resize,200));
+  function updateCam(snap){
+    const viewW=cv.width/zoom, viewH=cv.height/zoom;
+    let tx,ty;
+    if(followCam){ const o=cur(); tx=o.x+o.w/2-viewW/2; ty=o.y+o.h/2-viewH/2; }
+    else { tx=(worldW-viewW)/2; ty=(worldH-viewH)/2; }
+    tx = viewW<worldW ? Math.max(0,Math.min(tx,worldW-viewW)) : (worldW-viewW)/2;
+    ty = viewH<worldH ? Math.max(0,Math.min(ty,worldH-viewH)) : (worldH-viewH)/2;
+    if(snap){ cam.x=tx; cam.y=ty; return; }
+    cam.x+=(tx-cam.x)*0.2; cam.y+=(ty-cam.y)*0.2;
+    if(Math.abs(tx-cam.x)<0.4)cam.x=tx; if(Math.abs(ty-cam.y)<0.4)cam.y=ty;
+  }
+
   // Render
   function draw(){
+    ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,cv.width,cv.height);
-    // background seam
+    // background (screen space)
     const g=ctx.createLinearGradient(0,0,0,cv.height); g.addColorStop(0,"#0d0b18"); g.addColorStop(1,"#08060f");
     ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
-    ctx.fillStyle="rgba(155,123,214,0.10)"; ctx.fillRect(cv.width/2-30,0,60,cv.height);
+    // world space (camera)
+    ctx.setTransform(zoom,0,0,zoom, -cam.x*zoom, -cam.y*zoom);
+    ctx.fillStyle="rgba(155,123,214,0.10)"; ctx.fillRect(worldW/2-30,0,60,worldH);
     // tiles
     for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
       const t=base[y][x]; const px=x*TILE, py=y*TILE;
@@ -374,8 +403,8 @@
       timerEl.textContent=fmt(elapsed);
       hintEl.textContent=hint();
       if(bothInExit()){ win(); }
-      draw();
     }
+    updateCam(); draw();
     requestAnimationFrame(frame);
   }
   function win(){
@@ -390,7 +419,7 @@
   }
 
   // init
-  state="title"; reset(true); updWho(); draw();
+  resize(); state="title"; reset(true); updWho(); updateCam(true); draw();
   requestAnimationFrame(frame);
 })();
 </script>
