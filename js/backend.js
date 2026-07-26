@@ -4,7 +4,7 @@
   const ready = cfg.supabaseUrl && cfg.supabaseAnonKey && window.supabase;
   if (!ready) { window.VBackend = null; return; }
   const sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
-  const who = () => localStorage.getItem("vr_who") || "anon";
+  const who = () => localStorage.getItem("vr_account") || localStorage.getItem("vr_who") || "anon";
 
   window.VBackend = {
     async submitFeedback(context, note, type) {

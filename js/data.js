@@ -390,6 +390,7 @@ VEILRUN.counters = {
 };
 
 VEILRUN.updates = [
+  { date: "2026-07-25", title: "Likes work again everywhere", text: "When all the art moved to WebP, it accidentally orphaned every existing like (they were saved against the old file names). Fixed — your hearts are reconnected and now show up group-wide across the Gallery, character pages, enemy pages, and the landing. Like something anywhere and everyone sees it. Also made the archive button on your profile red + bolder so it's clear it removes an image from the page." },
   { date: "2026-07-25", title: "Vote on the Lieutenant counters", text: "The Lieutenants page now has a voting block: for each of us, three takes on the enemy meant to counter you — the original idea plus two new ‘true counter’ concepts — with a quick blurb each. Pick your favorite and leave a note. Helps us lock the direction before we commit the art and lore." },
   { date: "2026-07-25", title: "Babel joined the crew (concept)", text: "Manafest's character, Babel, is on the site now — role, lore, kit, codenames, and a couple of synergies — as an in-progress concept with a placeholder portrait. Take a look on the Crew page and drop feedback on his abilities while they're still soft." },
   { date: "2026-07-25", title: "The Board is now a real tracker", text: "The Board page got refreshed to where things actually stand, plus a filter — tap ‘On me’ to see just your plate versus everything. There's a new ‘Sunday render queue’ column tracking the art that's teed up to generate. Easy to glance at from your phone." },

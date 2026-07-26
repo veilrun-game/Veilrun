@@ -745,7 +745,10 @@ window.VApp = (function () {
   let synGalleryState = { id: null, imgs: [], i: 0 };
   // Like state hydrated from Supabase on load: mine (this person), all (group), counts (for sorting).
   let likeMine = new Set(), likeAll = new Set(), likeCounts = {};
-  const myWho = () => localStorage.getItem("vr_who") || "anon";
+  // All art moved from PNG to WebP; likes/orders saved before that were keyed to the old
+  // .png paths. Normalize on load so historical group data still maps onto the live images.
+  const toWebp = (s) => String(s || "").replace(/\.png$/i, ".webp");
+  const myWho = () => localStorage.getItem("vr_account") || localStorage.getItem("vr_who") || "anon";
   const likeKey = (src) => "vr_like:" + src;
   const isLiked = (src) => likeMine.has(src) || localStorage.getItem(likeKey(src)) === "1";
   const isGroupFav = (src) => likeAll.has(src) || isLiked(src);
@@ -756,9 +759,10 @@ window.VApp = (function () {
     likeMine = new Set(); likeAll = new Set(); likeCounts = {};
     const who = myWho();
     rows.forEach(r => {
-      likeAll.add(r.image_src);
-      likeCounts[r.image_src] = (likeCounts[r.image_src] || 0) + 1;
-      if (r.who === who) likeMine.add(r.image_src);
+      const src = toWebp(r.image_src);
+      likeAll.add(src);
+      likeCounts[src] = (likeCounts[src] || 0) + 1;
+      if (r.who === who) likeMine.add(src);
     });
   }
   function applyLikeLocal(src, liked) {
@@ -1091,7 +1095,7 @@ window.VApp = (function () {
   }
   function galItemHTML(it, idx, opener) {
     const c = likeCount(it.src);
-    const badge = c > 1 ? `<span class="likebadge">♥ ${c}</span>` : "";
+    const badge = c >= 1 ? `<span class="likebadge">♥ ${c}</span>` : "";
     return `<div class="gitem ${isGroupFav(it.src) ? 'liked' : ''}"><img src="${C.esc(it.src)}" alt="${C.esc(it.name)}" loading="lazy" onclick="${opener}" />${badge}</div>`;
   }
   const crewNames = () => D.crew.map(c => c.name);
@@ -1125,7 +1129,7 @@ window.VApp = (function () {
       img.addEventListener("click", () => lbOpen("gallery", j));
       wrap.appendChild(img);
       const c = likeCount(it.src);
-      if (c > 1) { const b = document.createElement("span"); b.className = "likebadge"; b.textContent = "♥ " + c; wrap.appendChild(b); }
+      if (c >= 1) { const b = document.createElement("span"); b.className = "likebadge"; b.textContent = "♥ " + c; wrap.appendChild(b); }
       m.appendChild(wrap);
     }
     const cnt = document.getElementById("gal-count"); if (cnt) cnt.textContent = "Showing " + galState.limit + " of " + f.length;
@@ -1370,10 +1374,10 @@ window.VApp = (function () {
     rows.forEach(r => {
       if (!r.char_id) return;
       const oj = r.order_json;
-      if (Array.isArray(oj)) { if (oj.length) imgOrderShared[r.char_id] = oj; }        // legacy: bare order array
+      if (Array.isArray(oj)) { if (oj.length) imgOrderShared[r.char_id] = oj.map(toWebp); }   // legacy: bare order array
       else if (oj && typeof oj === "object") {
-        if (Array.isArray(oj.order) && oj.order.length) imgOrderShared[r.char_id] = oj.order;
-        if (Array.isArray(oj.hidden) && oj.hidden.length) imgHiddenShared[r.char_id] = oj.hidden;
+        if (Array.isArray(oj.order) && oj.order.length) imgOrderShared[r.char_id] = oj.order.map(toWebp);
+        if (Array.isArray(oj.hidden) && oj.hidden.length) imgHiddenShared[r.char_id] = oj.hidden.map(toWebp);
       }
     });
   }
