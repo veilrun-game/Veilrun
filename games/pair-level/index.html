@@ -79,6 +79,7 @@
         <b>Move</b> ← →  ·  <b>Jump</b> ↑ / Space  ·  <b>Switch character</b> Tab  ·  <b>Ability</b> E  ·  <b>Reset</b> R
       </div>
       <a href="/app.html#lab" style="margin-top:14px;color:#8f89a8;font-size:12px;text-decoration:underline">← Back to the Lab</a>
+      <div style="margin-top:8px;font-size:11px;color:#6a6580">Versions: <b style="color:#8f89a8">v0.2 · Seam Gate (latest)</b> · <a href="versions/v0.1/index.html" style="color:#8f89a8">v0.1 · Foundry Gate</a></div>
     </div>
   </div>
   <div id="pad">
@@ -191,7 +192,8 @@
     if(o.x<q.x+q.w && o.x+o.w>q.x && o.y<q.y+q.h && o.y+o.h>q.y){
       if(axis==="y"){ if(o.vy>0 && (o.y+o.h-q.y)<24){o.y=q.y-o.h;o.vy=0;} else if(o.vy<0){o.y=q.y+q.h;o.vy=0;} }
       else if(o===A && A.charge>0){ L.plow=A.charge; } // Juggernaut plow: engage — Latch gets pulled into Anvil's wake (Anvil leads as the shield)
-      else { const nx=o.vx>0?o.x+o.w:o.x-q.w; if(fitsX(q,nx)) q.x=nx; else { if(o.vx>0)o.x=q.x-o.w; else if(o.vx<0)o.x=q.x+q.w; o.vx=0; } } // soft-push past each other
+      else if(q===A){ if(o.vx>0)o.x=q.x-o.w; else if(o.vx<0)o.x=q.x+q.w; o.vx=0; } // Anvil is immovable — no one else can push him
+      else { const nx=o.vx>0?o.x+o.w:o.x-q.w; if(fitsX(q,nx)) q.x=nx; else { if(o.vx>0)o.x=q.x-o.w; else if(o.vx<0)o.x=q.x+q.w; o.vx=0; } } // soft-push others aside
     }
   }
   function onGround(o){

@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>VEILRUN — Pair Level: The Foundry Gate</title>
+<style>
+  :root { --iron:#c85a5a; --blue:#6ec8f5; --gold:#e8c15a; --line:#2a2740; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html,body { margin:0; height:100%; background:#08060f; color:#eee;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; overflow:hidden; }
+  #wrap { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  #stage { position:relative; width:min(100vw, calc(100vh * 24 / 14)); max-width:960px; }
+  canvas { display:block; width:100%; height:auto; background:#0b0a14; border-radius:10px;
+    border:1px solid var(--line); touch-action:none; }
+  #hud { position:absolute; top:8px; left:10px; right:10px; display:flex; justify-content:space-between;
+    align-items:flex-start; pointer-events:none; font-size:clamp(11px,2.4vw,15px); }
+  .pill { background:rgba(8,6,15,.65); border:1px solid var(--line); border-radius:999px; padding:4px 11px; }
+  #who { font-weight:700; }
+  #who .a{color:var(--iron)} #who .l{color:var(--blue)}
+  #hint { position:absolute; left:50%; transform:translateX(-50%); bottom:calc(100% + 8px); white-space:nowrap;
+    background:rgba(8,6,15,.7); border:1px solid var(--line); border-radius:8px; padding:6px 12px;
+    font-size:clamp(11px,2.5vw,14px); color:#cfc9e6; }
+  /* touch controls */
+  #pad { width:min(100vw,960px); max-width:960px; margin-top:10px; display:flex; justify-content:space-between;
+    gap:8px; padding:0 6px; user-select:none; }
+  .cluster { display:flex; gap:8px; }
+  .btn { width:64px; height:64px; border-radius:14px; background:rgba(30,26,52,.85); border:1px solid var(--line);
+    color:#fff; font-size:22px; display:flex; align-items:center; justify-content:center; touch-action:none; }
+  .btn:active { background:rgba(214,92,220,.5); }
+  .btn.wide { width:auto; padding:0 16px; font-size:15px; }
+  #swap .sw { font-size:13px; }
+  #overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; background:rgba(6,4,12,.82); border-radius:10px; padding:20px; }
+  #overlay h1 { font-size:clamp(22px,5vw,40px); margin:.1em 0; letter-spacing:.02em; }
+  #overlay h1 b{color:var(--iron)} #overlay h1 i{color:var(--blue); font-style:normal}
+  #overlay p { color:#bdb7d6; max-width:34ch; line-height:1.5; font-size:clamp(12px,2.8vw,15px); }
+  .play { margin-top:14px; background:var(--gold); color:#1a1206; border:none; border-radius:10px;
+    padding:12px 26px; font-weight:700; font-size:16px; cursor:pointer; }
+  .keys { margin-top:14px; font-size:12px; color:#8f89a8; line-height:1.7; }
+  .keys b{color:#cfc9e6}
+  #winTime { color:var(--gold); font-weight:700; font-size:clamp(20px,5vw,34px); margin:.2em 0; }
+  @media (hover:hover) and (pointer:fine){ #pad{display:none;} }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <div id="hint"></div>
+    <canvas id="c" width="960" height="560"></canvas>
+    <div id="hud">
+      <div class="pill" id="who">Controlling: <span class="a">Anvil</span></div>
+      <div class="pill" id="timer">0:00.0</div>
+    </div>
+    <div id="overlay">
+      <div class="eyebrow" style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">VEILRUN · Pair Level</div>
+      <h1>The <b>Foundry</b> <i>Gate</i></h1>
+      <p>Two of the crew, one player. <b style="color:var(--iron)">Anvil</b> is heavy — he anchors slabs and holds mechanisms. <b style="color:var(--blue)">Latch</b> is agile — he breaches across gaps. Neither can finish alone. Get <em>both</em> to the exit.</p>
+      <button class="play" id="playBtn">Play</button>
+      <div class="keys">
+        <b>Move</b> ← →  ·  <b>Jump</b> ↑ / Space  ·  <b>Swap</b> Tab  ·  <b>Ability</b> E  ·  <b>Reset</b> R<br>
+        (or use the on-screen buttons on touch)
+      </div>
+    </div>
+  </div>
+  <div id="pad">
+    <div class="cluster">
+      <div class="btn" data-k="left">◄</div>
+      <div class="btn" data-k="right">►</div>
+    </div>
+    <div class="cluster">
+      <div class="btn wide" id="swap" data-k="swap"><span class="sw">Swap</span></div>
+      <div class="btn" data-k="ability">✦</div>
+      <div class="btn" data-k="jump">⤒</div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  "use strict";
+  const TILE=40, COLS=24, ROWS=14;
+  const cv=document.getElementById("c"), ctx=cv.getContext("2d");
+  const overlay=document.getElementById("overlay"), hintEl=document.getElementById("hint");
+  const whoEl=document.getElementById("who"), timerEl=document.getElementById("timer");
+
+  // Level map. Rows top->bottom. Legend:
+  // '#' solid  ' ' empty  '=' bridge(gap, solid when lever1)  'a' Anvil spawn  't' Latch spawn
+  // '1' lever1  '2' lever2  'p' plate  'd' door(solid until open)  'e' exit  '.' pit(no floor)
+  const MAP=[
+    "#                      #",
+    "#                      #",
+    "#                      #",
+    "#                      #",
+    "#                      #",
+    "#                      #",
+    "#                      #",
+    "#                      #",
+    "#                      #",
+    "#                      #",
+    "#                      #",
+    "#               d      #",
+    "#at     1     p d 2ee  #",
+    "#####===###..###########"
+  ];
+  // cols: 0-4 floor · 5-7 bridge(=) · 8-10 floor · 11-12 pit(.) · 13-23 floor
+
+  // Parse
+  let base=[], spawnA=null, spawnL=null, lever1=null, lever2=null, plate=null, exits=[], doorCols=[];
+  function parse(){
+    base=[]; exits=[]; doorCols=[];
+    for(let y=0;y<ROWS;y++){
+      base[y]=[];
+      const row=MAP[y]||"";
+      for(let x=0;x<COLS;x++){
+        const ch=row[x]||" ";
+        let t="empty";
+        if(ch==="#") t="solid";
+        else if(ch==="=") t="bridge";
+        else if(ch===".") t="pit";
+        else if(ch==="d"){ t="door"; doorCols.push([x,y]); }
+        else if(ch==="1"){ t="empty"; lever1={x,y}; }
+        else if(ch==="2"){ t="empty"; lever2={x,y}; }
+        else if(ch==="p"){ t="empty"; plate={x,y}; }
+        else if(ch==="e"){ t="empty"; exits.push({x,y}); }
+        else if(ch==="a"){ t="empty"; spawnA={x,y}; }
+        else if(ch==="t"){ t="empty"; spawnL={x,y}; }
+        base[y][x]=t;
+      }
+    }
+    if(!spawnL) spawnL={x:2,y:12};
+    if(!spawnA) spawnA={x:1,y:12};
+  }
+  parse();
+
+  // Dynamic state
+  let state, dyn;
+  function reset(full){
+    dyn={ lever1:false, lever2:false, slabs:new Set() };
+    A.x=spawnA.x*TILE+7; A.y=spawnA.y*TILE-A.h+TILE; A.vx=0; A.vy=0; A.face=1;
+    L.x=spawnL.x*TILE+9; L.y=spawnL.y*TILE-L.h+TILE; L.vx=0; L.vy=0; L.face=1;
+    L.cd=0;
+    active="A";
+  }
+
+  // Characters
+  const A={ name:"Anvil", col:"#c85a5a", w:30, h:52, vx:0, vy:0, face:1, speed:2.0, jump:8.2, heavy:true };
+  const L={ name:"Latch", col:"#6ec8f5", w:22, h:46, vx:0, vy:0, face:1, speed:3.0, jump:10.2, cd:0 };
+  let active="A";
+  const cur=()=> active==="A"?A:L;
+  const other=()=> active==="A"?L:A;
+
+  // Tile solidity (dynamic)
+  function solidAt(tx,ty){
+    if(tx<0||tx>=COLS) return true;      // side walls
+    if(ty<0||ty>=ROWS) return false;     // open sky above, void below (fall in a pit -> reset)
+    const t=base[ty][tx];
+    if(t==="solid") return true;
+    if(t==="bridge") return dyn.lever1;
+    if(t==="pit") return dyn.slabs.has(tx+","+ty);
+    if(t==="door") return !doorOpen();
+    return false;
+  }
+  function plateActive(){ // heavy (Anvil) overlapping the plate tile
+    if(!plate) return false;
+    return overlapsTile(A, plate.x, plate.y) || overlapsTile(A, plate.x, plate.y+1);
+  }
+  function doorOpen(){ return dyn.lever2 || plateActive(); }
+
+  function overlapsTile(o, tx, ty){
+    const px=tx*TILE, py=ty*TILE;
+    return o.x < px+TILE && o.x+o.w > px && o.y < py+TILE && o.y+o.h > py;
+  }
+
+  // Physics for one character
+  function stepChar(o){
+    const onGroundBefore=onGround(o);
+    // horizontal
+    o.x += o.vx;
+    resolveAxis(o, "x");
+    // gravity
+    o.vy += 0.55; if(o.vy>14) o.vy=14;
+    o.y += o.vy;
+    resolveAxis(o, "y");
+    // fell off the world -> reset to start
+    if(o.y > ROWS*TILE + 40){ softReset(); }
+  }
+  function resolveAxis(o, axis){
+    const x0=Math.floor(o.x/TILE), x1=Math.floor((o.x+o.w-1)/TILE);
+    const y0=Math.floor(o.y/TILE), y1=Math.floor((o.y+o.h-1)/TILE);
+    for(let ty=y0; ty<=y1; ty++){
+      for(let tx=x0; tx<=x1; tx++){
+        if(!solidAt(tx,ty)) continue;
+        const px=tx*TILE, py=ty*TILE;
+        if(!(o.x<px+TILE && o.x+o.w>px && o.y<py+TILE && o.y+o.h>py)) continue;
+        if(axis==="x"){
+          if(o.vx>0) o.x=px-o.w; else if(o.vx<0) o.x=px+TILE;
+          o.vx=0;
+        } else {
+          if(o.vy>0){ o.y=py-o.h; o.vy=0; }
+          else if(o.vy<0){ o.y=py+TILE; o.vy=0; }
+        }
+      }
+    }
+    // collide with the OTHER character (solid, standable)
+    const q=(o===A)?L:A;
+    if(o.x<q.x+q.w && o.x+o.w>q.x && o.y<q.y+q.h && o.y+o.h>q.y){
+      if(axis==="y"){
+        if(o.vy>0 && (o.y+o.h-q.y) < 24){ o.y=q.y-o.h; o.vy=0; }
+        else if(o.vy<0){ o.y=q.y+q.h; o.vy=0; }
+      } else {
+        if(o.vx>0) o.x=q.x-o.w; else if(o.vx<0) o.x=q.x+q.w; o.vx=0;
+      }
+    }
+  }
+  function onGround(o){
+    const y=Math.floor((o.y+o.h+1)/TILE);
+    const x0=Math.floor((o.x+3)/TILE), x1=Math.floor((o.x+o.w-3)/TILE);
+    for(let tx=x0; tx<=x1; tx++){ if(solidAt(tx,y)) return true; }
+    // standing on the other character
+    const q=(o===A)?L:A;
+    if(o.x<q.x+q.w && o.x+o.w>q.x && Math.abs((o.y+o.h)-q.y)<3) return true;
+    return false;
+  }
+
+  // Abilities
+  function useAbility(){
+    if(active==="A") anchor(); else breach();
+  }
+  function anchor(){ // Anvil fills up to 2 pit tiles just ahead at floor level (forgiving about exact spot)
+    const dir=A.face, footTy=Math.floor((A.y+A.h)/TILE);
+    const startTx=Math.floor((A.x+A.w/2)/TILE);
+    const pit=[];
+    for(let i=1;i<=3 && pit.length<2;i++){ const cx=startTx+dir*i; if(base[footTy] && base[footTy][cx]==="pit") pit.push(cx); }
+    if(!pit.length) return;
+    const anyUnfilled=pit.some(cx=>!dyn.slabs.has(cx+","+footTy));
+    pit.forEach(cx=>{ const k=cx+","+footTy; if(anyUnfilled) dyn.slabs.add(k); else dyn.slabs.delete(k); });
+  }
+  function breach(){ // Latch smart-blinks forward to the farthest safe standing spot within reach
+    if(L.cd>0) return;
+    const dir=L.face, MAX=5;
+    const startTx=Math.floor((L.x+L.w/2)/TILE);
+    const ty=Math.floor((L.y+L.h-1)/TILE);
+    let best=null;
+    for(let i=1;i<=MAX;i++){
+      const tx=startTx+dir*i;
+      if(tx<1||tx>=COLS-1) break;
+      // body clear at this column (two body rows) and floor below
+      const bodyTop=Math.floor(L.y/TILE);
+      let clear=true;
+      for(let by=bodyTop; by<=ty; by++){ if(solidAt(tx,by)){ clear=false; break; } }
+      const floorBelow = solidAt(tx, ty+1);
+      if(clear && floorBelow) best=tx;
+    }
+    if(best!==null){
+      L.x=best*TILE + (TILE-L.w)/2; L.vy=0; L.cd=45;
+    }
+  }
+
+  // Interactions each frame
+  function interact(){
+    if(lever1 && !dyn.lever1 && (overlapsTile(cur(),lever1.x,lever1.y)||overlapsTile(cur(),lever1.x,lever1.y+1))) dyn.lever1=true;
+    if(lever2 && !dyn.lever2 && doorOpen() && (overlapsTile(cur(),lever2.x,lever2.y)||overlapsTile(cur(),lever2.x,lever2.y+1))) dyn.lever2=true;
+  }
+  function bothInExit(){
+    const inExit=(o)=> exits.some(e=> overlapsTile(o,e.x,e.y)||overlapsTile(o,e.x,e.y+1));
+    return inExit(A) && inExit(L);
+  }
+
+  // Input
+  const keys={};
+  const held={left:false,right:false,jump:false};
+  function jump(){ const o=cur(); if(onGround(o)) o.vy=-o.jump; }
+  function swap(){ active = active==="A"?"L":"A"; updWho(); }
+  document.addEventListener("keydown",e=>{
+    if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"," "].includes(e.key)) e.preventDefault();
+    if(state!=="play"){ if(e.key==="Enter"||e.key===" ") startGame(); return; }
+    const k=e.key.toLowerCase();
+    if(k==="arrowleft"||k==="a") held.left=true;
+    else if(k==="arrowright"||k==="d") held.right=true;
+    else if(k==="arrowup"||k==="w"||k===" ") jump();
+    else if(k==="tab"||k==="shift") { e.preventDefault(); swap(); }
+    else if(k==="e"||k==="enter") useAbility();
+    else if(k==="r") softReset();
+    started=true;
+  });
+  document.addEventListener("keyup",e=>{
+    const k=e.key.toLowerCase();
+    if(k==="arrowleft"||k==="a") held.left=false;
+    else if(k==="arrowright"||k==="d") held.right=false;
+  });
+  // touch buttons
+  document.querySelectorAll("#pad .btn").forEach(b=>{
+    const k=b.getAttribute("data-k");
+    const down=e=>{ e.preventDefault(); started=true;
+      if(k==="left")held.left=true; else if(k==="right")held.right=true;
+      else if(k==="jump")jump(); else if(k==="swap")swap(); else if(k==="ability")useAbility(); };
+    const up=e=>{ e.preventDefault(); if(k==="left")held.left=false; else if(k==="right")held.right=false; };
+    b.addEventListener("touchstart",down,{passive:false}); b.addEventListener("mousedown",down);
+    b.addEventListener("touchend",up,{passive:false}); b.addEventListener("mouseup",up); b.addEventListener("mouseleave",up);
+  });
+
+  function updWho(){ whoEl.innerHTML = "Controlling: " + (active==="A"?'<span class="a">Anvil</span>':'<span class="l">Latch</span>'); }
+
+  // Timer + start
+  let started=false, t0=0, elapsed=0, state2="title";
+  function startGame(){ overlay.style.display="none"; state="play"; started=false; elapsed=0; t0=0; reset(true); updWho(); }
+  document.getElementById("playBtn").addEventListener("click",startGame);
+
+  function softReset(){ reset(true); updWho(); } // reset positions + level state; timer keeps running
+
+  function fmt(ms){ const s=ms/1000; const m=Math.floor(s/60); const r=(s-m*60); return m+":"+(r<10?"0":"")+r.toFixed(1); }
+
+  // Hint text based on progress
+  function hint(){
+    if(!dyn.lever1) return "Latch: Breach (✦) across the gap, then touch the lever to build the bridge.";
+    if(!dyn.slabs.size && (A.x < 11*TILE)) return "Anvil: cross the bridge. At the next pit, Anchor (✦) a slab to fill it.";
+    if(!dyn.lever2) return "Anvil: stand on the plate to open the door. Latch: slip through and pull the far lever.";
+    return "Door's locked open — get BOTH to the exit.";
+  }
+
+  // Render
+  function draw(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    // background seam
+    const g=ctx.createLinearGradient(0,0,0,cv.height); g.addColorStop(0,"#0d0b18"); g.addColorStop(1,"#08060f");
+    ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
+    ctx.fillStyle="rgba(155,123,214,0.10)"; ctx.fillRect(cv.width/2-30,0,60,cv.height);
+    // tiles
+    for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+      const t=base[y][x]; const px=x*TILE, py=y*TILE;
+      if(t==="solid"){ tile(px,py,"#242038","#15122a"); }
+      else if(t==="bridge"){ if(dyn.lever1) tile(px,py,"#3b3357","#241f3a"); else dashed(px,py); }
+      else if(t==="pit"){ if(dyn.slabs.has(x+","+y)) tile(px,py,"#4a3a2a","#2a2018"); }
+      else if(t==="door"){ if(!doorOpen()){ tile(px,py,"#5a3242","#331d28"); } else { ctx.strokeStyle="rgba(232,193,90,.35)"; ctx.strokeRect(px+2,py+2,TILE-4,TILE-4);} }
+    }
+    // markers
+    if(lever1) lever(lever1, dyn.lever1);
+    if(lever2) lever(lever2, dyn.lever2);
+    if(plate) marker(plate, plateActive()?"#8ce08c":"#6b6b8a", "▔");
+    exits.forEach(e=>{ ctx.fillStyle="rgba(232,193,90,.18)"; ctx.fillRect(e.x*TILE,e.y*TILE-TILE, TILE, TILE*2);
+      ctx.fillStyle="#e8c15a"; ctx.font="12px sans-serif"; ctx.textAlign="center"; ctx.fillText("EXIT", e.x*TILE+TILE/2, e.y*TILE-6); });
+    // characters
+    charBody(A); charBody(L);
+    // active indicator
+    const o=cur(); ctx.fillStyle="#fff"; ctx.beginPath(); ctx.moveTo(o.x+o.w/2,o.y-10); ctx.lineTo(o.x+o.w/2-6,o.y-20); ctx.lineTo(o.x+o.w/2+6,o.y-20); ctx.closePath(); ctx.fill();
+  }
+  function tile(px,py,top,bot){ ctx.fillStyle=bot; ctx.fillRect(px,py,TILE,TILE); ctx.fillStyle=top; ctx.fillRect(px,py,TILE,TILE-6); ctx.strokeStyle="rgba(0,0,0,.25)"; ctx.strokeRect(px+.5,py+.5,TILE-1,TILE-1); }
+  function dashed(px,py){ ctx.strokeStyle="rgba(214,92,220,.35)"; ctx.setLineDash([5,5]); ctx.strokeRect(px+3,py+3,TILE-6,TILE-6); ctx.setLineDash([]); }
+  function lever(o,on){ const px=o.x*TILE, py=o.y*TILE; ctx.fillStyle="#3a3550"; ctx.fillRect(px+TILE/2-3, py+8, 6, TILE-8);
+    ctx.strokeStyle=on?"#8ce08c":"#e8c15a"; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(px+TILE/2,py+TILE-6); ctx.lineTo(px+TILE/2+(on?12:-12), py+6); ctx.stroke(); ctx.lineWidth=1; }
+  function marker(o,color,ch){ const px=o.x*TILE, py=o.y*TILE; ctx.fillStyle=color; ctx.fillRect(px+4, py+TILE-8, TILE-8, 6); }
+  function charBody(o){
+    ctx.fillStyle=o.col;
+    roundRect(o.x,o.y,o.w,o.h,6); ctx.fill();
+    // simple face direction notch
+    ctx.fillStyle="rgba(0,0,0,.35)";
+    ctx.fillRect(o.face>0?o.x+o.w-7:o.x+3, o.y+9, 4, 6);
+    ctx.fillStyle="rgba(255,255,255,.85)"; ctx.font="10px sans-serif"; ctx.textAlign="center";
+    ctx.fillText(o===A?"ANVIL":"LATCH", o.x+o.w/2, o.y-24>0?o.y-2:o.y+o.h+11);
+  }
+  function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+  // Loop
+  function frame(ts){
+    if(state==="play"){
+      const o=cur();
+      o.vx = held.left? -o.speed : held.right? o.speed : 0;
+      if(o.vx>0)o.face=1; else if(o.vx<0)o.face=-1;
+      other().vx=0; // inactive character holds position
+      stepChar(A); stepChar(L);
+      if(L.cd>0) L.cd--;
+      interact();
+      if(started){ if(!t0) t0=ts; elapsed=ts-t0; }
+      timerEl.textContent=fmt(elapsed);
+      hintEl.textContent=hint();
+      if(bothInExit()){ win(); }
+      draw();
+    }
+    requestAnimationFrame(frame);
+  }
+  function win(){
+    state="win"; started=false;
+    overlay.style.display="flex";
+    overlay.innerHTML='<div class="eyebrow" style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">Cleared</div>'
+      +'<h1>You needed <b>both</b>.</h1>'
+      +'<div id="winTime">'+fmt(elapsed)+'</div>'
+      +'<p>That\'s the whole idea — no one clears the Foundry Gate alone.</p>'
+      +'<button class="play" id="againBtn">Play again</button>';
+    document.getElementById("againBtn").addEventListener("click",startGame);
+  }
+
+  // init
+  state="title"; reset(true); updWho(); draw();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

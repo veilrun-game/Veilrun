@@ -44,6 +44,12 @@ window.VApp = (function () {
       const newestLabel = (() => { const d = D.updates.map(u => parseD(u.date)).sort((a, b) => b - a)[0];
         return d ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) : ""; })();
       const uRow = u => { const p = updParts(u); return `<div class="kit-row"><span class="mute" style="font-size:.8rem">${C.esc(u.date)}</span><div><strong style="color:var(--white)">${C.esc(p.title)}</strong>${p.body ? `<br><span class="mute">${C.esc(p.body)}</span>` : ""}</div></div>`; };
+      // Per-update call-to-action: each update can carry its own most-relevant CTA (e.g. play the new
+      // game, meet a new character). Falls back to "Meet the crew" when an update sets none.
+      const cta = latest && latest.cta;
+      const ctaBtn = cta
+        ? `<a class="btn" href="${C.esc(cta.href)}"${String(cta.href).startsWith("#") ? "" : ' target="_blank" rel="noopener"'}>${C.esc(cta.label)}</a>`
+        : `<a class="btn" href="#crew">Meet the crew</a>`;
       return `
         <section class="hub-hero wrap">
           ${C.sectionHeader("Home base","Welcome back, crew")}
@@ -54,7 +60,7 @@ window.VApp = (function () {
               <h2 style="margin:.4rem 0">${C.esc(updParts(latest).title)}</h2>
               ${updParts(latest).body ? `<p class="mute" style="margin:.2rem 0 .6rem">${C.esc(updParts(latest).body)}</p>` : ""}
               <p class="mute">Dig in below, and react to anything — it only works if it's ours.</p>
-              <div class="hero-btns"><a class="btn" href="#crew">Meet the crew</a> <button class="btn ghost" onclick="VApp.feedback('General thought','idea')">＋ Share a thought</button></div>
+              <div class="hero-btns">${ctaBtn} <button class="btn ghost" onclick="VApp.feedback('General thought','idea')">＋ Share a thought</button></div>
             </div>
           </div>
         </section>
