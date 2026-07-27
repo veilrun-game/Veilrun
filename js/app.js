@@ -11,8 +11,11 @@ window.VApp = (function () {
   const view = () => document.getElementById("view");
 
   function requireGate() {
-    if (sessionStorage.getItem("vr_ok") !== "1") { window.location.href = "index.html"; return false; }
-    return true;
+    if (sessionStorage.getItem("vr_ok") === "1") return true;
+    // A signed-in account is real auth — let them into any tab (e.g. opening a game link in a new tab)
+    // and remember it for this tab, instead of bouncing back through the passphrase gate.
+    if (localStorage.getItem("vr_account")) { sessionStorage.setItem("vr_ok", "1"); return true; }
+    window.location.href = "index.html"; return false;
   }
 
   // Crew view mode persists

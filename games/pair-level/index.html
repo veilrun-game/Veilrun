@@ -37,6 +37,9 @@
     color:#fff; font-size:20px; display:flex; align-items:center; justify-content:center; touch-action:none; text-align:center; line-height:1.1; }
   .btn:active { background:rgba(214,92,220,.5); }
   .btn.wide { width:auto; padding:0 14px; font-size:14px; }
+  .btn-stack { flex-direction:column; gap:1px; }
+  .btn-stack .ico { font-size:22px; line-height:1; }
+  .btn-stack .lbl { font-size:11px; line-height:1; color:#cfc9e6; }
   #overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
     text-align:center; background:rgba(6,4,12,.82); padding:20px; }
   #overlay h1 { font-size:clamp(22px,5vw,40px); margin:.1em 0; letter-spacing:.02em; }
@@ -79,13 +82,13 @@
     </div>
   </div>
   <div id="pad">
-    <div class="cluster">
+    <div class="cluster" id="move">
       <div class="btn" data-k="left">◄</div>
       <div class="btn" data-k="right">►</div>
     </div>
     <div class="cluster">
       <div class="btn wide" data-k="switch">Switch</div>
-      <div class="btn" id="abilityBtn" data-k="ability">✦</div>
+      <div class="btn btn-stack" id="abilityBtn" data-k="ability"><span class="ico">✦</span><span class="lbl" id="abilityLbl">Charge</span></div>
       <div class="btn" data-k="jump">⤒</div>
     </div>
   </div>
@@ -187,7 +190,7 @@
     const q=(o===A)?L:A;
     if(o.x<q.x+q.w && o.x+o.w>q.x && o.y<q.y+q.h && o.y+o.h>q.y){
       if(axis==="y"){ if(o.vy>0 && (o.y+o.h-q.y)<24){o.y=q.y-o.h;o.vy=0;} else if(o.vy<0){o.y=q.y+q.h;o.vy=0;} }
-      else if(o===A && A.charge>0){ q.x = A.chargeDir>0 ? o.x+o.w : o.x-q.w; q.vy=Math.min(q.vy,0); L.plow=8; } // Juggernaut plow: carry Latch along (and through cracked walls)
+      else if(o===A && A.charge>0){ L.plow=A.charge; } // Juggernaut plow: engage — Latch gets pulled into Anvil's wake (Anvil leads as the shield)
       else { const nx=o.vx>0?o.x+o.w:o.x-q.w; if(fitsX(q,nx)) q.x=nx; else { if(o.vx>0)o.x=q.x-o.w; else if(o.vx<0)o.x=q.x+q.w; o.vx=0; } } // soft-push past each other
     }
   }
@@ -224,16 +227,21 @@
   });
   document.addEventListener("keyup",e=>{ const k=e.key.toLowerCase();
     if(k==="arrowleft"||k==="a") held.left=false; else if(k==="arrowright"||k==="d") held.right=false; });
-  document.querySelectorAll("#pad .btn").forEach(b=>{ const k=b.getAttribute("data-k");
-    const down=e=>{ e.preventDefault(); started=true;
-      if(k==="left")held.left=true; else if(k==="right")held.right=true;
-      else if(k==="jump")jump(); else if(k==="switch")switchChar(); else if(k==="ability")useAbility(); };
-    const up=e=>{ e.preventDefault(); if(k==="left")held.left=false; else if(k==="right")held.right=false; };
+  // action buttons (tap): jump, switch, ability
+  document.querySelectorAll("#pad .btn[data-k='jump'],#pad .btn[data-k='switch'],#pad .btn[data-k='ability']").forEach(b=>{ const k=b.getAttribute("data-k");
+    const down=e=>{ e.preventDefault(); started=true; if(k==="jump")jump(); else if(k==="switch")switchChar(); else if(k==="ability")useAbility(); };
     b.addEventListener("touchstart",down,{passive:false}); b.addEventListener("mousedown",down);
-    b.addEventListener("touchend",up,{passive:false}); b.addEventListener("mouseup",up); b.addEventListener("mouseleave",up);
   });
+  // move d-pad: slide between ◄ and ► to change direction without lifting your thumb
+  const moveEl=document.getElementById("move");
+  function moveTouch(e){ e.preventDefault(); started=true; const rect=moveEl.getBoundingClientRect(), mid=rect.left+rect.width/2; let l=false,r=false;
+    for(const t of e.touches){ if(t.clientX>rect.left-50 && t.clientX<rect.right+50 && t.clientY>rect.top-70){ if(t.clientX<mid)l=true; else r=true; } }
+    held.left=l; held.right=r; }
+  moveEl.addEventListener("touchstart",moveTouch,{passive:false});
+  moveEl.addEventListener("touchmove",moveTouch,{passive:false});
+  moveEl.addEventListener("touchend",e=>{ e.preventDefault(); moveTouch(e); if(!e.touches.length){ held.left=false; held.right=false; } },{passive:false});
   function updWho(){ whoEl.innerHTML="Controlling: "+(active==="A"?'<span class="a">Anvil</span>':'<span class="l">Latch</span>');
-    abilityBtn.textContent = active==="A" ? "Charge" : "Flip"; abilityBtn.classList.toggle("wide",true); }
+    const lbl=document.getElementById("abilityLbl"); if(lbl) lbl.textContent = active==="A" ? "Charge" : "Flip"; }
   function updWorld(){ const over=dyn.world===0; worldEl.textContent=over?"Overcity":"Underweft"; worldEl.className="pill "+(over?"over":"under"); }
 
   // Camera / responsive
@@ -308,7 +316,9 @@
       else o.vx = held.left?-o.speed : held.right?o.speed : 0;
       if(o.vx>0)o.face=1; else if(o.vx<0)o.face=-1;
       other().vx=0;
-      stepChar(A); stepChar(L);
+      stepChar(A);
+      if(A.charge>0 && L.plow>0){ L.x = A.chargeDir>0 ? A.x-L.w-2 : A.x+A.w+2; L.y = A.y+(A.h-L.h); L.vy=0; } // Latch trails behind Anvil, tucked in his wake
+      stepChar(L);
       if(L.plow>0)L.plow--;
       if(started){ if(!t0)t0=ts; elapsed=ts-t0; }
       timerEl.textContent=fmt(elapsed); hintEl.textContent=hint();
