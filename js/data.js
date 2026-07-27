@@ -206,7 +206,7 @@ VEILRUN.crew = [
     codenames: ["Anvil","Rampart","Granite","Boulder","Atlas","Breaker"],
     kit: { passive: { name:"Unbreakable", text:"Heavy damage reduction, can't be staggered." },
       actives: [ {name:"Mass", text:"Scale his size — blend into a crowd, then grow toward a juggernaut (bigger = harder-hitting but slower and louder)."},
-                 {name:"Rampage", text:"Charge enemies through walls and cover."},
+                 {name:"Rampage", text:"Charge through walls, cover, and enemies — and any ally caught in his path gets plowed along, carried safely through the breach with him."},
                  {name:"Aggro", text:"Force enemies to focus him while the crew repositions."} ],
       ult: null },
     synergies: [ {name:"Bulwark (universal aura)", text:"Allies in Anvil's shadow can't be staggered and take reduced splash — he's cover that walks."},
@@ -263,6 +263,7 @@ VEILRUN.crew = [
 /* Structured synergy data — powers the mobile explorer + combo builder. */
 VEILRUN.synergy = {
   pairs: [
+    { a:"anvil",   b:"latch",   name:"Battering Ram",   effect:"Anvil Rampages through a wall while Latch bends the seam — Anvil plows Latch along in the breach, carrying them both across (even between the two worlds) in one unstoppable hit." },
     { a:"babel",   b:"magpie",  name:"Old Tongues",     effect:"Babel feeds Magpie advanced, ancient language — her salvage-hexes become precise, older, and far stronger." },
     { a:"babel",   b:"latch",   name:"Farsight",        effect:"Latch opens a rift; Babel reads what's on the far side so it lands exactly right, and kits the fireteam with Latch's dimensional gear." },
     { a:"saffron", b:"temper",  name:"Venomforge",      effect:"Saffron's compounds bound into Temper's steel — blades that poison or sear on contact." },
@@ -391,6 +392,8 @@ VEILRUN.counters = {
 };
 
 VEILRUN.updates = [
+  { date: "2026-07-25", title: "Anvil can plow Latch through walls", text: "New in the Seam Gate: if Anvil charges into Latch, he plows him along — carrying him through the breach, cracked wall and all. Makes getting past each other way easier, and it's now part of Anvil's kit (Rampage) and a new Anvil + Latch team-up, ‘Battering Ram.’ Characters also soft-push past each other now instead of feeling like a wall." },
+  { date: "2026-07-25", title: "Best-times leaderboard in the game", text: "The Seam Gate now records your clear time — beat the level and you'll see your best plus a ‘Best times · the crew’ ranking on the win screen, with your row highlighted. Race each other for the fastest run. (Your own best saves locally right away; the crew board goes live once the game_scores table is added in Supabase.)" },
   { date: "2026-07-25", title: "Prototype polish + Lab tidy-up", text: "Small stuff: the game now shows its version (v0.2) and has a ← Lab button so it's easy to get back, the map button is bigger, and in the Lab the ‘Play the prototype’ and Feedback buttons no longer crowd each other (and feedback buttons are taller/easier to tap on mobile)." },
   { date: "2026-07-25", title: "Playable prototype: The Seam Gate", text: "There's a real, playable thing in the Lab — hit ▶ Play on '2D Pair Levels.' You control Anvil and Latch (tap Switch). Here's the twist we just added: Latch can Flip the whole level between the two worlds — walls in the Overcity vanish in the Underweft — while Anvil charges straight through cracked walls that exist in both. Neither can clear it alone. Zooms and follows on phones, with a 🗺 Map button to peek at the whole level. Rough prototype — tell us how it feels." },
   { date: "2026-07-25", title: "Silhouette row: aligned + two rows of five", text: "Jordan re-balanced the landing silhouettes so they're all the same scale and grounded on the same line, and the row is now laid out two-across-five instead of one long strip. Babel joins the roster with a placeholder until his art lands." },

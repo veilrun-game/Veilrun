@@ -70,7 +70,7 @@
     <div id="overlay">
       <div class="eyebrow" style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">VEILRUN · Pair Level · v0.2</div>
       <h1>The <b>Seam</b> <i>Gate</i></h1>
-      <p>One player, both crew. <b style="color:var(--blue)">Latch</b> can <b>Flip</b> the whole level between the two worlds — walls in the Overcity vanish in the Underweft. <b style="color:var(--iron)">Anvil</b> can <b>Charge</b> straight through cracked walls that exist in both. Get <em>both</em> to the exit.</p>
+      <p>One player, both crew. <b style="color:var(--blue)">Latch</b> can <b>Flip</b> the whole level between the two worlds — walls in the Overcity vanish in the Underweft. <b style="color:var(--iron)">Anvil</b> can <b>Charge</b> straight through cracked walls that exist in both — and if he charges into Latch, he <b>plows him along</b>, through the wall too. Get <em>both</em> to the exit.</p>
       <button class="play" id="playBtn">Play</button>
       <div class="keys">
         <b>Move</b> ← →  ·  <b>Jump</b> ↑ / Space  ·  <b>Switch character</b> Tab  ·  <b>Ability</b> E  ·  <b>Reset</b> R
@@ -137,7 +137,7 @@
   parse();
 
   const A={ name:"Anvil", col:"#c85a5a", w:30, h:52, vx:0, vy:0, face:1, speed:2.1, jump:8.4, charge:0, chargeDir:1 };
-  const L={ name:"Latch", col:"#6ec8f5", w:22, h:46, vx:0, vy:0, face:1, speed:3.0, jump:10.0 };
+  const L={ name:"Latch", col:"#6ec8f5", w:22, h:46, vx:0, vy:0, face:1, speed:3.0, jump:10.0, plow:0 };
   let active="A", dyn;
   const cur=()=> active==="A"?A:L;
   const other=()=> active==="A"?L:A;
@@ -145,7 +145,7 @@
   function reset(){
     dyn={ world:0, broken:new Set() };
     A.x=spawnA.x*TILE+7; A.y=spawnA.y*TILE-A.h+TILE; A.vx=0; A.vy=0; A.face=1; A.charge=0;
-    L.x=spawnL.x*TILE+9; L.y=spawnL.y*TILE-L.h+TILE; L.vx=0; L.vy=0; L.face=1;
+    L.x=spawnL.x*TILE+9; L.y=spawnL.y*TILE-L.h+TILE; L.vx=0; L.vy=0; L.face=1; L.plow=0;
     active="A";
   }
 
@@ -162,6 +162,8 @@
   function overlapsTile(o,tx,ty){ const px=tx*TILE, py=ty*TILE; return o.x<px+TILE && o.x+o.w>px && o.y<py+TILE && o.y+o.h>py; }
   function overlapSolid(o){ const x0=Math.floor(o.x/TILE),x1=Math.floor((o.x+o.w-1)/TILE),y0=Math.floor(o.y/TILE),y1=Math.floor((o.y+o.h-1)/TILE);
     for(let ty=y0;ty<=y1;ty++)for(let tx=x0;tx<=x1;tx++) if(solidAt(tx,ty)) return true; return false; }
+  function fitsX(o,nx){ const x0=Math.floor(nx/TILE),x1=Math.floor((nx+o.w-1)/TILE),y0=Math.floor(o.y/TILE),y1=Math.floor((o.y+o.h-1)/TILE);
+    for(let ty=y0;ty<=y1;ty++)for(let tx=x0;tx<=x1;tx++) if(solidAt(tx,ty)) return false; return true; }
 
   function stepChar(o){
     o.x+=o.vx; resolveAxis(o,"x");
@@ -174,8 +176,8 @@
       if(!solidAt(tx,ty)) continue;
       const px=tx*TILE, py=ty*TILE;
       if(!(o.x<px+TILE && o.x+o.w>px && o.y<py+TILE && o.y+o.h>py)) continue;
-      // Anvil charging smashes breakable walls instead of stopping
-      if(axis==="x" && o===A && A.charge>0 && base[ty][tx]==="bwall"){
+      // Anvil charging (and Latch being plowed with him) smashes breakable walls instead of stopping
+      if(axis==="x" && ((o===A && A.charge>0)||(o===L && L.plow>0)) && base[ty][tx]==="bwall"){
         for(let yy=0;yy<ROWS;yy++) if(base[yy][tx]==="bwall") dyn.broken.add(tx+","+yy);
         continue;
       }
@@ -185,7 +187,8 @@
     const q=(o===A)?L:A;
     if(o.x<q.x+q.w && o.x+o.w>q.x && o.y<q.y+q.h && o.y+o.h>q.y){
       if(axis==="y"){ if(o.vy>0 && (o.y+o.h-q.y)<24){o.y=q.y-o.h;o.vy=0;} else if(o.vy<0){o.y=q.y+q.h;o.vy=0;} }
-      else { if(o.vx>0)o.x=q.x-o.w; else if(o.vx<0)o.x=q.x+q.w; o.vx=0; }
+      else if(o===A && A.charge>0){ q.x = A.chargeDir>0 ? o.x+o.w : o.x-q.w; q.vy=Math.min(q.vy,0); L.plow=8; } // Juggernaut plow: carry Latch along (and through cracked walls)
+      else { const nx=o.vx>0?o.x+o.w:o.x-q.w; if(fitsX(q,nx)) q.x=nx; else { if(o.vx>0)o.x=q.x-o.w; else if(o.vx<0)o.x=q.x+q.w; o.vx=0; } } // soft-push past each other
     }
   }
   function onGround(o){
@@ -306,19 +309,39 @@
       if(o.vx>0)o.face=1; else if(o.vx<0)o.face=-1;
       other().vx=0;
       stepChar(A); stepChar(L);
+      if(L.plow>0)L.plow--;
       if(started){ if(!t0)t0=ts; elapsed=ts-t0; }
       timerEl.textContent=fmt(elapsed); hintEl.textContent=hint();
       if(bothInExit()) win();
     }
     updateCam(); draw(); requestAnimationFrame(frame);
   }
-  function win(){ state="win"; started=false; overlay.style.display="flex";
+  // ---- Best-time leaderboard (Supabase) ----
+  const SB_URL="https://jbprsreaosetmqxhsnkl.supabase.co", SB_KEY="sb_publishable_fzxPI3jRqOmA-VIfWFuoNQ_zgXgBtAS", GAME_ID="seam-gate";
+  const gwho=()=> localStorage.getItem("vr_who")||localStorage.getItem("vr_account")||"anon";
+  function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  function localBest(){ const v=+localStorage.getItem("vr_seamgate_best"); return v>0?v:null; }
+  function setLocalBest(ms){ const b=localBest(); if(b==null||ms<b) localStorage.setItem("vr_seamgate_best",String(Math.round(ms))); }
+  async function saveScore(ms){ try{ await fetch(SB_URL+"/rest/v1/game_scores",{method:"POST",headers:{apikey:SB_KEY,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({who:gwho(),game_id:GAME_ID,time_ms:Math.round(ms)})}); }catch(e){} }
+  async function loadBoard(){ try{ const r=await fetch(SB_URL+"/rest/v1/game_scores?game_id=eq."+GAME_ID+"&select=who,time_ms",{headers:{apikey:SB_KEY}}); const rows=await r.json(); if(!Array.isArray(rows))return null;
+    const best={}; rows.forEach(x=>{ if(best[x.who]==null||x.time_ms<best[x.who]) best[x.who]=x.time_ms; });
+    return Object.entries(best).map(([who,ms])=>({who,ms})).sort((a,b)=>a.ms-b.ms); }catch(e){ return null; } }
+
+  async function win(){ state="win"; started=false; setLocalBest(elapsed); overlay.style.display="flex";
     overlay.innerHTML='<div class="eyebrow" style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">Cleared</div>'
       +'<h1>You needed <b>both</b>.</h1><div id="winTime">'+fmt(elapsed)+'</div>'
-      +'<p>Latch bends the seam, Anvil breaks the rest — no one clears the Seam Gate alone.</p>'
+      +'<p style="margin:.15em 0 .1em">Your best: <b style="color:var(--gold)">'+fmt(localBest())+'</b></p>'
+      +'<div id="board" style="width:100%;max-width:340px;margin:.5em 0"><p style="color:#8f89a8;font-size:12px">Loading crew times…</p></div>'
       +'<button class="play" id="againBtn">Play again</button>'
       +'<a href="/app.html#lab" style="margin-top:14px;color:#8f89a8;font-size:12px;text-decoration:underline">← Back to the Lab</a>';
-    document.getElementById("againBtn").addEventListener("click",startGame); }
+    document.getElementById("againBtn").addEventListener("click",startGame);
+    await saveScore(elapsed);
+    const board=await loadBoard(), el=document.getElementById("board"); if(!el) return;
+    if(!board||!board.length){ el.innerHTML='<p style="color:#8f89a8;font-size:12px">The crew leaderboard fills in as people post times.</p>'; return; }
+    const me=gwho();
+    const rows=board.slice(0,10).map((s,i)=>{ const mine=s.who===me;
+      return '<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 10px;border-radius:6px;font-size:13px;'+(mine?'background:rgba(232,193,90,.16)':'')+'"><span>'+(i+1)+'. '+esc(s.who)+(mine?' (you)':'')+'</span><span style="font-variant-numeric:tabular-nums;color:var(--gold)">'+fmt(s.ms)+'</span></div>'; }).join("");
+    el.innerHTML='<div style="text-align:left"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#9b7bd6;margin:0 0 6px">Best times · the crew</div>'+rows+'</div>'; }
 
   resize(); reset(); updWho(); updWorld(); updateCam(true); draw();
   requestAnimationFrame(frame);
