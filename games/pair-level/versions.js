@@ -1,21 +1,20 @@
-/* VEILRUN — Pair Level version manifest (newest first).
+/* VEILRUN — Pair Level version manifest (newest / default first).
    Every version of the game loads this and renders a dropdown from it, so the list
    stays consistent everywhere. To add a new edition: snapshot the current build into
    versions/<id>/, then add ONE line at the top of this array. */
 window.VR_VERSIONS = [
-  { id: "v0.2", name: "Seam Gate",    url: "/games/pair-level/index.html" },
-  { id: "v0.1", name: "Foundry Gate", url: "/games/pair-level/versions/v0.1/index.html" }
+  { id: "v1", name: "Seam Gate · mobile",      url: "/games/pair-level/index.html" },
+  { id: "v0", name: "Foundry Gate · original", url: "/games/pair-level/versions/v0.1/index.html" }
 ];
 (function () {
   var el = document.getElementById("verpick");
   if (!el || !window.VR_VERSIONS) return;
   var cur = el.getAttribute("data-cur") || "";
-  var opts = window.VR_VERSIONS.map(function (v, i) {
-    var label = v.id + " · " + v.name + (i === 0 ? " (latest)" : "");
-    return '<option value="' + v.url + '"' + (v.id === cur ? " selected" : "") + ">" + label + "</option>";
+  var opts = window.VR_VERSIONS.map(function (v) {
+    return '<option value="' + v.url + '"' + (v.id === cur ? " selected" : "") + ">" + v.id + " · " + v.name + "</option>";
   }).join("");
-  el.innerHTML = '<label style="font-size:11px;color:#8f89a8">Version&nbsp;'
+  el.innerHTML = '<label style="font-size:13px;color:#9b95b4;display:inline-flex;align-items:center;gap:8px">Version'
     + '<select onchange="if(this.value)location.href=this.value" '
-    + 'style="background:#161022;color:#cfc9e6;border:1px solid #2a2740;border-radius:6px;padding:4px 8px;font-size:12px">'
+    + 'style="background:#161022;color:#e8e4f5;border:1px solid #3a3556;border-radius:10px;padding:11px 14px;font-size:15px;min-height:44px">'
     + opts + "</select></label>";
 })();
