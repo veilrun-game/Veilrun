@@ -78,6 +78,11 @@
     // Persist a chosen display name to the account so it survives across devices/sessions.
     async updateDisplayName(name) { try { await sb.auth.updateUser({ data: { display_name: name } }); } catch (e) {} },
     // All like rows [{who, image_src}] — used to hydrate the UI (mine + group counts).
+    // Best-time scores for a playable prototype — powers the leaderboard surfaced in the Lab.
+    async loadGameScores(gameId) {
+      try { const { data } = await sb.from("game_scores").select("who,time_ms").eq("game_id", gameId); return data || []; }
+      catch (e) { return []; }
+    },
     async loadLikes() {
       try { const { data } = await sb.from("image_likes").select("who,image_src,created_at"); return data || []; }
       catch (e) { return []; }

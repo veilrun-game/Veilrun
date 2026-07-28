@@ -259,6 +259,14 @@ html { scroll-behavior: smooth; }
 .votebtn:active { transform: scale(0.94); }
 .votebtn.on { color: #140a16; background: var(--magenta); border-color: var(--magenta); font-weight: 600; }
 .votebtn .vc { font-variant-numeric: tabular-nums; }
+/* Playable-now block in the Lab: prototype card + its leaderboard side by side */
+.play-block { display: grid; grid-template-columns: 1fr; gap: var(--s-3); }
+@media (min-width: 760px) { .play-block { grid-template-columns: 1.1fr 1fr; align-items: start; } }
+.play-card, .play-board { padding: var(--s-4); }
+.gb-row { display: flex; justify-content: space-between; gap: 10px; padding: 6px 8px; border-radius: 6px; font-size: 0.9rem; }
+.gb-row.me { background: rgba(232,193,90,0.14); }
+.gb-t { font-variant-numeric: tabular-nums; color: #e8c15a; font-weight: 600; }
+
 /* Counter-concept voting (Lieutenants page) */
 .ctr-slot { padding: var(--s-4) 0; border-top: 1px solid var(--line); }
 .ctr-slot:first-of-type { border-top: none; padding-top: var(--s-2); }
