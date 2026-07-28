@@ -3,9 +3,8 @@
    stays consistent everywhere. To add a new edition: snapshot the current build into
    versions/<id>/, then add ONE line at the top of this array. */
 window.VR_VERSIONS = [
-  { id: "v1", name: "Seam Gate · mobile", url: "/games/pair-level/index.html" }
-  // v0 (a mobile-friendly build of the first map / Foundry Gate) is planned — add it here
-  // once built and the dropdown returns automatically.
+  { id: "v1", name: "Seam Gate",    url: "/games/pair-level/index.html" },
+  { id: "v0", name: "Foundry Gate", url: "/games/pair-level/versions/v0/index.html" }
 ];
 (function () {
   var el = document.getElementById("verpick");

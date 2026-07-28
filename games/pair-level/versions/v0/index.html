@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>VEILRUN — Pair Level: The Foundry Gate</title>
+<style>
+  :root { --iron:#c85a5a; --blue:#6ec8f5; --gold:#e8c15a; --amber:#d8973a; --teal:#2aa7b5; --line:#2a2740; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html,body { margin:0; height:100%; background:#08060f; color:#eee;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; overflow:hidden; }
+  #wrap { position:fixed; inset:0; display:flex; flex-direction:column; }
+  #stage { position:relative; flex:1 1 auto; min-height:0; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; background:#0b0a14; touch-action:none; display:block; }
+  #hud { position:absolute; top:8px; left:10px; right:10px; display:flex; justify-content:space-between;
+    align-items:flex-start; pointer-events:none; font-size:clamp(11px,2.4vw,15px); gap:8px; }
+  #hud-left { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .pill { background:rgba(8,6,15,.65); border:1px solid var(--line); border-radius:999px; padding:4px 11px; }
+  #who { font-weight:700; }
+  #who .a{color:var(--iron)} #who .l{color:var(--blue)}
+  #world.over { color:var(--amber); border-color:var(--amber); }
+  #world.under { color:var(--teal); border-color:var(--teal); }
+  #hud-right { display:flex; gap:8px; align-items:center; pointer-events:auto; }
+  #timer { font-size:clamp(17px,5.4vw,22px); font-weight:800; font-variant-numeric:tabular-nums; color:var(--gold); }
+  #backBtn { pointer-events:auto; cursor:pointer; color:#fff; text-decoration:none; }
+  #mapBtn { cursor:pointer; font-size:clamp(13px,3.6vw,16px); color:#fff; padding:8px 15px; }
+  #mapBtn.on { background:rgba(214,92,220,.5); border-color:var(--iron); }
+  #ver { position:absolute; left:10px; bottom:6px; font-size:10px; letter-spacing:.03em; color:#6a6580; pointer-events:none; }
+  #hint { position:absolute; left:50%; transform:translateX(-50%); bottom:10px; max-width:94%; text-align:center;
+    background:rgba(8,6,15,.78); border:1px solid var(--line); border-radius:8px; padding:6px 12px;
+    font-size:clamp(11px,3.2vw,14px); color:#cfc9e6; }
+  #pad { flex:0 0 auto; width:100%; margin:0; display:flex; justify-content:space-between;
+    gap:8px; padding:8px 8px calc(8px + env(safe-area-inset-bottom)); user-select:none;
+    background:rgba(8,6,15,.55); border-top:1px solid var(--line); }
+  .cluster { display:flex; gap:8px; }
+  .btn { width:64px; height:64px; border-radius:14px; background:rgba(30,26,52,.85); border:1px solid var(--line);
+    color:#fff; font-size:20px; display:flex; align-items:center; justify-content:center; touch-action:none; text-align:center; line-height:1.1; }
+  .btn:active { background:rgba(214,92,220,.5); }
+  .btn.wide { width:auto; padding:0 14px; font-size:14px; }
+  .btn-stack { flex-direction:column; gap:1px; }
+  .btn-stack .ico { font-size:22px; line-height:1; }
+  .btn-stack .lbl { font-size:11px; line-height:1; color:#cfc9e6; }
+  #overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; background:rgba(6,4,12,.82); padding:20px; }
+  #overlay h1 { font-size:clamp(22px,5vw,40px); margin:.1em 0; letter-spacing:.02em; }
+  #overlay h1 b{color:var(--iron)} #overlay h1 i{color:var(--blue); font-style:normal}
+  #overlay p { color:#bdb7d6; max-width:36ch; line-height:1.5; font-size:clamp(12px,2.8vw,15px); }
+  .play { margin-top:14px; background:var(--gold); color:#1a1206; border:none; border-radius:10px;
+    padding:12px 26px; font-weight:700; font-size:16px; cursor:pointer; }
+  .keys { margin-top:14px; font-size:12px; color:#8f89a8; line-height:1.7; }
+  .keys b{color:#cfc9e6}
+  #winTime { color:var(--gold); font-weight:700; font-size:clamp(20px,5vw,34px); margin:.2em 0; }
+  @media (hover:hover) and (pointer:fine){ #pad{display:none;} }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <div id="hint"></div>
+    <div id="ver">The Foundry Gate · v0 · a VEILRUN prototype</div>
+    <canvas id="c" width="960" height="560"></canvas>
+    <div id="hud">
+      <div id="hud-left">
+        <a class="pill" id="backBtn" href="/app.html#lab">← Lab</a>
+        <div class="pill" id="who">Controlling: <span class="a">Anvil</span></div>
+      </div>
+      <div id="hud-right">
+        <div class="pill" id="timer">0:00.0</div>
+        <button class="pill" id="mapBtn" title="Toggle map view">🗺 Map</button>
+      </div>
+    </div>
+    <div id="overlay">
+      <div class="eyebrow" style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">VEILRUN · Pair Level · v0</div>
+      <h1>The <b>Seam</b> <i>Gate</i></h1>
+      <p>One player, both crew. <b style="color:var(--blue)">Latch</b> can <b>Breach</b> — a short blink across gaps and thin walls. <b style="color:var(--iron)">Anvil</b> can <b>Anchor</b> — drop a heavy slab to fill a pit and hold a mechanism. Neither can finish alone — get <em>both</em> to the exit.</p>
+      <button class="play" id="playBtn">Play</button>
+      <div class="keys">
+        <b>Move</b> ← →  ·  <b>Jump</b> ↑ / Space  ·  <b>Switch character</b> Tab  ·  <b>Ability</b> E  ·  <b>Reset</b> R
+      </div>
+      <a href="/app.html#lab" style="margin-top:16px;display:inline-block;padding:11px 20px;border:1px solid #3a3556;border-radius:10px;color:#e8e4f5;font-size:14px;text-decoration:none;min-height:44px">← Back to the Lab</a>
+      <div id="verpick" data-cur="v0" style="margin-top:12px"></div>
+    </div>
+  </div>
+  <div id="pad">
+    <div class="cluster" id="move">
+      <div class="btn" data-k="left">◄</div>
+      <div class="btn" data-k="right">►</div>
+    </div>
+    <div class="cluster">
+      <div class="btn wide" data-k="switch">Switch</div>
+      <div class="btn btn-stack" id="abilityBtn" data-k="ability"><span class="ico">✦</span><span class="lbl" id="abilityLbl">Charge</span></div>
+      <div class="btn" data-k="jump">⤒</div>
+    </div>
+  </div>
+</div>
+<script src="/games/pair-level/versions.js"></script>
+<script>
+(function(){
+  "use strict";
+  const TILE=40, COLS=24, ROWS=14;
+  const cv=document.getElementById("c"), ctx=cv.getContext("2d");
+  const overlay=document.getElementById("overlay"), hintEl=document.getElementById("hint");
+  const whoEl=document.getElementById("who"), worldEl=document.getElementById("world"), timerEl=document.getElementById("timer"), abilityBtn=document.getElementById("abilityBtn");
+
+  // Legend: '#' solid  ' ' empty  'a' Anvil  't' Latch  'e' exit
+  //   'O' Overcity-only wall (solid in Overcity)   'U' Underweft-only wall (solid in Underweft)
+  //   'B' breakable wall (solid in both until Anvil charges through)
+  const MAP=[
+    "#                      #",
+    "#                      #",
+    "#                      #",
+    "#                      #",
+    "#                      #",
+    "#                      #",
+    "#                      #",
+    "#                      #",
+    "#                      #",
+    "#                      #",
+    "#                      #",
+    "#               d      #",
+    "#at     1     p d 2ee  #",
+    "#####===###..###########"
+  ];
+
+  let base=[], spawnA={x:1,y:12}, spawnL={x:2,y:12}, exits=[], lever1=null, lever2=null, plate=null, doorCols=[];
+  function parse(){
+    base=[]; exits=[]; doorCols=[]; lever1=null; lever2=null; plate=null;
+    for(let y=0;y<ROWS;y++){ base[y]=[]; const row=MAP[y]||"";
+      for(let x=0;x<COLS;x++){ const ch=row[x]||" "; let t="empty";
+        if(ch==="#") t="solid";
+        else if(ch==="=") t="bridge";
+        else if(ch===".") t="pit";
+        else if(ch==="d"){ t="door"; doorCols.push([x,y]); }
+        else if(ch==="1"){ lever1={x,y}; }
+        else if(ch==="2"){ lever2={x,y}; }
+        else if(ch==="p"){ plate={x,y}; }
+        else if(ch==="e"){ exits.push({x,y}); }
+        else if(ch==="a"){ spawnA={x,y}; }
+        else if(ch==="t"){ spawnL={x,y}; }
+        base[y][x]=t;
+      }
+    }
+  }
+  parse();
+
+  const A={ name:"Anvil", col:"#c85a5a", w:30, h:52, vx:0, vy:0, face:1, speed:2.1, jump:8.4, charge:0, chargeDir:1 };
+  const L={ name:"Latch", col:"#6ec8f5", w:22, h:46, vx:0, vy:0, face:1, speed:3.0, jump:10.0, plow:0, cd:0 };
+  let active="A", dyn;
+  const cur=()=> active==="A"?A:L;
+  const other=()=> active==="A"?L:A;
+
+  function reset(){
+    dyn={ lever1:false, lever2:false, slabs:new Set() };
+    A.x=spawnA.x*TILE+7; A.y=spawnA.y*TILE-A.h+TILE; A.vx=0; A.vy=0; A.face=1; A.charge=0;
+    L.x=spawnL.x*TILE+9; L.y=spawnL.y*TILE-L.h+TILE; L.vx=0; L.vy=0; L.face=1; L.plow=0; L.cd=0;
+    active="A";
+  }
+
+  function solidAt(tx,ty){
+    if(tx<0||tx>=COLS) return true;
+    if(ty<0||ty>=ROWS) return false;
+    const t=base[ty][tx];
+    if(t==="solid") return true;
+    if(t==="bridge") return dyn.lever1;
+    if(t==="pit") return dyn.slabs.has(tx+","+ty);
+    if(t==="door") return !doorOpen();
+    return false;
+  }
+  function plateActive(){ if(!plate) return false; return overlapsTile(A,plate.x,plate.y)||overlapsTile(A,plate.x,plate.y+1); }
+  function doorOpen(){ return dyn.lever2 || plateActive(); }
+  function overlapsTile(o,tx,ty){ const px=tx*TILE, py=ty*TILE; return o.x<px+TILE && o.x+o.w>px && o.y<py+TILE && o.y+o.h>py; }
+  function overlapSolid(o){ const x0=Math.floor(o.x/TILE),x1=Math.floor((o.x+o.w-1)/TILE),y0=Math.floor(o.y/TILE),y1=Math.floor((o.y+o.h-1)/TILE);
+    for(let ty=y0;ty<=y1;ty++)for(let tx=x0;tx<=x1;tx++) if(solidAt(tx,ty)) return true; return false; }
+  function fitsX(o,nx){ const x0=Math.floor(nx/TILE),x1=Math.floor((nx+o.w-1)/TILE),y0=Math.floor(o.y/TILE),y1=Math.floor((o.y+o.h-1)/TILE);
+    for(let ty=y0;ty<=y1;ty++)for(let tx=x0;tx<=x1;tx++) if(solidAt(tx,ty)) return false; return true; }
+
+  function stepChar(o){
+    o.x+=o.vx; resolveAxis(o,"x");
+    o.vy+=0.55; if(o.vy>14)o.vy=14; o.y+=o.vy; resolveAxis(o,"y");
+    if(o.y>ROWS*TILE+60) softReset();
+  }
+  function resolveAxis(o,axis){
+    const x0=Math.floor(o.x/TILE), x1=Math.floor((o.x+o.w-1)/TILE), y0=Math.floor(o.y/TILE), y1=Math.floor((o.y+o.h-1)/TILE);
+    for(let ty=y0;ty<=y1;ty++)for(let tx=x0;tx<=x1;tx++){
+      if(!solidAt(tx,ty)) continue;
+      const px=tx*TILE, py=ty*TILE;
+      if(!(o.x<px+TILE && o.x+o.w>px && o.y<py+TILE && o.y+o.h>py)) continue;
+      // Anvil charging (and Latch being plowed with him) smashes breakable walls instead of stopping
+      if(axis==="x" && ((o===A && A.charge>0)||(o===L && L.plow>0)) && base[ty][tx]==="bwall"){
+        for(let yy=0;yy<ROWS;yy++) if(base[yy][tx]==="bwall") dyn.broken.add(tx+","+yy);
+        continue;
+      }
+      if(axis==="x"){ if(o.vx>0)o.x=px-o.w; else if(o.vx<0)o.x=px+TILE; o.vx=0; }
+      else { if(o.vy>0){o.y=py-o.h;o.vy=0;} else if(o.vy<0){o.y=py+TILE;o.vy=0;} }
+    }
+    const q=(o===A)?L:A;
+    if(o.x<q.x+q.w && o.x+o.w>q.x && o.y<q.y+q.h && o.y+o.h>q.y){
+      if(axis==="y"){ if(o.vy>0 && (o.y+o.h-q.y)<24){o.y=q.y-o.h;o.vy=0;} else if(o.vy<0){o.y=q.y+q.h;o.vy=0;} }
+      else if(o===A && A.charge>0){ L.plow=A.charge; } // Juggernaut plow: engage — Latch gets pulled into Anvil's wake (Anvil leads as the shield)
+      else if(q===A){ if(o.vx>0)o.x=q.x-o.w; else if(o.vx<0)o.x=q.x+q.w; o.vx=0; } // Anvil is immovable — no one else can push him
+      else { const nx=o.vx>0?o.x+o.w:o.x-q.w; if(fitsX(q,nx)) q.x=nx; else { if(o.vx>0)o.x=q.x-o.w; else if(o.vx<0)o.x=q.x+q.w; o.vx=0; } } // soft-push others aside
+    }
+  }
+  function onGround(o){
+    const y=Math.floor((o.y+o.h+1)/TILE), x0=Math.floor((o.x+3)/TILE), x1=Math.floor((o.x+o.w-3)/TILE);
+    for(let tx=x0;tx<=x1;tx++) if(solidAt(tx,y)) return true;
+    const q=(o===A)?L:A; if(o.x<q.x+q.w && o.x+o.w>q.x && Math.abs((o.y+o.h)-q.y)<3) return true;
+    return false;
+  }
+
+  // Abilities: Anvil = Charge, Latch = Flip worlds
+  function useAbility(){ if(active==="A") anchor(); else breach(); }
+  function anchor(){ const dir=A.face, footTy=Math.floor((A.y+A.h)/TILE), startTx=Math.floor((A.x+A.w/2)/TILE); const pit=[];
+    for(let i=1;i<=3 && pit.length<2;i++){ const cx=startTx+dir*i; if(base[footTy] && base[footTy][cx]==="pit") pit.push(cx); }
+    if(!pit.length) return; const anyUnfilled=pit.some(cx=>!dyn.slabs.has(cx+","+footTy));
+    pit.forEach(cx=>{ const k=cx+","+footTy; if(anyUnfilled) dyn.slabs.add(k); else dyn.slabs.delete(k); }); }
+  function breach(){ if(L.cd>0) return; const dir=L.face, MAX=5, startTx=Math.floor((L.x+L.w/2)/TILE), ty=Math.floor((L.y+L.h-1)/TILE); let best=null;
+    for(let i=1;i<=MAX;i++){ const tx=startTx+dir*i; if(tx<1||tx>=COLS-1) break; const bodyTop=Math.floor(L.y/TILE); let clear=true;
+      for(let by=bodyTop; by<=ty; by++){ if(solidAt(tx,by)){ clear=false; break; } } if(clear && solidAt(tx,ty+1)) best=tx; }
+    if(best!==null){ L.x=best*TILE+(TILE-L.w)/2; L.vy=0; L.cd=45; } }
+  function interact(){
+    if(lever1 && !dyn.lever1 && (overlapsTile(cur(),lever1.x,lever1.y)||overlapsTile(cur(),lever1.x,lever1.y+1))) dyn.lever1=true;
+    if(lever2 && !dyn.lever2 && doorOpen() && (overlapsTile(cur(),lever2.x,lever2.y)||overlapsTile(cur(),lever2.x,lever2.y+1))) dyn.lever2=true;
+  }
+
+  function bothInExit(){ const inE=(o)=>exits.some(e=>overlapsTile(o,e.x,e.y)||overlapsTile(o,e.x,e.y+1)); return inE(A)&&inE(L); }
+
+  // Input
+  const held={left:false,right:false};
+  let started=false;
+  function jump(){ const o=cur(); if(onGround(o)) o.vy=-o.jump; }
+  function switchChar(){ active=active==="A"?"L":"A"; updWho(); }
+  document.addEventListener("keydown",e=>{
+    if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"," "].includes(e.key)) e.preventDefault();
+    if(state!=="play"){ if(e.key==="Enter"||e.key===" ") startGame(); return; }
+    const k=e.key.toLowerCase(); started=true;
+    if(k==="arrowleft"||k==="a") held.left=true;
+    else if(k==="arrowright"||k==="d") held.right=true;
+    else if(k==="arrowup"||k==="w"||k===" ") jump();
+    else if(k==="tab"||k==="shift"){ e.preventDefault(); switchChar(); }
+    else if(k==="e"||k==="enter") useAbility();
+    else if(k==="r") softReset();
+  });
+  document.addEventListener("keyup",e=>{ const k=e.key.toLowerCase();
+    if(k==="arrowleft"||k==="a") held.left=false; else if(k==="arrowright"||k==="d") held.right=false; });
+  // action buttons (tap): jump, switch, ability
+  document.querySelectorAll("#pad .btn[data-k='jump'],#pad .btn[data-k='switch'],#pad .btn[data-k='ability']").forEach(b=>{ const k=b.getAttribute("data-k");
+    const down=e=>{ e.preventDefault(); started=true; if(k==="jump")jump(); else if(k==="switch")switchChar(); else if(k==="ability")useAbility(); };
+    b.addEventListener("touchstart",down,{passive:false}); b.addEventListener("mousedown",down);
+  });
+  // move d-pad: slide between ◄ and ► to change direction without lifting your thumb
+  const moveEl=document.getElementById("move");
+  function moveTouch(e){ e.preventDefault(); started=true; const rect=moveEl.getBoundingClientRect(), mid=rect.left+rect.width/2; let l=false,r=false;
+    for(const t of e.touches){ if(t.clientX>rect.left-50 && t.clientX<rect.right+50 && t.clientY>rect.top-70){ if(t.clientX<mid)l=true; else r=true; } }
+    held.left=l; held.right=r; }
+  moveEl.addEventListener("touchstart",moveTouch,{passive:false});
+  moveEl.addEventListener("touchmove",moveTouch,{passive:false});
+  moveEl.addEventListener("touchend",e=>{ e.preventDefault(); moveTouch(e); if(!e.touches.length){ held.left=false; held.right=false; } },{passive:false});
+  function updWho(){ whoEl.innerHTML="Controlling: "+(active==="A"?'<span class="a">Anvil</span>':'<span class="l">Latch</span>');
+    const lbl=document.getElementById("abilityLbl"); if(lbl) lbl.textContent = active==="A" ? "Anchor" : "Breach"; }
+  function updWorld(){ if(!worldEl) return; }  // no world layer in the Foundry Gate
+
+  // Camera / responsive
+  const worldW=COLS*TILE, worldH=ROWS*TILE;
+  let dpr=1, zoom=1, followCam=false, cam={x:0,y:0}, mapMode=false;
+  function resize(){ const st=document.getElementById("stage"); dpr=Math.min(window.devicePixelRatio||1,2);
+    const cw=Math.max(1,st.clientWidth), ch=Math.max(1,st.clientHeight);
+    cv.width=Math.round(cw*dpr); cv.height=Math.round(ch*dpr); const aspect=cw/ch;
+    if(mapMode||aspect>=1.4){ zoom=Math.min(cv.width/worldW,cv.height/worldH); followCam=false; }
+    else { const tilesX=Math.max(6,Math.min(11,Math.round(aspect*15))); zoom=cv.width/(tilesX*TILE); followCam=true; }
+  }
+  window.addEventListener("resize",resize); window.addEventListener("orientationchange",()=>setTimeout(resize,200));
+  function toggleMap(){ mapMode=!mapMode; document.getElementById("mapBtn").classList.toggle("on",mapMode); resize(); updateCam(true); }
+  document.getElementById("mapBtn").addEventListener("click",toggleMap);
+  function updateCam(snap){ const viewW=cv.width/zoom, viewH=cv.height/zoom; let tx,ty;
+    if(followCam){ const o=cur(); tx=o.x+o.w/2-viewW/2; ty=o.y+o.h/2-viewH/2; } else { tx=(worldW-viewW)/2; ty=(worldH-viewH)/2; }
+    tx = viewW<worldW ? Math.max(0,Math.min(tx,worldW-viewW)) : (worldW-viewW)/2;
+    ty = viewH<worldH ? Math.max(0,Math.min(ty,worldH-viewH)) : (worldH-viewH)/2;
+    if(snap){ cam.x=tx; cam.y=ty; return; }
+    cam.x+=(tx-cam.x)*0.2; cam.y+=(ty-cam.y)*0.2;
+    if(Math.abs(tx-cam.x)<0.4)cam.x=tx; if(Math.abs(ty-cam.y)<0.4)cam.y=ty;
+  }
+
+  // Render
+  function draw(){
+    ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height);
+    const g=ctx.createLinearGradient(0,0,0,cv.height); g.addColorStop(0,"#0d0b18"); g.addColorStop(1,"#08060f");
+    ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
+    ctx.setTransform(zoom,0,0,zoom,-cam.x*zoom,-cam.y*zoom);
+    ctx.fillStyle="rgba(155,123,214,0.08)"; ctx.fillRect(worldW/2-30,0,60,worldH);
+    for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+      const t=base[y][x], px=x*TILE, py=y*TILE;
+      if(t==="solid") tile(px,py,"#242038","#15122a");
+      else if(t==="bridge"){ if(dyn.lever1) tile(px,py,"#3b3357","#241f3a"); else dashed(px,py); }
+      else if(t==="pit"){ if(dyn.slabs.has(x+","+y)) tile(px,py,"#4a3a2a","#2a2018"); }
+      else if(t==="door"){ if(!doorOpen()) tile(px,py,"#5a3242","#331d28"); else { ctx.strokeStyle="rgba(232,193,90,.35)"; ctx.strokeRect(px+2,py+2,TILE-4,TILE-4); } }
+    }
+    if(lever1) lever(lever1, dyn.lever1);
+    if(lever2) lever(lever2, dyn.lever2);
+    if(plate) marker(plate, plateActive()?"#8ce08c":"#6b6b8a");
+    exits.forEach(e=>{ ctx.fillStyle="rgba(232,193,90,.18)"; ctx.fillRect(e.x*TILE,e.y*TILE-TILE,TILE,TILE*2);
+      ctx.fillStyle="#e8c15a"; ctx.font="12px sans-serif"; ctx.textAlign="center"; ctx.fillText("EXIT",e.x*TILE+TILE/2,e.y*TILE-6); });
+    charBody(A); charBody(L);
+    const o=cur(); ctx.fillStyle="#fff"; ctx.beginPath(); ctx.moveTo(o.x+o.w/2,o.y-10); ctx.lineTo(o.x+o.w/2-6,o.y-20); ctx.lineTo(o.x+o.w/2+6,o.y-20); ctx.closePath(); ctx.fill();
+  }
+  function tile(px,py,top,bot){ ctx.fillStyle=bot; ctx.fillRect(px,py,TILE,TILE); ctx.fillStyle=top; ctx.fillRect(px,py,TILE,TILE-6); ctx.strokeStyle="rgba(0,0,0,.25)"; ctx.strokeRect(px+.5,py+.5,TILE-1,TILE-1); }
+  function ghost(px,py,c){ ctx.strokeStyle=c; ctx.globalAlpha=.35; ctx.setLineDash([5,5]); ctx.strokeRect(px+3,py+3,TILE-6,TILE-6); ctx.setLineDash([]); ctx.globalAlpha=1; }
+  function crack(px,py){ tile(px,py,"#4a4658","#2c2a3a"); ctx.strokeStyle="rgba(0,0,0,.5)"; ctx.beginPath(); ctx.moveTo(px+TILE*.3,py); ctx.lineTo(px+TILE*.55,py+TILE*.5); ctx.lineTo(px+TILE*.35,py+TILE); ctx.moveTo(px+TILE*.7,py+TILE*.2); ctx.lineTo(px+TILE*.55,py+TILE*.6); ctx.stroke(); }
+  function dashed(px,py){ ctx.strokeStyle="rgba(214,92,220,.35)"; ctx.setLineDash([5,5]); ctx.strokeRect(px+3,py+3,TILE-6,TILE-6); ctx.setLineDash([]); }
+  function lever(o,on){ const px=o.x*TILE, py=o.y*TILE; ctx.fillStyle="#3a3550"; ctx.fillRect(px+TILE/2-3, py+8, 6, TILE-8); ctx.strokeStyle=on?"#8ce08c":"#e8c15a"; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(px+TILE/2,py+TILE-6); ctx.lineTo(px+TILE/2+(on?12:-12), py+6); ctx.stroke(); ctx.lineWidth=1; }
+  function marker(o,color){ const px=o.x*TILE, py=o.y*TILE; ctx.fillStyle=color; ctx.fillRect(px+4, py+TILE-8, TILE-8, 6); }
+  function charBody(o){ ctx.fillStyle=o.col; if(o===A && A.charge>0){ ctx.globalAlpha=.6; roundRect(o.x-A.chargeDir*8,o.y,o.w,o.h,6); ctx.fill(); ctx.globalAlpha=1; }
+    roundRect(o.x,o.y,o.w,o.h,6); ctx.fill();
+    ctx.fillStyle="rgba(0,0,0,.35)"; ctx.fillRect(o.face>0?o.x+o.w-7:o.x+3,o.y+9,4,6);
+    ctx.fillStyle="rgba(255,255,255,.85)"; ctx.font="10px sans-serif"; ctx.textAlign="center"; ctx.fillText(o===A?"ANVIL":"LATCH",o.x+o.w/2,o.y-24>0?o.y-2:o.y+o.h+11); }
+  function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+  function hint(){
+    if(!dyn.lever1) return "Latch: Breach (✦) across the gap, then touch the lever to build the bridge.";
+    if(!dyn.slabs.size && (A.x < 11*TILE)) return "Anvil: cross the bridge. At the next pit, Anchor (✦) a slab to fill it.";
+    if(!dyn.lever2) return "Anvil: stand on the plate to open the door. Latch: slip through and pull the far lever.";
+    return "Door's locked open — get BOTH to the exit.";
+  }
+
+  let t0=0, elapsed=0, state="title";
+  function fmt(ms){ const s=ms/1000, m=Math.floor(s/60), r=s-m*60; return m+":"+(r<10?"0":"")+r.toFixed(1); }
+  function startGame(){ overlay.style.display="none"; state="play"; started=false; elapsed=0; t0=0; reset(); updWho(); updWorld(); resize(); updateCam(true); }
+  document.getElementById("playBtn").addEventListener("click",startGame);
+  function softReset(){ reset(); updWho(); updWorld(); updateCam(true); }
+
+  function frame(ts){
+    if(state==="play"){
+      const o=cur();
+      if(o===A && A.charge>0){ o.vx=A.chargeDir*6; A.charge--; }
+      else o.vx = held.left?-o.speed : held.right?o.speed : 0;
+      if(o.vx>0)o.face=1; else if(o.vx<0)o.face=-1;
+      other().vx=0;
+      stepChar(A);
+      if(A.charge>0 && L.plow>0){ L.x = A.chargeDir>0 ? A.x-L.w-2 : A.x+A.w+2; L.y = A.y+(A.h-L.h); L.vy=0; } // Latch trails behind Anvil, tucked in his wake
+      stepChar(L);
+      if(L.plow>0)L.plow--;
+      if(L.cd>0)L.cd--;
+      interact();
+      if(started){ if(!t0)t0=ts; elapsed=ts-t0; }
+      timerEl.textContent=fmt(elapsed); hintEl.textContent=hint();
+      if(bothInExit()) win();
+    }
+    updateCam(); draw(); requestAnimationFrame(frame);
+  }
+  // ---- Best-time leaderboard (Supabase) ----
+  const SB_URL="https://jbprsreaosetmqxhsnkl.supabase.co", SB_KEY="sb_publishable_fzxPI3jRqOmA-VIfWFuoNQ_zgXgBtAS", GAME_ID="foundry-gate";
+  const gwho=()=> localStorage.getItem("vr_who")||localStorage.getItem("vr_account")||"anon";
+  function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  function localBest(){ const v=+localStorage.getItem("vr_seamgate_best"); return v>0?v:null; }
+  function setLocalBest(ms){ const b=localBest(); if(b==null||ms<b) localStorage.setItem("vr_seamgate_best",String(Math.round(ms))); }
+  async function saveScore(ms){ try{ await fetch(SB_URL+"/rest/v1/game_scores",{method:"POST",headers:{apikey:SB_KEY,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({who:gwho(),game_id:GAME_ID,time_ms:Math.round(ms)})}); }catch(e){} }
+  async function loadBoard(){ try{ const r=await fetch(SB_URL+"/rest/v1/game_scores?game_id=eq."+GAME_ID+"&select=who,time_ms",{headers:{apikey:SB_KEY}}); const rows=await r.json(); if(!Array.isArray(rows))return null;
+    const best={}; rows.forEach(x=>{ if(best[x.who]==null||x.time_ms<best[x.who]) best[x.who]=x.time_ms; });
+    return Object.entries(best).map(([who,ms])=>({who,ms})).sort((a,b)=>a.ms-b.ms); }catch(e){ return null; } }
+
+  async function win(){ state="win"; started=false; setLocalBest(elapsed); overlay.style.display="flex";
+    overlay.innerHTML='<div class="eyebrow" style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">Cleared</div>'
+      +'<h1>You needed <b>both</b>.</h1><div id="winTime">'+fmt(elapsed)+'</div>'
+      +'<p style="margin:.15em 0 .1em">Your best: <b style="color:var(--gold)">'+fmt(localBest())+'</b></p>'
+      +'<div id="board" style="width:100%;max-width:340px;margin:.5em 0"><p style="color:#8f89a8;font-size:12px">Loading crew times…</p></div>'
+      +'<button class="play" id="againBtn">Play again</button>'
+      +'<a href="/app.html#lab" style="margin-top:14px;color:#8f89a8;font-size:12px;text-decoration:underline">← Back to the Lab</a>';
+    document.getElementById("againBtn").addEventListener("click",startGame);
+    await saveScore(elapsed);
+    const board=await loadBoard(), el=document.getElementById("board"); if(!el) return;
+    if(!board||!board.length){ el.innerHTML='<p style="color:#8f89a8;font-size:12px">The crew leaderboard fills in as people post times.</p>'; return; }
+    const me=gwho();
+    const rows=board.slice(0,10).map((s,i)=>{ const mine=s.who===me;
+      return '<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 10px;border-radius:6px;font-size:13px;'+(mine?'background:rgba(232,193,90,.16)':'')+'"><span>'+(i+1)+'. '+esc(s.who)+(mine?' (you)':'')+'</span><span style="font-variant-numeric:tabular-nums;color:var(--gold)">'+fmt(s.ms)+'</span></div>'; }).join("");
+    el.innerHTML='<div style="text-align:left"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#9b7bd6;margin:0 0 6px">Best times · the crew</div>'+rows+'</div>'; }
+
+  resize(); reset(); updWho(); updWorld(); updateCam(true); draw();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
