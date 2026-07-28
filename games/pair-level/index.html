@@ -50,6 +50,18 @@
   .play.ghost { background:none; border:1px solid var(--line); color:#e8e4f5; }
   .backlab { margin-top:14px; display:inline-block; padding:11px 20px; border:1px solid var(--line);
     border-radius:10px; color:#e8e4f5; font-size:14px; text-decoration:none; min-height:44px; }
+  .lvldd { position:relative; display:inline-block; }
+  .lvlddbtn { background:#161022; color:#e8e4f5; border:1px solid var(--line); border-radius:10px;
+    padding:11px 16px; font-size:15px; min-height:44px; cursor:pointer; font-family:inherit; }
+  .lvlddpanel { position:absolute; left:50%; transform:translateX(-50%); top:calc(100% + 6px);
+    background:#161022; border:1px solid var(--line); border-radius:10px; padding:5px; min-width:190px;
+    z-index:6; box-shadow:0 10px 30px rgba(0,0,0,.55); }
+  .lvlddpanel[hidden]{ display:none; }
+  .lvlopt { display:flex; justify-content:space-between; align-items:center; gap:14px; width:100%;
+    text-align:left; background:none; border:none; color:#e8e4f5; padding:10px 12px; border-radius:7px;
+    font-size:14px; cursor:pointer; font-family:inherit; min-height:40px; }
+  .lvlopt:hover { background:rgba(155,123,214,.20); }
+  .lvlopt .ck { color:#7ad27a; font-size:12px; white-space:nowrap; }
   .keys { margin-top:14px; font-size:12px; color:#8f89a8; line-height:1.7; }
   .keys b{color:#cfc9e6}
   #winTime { color:var(--gold); font-weight:700; font-size:clamp(20px,5vw,34px); margin:.2em 0; }
@@ -109,29 +121,30 @@
   // Legend: '#' solid  ' ' empty  'a' Anvil  't' Latch  'e' exit
   //   'O' Overcity-only wall   'U' Underweft-only wall   'B' breakable (Anvil charges through)
   const LEVELS = [
-    { id:"L1", name:"The Seam Gate", gameId:"seam-gate", map:[
+    { id:"L1", name:"Level 1", gameId:"seam-gate", map:[
       "#                      #","#                      #","#                      #",
       "#                      #","#                      #","#                      #",
       "#                      #","#                      #","#                      #",
       "#    O   B   U         #","#    O   B   U         #","#    O   B   U         #",
       "#at  O   B   U     ee  #","########################"
     ]},
-    { id:"L2", name:"The Long Seam", gameId:"seam-gate-2", map:[
+    { id:"L2", name:"Level 2", gameId:"seam-gate-2", map:[
       "#                      #","#                      #","#                      #",
       "#                      #","#                      #","#                      #",
       "#                      #","#                      #","#                      #",
       "#    B   O   U   B     #","#    B   O   U   B     #","#    B   O   U   B     #",
       "#at  B   O   U   B  ee #","########################"
     ]},
-    { id:"L3", name:"The Underseam", gameId:"seam-gate-3", map:[
-      "#                      #","#                      #","#                      #","#                      #",
+    { id:"L3", name:"Level 3", gameId:"seam-gate-3", map:[
+      "#                      #","#                      #","#                      #","#                      #","#                      #",
       "#       B  O  U        #","#       B  O  U        #","#at     B  O  U        #",
-      "#####FF###########     #",
-      "#                      #","#                      #","#                      #","#                      #",
-      "#                  ee  #","########################"
+      "#####FF##########      #",
+      "#VVVVVVVVVVVVVVVV      #","#VVVVVVVVVVVVVVVV      #","#VVVVVVVVVVVVVVVV      #","#VVVVVVVVVVVVVVVV  ee  #",
+      "########################"
     ]}
   ];
   let curLevel = 0;
+  let pickedLevel = 0;
   let MAP = LEVELS[curLevel].map;
   function setLevel(i){ curLevel=i; MAP=LEVELS[i].map; parse(); }
 
@@ -145,6 +158,7 @@
         else if(ch==="U") t="uwall";
         else if(ch==="B") t="bwall";
         else if(ch==="F") t="ffloor";
+        else if(ch==="V") t="veil";
         else if(ch==="e"){ t="empty"; exits.push({x,y}); }
         else if(ch==="a"){ t="empty"; spawnA={x,y}; }
         else if(ch==="t"){ t="empty"; spawnL={x,y}; }
@@ -176,6 +190,7 @@
     if(t==="uwall") return dyn.world===1;
     if(t==="bwall") return !dyn.broken.has(tx+","+ty);
     if(t==="ffloor") return !dyn.broken.has(tx+","+ty);
+    if(t==="veil") return !dyn.broken.has(tx+","+ty);
     return false;
   }
   function overlapsTile(o,tx,ty){ const px=tx*TILE, py=ty*TILE; return o.x<px+TILE && o.x+o.w>px && o.y<py+TILE && o.y+o.h>py; }
@@ -200,10 +215,9 @@
         for(let yy=0;yy<ROWS;yy++) if(base[yy][tx]==="bwall") dyn.broken.add(tx+","+yy);
         continue;
       }
-      // Anvil slamming down smashes a hidden floor (ffloor) and drops through — breaks the whole contiguous run
-      if(axis==="y" && o===A && A.slam && o.vy>0 && base[ty][tx]==="ffloor"){
-        let cx=tx; while(cx>=0 && base[ty][cx]==="ffloor"){ dyn.broken.add(cx+","+ty); cx--; }
-        cx=tx+1; while(cx<COLS && base[ty][cx]==="ffloor"){ dyn.broken.add(cx+","+ty); cx++; }
+      // Anvil slamming down smashes a hidden floor and collapses the concealed cavity below it at once (ffloor + veil reveal together)
+      if(axis==="y" && o===A && A.slam && o.vy>0 && (base[ty][tx]==="ffloor"||base[ty][tx]==="veil")){
+        for(let yy=0;yy<ROWS;yy++)for(let xx=0;xx<COLS;xx++){ const b=base[yy][xx]; if(b==="ffloor"||b==="veil") dyn.broken.add(xx+","+yy); }
         continue;
       }
       if(axis==="x"){ if(o.vx>0)o.x=px-o.w; else if(o.vx<0)o.x=px+TILE; o.vx=0; }
@@ -306,6 +320,7 @@
       else if(t==="uwall"){ if(dyn.world===1) tile(px,py,"#2aa7b5","#1a6c76"); else ghost(px,py,"#2aa7b5"); }
       else if(t==="bwall"){ if(!dyn.broken.has(x+","+y)) crack(px,py); }
       else if(t==="ffloor"){ if(!dyn.broken.has(x+","+y)) tile(px,py,"#242038","#15122a"); } // renders identical to solid — a hidden floor
+      else if(t==="veil"){ if(!dyn.broken.has(x+","+y)) tile(px,py,"#242038","#15122a"); } // concealed bedrock — hides the secret cavity until slammed
     }
     exits.forEach(e=>{ ctx.fillStyle="rgba(232,193,90,.18)"; ctx.fillRect(e.x*TILE,e.y*TILE-TILE,TILE,TILE*2);
       ctx.fillStyle="#e8c15a"; ctx.font="12px sans-serif"; ctx.textAlign="center"; ctx.fillText("EXIT",e.x*TILE+TILE/2,e.y*TILE-6); });
@@ -331,10 +346,15 @@
     const lv=LEVELS[curLevel].id; if(!localStorage.getItem("vr_pl_trypts_"+lv)){ localStorage.setItem("vr_pl_trypts_"+lv,"1"); awardPoints("try",2,lv); }
     overlay.style.display="none"; state="play"; started=false; elapsed=0; t0=0; reset(); updWho(); updWorld(); resize(); updateCam(true); }
   function renderLevelSelect(){ const el=document.getElementById("levelSelect"); if(!el) return;
-    const opts=LEVELS.map((lv,i)=>'<option value="'+i+'">'+(levelDone(lv.id)?"✓ ":"")+"Level "+(i+1)+" · "+esc(lv.name)+'</option>').join("");
-    el.innerHTML='<select id="lvlpick" style="background:#161022;color:#e8e4f5;border:1px solid #3a3556;border-radius:10px;padding:11px 14px;font-size:15px;min-height:44px">'+opts+'</select>'
+    const opts=LEVELS.map((lv,i)=>'<button type="button" class="lvlopt" data-i="'+i+'">Level '+(i+1)+(levelDone(lv.id)?' <span class="ck">✓ cleared</span>':'')+'</button>').join("");
+    el.innerHTML='<div class="lvldd"><button type="button" id="lvlDDbtn" class="lvlddbtn">Level '+(pickedLevel+1)+' <span style="opacity:.55">▾</span></button>'
+      +'<div class="lvlddpanel" id="lvlDDpanel" hidden>'+opts+'</div></div>'
       +'<button class="play" id="lvlPlayBtn" style="margin-left:8px">▶ Play</button>';
-    document.getElementById("lvlPlayBtn").addEventListener("click",()=>startGame(+document.getElementById("lvlpick").value));
+    const panel=document.getElementById("lvlDDpanel"), btn=document.getElementById("lvlDDbtn");
+    btn.addEventListener("click",e=>{ e.stopPropagation(); panel.hidden=!panel.hidden; });
+    el.querySelectorAll(".lvlopt").forEach(b=>b.addEventListener("click",()=>{ pickedLevel=+b.getAttribute("data-i"); btn.innerHTML='Level '+(pickedLevel+1)+' <span style="opacity:.55">▾</span>'; panel.hidden=true; }));
+    document.getElementById("lvlPlayBtn").addEventListener("click",()=>startGame(pickedLevel));
+    document.addEventListener("click",()=>{ if(panel) panel.hidden=true; });
   }
   renderLevelSelect();
   function softReset(){ reset(); updWho(); updWorld(); updateCam(true); }
