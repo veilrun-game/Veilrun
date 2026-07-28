@@ -393,7 +393,7 @@ window.VApp = (function () {
           <div class="panel play-board">
             <div class="play-board-head">
               <div class="eyebrow" style="margin:0">Best times · the crew</div>
-              ${m.boards && m.boards.length > 1 ? `<select class="gb-sel" onchange="VApp.gameBoardPick('${C.esc(m.id)}', this.value)">${m.boards.map(b => `<option value="${C.esc(b.id)}">${C.esc(b.label)}</option>`).join("")}</select>` : ""}
+              ${m.boardGroups && m.boardGroups.length ? `<div class="gb-picks">${m.boardGroups.length > 1 ? `<select class="gb-sel" onchange="VApp.gameBoardVer('${C.esc(m.id)}', this.selectedIndex)">${m.boardGroups.map(v => `<option value="${C.esc(v.id)}">${C.esc(v.label)}</option>`).join("")}</select>` : ""}<select class="gb-sel" id="gblvl-${C.esc(m.id)}" onchange="VApp.gameBoardPick('${C.esc(m.id)}', this.value)">${m.boardGroups[0].levels.map(l => `<option value="${C.esc(l.id)}">${C.esc(l.label)}</option>`).join("")}</select></div>` : ""}
             </div>
             <div id="gboard-${C.esc(m.id)}" style="margin-top:.6rem"><p class="mute" style="font-size:.85rem">Loading…</p></div>
           </div>
@@ -842,11 +842,19 @@ window.VApp = (function () {
   }
   // Dropdown handler — switch which version/level board is shown.
   function gameBoardPick(modeId, gameId) { loadBoardInto("gboard-" + modeId, gameId); }
+  // Version dropdown: repopulate the level dropdown for that version, then load its first level's board.
+  function gameBoardVer(modeId, verIndex) {
+    const m = (D.modes || []).find(x => x.id === modeId); if (!m || !m.boardGroups) return;
+    const v = m.boardGroups[verIndex]; if (!v) return;
+    const sel = document.getElementById("gblvl-" + modeId);
+    if (sel) sel.innerHTML = v.levels.map(l => `<option value="${C.esc(l.id)}">${C.esc(l.label)}</option>`).join("");
+    loadBoardInto("gboard-" + modeId, v.levels[0].id);
+  }
   // Fill each playable prototype's default board on Lab render.
   async function renderGameBoards() {
     const playable = (D.modes || []).filter(m => m.play);
     for (const m of playable) {
-      const first = (m.boards && m.boards[0] && m.boards[0].id) || m.gameId || m.id;
+      const first = (m.boardGroups && m.boardGroups[0] && m.boardGroups[0].levels[0] && m.boardGroups[0].levels[0].id) || m.gameId || m.id;
       loadBoardInto("gboard-" + m.id, first);
     }
   }
@@ -1730,6 +1738,6 @@ window.VApp = (function () {
   }
 
   const galMore = galLoadMore;
-  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter, counterVote, gameBoardPick };
+  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter, counterVote, gameBoardPick, gameBoardVer };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);

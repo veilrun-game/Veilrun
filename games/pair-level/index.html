@@ -47,6 +47,9 @@
   #overlay p { color:#bdb7d6; max-width:36ch; line-height:1.5; font-size:clamp(12px,2.8vw,15px); }
   .play { margin-top:14px; background:var(--gold); color:#1a1206; border:none; border-radius:10px;
     padding:12px 26px; font-weight:700; font-size:16px; cursor:pointer; }
+  .play.ghost { background:none; border:1px solid var(--line); color:#e8e4f5; }
+  .backlab { margin-top:14px; display:inline-block; padding:11px 20px; border:1px solid var(--line);
+    border-radius:10px; color:#e8e4f5; font-size:14px; text-decoration:none; min-height:44px; }
   .keys { margin-top:14px; font-size:12px; color:#8f89a8; line-height:1.7; }
   .keys b{color:#cfc9e6}
   #winTime { color:var(--gold); font-weight:700; font-size:clamp(20px,5vw,34px); margin:.2em 0; }
@@ -78,7 +81,7 @@
       <div class="keys">
         <b>Move</b> ← →  ·  <b>Jump</b> ↑ / Space  ·  <b>Switch character</b> Tab  ·  <b>Ability</b> E  ·  <b>Reset</b> R
       </div>
-      <a href="/app.html#lab" style="margin-top:16px;display:inline-block;padding:11px 20px;border:1px solid #3a3556;border-radius:10px;color:#e8e4f5;font-size:14px;text-decoration:none;min-height:44px">← Back to the Lab</a>
+      <a href="/app.html#lab" class="backlab" style="margin-top:16px">← Back to the Lab</a>
       <div id="verpick" data-cur="v1" style="margin-top:12px"></div>
     </div>
   </div>
@@ -119,6 +122,13 @@
       "#                      #","#                      #","#                      #",
       "#    B   O   U   B     #","#    B   O   U   B     #","#    B   O   U   B     #",
       "#at  B   O   U   B  ee #","########################"
+    ]},
+    { id:"L3", name:"The Underseam", gameId:"seam-gate-3", map:[
+      "#                      #","#                      #","#                      #","#                      #",
+      "#       B  O  U        #","#       B  O  U        #","#at     B  O  U        #",
+      "#####FF###########     #",
+      "#                      #","#                      #","#                      #","#                      #",
+      "#                  ee  #","########################"
     ]}
   ];
   let curLevel = 0;
@@ -134,6 +144,7 @@
         else if(ch==="O") t="owall";
         else if(ch==="U") t="uwall";
         else if(ch==="B") t="bwall";
+        else if(ch==="F") t="ffloor";
         else if(ch==="e"){ t="empty"; exits.push({x,y}); }
         else if(ch==="a"){ t="empty"; spawnA={x,y}; }
         else if(ch==="t"){ t="empty"; spawnL={x,y}; }
@@ -143,7 +154,7 @@
   }
   parse();
 
-  const A={ name:"Anvil", col:"#c85a5a", w:30, h:52, vx:0, vy:0, face:1, speed:2.1, jump:8.4, charge:0, chargeDir:1 };
+  const A={ name:"Anvil", col:"#c85a5a", w:30, h:52, vx:0, vy:0, face:1, speed:2.1, jump:8.4, charge:0, chargeDir:1, slam:false };
   const L={ name:"Latch", col:"#6ec8f5", w:22, h:46, vx:0, vy:0, face:1, speed:3.0, jump:10.0, plow:0 };
   let active="A", dyn;
   const cur=()=> active==="A"?A:L;
@@ -151,7 +162,7 @@
 
   function reset(){
     dyn={ world:0, broken:new Set() };
-    A.x=spawnA.x*TILE+7; A.y=spawnA.y*TILE-A.h+TILE; A.vx=0; A.vy=0; A.face=1; A.charge=0;
+    A.x=spawnA.x*TILE+7; A.y=spawnA.y*TILE-A.h+TILE; A.vx=0; A.vy=0; A.face=1; A.charge=0; A.slam=false;
     L.x=spawnL.x*TILE+9; L.y=spawnL.y*TILE-L.h+TILE; L.vx=0; L.vy=0; L.face=1; L.plow=0;
     active="A";
   }
@@ -164,6 +175,7 @@
     if(t==="owall") return dyn.world===0;
     if(t==="uwall") return dyn.world===1;
     if(t==="bwall") return !dyn.broken.has(tx+","+ty);
+    if(t==="ffloor") return !dyn.broken.has(tx+","+ty);
     return false;
   }
   function overlapsTile(o,tx,ty){ const px=tx*TILE, py=ty*TILE; return o.x<px+TILE && o.x+o.w>px && o.y<py+TILE && o.y+o.h>py; }
@@ -188,6 +200,12 @@
         for(let yy=0;yy<ROWS;yy++) if(base[yy][tx]==="bwall") dyn.broken.add(tx+","+yy);
         continue;
       }
+      // Anvil slamming down smashes a hidden floor (ffloor) and drops through — breaks the whole contiguous run
+      if(axis==="y" && o===A && A.slam && o.vy>0 && base[ty][tx]==="ffloor"){
+        let cx=tx; while(cx>=0 && base[ty][cx]==="ffloor"){ dyn.broken.add(cx+","+ty); cx--; }
+        cx=tx+1; while(cx<COLS && base[ty][cx]==="ffloor"){ dyn.broken.add(cx+","+ty); cx++; }
+        continue;
+      }
       if(axis==="x"){ if(o.vx>0)o.x=px-o.w; else if(o.vx<0)o.x=px+TILE; o.vx=0; }
       else { if(o.vy>0){o.y=py-o.h;o.vy=0;} else if(o.vy<0){o.y=py+TILE;o.vy=0;} }
     }
@@ -207,8 +225,10 @@
   }
 
   // Abilities: Anvil = Charge, Latch = Flip worlds
-  function useAbility(){ if(active==="A") charge(); else flip(); }
+  function useAbility(){ if(active==="A") (onGround(A)?charge():slam()); else flip(); }
   function charge(){ if(A.charge>0) return; if(!onGround(A)) return; A.charge=22; A.chargeDir=A.face; }
+  function slam(){ if(A.charge>0||A.slam) return; if(onGround(A)) return; A.slam=true; if(A.vy<15)A.vy=15; } // Anvil's air ability: crash straight down
+
   function flip(){ dyn.world=1-dyn.world; unstick(A); unstick(L); updWorld(); }
   function unstick(o){ let g=60; while(g-->0 && overlapSolid(o)) o.y-=2; }
 
@@ -285,6 +305,7 @@
       else if(t==="owall"){ if(dyn.world===0) tile(px,py,"#b57638","#7a4d24"); else ghost(px,py,"#d8973a"); }
       else if(t==="uwall"){ if(dyn.world===1) tile(px,py,"#2aa7b5","#1a6c76"); else ghost(px,py,"#2aa7b5"); }
       else if(t==="bwall"){ if(!dyn.broken.has(x+","+y)) crack(px,py); }
+      else if(t==="ffloor"){ if(!dyn.broken.has(x+","+y)) tile(px,py,"#242038","#15122a"); } // renders identical to solid — a hidden floor
     }
     exits.forEach(e=>{ ctx.fillStyle="rgba(232,193,90,.18)"; ctx.fillRect(e.x*TILE,e.y*TILE-TILE,TILE,TILE*2);
       ctx.fillStyle="#e8c15a"; ctx.font="12px sans-serif"; ctx.textAlign="center"; ctx.fillText("EXIT",e.x*TILE+TILE/2,e.y*TILE-6); });
@@ -310,8 +331,10 @@
     const lv=LEVELS[curLevel].id; if(!localStorage.getItem("vr_pl_trypts_"+lv)){ localStorage.setItem("vr_pl_trypts_"+lv,"1"); awardPoints("try",2,lv); }
     overlay.style.display="none"; state="play"; started=false; elapsed=0; t0=0; reset(); updWho(); updWorld(); resize(); updateCam(true); }
   function renderLevelSelect(){ const el=document.getElementById("levelSelect"); if(!el) return;
-    el.innerHTML = LEVELS.map((lv,i)=>'<button class="play lvlbtn" data-i="'+i+'" style="margin:5px 4px">'+(levelDone(lv.id)?"✓ ":"")+"Level "+(i+1)+" · "+esc(lv.name)+'</button>').join("");
-    el.querySelectorAll(".lvlbtn").forEach(b=>b.addEventListener("click",()=>startGame(+b.getAttribute("data-i"))));
+    const opts=LEVELS.map((lv,i)=>'<option value="'+i+'">'+(levelDone(lv.id)?"✓ ":"")+"Level "+(i+1)+" · "+esc(lv.name)+'</option>').join("");
+    el.innerHTML='<select id="lvlpick" style="background:#161022;color:#e8e4f5;border:1px solid #3a3556;border-radius:10px;padding:11px 14px;font-size:15px;min-height:44px">'+opts+'</select>'
+      +'<button class="play" id="lvlPlayBtn" style="margin-left:8px">▶ Play</button>';
+    document.getElementById("lvlPlayBtn").addEventListener("click",()=>startGame(+document.getElementById("lvlpick").value));
   }
   renderLevelSelect();
   function softReset(){ reset(); updWho(); updWorld(); updateCam(true); }
@@ -324,6 +347,7 @@
       if(o.vx>0)o.face=1; else if(o.vx<0)o.face=-1;
       other().vx=0;
       stepChar(A);
+      if(onGround(A)) A.slam=false;
       if(A.charge>0 && L.plow>0){ L.x = A.chargeDir>0 ? A.x-L.w-2 : A.x+A.w+2; L.y = A.y+(A.h-L.h); L.vy=0; } // Latch trails behind Anvil, tucked in his wake
       stepChar(L);
       if(L.plow>0)L.plow--;
@@ -366,12 +390,12 @@
       +'<p style="margin:.15em 0 .1em">Your best: <b style="color:var(--gold)">'+fmt(localBest())+'</b></p>'
       +(earned.length?'<p style="color:var(--gold);font-weight:700;margin:.1em 0 .3em">'+earned.join(" · ")+'</p>':'')
       +'<div id="board" style="width:100%;max-width:340px;margin:.5em 0"><p style="color:#8f89a8;font-size:12px">Loading crew times…</p></div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">'
+      +'<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center">'
+      +'<button class="play ghost" id="againBtn">↻ Replay</button>'
+      +'<button class="play'+(hasNext?' ghost':'')+'" id="lvlBtn">Levels</button>'
       +(hasNext?'<button class="play" id="nextBtn">Next level →</button>':'')
-      +'<button class="play" id="againBtn" style="'+(hasNext?'background:none;border:1px solid #3a3556;color:#e8e4f5':'')+'">Replay</button>'
-      +'<button class="play" id="lvlBtn" style="background:none;border:1px solid #3a3556;color:#e8e4f5">Levels</button>'
       +'</div>'
-      +'<a href="/app.html#lab" style="margin-top:14px;color:#8f89a8;font-size:12px;text-decoration:underline">← Back to the Lab</a>';
+      +'<a href="/app.html#lab" class="backlab">← Back to the Lab</a>';
     document.getElementById("againBtn").addEventListener("click",()=>startGame());
     if(hasNext) document.getElementById("nextBtn").addEventListener("click",()=>startGame(curLevel+1));
     document.getElementById("lvlBtn").addEventListener("click",()=>location.reload());
