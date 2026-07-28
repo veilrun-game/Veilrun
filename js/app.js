@@ -965,14 +965,15 @@ window.VApp = (function () {
   // Leaderboard and the Profile page's own-stats panel, so the numbers always agree.
   async function computeContributions() {
     if (!window.VBackend) return null;
-    const [fb, likes, votes] = await Promise.all([
+    const [fb, likes, votes, gpts] = await Promise.all([
       window.VBackend.loadFeedback ? window.VBackend.loadFeedback() : [],
       window.VBackend.loadLikes(),
-      window.VBackend.loadVotes()
+      window.VBackend.loadVotes(),
+      window.VBackend.loadGamePoints ? window.VBackend.loadGamePoints() : []
     ]);
     const weekAgo = Date.now() - 7 * 864e5;
     const P = {};
-    const ensure = (key) => (P[key] = P[key] || { key, charName: null, gamingName: null, lastWho: null, lastAt: 0, fb: 0, likes: 0, votes: 0, week: 0 });
+    const ensure = (key) => (P[key] = P[key] || { key, charName: null, gamingName: null, lastWho: null, lastAt: 0, fb: 0, likes: 0, votes: 0, game: 0, week: 0 });
     const bump = (r, field) => {
       const c = findCrewByWho(r.who);
       const key = c ? c.id : (String(r.who || "").toLowerCase() || "anon");
@@ -986,8 +987,18 @@ window.VApp = (function () {
     fb.forEach(r => { const o = bump(r, "fb"); if (r.created_at && new Date(r.created_at).getTime() >= weekAgo) o.week++; });
     likes.forEach(r => bump(r, "likes"));
     votes.forEach(r => bump(r, "votes"));
+    // Game points add their `points` value (not a +1 count) to the same person.
+    gpts.forEach(r => {
+      const c = findCrewByWho(r.who);
+      const key = c ? c.id : (String(r.who || "").toLowerCase() || "anon");
+      const o = ensure(key); if (c) { o.charName = c.name; o.gamingName = o.gamingName || c.gamingName || null; }
+      o.game += (r.points || 0);
+      const t = r.created_at ? new Date(r.created_at).getTime() : 0;
+      if (t >= o.lastAt) { o.lastAt = t; if (r.who) o.lastWho = r.who; }
+      if (r.created_at && t >= weekAgo) o.week++;
+    });
     const rows = Object.values(P);
-    rows.forEach(o => { o.points = o.fb * 3 + o.likes + o.votes; o.displayName = o.gamingName || o.lastWho || o.key; });
+    rows.forEach(o => { o.points = o.fb * 3 + o.likes + o.votes + o.game; o.displayName = o.gamingName || o.lastWho || o.key; });
     return rows;
   }
   async function loadLeaderboard() {

@@ -83,6 +83,11 @@
       try { const { data } = await sb.from("game_scores").select("who,time_ms").eq("game_id", gameId); return data || []; }
       catch (e) { return []; }
     },
+    // Point-earning game events (try / clear / beat-best / record) — folded into the contribution leaderboard.
+    async loadGamePoints() {
+      try { const { data } = await sb.from("game_points").select("who,points,created_at"); return data || []; }
+      catch (e) { return []; }
+    },
     async loadLikes() {
       try { const { data } = await sb.from("image_likes").select("who,image_src,created_at"); return data || []; }
       catch (e) { return []; }
