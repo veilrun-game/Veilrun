@@ -385,12 +385,17 @@ window.VApp = (function () {
             <div class="eyebrow">Playable prototype${m.version ? " · " + C.esc(m.version) : ""}</div>
             <h3 style="margin:.35rem 0">${C.esc(m.name)}</h3>
             <p class="mute" style="font-size:.9rem">${C.esc(m.text)}</p>
-            <div style="margin-top:.8rem"><a class="btn" href="${C.esc(m.play)}" target="_blank" rel="noopener" style="width:100%;text-align:center;padding:12px">▶ Play</a></div>
-            <div style="margin-top:.7rem">${C.feedbackButton("Mode: " + m.name)}</div>
+            <div class="play-actions">
+              <a class="btn" href="${C.esc(m.play)}" target="_blank" rel="noopener" style="padding:12px 24px">▶ Play</a>
+              ${C.feedbackButton("Mode: " + m.name)}
+            </div>
           </div>
-          <div class="panel play-board" id="gboard-${C.esc(m.gameId || m.id)}">
-            <div class="eyebrow">Best times · the crew</div>
-            <p class="mute" style="font-size:.85rem;margin-top:.5rem">Loading…</p>
+          <div class="panel play-board">
+            <div class="play-board-head">
+              <div class="eyebrow" style="margin:0">Best times · the crew</div>
+              ${m.boards && m.boards.length > 1 ? `<select class="gb-sel" onchange="VApp.gameBoardPick('${C.esc(m.id)}', this.value)">${m.boards.map(b => `<option value="${C.esc(b.id)}">${C.esc(b.label)}</option>`).join("")}</select>` : ""}
+            </div>
+            <div id="gboard-${C.esc(m.id)}" style="margin-top:.6rem"><p class="mute" style="font-size:.85rem">Loading…</p></div>
           </div>
         </div>`).join("");
       const playSection = playable.length ? `
@@ -824,20 +829,25 @@ window.VApp = (function () {
     });
   }
   function fmtTime(ms) { const s = (ms || 0) / 1000, m = Math.floor(s / 60), r = s - m * 60; return m + ":" + (r < 10 ? "0" : "") + r.toFixed(1); }
-  // Surface each playable prototype's best-time leaderboard in the Lab (best run per person).
-  async function renderGameBoards() {
+  // Load one leaderboard (best run per person) for a game_id into a container.
+  async function loadBoardInto(containerId, gameId) {
     if (!window.VBackend || !window.VBackend.loadGameScores) return;
-    const playable = (D.modes || []).filter(m => m.play && (m.gameId || m.id));
+    const el = document.getElementById(containerId); if (!el) return;
+    const rows = await window.VBackend.loadGameScores(gameId);
+    const best = {}; (rows || []).forEach(r => { if (best[r.who] == null || r.time_ms < best[r.who]) best[r.who] = r.time_ms; });
+    const board = Object.entries(best).map(([who, ms]) => ({ who, ms })).sort((a, b) => a.ms - b.ms);
+    if (!board.length) { el.innerHTML = '<p class="mute" style="font-size:.85rem">No runs on this one yet — be the first to post a time.</p>'; return; }
+    const me = myWho();
+    el.innerHTML = board.slice(0, 8).map((s, i) => `<div class="gb-row${s.who === me ? " me" : ""}"><span>${i + 1}. ${C.esc(s.who)}${s.who === me ? " (you)" : ""}</span><span class="gb-t">${fmtTime(s.ms)}</span></div>`).join("");
+  }
+  // Dropdown handler — switch which version/level board is shown.
+  function gameBoardPick(modeId, gameId) { loadBoardInto("gboard-" + modeId, gameId); }
+  // Fill each playable prototype's default board on Lab render.
+  async function renderGameBoards() {
+    const playable = (D.modes || []).filter(m => m.play);
     for (const m of playable) {
-      const gid = m.gameId || m.id;
-      const el = document.getElementById("gboard-" + gid); if (!el) continue;
-      const rows = await window.VBackend.loadGameScores(gid);
-      const best = {}; (rows || []).forEach(r => { if (best[r.who] == null || r.time_ms < best[r.who]) best[r.who] = r.time_ms; });
-      const board = Object.entries(best).map(([who, ms]) => ({ who, ms })).sort((a, b) => a.ms - b.ms);
-      const me = myWho();
-      if (!board.length) { el.innerHTML = '<div class="eyebrow">Best times · the crew</div><p class="mute" style="font-size:.85rem;margin-top:.5rem">No runs yet — be the first to post a time.</p>'; continue; }
-      const list = board.slice(0, 8).map((s, i) => `<div class="gb-row${s.who === me ? " me" : ""}"><span>${i + 1}. ${C.esc(s.who)}${s.who === me ? " (you)" : ""}</span><span class="gb-t">${fmtTime(s.ms)}</span></div>`).join("");
-      el.innerHTML = '<div class="eyebrow">Best times · the crew</div><div style="margin-top:.5rem">' + list + '</div>';
+      const first = (m.boards && m.boards[0] && m.boards[0].id) || m.gameId || m.id;
+      loadBoardInto("gboard-" + m.id, first);
     }
   }
   function labVote(poll) {
@@ -1709,6 +1719,6 @@ window.VApp = (function () {
   }
 
   const galMore = galLoadMore;
-  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter, counterVote };
+  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter, counterVote, gameBoardPick };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);

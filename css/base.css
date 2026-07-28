@@ -263,6 +263,9 @@ html { scroll-behavior: smooth; }
 .play-block { display: grid; grid-template-columns: 1fr; gap: var(--s-3); }
 @media (min-width: 760px) { .play-block { grid-template-columns: 1.1fr 1fr; align-items: start; } }
 .play-card, .play-board { padding: var(--s-4); }
+.play-actions { display: flex; flex-wrap: wrap; gap: 0.7rem; align-items: center; margin-top: 0.9rem; }
+.play-board-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.gb-sel { background: var(--ink-2); color: var(--white); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font-size: 0.8rem; min-height: 38px; }
 .gb-row { display: flex; justify-content: space-between; gap: 10px; padding: 6px 8px; border-radius: 6px; font-size: 0.9rem; }
 .gb-row.me { background: rgba(232,193,90,0.14); }
 .gb-t { font-variant-numeric: tabular-nums; color: #e8c15a; font-weight: 600; }
