@@ -62,6 +62,8 @@
     font-size:14px; cursor:pointer; font-family:inherit; min-height:40px; }
   .lvlopt:hover { background:rgba(155,123,214,.20); }
   .lvlopt .ck { color:#7ad27a; font-size:12px; white-space:nowrap; }
+  #levelSelect .play { margin-top:0; }
+  @media (pointer:coarse){ .keys { display:none; } }
   .keys { margin-top:14px; font-size:12px; color:#8f89a8; line-height:1.7; }
   .keys b{color:#cfc9e6}
   #winTime { color:var(--gold); font-weight:700; font-size:clamp(20px,5vw,34px); margin:.2em 0; }
@@ -88,8 +90,8 @@
     <div id="overlay">
       <div class="eyebrow" style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">VEILRUN · Pair Level · v1</div>
       <h1>The <b>Seam</b> <i>Gate</i></h1>
-      <p>One player, both crew. <b style="color:var(--blue)">Latch</b> can <b>Flip</b> the whole level between the two worlds — walls in the Overcity vanish in the Underweft. <b style="color:var(--iron)">Anvil</b> can <b>Charge</b> straight through cracked walls that exist in both — and if he charges into Latch, he <b>plows him along</b>, through the wall too. Get <em>both</em> to the exit.</p>
-      <div id="levelSelect" style="display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:6px"></div>
+      <p>One player, both crew. <b style="color:var(--blue)">Latch</b> flips the level between two worlds; <b style="color:var(--iron)">Anvil</b> charges through cracked walls. Get <em>both</em> to the exit.</p>
+      <div id="levelSelect" style="display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px;margin-top:10px"></div>
       <div class="keys">
         <b>Move</b> ← →  ·  <b>Jump</b> ↑ / Space  ·  <b>Switch character</b> Tab  ·  <b>Ability</b> E  ·  <b>Reset</b> R
       </div>

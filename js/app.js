@@ -607,7 +607,7 @@ window.VApp = (function () {
         </div>
         <h2 style="margin-top:2rem">Card + synergy</h2>
         <div class="grid cols-3" style="margin-top:1rem">
-          ${C.characterCard(D.crew[0])}
+          <div style="pointer-events:none" aria-hidden="true">${C.characterCard(D.crew[0])}</div>
           <div>${C.synItem({name:"Example synergy",text:"How two characters combine."}, D.crew[0].accent)}${C.synItem({name:"Another pairing",text:"A second combined effect."}, D.crew[4].accent)}</div>
         </div>
         <p class="mute" style="margin-top:2rem;font-size:.85rem">Note: a fuller brand pass (via Claude Design) can elevate this — see the packaged prompt in the docs (VEILRUN Claude Design Brief).</p>
