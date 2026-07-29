@@ -377,27 +377,35 @@ window.VApp = (function () {
     },
 
     lab() {
-      const playable = (D.modes || []).filter(m => m.play);
-      const ideas = (D.modes || []).filter(m => !m.play);
-      const playBlocks = playable.map(m => `
+      const playable = (D.modes || []).filter(m => m.combos && m.combos.length);
+      const ideas = (D.modes || []).filter(m => !(m.combos && m.combos.length));
+      const playBlocks = playable.map(m => {
+        const tree = m.boardTree || [];
+        const v0 = tree[0], c0 = v0 && v0.combos[0];
+        const verOpts = tree.map((v, i) => `<option value="${i}">${C.esc(v.label)}</option>`).join("");
+        const comboOpts = v0 ? v0.combos.map((c, i) => `<option value="${i}">${C.esc(c.label)}</option>`).join("") : "";
+        const lvlOpts = c0 ? c0.levels.map(l => `<option value="${C.esc(l.id)}">${C.esc(l.label)}</option>`).join("") : "";
+        return `
         <div class="play-block">
           <div class="panel play-card">
             <div class="eyebrow">Playable prototype${m.version ? " · " + C.esc(m.version) : ""}</div>
             <h3 style="margin:.35rem 0">${C.esc(m.name)}</h3>
             <p class="mute" style="font-size:.9rem">${C.esc(m.text)}</p>
             <div class="play-actions">
-              <a class="btn" href="${C.esc(m.play)}" target="_blank" rel="noopener" style="padding:12px 24px">▶ Play</a>
+              <button class="btn" onclick="VApp.comboChoose('${C.esc(m.id)}')" style="padding:12px 24px">▶ Play</button>
               ${C.feedbackButton("Mode: " + m.name)}
             </div>
           </div>
           <div class="panel play-board">
-            <div class="play-board-head">
-              <div class="eyebrow" style="margin:0">Best times · the crew</div>
-              ${m.boardGroups && m.boardGroups.length ? `<div class="gb-picks">${m.boardGroups.length > 1 ? `<select class="gb-sel" onchange="VApp.gameBoardVer('${C.esc(m.id)}', this.selectedIndex)">${m.boardGroups.map(v => `<option value="${C.esc(v.id)}">${C.esc(v.label)}</option>`).join("")}</select>` : ""}<select class="gb-sel" id="gblvl-${C.esc(m.id)}" onchange="VApp.gameBoardPick('${C.esc(m.id)}', this.value)">${m.boardGroups[0].levels.map(l => `<option value="${C.esc(l.id)}">${C.esc(l.label)}</option>`).join("")}</select></div>` : ""}
-            </div>
+            <div class="play-board-head"><div class="eyebrow" style="margin:0">Best times · the crew</div></div>
+            ${tree.length ? `<div class="gb-picks-col">
+              <select class="gb-sel" id="gbver-${C.esc(m.id)}" onchange="VApp.gameBoardVer('${C.esc(m.id)}')">${verOpts}</select>
+              <select class="gb-sel" id="gbcombo-${C.esc(m.id)}" onchange="VApp.gameBoardCombo('${C.esc(m.id)}')">${comboOpts}</select>
+              <select class="gb-sel" id="gblvl-${C.esc(m.id)}" onchange="VApp.gameBoardLevel('${C.esc(m.id)}', this.value)">${lvlOpts}</select>
+            </div>` : ""}
             <div id="gboard-${C.esc(m.id)}" style="margin-top:.6rem"><p class="mute" style="font-size:.85rem">Loading…</p></div>
           </div>
-        </div>`).join("");
+        </div>`; }).join("");
       const playSection = playable.length ? `
         <div class="dash-head" style="margin-top:1.5rem"><h2 style="margin:0">▶ Playable now</h2><span class="mute" style="font-size:.85rem">jump straight in</span></div>
         <div style="margin-top:1rem;display:flex;flex-direction:column;gap:var(--s-4)">${playBlocks}</div>` : "";
@@ -840,21 +848,43 @@ window.VApp = (function () {
     const me = myWho();
     el.innerHTML = board.slice(0, 8).map((s, i) => `<div class="gb-row${s.who === me ? " me" : ""}"><span>${i + 1}. ${C.esc(s.who)}${s.who === me ? " (you)" : ""}</span><span class="gb-t">${fmtTime(s.ms)}</span></div>`).join("");
   }
-  // Dropdown handler — switch which version/level board is shown.
-  function gameBoardPick(modeId, gameId) { loadBoardInto("gboard-" + modeId, gameId); }
-  // Version dropdown: repopulate the level dropdown for that version, then load its first level's board.
-  function gameBoardVer(modeId, verIndex) {
-    const m = (D.modes || []).find(x => x.id === modeId); if (!m || !m.boardGroups) return;
-    const v = m.boardGroups[verIndex]; if (!v) return;
-    const sel = document.getElementById("gblvl-" + modeId);
-    if (sel) sel.innerHTML = v.levels.map(l => `<option value="${C.esc(l.id)}">${C.esc(l.label)}</option>`).join("");
-    loadBoardInto("gboard-" + modeId, v.levels[0].id);
+  // ---- Leaderboard nav: Version → Combo → Level (dependent dropdowns) ----
+  function boardTreeOf(modeId) { const m = (D.modes || []).find(x => x.id === modeId); return m && m.boardTree; }
+  function gbIdx(id) { const el = document.getElementById(id); return el ? el.selectedIndex : 0; }
+  function fillLevelSel(modeId) {
+    const tree = boardTreeOf(modeId); if (!tree) return;
+    const v = tree[gbIdx("gbver-" + modeId)]; if (!v) return;
+    const c = v.combos[gbIdx("gbcombo-" + modeId)]; if (!c) return;
+    const ls = document.getElementById("gblvl-" + modeId);
+    if (ls) ls.innerHTML = c.levels.map(l => `<option value="${C.esc(l.id)}">${C.esc(l.label)}</option>`).join("");
+    loadBoardInto("gboard-" + modeId, c.levels[0].id);
+  }
+  function fillComboSel(modeId) {
+    const tree = boardTreeOf(modeId); if (!tree) return;
+    const v = tree[gbIdx("gbver-" + modeId)]; if (!v) return;
+    const cs = document.getElementById("gbcombo-" + modeId);
+    if (cs) cs.innerHTML = v.combos.map((c, i) => `<option value="${i}">${C.esc(c.label)}</option>`).join("");
+    fillLevelSel(modeId);
+  }
+  function gameBoardVer(modeId) { fillComboSel(modeId); }        // version changed → rebuild combo + level
+  function gameBoardCombo(modeId) { fillLevelSel(modeId); }      // combo changed → rebuild level
+  function gameBoardLevel(modeId, gameId) { loadBoardInto("gboard-" + modeId, gameId); }
+  // Combo chooser popup — "choose your characters," then launch that prototype.
+  function comboChoose(modeId) {
+    const m = (D.modes || []).find(x => x.id === modeId); if (!m || !m.combos) return;
+    const wrap = document.createElement("div"); wrap.className = "combo-modal";
+    wrap.innerHTML = `<div class="combo-sheet"><div class="eyebrow" style="margin:0 0 .2rem">Choose your characters</div>
+      ${m.combos.map(c => `<a class="combo-opt" href="${C.esc(c.play)}"><span class="combo-lbl">${C.esc(c.label)}</span><span class="combo-sub">${C.esc(c.sub || "")}</span></a>`).join("")}
+      <button class="combo-cancel" type="button">Cancel</button></div>`;
+    wrap.addEventListener("click", e => { if (e.target === wrap || e.target.classList.contains("combo-cancel")) document.body.removeChild(wrap); });
+    document.body.appendChild(wrap);
   }
   // Fill each playable prototype's default board on Lab render.
   async function renderGameBoards() {
-    const playable = (D.modes || []).filter(m => m.play);
+    const playable = (D.modes || []).filter(m => m.combos && m.combos.length);
     for (const m of playable) {
-      const first = (m.boardGroups && m.boardGroups[0] && m.boardGroups[0].levels[0] && m.boardGroups[0].levels[0].id) || m.gameId || m.id;
+      const t = m.boardTree;
+      const first = (t && t[0] && t[0].combos[0] && t[0].combos[0].levels[0] && t[0].combos[0].levels[0].id) || m.id;
       loadBoardInto("gboard-" + m.id, first);
     }
   }
@@ -1738,6 +1768,6 @@ window.VApp = (function () {
   }
 
   const galMore = galLoadMore;
-  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter, counterVote, gameBoardPick, gameBoardVer };
+  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter, counterVote, gameBoardVer, gameBoardCombo, gameBoardLevel, comboChoose };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);
