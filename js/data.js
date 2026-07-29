@@ -334,6 +334,8 @@ VEILRUN.modes = [
       { id: "v1", label: "v1 · Seam Gate", levels: [ { id: "seam-gate", label: "Level 1" }, { id: "seam-gate-2", label: "Level 2" }, { id: "seam-gate-3", label: "Level 3" } ] },
       { id: "v0", label: "v0 · Foundry Gate", levels: [ { id: "foundry-gate", label: "L1 · Foundry Gate" } ] }
     ] },
+  { id: "shadow-run", name: "Shadow Run (Cinder + Vesper)", status: "prototyping", text: "The second playable pair — a stealth level, and the game's first enemy. Vesper vanishes when he holds still; Cinder lobs gas to blind a guard's vision cone, and can Dose Vesper so he crosses the fumes unharmed. Get both past the patrol to the exit.", chars: "Pairs", play: "games/shadow-run/index.html", gameId: "shadow-run", version: "v1",
+    boardGroups: [ { id: "cinder-vesper", label: "Cinder + Vesper", levels: [ { id: "shadow-run", label: "Level 1" } ] } ] },
   { id: "arena-clash", name: "Arena Clash (fighting game)", status: "idea", text: "Street Fighter / Mortal Kombat-style duels — pick from the roster and fight, with tag-team 2v2 / 2v1 and round-based (and maybe circular) arenas. (Pitched by jkrazy.)", chars: "1v1 / 2v2" },
   { id: "tactics-rpg", name: "Tactics RPG", status: "idea", text: "Turn-based grid squad tactics; positioning = the proximity-bond system.", chars: "Squad" },
   { id: "choose-adventure", name: "Choose-Your-Adventure", status: "idea", text: "A branching mission; each reader plays their character. Tests tone + the Severant.", chars: "All" },
@@ -396,6 +398,7 @@ VEILRUN.counters = {
 };
 
 VEILRUN.updates = [
+  { date: "2026-07-29", title: "New playable pair: Shadow Run (Cinder + Vesper)", text: "A whole new game and the first with an enemy. It's a stealth level: Vesper turns invisible when he holds still, Cinder lobs gas to blind a guard's vision cone — and the combo that matters, Cinder can Dose Vesper (stand together) so he can cross the gas unharmed. Slip both of them past the patrol to the exit; get spotted and it's back to the start. Its own best-times board — go set the first record. (Very much a prototype — tell us what feels off.)", cta: { label: "▶ Play Shadow Run", href: "games/shadow-run/index.html" } },
   { date: "2026-07-28", title: "Tidier game start screen", text: "Cleaned up the pair-level title screen: shorter intro, the level dropdown and Play button line up properly now, and the keyboard-controls line is hidden on phones (where you're using the on-screen buttons anyway).", cta: { label: "▶ Play", href: "games/pair-level/index.html" } },
   { date: "2026-07-28", title: "Cleaner level picker", text: "The title-screen level menu is a tidy dropdown now, and the ✓ only appears on levels you've actually cleared — before, a stray checkmark was showing on whichever level was highlighted. Pick a level and hit Play.", cta: { label: "▶ Play", href: "games/pair-level/index.html" } },
   { date: "2026-07-28", title: "Anvil's color is officially red", text: "We locked in Anvil's accent color: red, matching his silhouette and how he looks in the game (it just fits him). You'll see it on his crew card, hover, and gallery frame. Small thing, but it's part of a bigger tidy-up — we're getting the game and the site to share one set of brand colors instead of drifting apart." },

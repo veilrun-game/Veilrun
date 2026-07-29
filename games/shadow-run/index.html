@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>VEILRUN — Shadow Run: Cinder + Vesper</title>
+<style>
+  :root { --green:#78d28c; --indigo:#9a6ef0; --gold:#e8c15a; --red:#d6584f; --line:#2a2740; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html,body { margin:0; height:100%; background:#08060f; color:#eee;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; overflow:hidden; }
+  #wrap { position:fixed; inset:0; display:flex; flex-direction:column; }
+  #stage { position:relative; flex:1 1 auto; min-height:0; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; background:#0b0a14; touch-action:none; display:block; }
+  #hud { position:absolute; top:8px; left:10px; right:10px; display:flex; justify-content:space-between;
+    align-items:flex-start; pointer-events:none; font-size:clamp(11px,2.4vw,15px); gap:8px; }
+  #hud-left { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .pill { background:rgba(8,6,15,.65); border:1px solid var(--line); border-radius:999px; padding:4px 11px; }
+  #who { font-weight:700; }
+  #who .c{color:var(--green)} #who .v{color:var(--indigo)}
+  #status.cloaked { color:var(--indigo); border-color:var(--indigo); }
+  #status.dosed { color:var(--green); border-color:var(--green); }
+  #status.exposed { color:var(--red); border-color:var(--red); }
+  #hud-right { display:flex; gap:8px; align-items:center; pointer-events:auto; }
+  #timer { font-size:clamp(17px,5.4vw,22px); font-weight:800; font-variant-numeric:tabular-nums; color:var(--gold); }
+  #backBtn { pointer-events:auto; cursor:pointer; color:#fff; text-decoration:none; }
+  #mapBtn { cursor:pointer; font-size:clamp(13px,3.6vw,16px); color:#fff; padding:8px 15px; }
+  #mapBtn.on { background:rgba(154,110,240,.5); border-color:var(--indigo); }
+  #ver { position:absolute; left:10px; bottom:6px; font-size:10px; letter-spacing:.03em; color:#6a6580; pointer-events:none; }
+  #hint { position:absolute; left:50%; transform:translateX(-50%); bottom:10px; max-width:94%; text-align:center;
+    background:rgba(8,6,15,.78); border:1px solid var(--line); border-radius:8px; padding:6px 12px;
+    font-size:clamp(11px,3.2vw,14px); color:#cfc9e6; }
+  #pad { flex:0 0 auto; width:100%; margin:0; display:flex; justify-content:space-between;
+    gap:8px; padding:8px 8px calc(8px + env(safe-area-inset-bottom)); user-select:none;
+    background:rgba(8,6,15,.55); border-top:1px solid var(--line); }
+  .cluster { display:flex; gap:8px; }
+  .btn { width:64px; height:64px; border-radius:14px; background:rgba(30,26,52,.85); border:1px solid var(--line);
+    color:#fff; font-size:20px; display:flex; align-items:center; justify-content:center; touch-action:none; text-align:center; line-height:1.1; }
+  .btn:active { background:rgba(154,110,240,.5); }
+  .btn.wide { width:auto; padding:0 14px; font-size:14px; }
+  .btn-stack { flex-direction:column; gap:1px; }
+  .btn-stack .ico { font-size:22px; line-height:1; }
+  .btn-stack .lbl { font-size:11px; line-height:1; color:#cfc9e6; }
+  #overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; background:rgba(6,4,12,.86); padding:20px; }
+  #overlay h1 { font-size:clamp(22px,5vw,40px); margin:.1em 0; letter-spacing:.02em; }
+  #overlay h1 b{color:var(--green)} #overlay h1 i{color:var(--indigo); font-style:normal}
+  #overlay p { color:#bdb7d6; max-width:38ch; line-height:1.5; font-size:clamp(12px,2.8vw,15px); }
+  .play { margin-top:14px; background:var(--gold); color:#1a1206; border:none; border-radius:10px;
+    padding:12px 26px; font-weight:700; font-size:16px; cursor:pointer; }
+  .play.ghost { background:none; border:1px solid var(--line); color:#e8e4f5; }
+  .backlab { margin-top:14px; display:inline-block; padding:11px 20px; border:1px solid var(--line);
+    border-radius:10px; color:#e8e4f5; font-size:14px; text-decoration:none; min-height:44px; }
+  #levelSelect { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:8px; margin-top:10px; }
+  #levelSelect .play { margin-top:0; }
+  .keys { margin-top:14px; font-size:12px; color:#8f89a8; line-height:1.7; }
+  .keys b{color:#cfc9e6}
+  #winTime { color:var(--gold); font-weight:700; font-size:clamp(20px,5vw,34px); margin:.2em 0; }
+  @media (pointer:coarse){ .keys { display:none; } }
+  @media (hover:hover) and (pointer:fine){ #pad{display:none;} }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <div id="hint"></div>
+    <div id="ver">Shadow Run · v1 · a VEILRUN prototype</div>
+    <canvas id="c" width="960" height="560"></canvas>
+    <div id="hud">
+      <div id="hud-left">
+        <a class="pill" id="backBtn" href="/app.html#lab">← Lab</a>
+        <div class="pill" id="who">Controlling: <span class="v">Vesper</span></div>
+        <div class="pill" id="status">Exposed</div>
+      </div>
+      <div id="hud-right">
+        <div class="pill" id="timer">0:00.0</div>
+        <button class="pill" id="mapBtn" title="Toggle map view">🗺 Map</button>
+      </div>
+    </div>
+    <div id="overlay">
+      <div class="eyebrow" style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">VEILRUN · Shadow Run · v1</div>
+      <h1><b>Cinder</b> + <i>Vesper</i></h1>
+      <p><b style="color:var(--indigo)">Vesper</b> vanishes when he holds still; <b style="color:var(--green)">Cinder</b> gasses guards to blind them. Stay out of the red cones. Get <em>both</em> past the patrol to the exit.</p>
+      <div id="levelSelect"></div>
+      <div class="keys">
+        <b>Move</b> ← →  ·  <b>Jump</b> ↑ / Space  ·  <b>Switch</b> Tab  ·  <b>Ability</b> E  ·  <b>Reset</b> R
+      </div>
+      <a href="/app.html#lab" class="backlab" style="margin-top:16px">← Back to the Lab</a>
+    </div>
+  </div>
+  <div id="pad">
+    <div class="cluster" id="move">
+      <div class="btn" data-k="left">◄</div>
+      <div class="btn" data-k="right">►</div>
+    </div>
+    <div class="cluster">
+      <div class="btn wide" data-k="switch">Switch</div>
+      <div class="btn btn-stack" id="abilityBtn" data-k="ability"><span class="ico">✦</span><span class="lbl" id="abilityLbl">Blink</span></div>
+      <div class="btn" data-k="jump">⤒</div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  "use strict";
+  const TILE=40, COLS=24, ROWS=14;
+  const cv=document.getElementById("c"), ctx=cv.getContext("2d");
+  const overlay=document.getElementById("overlay"), hintEl=document.getElementById("hint");
+  const whoEl=document.getElementById("who"), statusEl=document.getElementById("status"), timerEl=document.getElementById("timer");
+
+  // Legend: '#' solid  ' ' empty  'c' Cinder spawn  'v' Vesper spawn  'e' exit
+  // Guards are defined per-level (patrol range in tiles, facing, still=fixed watcher).
+  const LEVELS = [
+    { id:"SR1", name:"Level 1", gameId:"shadow-run",
+      map:[
+      "#                      #","#                      #","#                      #","#                      #",
+      "#                      #","#                      #","#                      #","#                      #",
+      "#                      #","#                      #","#                      #","#                      #",
+      "#cv                  e #","########################"
+      ],
+      guards:[
+        { x0:5, x1:9, row:12, face:1, range:3, still:false },    // Guard A — paces the hall (teaches cloak/timing)
+        { x0:19, x1:19, row:12, face:-1, range:3.5, still:true }  // Guard B — fixed watcher on the exit (the gas+dose gate)
+      ] }
+  ];
+  let curLevel=0, pickedLevel=0;
+  let MAP=LEVELS[curLevel].map;
+  function setLevel(i){ curLevel=i; MAP=LEVELS[i].map; parse(); buildGuards(); }
+
+  let base=[], spawnC={x:1,y:12}, spawnV={x:2,y:12}, exits=[];
+  function parse(){
+    base=[]; exits=[];
+    for(let y=0;y<ROWS;y++){ base[y]=[]; const row=MAP[y]||"";
+      for(let x=0;x<COLS;x++){ const ch=row[x]||" "; let t="empty";
+        if(ch==="#") t="solid";
+        else if(ch==="e"){ t="empty"; exits.push({x,y}); }
+        else if(ch==="c"){ t="empty"; spawnC={x,y}; }
+        else if(ch==="v"){ t="empty"; spawnV={x,y}; }
+        base[y][x]=t;
+      }
+    }
+  }
+  parse();
+
+  // Characters
+  const C={ name:"Cinder", col:"#78d28c", w:26, h:50, vx:0,vy:0, face:1, speed:2.6, jump:9.2 };
+  const V={ name:"Vesper", col:"#9a6ef0", w:22, h:48, vx:0,vy:0, face:1, speed:3.0, jump:9.6, cloak:0, dosed:0, blink:0 };
+  let active="V";
+  const cur=()=> active==="C"?C:V;
+  const other=()=> active==="C"?V:C;
+
+  // Guards + effects
+  let guards=[], clouds=[], seenT=0, caughtFlash=0, doseFlash=0;
+  const GUARD_SPD=0.9, CONE_ANG=0.5, DOSE_MS=420, GAS_T=300, GAS_R=TILE*1.5, BLINK_DIST=TILE*2.4, BLINK_CD=45;
+  function buildGuards(){
+    guards=(LEVELS[curLevel].guards||[]).map(g=>{ const w=26,h=48, y=g.row*TILE - h + TILE;
+      return { x0:g.x0*TILE+7, x1:g.x1*TILE+7, x:g.x0*TILE+7, y, w, h, dir:g.face||1, face:g.face||1,
+               range:(g.range||5)*TILE, still:!!g.still, blind:0 }; });
+  }
+
+  function reset(){
+    C.x=spawnC.x*TILE+7; C.y=spawnC.y*TILE-C.h+TILE; C.vx=0; C.vy=0; C.face=1;
+    V.x=spawnV.x*TILE+9; V.y=spawnV.y*TILE-V.h+TILE; V.vx=0; V.vy=0; V.face=1; V.cloak=0; V.dosed=0; V.blink=0;
+    active="V"; clouds=[]; seenT=0; buildGuards();
+  }
+
+  function solidAt(tx,ty){
+    if(tx<0||tx>=COLS) return true;
+    if(ty<0||ty>=ROWS) return false;
+    return base[ty][tx]==="solid";
+  }
+  function overlapSolid(o){ const x0=Math.floor(o.x/TILE),x1=Math.floor((o.x+o.w-1)/TILE),y0=Math.floor(o.y/TILE),y1=Math.floor((o.y+o.h-1)/TILE);
+    for(let ty=y0;ty<=y1;ty++)for(let tx=x0;tx<=x1;tx++) if(solidAt(tx,ty)) return true; return false; }
+
+  function stepChar(o){
+    o.x+=o.vx; resolveAxis(o,"x");
+    o.vy+=0.55; if(o.vy>14)o.vy=14; o.y+=o.vy; resolveAxis(o,"y");
+    if(o.y>ROWS*TILE+60) caught();
+  }
+  function resolveAxis(o,axis){
+    const x0=Math.floor(o.x/TILE), x1=Math.floor((o.x+o.w-1)/TILE), y0=Math.floor(o.y/TILE), y1=Math.floor((o.y+o.h-1)/TILE);
+    for(let ty=y0;ty<=y1;ty++)for(let tx=x0;tx<=x1;tx++){
+      if(!solidAt(tx,ty)) continue;
+      const px=tx*TILE, py=ty*TILE;
+      if(!(o.x<px+TILE && o.x+o.w>px && o.y<py+TILE && o.y+o.h>py)) continue;
+      if(axis==="x"){ if(o.vx>0)o.x=px-o.w; else if(o.vx<0)o.x=px+TILE; o.vx=0; }
+      else { if(o.vy>0){o.y=py-o.h;o.vy=0;} else if(o.vy<0){o.y=py+TILE;o.vy=0;} }
+    }
+  }
+  function onGround(o){ const y=Math.floor((o.y+o.h+1)/TILE), x0=Math.floor((o.x+3)/TILE), x1=Math.floor((o.x+o.w-3)/TILE);
+    for(let tx=x0;tx<=x1;tx++) if(solidAt(tx,y)) return true; return false; }
+
+  // Abilities
+  function useAbility(){ if(active==="C") cinderAbility(); else vesperAbility(); }
+  function adjacentCV(){ return Math.abs((C.x+C.w/2)-(V.x+V.w/2)) < TILE*1.15 && Math.abs(C.y-V.y) < TILE; }
+  function cinderAbility(){ if(adjacentCV()){ V.dosed=DOSE_MS; doseFlash=30; } else throwGas(); }
+  // Cinder LOBS a gas bomb — it arcs forward and bursts on impact/after flight, so he can hit a guard from outside its cone.
+  function throwGas(){ clouds.push({ x:C.x+C.w/2, y:C.y+C.h*0.35, vx:C.face*5, vy:-4, r:GAS_R, t:GAS_T, burst:false, fT:0 }); }
+  function vesperAbility(){ if(V.blink>0) return; const old=V.x; V.x += V.face*BLINK_DIST;
+    if(overlapSolid(V)) V.x=old; V.blink=BLINK_CD; V.cloak=0; } // blink breaks cloak
+
+  // Vision: does guard g see character o (with LOS + cone)?
+  function sees(g,o){
+    if(g.blind>0) return false;
+    if(o===V && V.cloak>=100) return false;                // fully cloaked Vesper is invisible
+    const ex=g.x+g.w/2, ey=g.y+g.h*0.38, cx=o.x+o.w/2, cy=o.y+o.h*0.5;
+    const dx=cx-ex, dy=cy-ey;
+    if(g.face>0 && dx<6) return false; if(g.face<0 && dx>-6) return false;   // must be in front
+    const dist=Math.hypot(dx,dy); if(dist>g.range) return false;
+    if(Math.atan2(Math.abs(dy), Math.abs(dx)) > CONE_ANG) return false;      // within cone angle
+    const steps=Math.ceil(dist/(TILE*0.5));
+    for(let i=1;i<steps;i++){ const t=i/steps; if(solidAt(Math.floor((ex+dx*t)/TILE), Math.floor((ey+dy*t)/TILE))) return false; }
+    return true;
+  }
+  function caught(){ caughtFlash=26; softReset(); }
+
+  function bothInExit(){ const inE=(o)=>exits.some(e=>overlaps(o,e.x,e.y)||overlaps(o,e.x,e.y+1)); return inE(C)&&inE(V); }
+  function overlaps(o,tx,ty){ const px=tx*TILE,py=ty*TILE; return o.x<px+TILE && o.x+o.w>px && o.y<py+TILE && o.y+o.h>py; }
+
+  // Input
+  const held={left:false,right:false};
+  let started=false;
+  function jump(){ const o=cur(); if(onGround(o)) o.vy=-o.jump; }
+  function switchChar(){ active=active==="C"?"V":"C"; updWho(); }
+  document.addEventListener("keydown",e=>{
+    if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"," "].includes(e.key)) e.preventDefault();
+    if(state!=="play"){ if(e.key==="Enter"||e.key===" ") startGame(); return; }
+    const k=e.key.toLowerCase(); started=true;
+    if(k==="arrowleft"||k==="a") held.left=true;
+    else if(k==="arrowright"||k==="d") held.right=true;
+    else if(k==="arrowup"||k==="w"||k===" ") jump();
+    else if(k==="tab"||k==="shift"){ e.preventDefault(); switchChar(); }
+    else if(k==="e"||k==="enter") useAbility();
+    else if(k==="r") softReset();
+  });
+  document.addEventListener("keyup",e=>{ const k=e.key.toLowerCase();
+    if(k==="arrowleft"||k==="a") held.left=false; else if(k==="arrowright"||k==="d") held.right=false; });
+  document.querySelectorAll("#pad .btn[data-k='jump'],#pad .btn[data-k='switch'],#pad .btn[data-k='ability']").forEach(b=>{ const k=b.getAttribute("data-k");
+    const down=e=>{ e.preventDefault(); started=true; if(k==="jump")jump(); else if(k==="switch")switchChar(); else if(k==="ability")useAbility(); };
+    b.addEventListener("touchstart",down,{passive:false}); b.addEventListener("mousedown",down);
+  });
+  const moveEl=document.getElementById("move");
+  function moveTouch(e){ e.preventDefault(); started=true; const rect=moveEl.getBoundingClientRect(), mid=rect.left+rect.width/2; let l=false,r=false;
+    for(const t of e.touches){ if(t.clientX>rect.left-50 && t.clientX<rect.right+50 && t.clientY>rect.top-70){ if(t.clientX<mid)l=true; else r=true; } }
+    held.left=l; held.right=r; }
+  moveEl.addEventListener("touchstart",moveTouch,{passive:false});
+  moveEl.addEventListener("touchmove",moveTouch,{passive:false});
+  moveEl.addEventListener("touchend",e=>{ e.preventDefault(); moveTouch(e); if(!e.touches.length){ held.left=false; held.right=false; } },{passive:false});
+
+  function updWho(){ whoEl.innerHTML="Controlling: "+(active==="C"?'<span class="c">Cinder</span>':'<span class="v">Vesper</span>'); }
+  function updStatus(){
+    let cls="exposed", txt="Exposed";
+    if(V.dosed>0){ cls="dosed"; txt="Vesper: Dosed"; }
+    else if(V.cloak>=100){ cls="cloaked"; txt="Vesper: Cloaked"; }
+    else if(V.cloak>0){ cls="cloaked"; txt="Vesper: Fading… "+Math.round(V.cloak)+"%"; }
+    statusEl.textContent=txt; statusEl.className="pill "+cls;
+    const lbl=document.getElementById("abilityLbl"); if(lbl) lbl.textContent = active==="C" ? (adjacentCV()?"Dose":"Gas") : "Blink";
+  }
+
+  // Camera
+  const worldW=COLS*TILE, worldH=ROWS*TILE;
+  let dpr=1, zoom=1, followCam=false, cam={x:0,y:0}, mapMode=false;
+  function resize(){ const st=document.getElementById("stage"); dpr=Math.min(window.devicePixelRatio||1,2);
+    const cw=Math.max(1,st.clientWidth), ch=Math.max(1,st.clientHeight);
+    cv.width=Math.round(cw*dpr); cv.height=Math.round(ch*dpr); const aspect=cw/ch;
+    if(mapMode||aspect>=1.4){ zoom=Math.min(cv.width/worldW,cv.height/worldH); followCam=false; }
+    else { const tilesX=Math.max(6,Math.min(11,Math.round(aspect*15))); zoom=cv.width/(tilesX*TILE); followCam=true; }
+  }
+  window.addEventListener("resize",resize); window.addEventListener("orientationchange",()=>setTimeout(resize,200));
+  function toggleMap(){ mapMode=!mapMode; document.getElementById("mapBtn").classList.toggle("on",mapMode); resize(); updateCam(true); }
+  document.getElementById("mapBtn").addEventListener("click",toggleMap);
+  function updateCam(snap){ const viewW=cv.width/zoom, viewH=cv.height/zoom; let tx,ty;
+    if(followCam){ const o=cur(); tx=o.x+o.w/2-viewW/2; ty=o.y+o.h/2-viewH/2; } else { tx=(worldW-viewW)/2; ty=(worldH-viewH)/2; }
+    tx = viewW<worldW ? Math.max(0,Math.min(tx,worldW-viewW)) : (worldW-viewW)/2;
+    ty = viewH<worldH ? Math.max(0,Math.min(ty,worldH-viewH)) : (worldH-viewH)/2;
+    if(snap){ cam.x=tx; cam.y=ty; return; }
+    cam.x+=(tx-cam.x)*0.2; cam.y+=(ty-cam.y)*0.2;
+    if(Math.abs(tx-cam.x)<0.4)cam.x=tx; if(Math.abs(ty-cam.y)<0.4)cam.y=ty;
+  }
+
+  // Render
+  function draw(){
+    ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height);
+    const g=ctx.createLinearGradient(0,0,0,cv.height); g.addColorStop(0,"#0d0b16"); g.addColorStop(1,"#080610");
+    ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
+    ctx.setTransform(zoom,0,0,zoom,-cam.x*zoom,-cam.y*zoom);
+    for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){ if(base[y][x]==="solid") tile(x*TILE,y*TILE,"#242038","#15122a"); }
+    exits.forEach(e=>{ ctx.fillStyle="rgba(232,193,90,.18)"; ctx.fillRect(e.x*TILE,e.y*TILE-TILE,TILE,TILE*2);
+      ctx.fillStyle="#e8c15a"; ctx.font="12px sans-serif"; ctx.textAlign="center"; ctx.fillText("EXIT",e.x*TILE+TILE/2,e.y*TILE-6); });
+    // vision cones
+    guards.forEach(gd=>{ if(gd.blind>0) return; const ex=gd.x+gd.w/2, ey=gd.y+gd.h*0.38, r=gd.range, sp=Math.tan(CONE_ANG)*r;
+      ctx.fillStyle="rgba(214,88,79,0.16)"; ctx.beginPath(); ctx.moveTo(ex,ey);
+      ctx.lineTo(ex+gd.face*r, ey-sp); ctx.lineTo(ex+gd.face*r, ey+sp); ctx.closePath(); ctx.fill(); });
+    // gas: in-flight bomb (small) vs burst cloud (big, fading)
+    clouds.forEach(cl=>{ if(!cl.burst){ ctx.fillStyle="rgba(120,210,140,0.85)"; ctx.beginPath(); ctx.arc(cl.x,cl.y,6,0,7); ctx.fill(); }
+      else { const a=Math.min(0.32, cl.t/GAS_T*0.4+0.08); ctx.fillStyle="rgba(120,210,140,"+a+")"; ctx.beginPath(); ctx.arc(cl.x,cl.y,cl.r,0,7); ctx.fill(); } });
+    // guards
+    guards.forEach(gd=>{ ctx.fillStyle= gd.blind>0 ? "#5f5f68" : "#c0504a"; roundRect(gd.x,gd.y,gd.w,gd.h,5); ctx.fill();
+      ctx.fillStyle="rgba(0,0,0,.4)"; ctx.fillRect(gd.face>0?gd.x+gd.w-7:gd.x+3, gd.y+9, 4, 6);
+      if(gd.blind>0){ ctx.fillStyle="#78d28c"; ctx.font="12px sans-serif"; ctx.textAlign="center"; ctx.fillText("zzz",gd.x+gd.w/2,gd.y-4); } });
+    charBody(C); charBody(V);
+    const o=cur(); ctx.fillStyle="#fff"; ctx.beginPath(); ctx.moveTo(o.x+o.w/2,o.y-10); ctx.lineTo(o.x+o.w/2-6,o.y-20); ctx.lineTo(o.x+o.w/2+6,o.y-20); ctx.closePath(); ctx.fill();
+    // caught flash
+    if(caughtFlash>0){ ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle="rgba(214,88,79,"+(caughtFlash/26*0.5)+")"; ctx.fillRect(0,0,cv.width,cv.height); caughtFlash--; }
+  }
+  function tile(px,py,top,bot){ ctx.fillStyle=bot; ctx.fillRect(px,py,TILE,TILE); ctx.fillStyle=top; ctx.fillRect(px,py,TILE,TILE-6); ctx.strokeStyle="rgba(0,0,0,.25)"; ctx.strokeRect(px+.5,py+.5,TILE-1,TILE-1); }
+  function charBody(o){ let a=1;
+    if(o===V) a = V.cloak>=100 ? 0.25 : 1 - 0.55*(V.cloak/100);
+    ctx.globalAlpha=a; ctx.fillStyle=o.col; roundRect(o.x,o.y,o.w,o.h,6); ctx.fill(); ctx.globalAlpha=1;
+    if(o===V && V.dosed>0){ ctx.strokeStyle="rgba(120,210,140,0.9)"; ctx.lineWidth=2; roundRect(o.x-2,o.y-2,o.w+4,o.h+4,7); ctx.stroke(); ctx.lineWidth=1; }
+    ctx.fillStyle="rgba(0,0,0,.35)"; ctx.fillRect(o.face>0?o.x+o.w-7:o.x+3,o.y+9,4,6);
+    ctx.fillStyle="rgba(255,255,255,.85)"; ctx.font="10px sans-serif"; ctx.textAlign="center"; ctx.fillText(o===C?"CINDER":"VESPER",o.x+o.w/2,o.y-2); }
+  function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+  function hint(){ return "Vesper: hold still to cloak, ✦ to Blink. Cinder: ✦ Gas a guard — or Dose Vesper (stand together) to cross the fumes."; }
+
+  let t0=0, elapsed=0, state="title";
+  function fmt(ms){ const s=ms/1000, m=Math.floor(s/60), r=s-m*60; return m+":"+(r<10?"0":"")+r.toFixed(1); }
+  function startGame(levelIndex){ if(typeof levelIndex==="number") setLevel(levelIndex);
+    const lv=LEVELS[curLevel].id; if(!localStorage.getItem("vr_sr_trypts_"+lv)){ localStorage.setItem("vr_sr_trypts_"+lv,"1"); awardPoints("try",2,lv); }
+    overlay.style.display="none"; state="play"; started=false; elapsed=0; t0=0; reset(); updWho(); updStatus(); resize(); updateCam(true); }
+  function renderLevelSelect(){ const el=document.getElementById("levelSelect"); if(!el) return;
+    if(LEVELS.length>1){
+      const opts=LEVELS.map((lv,i)=>'<button type="button" class="lvlopt" data-i="'+i+'">Level '+(i+1)+(levelDone(lv.id)?' <span class="ck">✓ cleared</span>':'')+'</button>').join("");
+      el.innerHTML='<div class="lvldd"><button type="button" id="lvlDDbtn" class="lvlddbtn">Level '+(pickedLevel+1)+' <span style="opacity:.55">▾</span></button><div class="lvlddpanel" id="lvlDDpanel" hidden>'+opts+'</div></div><button class="play" id="lvlPlayBtn" style="margin-left:8px">▶ Play</button>';
+      const panel=document.getElementById("lvlDDpanel"), btn=document.getElementById("lvlDDbtn");
+      btn.addEventListener("click",e=>{ e.stopPropagation(); panel.hidden=!panel.hidden; });
+      el.querySelectorAll(".lvlopt").forEach(b=>b.addEventListener("click",()=>{ pickedLevel=+b.getAttribute("data-i"); btn.innerHTML='Level '+(pickedLevel+1)+' <span style="opacity:.55">▾</span>'; panel.hidden=true; }));
+      document.getElementById("lvlPlayBtn").addEventListener("click",()=>startGame(pickedLevel));
+      document.addEventListener("click",()=>{ if(panel) panel.hidden=true; });
+    } else {
+      el.innerHTML='<button class="play" id="lvlPlayBtn">▶ Play</button>';
+      document.getElementById("lvlPlayBtn").addEventListener("click",()=>startGame(0));
+    }
+  }
+  renderLevelSelect();
+  function softReset(){ reset(); updWho(); updStatus(); updateCam(true); }
+
+  function frame(ts){
+    if(state==="play"){
+      const o=cur();
+      o.vx = held.left?-o.speed : held.right?o.speed : 0;
+      if(o.vx>0)o.face=1; else if(o.vx<0)o.face=-1;
+      other().vx=0;
+      stepChar(C); stepChar(V);
+      // Vesper cloak: fills while he holds still on the ground, drains while moving; blink & dose break/override
+      const vStill = Math.abs(V.vx)<0.1 && onGround(V) && V.blink<=0;
+      if(vStill) V.cloak=Math.min(100, V.cloak+2.4); else V.cloak=Math.max(0, V.cloak-5);
+      if(V.blink>0) V.blink--;
+      if(V.dosed>0) V.dosed--;
+      // guards patrol + blind timer
+      guards.forEach(gd=>{ if(gd.blind>0){ gd.blind--; return; }
+        if(!gd.still){ gd.x+=gd.dir*GUARD_SPD; if(gd.x<=gd.x0){gd.x=gd.x0;gd.dir=1;} if(gd.x>=gd.x1){gd.x=gd.x1;gd.dir=-1;} gd.face=gd.dir; } });
+      // gas: bombs arc then burst; a burst cloud lingers, blinds guards inside, and blocks un-dosed Vesper (non-lethal knockback)
+      clouds.forEach(cl=>{
+        if(!cl.burst){ cl.fT++; cl.vy+=0.4; cl.x+=cl.vx; cl.y+=cl.vy;
+          if(cl.fT>42 || solidAt(Math.floor(cl.x/TILE),Math.floor(cl.y/TILE))) cl.burst=true;
+          return;
+        }
+        cl.t--;
+        guards.forEach(gd=>{ if(Math.hypot((gd.x+gd.w/2)-cl.x,(gd.y+gd.h/2)-cl.y) < cl.r+8) gd.blind=Math.max(gd.blind,26); });
+        if(V.dosed<=0 && Math.hypot((V.x+V.w/2)-cl.x,(V.y+V.h/2)-cl.y) < cl.r){ V.x += (V.x+V.w/2 < cl.x ? -3.2 : 3.2); }
+      });
+      clouds=clouds.filter(cl=> cl.burst ? cl.t>0 : true);
+      // detection (tiny grace to avoid 1-frame flickers)
+      const spotted = guards.some(gd=> sees(gd,C)||sees(gd,V));
+      seenT = spotted ? seenT+1 : 0;
+      if(seenT>6) caught();
+      if(doseFlash>0) doseFlash--;
+      if(started){ if(!t0)t0=ts; elapsed=ts-t0; }
+      timerEl.textContent=fmt(elapsed); hintEl.textContent=hint(); updStatus();
+      if(bothInExit()) win();
+    }
+    updateCam(); draw(); requestAnimationFrame(frame);
+  }
+
+  // ---- Best-time leaderboard + points (Supabase) — reuses the shared tables ----
+  const SB_URL="https://jbprsreaosetmqxhsnkl.supabase.co", SB_KEY="sb_publishable_fzxPI3jRqOmA-VIfWFuoNQ_zgXgBtAS";
+  const curGameId=()=> LEVELS[curLevel].gameId;
+  const gwho=()=> localStorage.getItem("vr_who")||localStorage.getItem("vr_account")||"anon";
+  function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  function levelDone(id){ return localStorage.getItem("vr_sr_done_"+id)==="1"; }
+  function localBest(){ const v=+localStorage.getItem("vr_srbest_"+curGameId()); return v>0?v:null; }
+  function setLocalBest(ms){ const b=localBest(); if(b==null||ms<b) localStorage.setItem("vr_srbest_"+curGameId(),String(Math.round(ms))); }
+  async function saveScore(ms){ try{ await fetch(SB_URL+"/rest/v1/game_scores",{method:"POST",headers:{apikey:SB_KEY,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({who:gwho(),game_id:curGameId(),time_ms:Math.round(ms)})}); }catch(e){} }
+  async function loadBoard(){ try{ const r=await fetch(SB_URL+"/rest/v1/game_scores?game_id=eq."+curGameId()+"&select=who,time_ms",{headers:{apikey:SB_KEY}}); const rows=await r.json(); if(!Array.isArray(rows))return null;
+    const best={}; rows.forEach(x=>{ if(best[x.who]==null||x.time_ms<best[x.who]) best[x.who]=x.time_ms; });
+    return Object.entries(best).map(([who,ms])=>({who,ms})).sort((a,b)=>a.ms-b.ms); }catch(e){ return null; } }
+  async function awardPoints(event,pts,meta){ try{ await fetch(SB_URL+"/rest/v1/game_points",{method:"POST",headers:{apikey:SB_KEY,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({who:gwho(),event:event,points:pts,meta:meta||""})}); }catch(e){} }
+
+  async function win(){ state="win"; started=false;
+    const lvId=LEVELS[curLevel].id, my=Math.round(elapsed), prevBest=localBest();
+    const before=await loadBoard();
+    const prevRecord=(before&&before.length)?before[0].ms:Infinity;
+    const prevRecordWho=(before&&before.length)?before[0].who:null;
+    setLocalBest(elapsed); localStorage.setItem("vr_sr_done_"+lvId,"1");
+    const earned=[];
+    if(!localStorage.getItem("vr_sr_clearpts_"+lvId)){ localStorage.setItem("vr_sr_clearpts_"+lvId,"1"); awardPoints("clear",10,lvId); earned.push("+10 first clear"); }
+    else if(prevBest!=null && my<prevBest){ awardPoints("beat_pb",3,lvId); earned.push("+3 beat your best"); }
+    await saveScore(elapsed);
+    if(my<prevRecord && prevRecordWho!==gwho()){ awardPoints("record",5,lvId); earned.push("🏆 +5 new record"); }
+    const hasNext = curLevel+1 < LEVELS.length;
+    overlay.style.display="flex";
+    overlay.innerHTML='<div class="eyebrow" style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">Level '+(curLevel+1)+' cleared</div>'
+      +'<h1>Past the <b>patrol</b>.</h1><div id="winTime">'+fmt(elapsed)+'</div>'
+      +'<p style="margin:.15em 0 .1em">Your best: <b style="color:var(--gold)">'+fmt(localBest())+'</b></p>'
+      +(earned.length?'<p style="color:var(--gold);font-weight:700;margin:.1em 0 .3em">'+earned.join(" · ")+'</p>':'')
+      +'<div id="board" style="width:100%;max-width:340px;margin:.5em 0"><p style="color:#8f89a8;font-size:12px">Loading crew times…</p></div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center">'
+      +'<button class="play ghost" id="againBtn">↻ Replay</button>'
+      +(hasNext?'<button class="play" id="nextBtn">Next level →</button>':'')
+      +'</div>'
+      +'<a href="/app.html#lab" class="backlab">← Back to the Lab</a>';
+    document.getElementById("againBtn").addEventListener("click",()=>startGame(curLevel));
+    if(hasNext) document.getElementById("nextBtn").addEventListener("click",()=>startGame(curLevel+1));
+    const board=await loadBoard(), el=document.getElementById("board"); if(!el) return;
+    if(!board||!board.length){ el.innerHTML='<p style="color:#8f89a8;font-size:12px">The crew leaderboard fills in as people post times.</p>'; return; }
+    const me=gwho();
+    const rows=board.slice(0,10).map((s,i)=>{ const mine=s.who===me;
+      return '<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 10px;border-radius:6px;font-size:13px;'+(mine?'background:rgba(232,193,90,.16)':'')+'"><span>'+(i+1)+'. '+esc(s.who)+(mine?' (you)':'')+'</span><span style="font-variant-numeric:tabular-nums;color:var(--gold)">'+fmt(s.ms)+'</span></div>'; }).join("");
+    el.innerHTML='<div style="text-align:left"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#9b7bd6;margin:0 0 6px">Best times · the crew</div>'+rows+'</div>'; }
+
+  buildGuards(); resize(); reset(); updWho(); updStatus(); updateCam(true); draw();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
