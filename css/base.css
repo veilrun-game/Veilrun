@@ -266,8 +266,9 @@ html { scroll-behavior: smooth; }
 .play-actions { display: flex; flex-wrap: wrap; gap: 0.7rem; align-items: center; margin-top: 0.9rem; }
 .play-board-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 .gb-picks { display: flex; gap: 8px; flex-wrap: wrap; }
-.gb-picks-col { display: flex; flex-direction: column; gap: 6px; margin-top: 0.5rem; }
-.gb-sel { background: var(--ink-2); color: var(--white); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font-size: 0.8rem; min-height: 38px; }
+.gb-picks-col { display: flex; flex-direction: column; gap: 8px; margin-top: 0.5rem; }
+.gb-picks-col .gb-sel { width: 100%; }
+.gb-sel { background: var(--ink-2); color: var(--white); border: 1px solid var(--line); border-radius: 8px; padding: 11px 14px; font-size: 0.9rem; min-height: 44px; }
 .combo-modal { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; background: rgba(6,4,12,0.7); backdrop-filter: blur(3px); padding: 1rem; }
 .combo-sheet { background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--s-6); width: 100%; max-width: 360px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 0.6rem; }
 .combo-opt { display: flex; flex-direction: column; gap: 2px; text-decoration: none; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 0.8rem 1rem; background: var(--ink); transition: border-color .15s, background .15s; }

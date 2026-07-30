@@ -121,6 +121,30 @@
       guards:[
         { x0:5, x1:9, row:12, face:1, range:3, still:false },    // Guard A — paces the hall (teaches cloak/timing)
         { x0:19, x1:19, row:12, face:-1, range:3.5, still:true }  // Guard B — fixed watcher on the exit (the gas+dose gate)
+      ] },
+    { id:"SR2", name:"Level 2", gameId:"shadow-run-2",
+      map:[
+      "#                      #","#                      #","#                      #","#                      #",
+      "#                      #","#                      #","#                      #","#                      #",
+      "#                      #","#                      #","#                      #","#                      #",
+      "#cv                  e #","########################"
+      ],
+      guards:[
+        { x0:6, x1:9, row:12, face:1, range:3, still:false },     // two patrols to time through
+        { x0:11, x1:14, row:12, face:1, range:3, still:false },
+        { x0:19, x1:19, row:12, face:-1, range:4, still:true }     // exit watcher — gas+dose gate (throw from ~x15)
+      ] },
+    { id:"SR3", name:"Level 3", gameId:"shadow-run-3",
+      map:[
+      "#                      #","#                      #","#                      #","#                      #",
+      "#                      #","#                      #","#                      #","#                      #",
+      "#                      #","#                      #","#                      #","#                      #",
+      "#cv                  e #","########################"
+      ],
+      guards:[
+        { x0:5, x1:9, row:12, face:1, range:3, still:false },     // patrol
+        { x0:13, x1:13, row:12, face:-1, range:3, still:true },    // MID gas gate — throw from ~x10
+        { x0:19, x1:19, row:12, face:-1, range:4, still:true }     // exit gas gate — throw from ~x15
       ] }
   ];
   let curLevel=0, pickedLevel=0;

@@ -337,7 +337,7 @@ VEILRUN.modes = [
     boardTree: [
       { id: "v1", label: "v1 (current)", combos: [
         { id: "anvil-latch", label: "Anvil + Latch", levels: [ { id: "seam-gate", label: "Level 1" }, { id: "seam-gate-2", label: "Level 2" }, { id: "seam-gate-3", label: "Level 3" } ] },
-        { id: "cinder-vesper", label: "Cinder + Vesper", levels: [ { id: "shadow-run", label: "Level 1" } ] }
+        { id: "cinder-vesper", label: "Cinder + Vesper", levels: [ { id: "shadow-run", label: "Level 1" }, { id: "shadow-run-2", label: "Level 2" }, { id: "shadow-run-3", label: "Level 3" } ] }
       ] },
       { id: "v0", label: "v0 (legacy)", combos: [
         { id: "anvil-latch", label: "Anvil + Latch · Foundry Gate", levels: [ { id: "foundry-gate", label: "Level 1" } ] }
@@ -405,6 +405,7 @@ VEILRUN.counters = {
 };
 
 VEILRUN.updates = [
+  { date: "2026-07-30", title: "Shadow Run: two more levels", text: "Cinder + Vesper now has three levels. Level 2 adds a second patrol to slip past; Level 3 is a two-gate run — you'll need to gas (and Dose across) more than once. Each has its own best-times board. Also fixed the leaderboard dropdowns being too small to tap on phones.", cta: { label: "Open the Lab →", href: "#lab" } },
   { date: "2026-07-29", title: "New pair to play: Cinder + Vesper (stealth — with the first enemy)", text: "2D Pair Levels now lets you choose your characters. Hit Play and pick a combo: Anvil + Latch (the flip-and-charge levels) or the new Cinder + Vesper — a stealth level, and the game's first enemy. Vesper turns invisible when he holds still, Cinder lobs gas to blind a guard's vision cone, and the combo that matters: Cinder can Dose Vesper (stand together) so he crosses the gas unharmed. Slip both past the patrol to the exit — get spotted and it's back to the start. The leaderboard now sorts by Version → Combo → Level, so every pair keeps its own board. Go set the first Cinder + Vesper record. (Very much a prototype — tell us what feels off.)", cta: { label: "Open the Lab →", href: "#lab" } },
   { date: "2026-07-28", title: "Tidier game start screen", text: "Cleaned up the pair-level title screen: shorter intro, the level dropdown and Play button line up properly now, and the keyboard-controls line is hidden on phones (where you're using the on-screen buttons anyway).", cta: { label: "▶ Play", href: "games/pair-level/index.html" } },
   { date: "2026-07-28", title: "Cleaner level picker", text: "The title-screen level menu is a tidy dropdown now, and the ✓ only appears on levels you've actually cleared — before, a stray checkmark was showing on whichever level was highlighted. Pick a level and hit Play.", cta: { label: "▶ Play", href: "games/pair-level/index.html" } },
