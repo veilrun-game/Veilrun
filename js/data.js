@@ -332,12 +332,14 @@ VEILRUN.modes = [
   { id: "pair-levels", name: "2D Pair Levels", status: "prototyping", text: "Levels only clearable with a specific pair's combo — the purest synergy test. Choose your characters, then run their levels: Anvil + Latch (flip the world & charge through walls) or Cinder + Vesper (stealth — cloak, gas, and the Dose combo).", chars: "Pairs", version: "v1",
     combos: [
       { id: "anvil-latch", label: "Anvil + Latch", sub: "Flip & charge · The Seam Gate", play: "games/pair-level/index.html" },
-      { id: "cinder-vesper", label: "Cinder + Vesper", sub: "Stealth · Shadow Run (has the first enemy)", play: "games/shadow-run/index.html" }
+      { id: "cinder-vesper", label: "Cinder + Vesper", sub: "Stealth · Shadow Run (has the first enemy)", play: "games/shadow-run/index.html" },
+      { id: "rook-wren", label: "Rook + Wren", sub: "Telekinesis · Uplift (launch + surge)", play: "games/uplift/index.html" }
     ],
     boardTree: [
       { id: "v1", label: "v1 (current)", combos: [
         { id: "anvil-latch", label: "Anvil + Latch", levels: [ { id: "seam-gate", label: "Level 1" }, { id: "seam-gate-2", label: "Level 2" }, { id: "seam-gate-3", label: "Level 3" } ] },
-        { id: "cinder-vesper", label: "Cinder + Vesper", levels: [ { id: "shadow-run", label: "Level 1" }, { id: "shadow-run-2", label: "Level 2" }, { id: "shadow-run-3", label: "Level 3" } ] }
+        { id: "cinder-vesper", label: "Cinder + Vesper", levels: [ { id: "shadow-run", label: "Level 1" }, { id: "shadow-run-2", label: "Level 2" }, { id: "shadow-run-3", label: "Level 3" } ] },
+        { id: "rook-wren", label: "Rook + Wren", levels: [ { id: "uplift", label: "Level 1" } ] }
       ] },
       { id: "v0", label: "v0 (legacy)", combos: [
         { id: "anvil-latch", label: "Anvil + Latch · Foundry Gate", levels: [ { id: "foundry-gate", label: "Level 1" } ] }
@@ -405,6 +407,7 @@ VEILRUN.counters = {
 };
 
 VEILRUN.updates = [
+  { date: "2026-07-31", title: "Combo #3 is playable: Rook + Wren (Uplift)", text: "The third pair is in. Rook can't jump — but his ability launches Wren into the air (then you steer her). Wren is fast, jumps high, and her Surge dash charges a current-node that raises Rook's bridge so he can cross. Neither can finish alone: Wren can't reach the node without Rook's launch, and Rook can't cross the gap without Wren's charge. Find it under 2D Pair Levels → Play → pick Rook + Wren. Its own best-times board — go set the first record. (Prototype — tell us how the launch/steer feels.)", cta: { label: "Open the Lab →", href: "#lab" } },
   { date: "2026-07-30", title: "Fixes from your notes: mobile nav + leaderboard clarity", text: "A batch of fixes: the mobile nav dropdown no longer sticks open (you can close it and tap other links again), the stealth game's level picker is styled correctly, and the leaderboard now shows game points in each person's breakdown — and 'most active this week' counts play, not just feedback, so the numbers actually reflect where your points came from. Also gave the leaderboard dropdowns roomier arrows and bigger tap targets on mobile.", cta: { label: "Open the Lab →", href: "#lab" } },
   { date: "2026-07-30", title: "Shadow Run: two more levels", text: "Cinder + Vesper now has three levels. Level 2 adds a second patrol to slip past; Level 3 is a two-gate run — you'll need to gas (and Dose across) more than once. Each has its own best-times board. Also fixed the leaderboard dropdowns being too small to tap on phones.", cta: { label: "Open the Lab →", href: "#lab" } },
   { date: "2026-07-29", title: "New pair to play: Cinder + Vesper (stealth — with the first enemy)", text: "2D Pair Levels now lets you choose your characters. Hit Play and pick a combo: Anvil + Latch (the flip-and-charge levels) or the new Cinder + Vesper — a stealth level, and the game's first enemy. Vesper turns invisible when he holds still, Cinder lobs gas to blind a guard's vision cone, and the combo that matters: Cinder can Dose Vesper (stand together) so he crosses the gas unharmed. Slip both past the patrol to the exit — get spotted and it's back to the start. The leaderboard now sorts by Version → Combo → Level, so every pair keeps its own board. Go set the first Cinder + Vesper record. (Very much a prototype — tell us what feels off.)", cta: { label: "Open the Lab →", href: "#lab" } },
