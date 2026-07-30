@@ -273,6 +273,11 @@ html { scroll-behavior: smooth; }
 .gb-picks { display: flex; gap: 8px; flex-wrap: wrap; }
 .gb-picks-col { display: flex; flex-direction: column; gap: 8px; margin-top: 0.5rem; }
 .gb-picks-col .gb-sel { width: 100%; }
+/* Desktop: sit the pickers in a row when there's room; stack on mobile. */
+@media (min-width: 900px) {
+  .gb-picks-col { flex-direction: row; flex-wrap: wrap; }
+  .gb-picks-col .gb-sel { flex: 1 1 150px; width: auto; }
+}
 .gb-sel { appearance: none; -webkit-appearance: none; background-color: var(--ink-2);
   background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="8" viewBox="0 0 12 8" fill="none" stroke="%239692ac" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l5 5 5-5"/></svg>');
   background-repeat: no-repeat; background-position: right 12px center;
