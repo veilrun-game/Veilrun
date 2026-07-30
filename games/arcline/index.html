@@ -149,9 +149,9 @@
       "#             GG       #",
       "#             GG X     #",
       "#             GG       #",
-      "#             GG       #",
-      "#    X        GG       #",
-      "#tc           GG X  e  #",
+      "#       H     GG       #",
+      "#       H     GG       #",
+      "#tc     H     GG X  e  #",
       "########################"
     ]}
   ];
@@ -159,13 +159,15 @@
   let MAP=LEVELS[curLevel].map;
   function setLevel(i){ curLevel=i; MAP=LEVELS[i].map; parse(); }
 
-  let base=[], spawnT={x:1,y:12}, spawnC={x:2,y:12}, exits=[], triggers=[];
+  let base=[], spawnT={x:1,y:12}, spawnC={x:2,y:12}, exits=[], triggers=[], hazards=[];
   function parse(){
-    base=[]; exits=[]; triggers=[];
+    base=[]; exits=[]; triggers=[]; hazards=[];
     for(let y=0;y<ROWS;y++){ base[y]=[]; const row=MAP[y]||"";
       for(let x=0;x<COLS;x++){ const ch=row[x]||" "; let t="empty";
         if(ch==="#") t="solid";
         else if(ch==="G") t="gate";
+        else if(ch==="B") t="bridge";
+        else if(ch==="H"){ t="empty"; hazards.push({x,y,active:true}); }   // live-wire — lethal until Citrine sparks it off
         else if(ch==="X"){ t="empty"; triggers.push({x:x*TILE+TILE/2, y:y*TILE+TILE/2, charged:false}); }
         else if(ch==="e"){ t="empty"; exits.push({x,y}); }
         else if(ch==="t"){ t="empty"; spawnT={x,y}; }
@@ -187,7 +189,7 @@
   function reset(){
     T.x=spawnT.x*TILE+8; T.y=spawnT.y*TILE-T.h+TILE; T.vx=0; T.vy=0; T.face=1;
     C.x=spawnC.x*TILE+8; C.y=spawnC.y*TILE-C.h+TILE; C.vx=0; C.vy=0; C.face=1;
-    active="T"; blades=[]; flying=null; gateOpen=false; arcT=0; arcLinks=[]; triggers.forEach(t=>t.charged=false);
+    active="T"; blades=[]; flying=null; gateOpen=false; arcT=0; arcLinks=[]; triggers.forEach(t=>t.charged=false); hazards.forEach(h=>h.active=true);
   }
 
   function solidAt(tx,ty){
@@ -196,6 +198,7 @@
     const t=base[ty][tx];
     if(t==="solid") return true;
     if(t==="gate") return !gateOpen;      // gate blocks until sparked open
+    if(t==="bridge") return gateOpen;     // bridge raises (becomes solid) once all triggers are charged
     return false;                          // blades are NON-solid (conductors, not footholds)
   }
   function overlapsTile(o,tx,ty){ const px=tx*TILE,py=ty*TILE; return o.x<px+TILE && o.x+o.w>px && o.y<py+TILE && o.y+o.h>py; }
@@ -237,7 +240,8 @@
       else blades.forEach((b,i)=>{ if(seen[i] && dist(b,tg)<CONDUCT_RANGE){ tg.charged=true; arcLinks.push([b,tg]); } });
     });
     if(triggers.length && triggers.every(t=>t.charged)) gateOpen=true;
-    // (future) Citrine's spark also zaps hazards/enemies within SPARK_RANGE
+    // Citrine's spark also zaps hazards (and, later, enemies) within reach
+    hazards.forEach(h=>{ if(!h.active) return; const hp={x:h.x*TILE+TILE/2,y:h.y*TILE+TILE/2}; if(dist(cpt,hp)<SPARK_RANGE){ h.active=false; arcLinks.push([cpt,hp]); } });
   }
 
   function bothInExit(){ const inE=(o)=>exits.some(e=>overlapsTile(o,e.x,e.y)||overlapsTile(o,e.x,e.y+1)); return inE(T)&&inE(C); }
@@ -308,7 +312,13 @@
     for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){ const t=base[y][x], px=x*TILE, py=y*TILE;
       if(t==="solid") tile(px,py,"#242038","#15122a");
       else if(t==="gate"){ if(!gateOpen) tile(px,py,"#3a2450","#241436"); else { ctx.strokeStyle="rgba(232,193,90,.4)"; ctx.setLineDash([5,4]); ctx.strokeRect(px+3,py+3,TILE-6,TILE-6); ctx.setLineDash([]); } }
+      else if(t==="bridge"){ if(gateOpen) tile(px,py,"#2c2444","#1a1030"); else { ctx.strokeStyle="rgba(245,205,70,.35)"; ctx.setLineDash([5,4]); ctx.strokeRect(px+3,py+3,TILE-6,TILE-6); ctx.setLineDash([]); } }
     }
+    // hazards (live wires)
+    hazards.forEach(h=>{ const px=h.x*TILE, py=h.y*TILE;
+      if(h.active){ ctx.fillStyle="rgba(214,88,79,.45)"; ctx.fillRect(px+6,py,TILE-12,TILE);
+        ctx.strokeStyle="#ffcc55"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(px+TILE*0.5,py+3); ctx.lineTo(px+TILE*0.38,py+TILE*0.5); ctx.lineTo(px+TILE*0.6,py+TILE*0.5); ctx.lineTo(px+TILE*0.45,py+TILE-3); ctx.stroke(); ctx.lineWidth=1; }
+      else { ctx.strokeStyle="rgba(120,120,140,.4)"; ctx.setLineDash([4,4]); ctx.strokeRect(px+9,py+3,TILE-18,TILE-6); ctx.setLineDash([]); } });
     // triggers
     triggers.forEach(tg=>{ const on=tg.charged; ctx.fillStyle= on ? "rgba(232,193,90,.95)" : "rgba(190,110,240,.85)"; ctx.save(); ctx.translate(tg.x,tg.y); ctx.rotate(Math.PI/4);
       ctx.fillRect(-8,-8,16,16); ctx.restore();
@@ -367,6 +377,7 @@
       if(o.vx>0)o.face=1; else if(o.vx<0)o.face=-1;
       other().vx=0;
       stepChar(T); stepChar(C);
+      if([T,C].some(o=>hazards.some(h=>h.active && overlapsTile(o,h.x,h.y)))) softReset();   // touched a live wire
       // flying blade: arc, then stick into the first solid surface it meets (surfaces only)
       if(flying){ flying.life--; flying.vy+=0.3; if(flying.vy>12)flying.vy=12;
         const nx=flying.x+flying.vx, ny=flying.y+flying.vy, tx=Math.floor(nx/TILE), ty=Math.floor(ny/TILE);
