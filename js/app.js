@@ -474,7 +474,7 @@ window.VApp = (function () {
     leaderboard() {
       return `<div class="wrap section">
         ${C.sectionHeader("The crew","Leaderboard")}
-        <p class="mute" style="max-width:62ch;margin-top:1rem">Who's shaping Veilrun the most. Points for contributing — <strong>feedback counts triple</strong>, likes and votes count too. Crew-only for now; once logins are in, activity will factor in as well.</p>
+        <p class="mute" style="max-width:62ch;margin-top:1rem">Who's shaping Veilrun the most. Points for contributing — <strong>feedback counts triple</strong>, plus likes, votes, and <strong>playing the prototypes</strong>: you earn points for trying a level, clearing it, beating your own best, and taking #1 on a game's board. Crew-only for now.</p>
         <div id="lb-board" style="margin-top:1.5rem"><p class="mute">Loading…</p></div>
       </div>`;
     },
@@ -1054,13 +1054,13 @@ window.VApp = (function () {
       <div class="panel lb-weekly">
         <div class="eyebrow">Most active this week</div>
         <div class="lb-weekly-name">${C.esc(lbName(weekTop.displayName))}${weekTop.charName ? `<span class="lb-tag">${C.esc(weekTop.charName)}</span>` : ""}</div>
-        <p class="mute" style="margin:.2rem 0 0">${weekTop.week} piece${weekTop.week === 1 ? "" : "s"} of feedback in the last 7 days. 🔥</p>
+        <p class="mute" style="margin:.2rem 0 0">${weekTop.week} contribution${weekTop.week === 1 ? "" : "s"} in the last 7 days (feedback + game play). 🔥</p>
       </div>` : "";
     const list = rows.map((o, i) => `
       <div class="lb-row${i < 3 ? " lb-top" : ""}">
         <div class="lb-pos">${medal(i)}</div>
         <div class="lb-who">${C.esc(lbName(o.displayName))}${o.charName ? `<span class="lb-tag">${C.esc(o.charName)}</span>` : ""}</div>
-        <div class="lb-detail mute">${o.fb} feedback · ${o.likes} likes · ${o.votes} votes</div>
+        <div class="lb-detail mute">${o.fb} feedback · ${o.likes} likes · ${o.votes} votes${o.game ? ` · ${o.game} game pts` : ""}</div>
         <div class="lb-pts">${o.points}<span class="mute"> pts</span></div>
       </div>`).join("");
     // Unattributed feedback (no name) lands in one shared bucket — show it, but off the ranked

@@ -75,8 +75,13 @@ h3 { font-size: 1.3rem; }
   flex-direction: column; min-width: 168px; background: var(--ink-2); border: 1px solid var(--line);
   border-radius: var(--radius-sm); padding: var(--s-2); z-index: 30; box-shadow: var(--shadow); }
 .nav .navdrop-menu::before { content: ""; position: absolute; top: -8px; left: 0; right: 0; height: 8px; }
-.nav .navdrop:hover .navdrop-menu, .nav .navdrop:focus-within .navdrop-menu, .nav .navdrop.open .navdrop-menu { display: flex; }
-.nav .navdrop:hover .caret, .nav .navdrop.open .caret { transform: rotate(180deg); }
+.nav .navdrop.open .navdrop-menu { display: flex; }
+.nav .navdrop.open .caret { transform: rotate(180deg); }
+/* Hover-open is desktop-only — on touch, :hover sticks after a tap and traps the menu open. */
+@media (hover: hover) {
+  .nav .navdrop:hover .navdrop-menu, .nav .navdrop:focus-within .navdrop-menu { display: flex; }
+  .nav .navdrop:hover .caret { transform: rotate(180deg); }
+}
 .nav .navdrop-menu a { white-space: nowrap; }
 
 /* Ever-present Feedback CTA (right side desktop, right side of mobile bottom bar). */
@@ -268,7 +273,10 @@ html { scroll-behavior: smooth; }
 .gb-picks { display: flex; gap: 8px; flex-wrap: wrap; }
 .gb-picks-col { display: flex; flex-direction: column; gap: 8px; margin-top: 0.5rem; }
 .gb-picks-col .gb-sel { width: 100%; }
-.gb-sel { background: var(--ink-2); color: var(--white); border: 1px solid var(--line); border-radius: 8px; padding: 11px 14px; font-size: 0.9rem; min-height: 44px; }
+.gb-sel { appearance: none; -webkit-appearance: none; background-color: var(--ink-2);
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="8" viewBox="0 0 12 8" fill="none" stroke="%239692ac" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l5 5 5-5"/></svg>');
+  background-repeat: no-repeat; background-position: right 12px center;
+  color: var(--white); border: 1px solid var(--line); border-radius: 8px; padding: 11px 36px 11px 14px; font-size: 0.9rem; min-height: 44px; }
 .combo-modal { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; background: rgba(6,4,12,0.7); backdrop-filter: blur(3px); padding: 1rem; }
 .combo-sheet { background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--s-6); width: 100%; max-width: 360px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 0.6rem; }
 .combo-opt { display: flex; flex-direction: column; gap: 2px; text-decoration: none; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 0.8rem 1rem; background: var(--ink); transition: border-color .15s, background .15s; }
