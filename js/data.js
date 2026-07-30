@@ -339,7 +339,7 @@ VEILRUN.modes = [
       { id: "v1", label: "v1 (current)", combos: [
         { id: "anvil-latch", label: "Anvil + Latch", levels: [ { id: "seam-gate", label: "Level 1" }, { id: "seam-gate-2", label: "Level 2" }, { id: "seam-gate-3", label: "Level 3" } ] },
         { id: "cinder-vesper", label: "Cinder + Vesper", levels: [ { id: "shadow-run", label: "Level 1" }, { id: "shadow-run-2", label: "Level 2" }, { id: "shadow-run-3", label: "Level 3" } ] },
-        { id: "rook-wren", label: "Rook + Wren", levels: [ { id: "uplift", label: "Level 1" } ] }
+        { id: "rook-wren", label: "Rook + Wren", levels: [ { id: "uplift", label: "Level 1" }, { id: "uplift-2", label: "Level 2" }, { id: "uplift-3", label: "Level 3" } ] }
       ] },
       { id: "v0", label: "v0 (legacy)", combos: [
         { id: "anvil-latch", label: "Anvil + Latch · Foundry Gate", levels: [ { id: "foundry-gate", label: "Level 1" } ] }
@@ -407,6 +407,7 @@ VEILRUN.counters = {
 };
 
 VEILRUN.updates = [
+  { date: "2026-07-31", title: "Uplift: two more levels (Rook + Wren)", text: "Rook + Wren now has three levels. Level 2 makes Wren work for it — launched onto a ledge, then Surge across a gap to reach the node. Level 3 is a two-circuit run: charge the first node to bridge Rook forward, then he launches Wren again to charge a second node and open the way to the exit. Each keeps its own best-times board.", cta: { label: "Open the Lab →", href: "#lab" } },
   { date: "2026-07-31", title: "Combo #3 is playable: Rook + Wren (Uplift)", text: "The third pair is in. Rook can't jump — but his ability launches Wren into the air (then you steer her). Wren is fast, jumps high, and her Surge dash charges a current-node that raises Rook's bridge so he can cross. Neither can finish alone: Wren can't reach the node without Rook's launch, and Rook can't cross the gap without Wren's charge. Find it under 2D Pair Levels → Play → pick Rook + Wren. Its own best-times board — go set the first record. (Prototype — tell us how the launch/steer feels.)", cta: { label: "Open the Lab →", href: "#lab" } },
   { date: "2026-07-30", title: "Fixes from your notes: mobile nav + leaderboard clarity", text: "A batch of fixes: the mobile nav dropdown no longer sticks open (you can close it and tap other links again), the stealth game's level picker is styled correctly, and the leaderboard now shows game points in each person's breakdown — and 'most active this week' counts play, not just feedback, so the numbers actually reflect where your points came from. Also gave the leaderboard dropdowns roomier arrows and bigger tap targets on mobile.", cta: { label: "Open the Lab →", href: "#lab" } },
   { date: "2026-07-30", title: "Shadow Run: two more levels", text: "Cinder + Vesper now has three levels. Level 2 adds a second patrol to slip past; Level 3 is a two-gate run — you'll need to gas (and Dose across) more than once. Each has its own best-times board. Also fixed the leaderboard dropdowns being too small to tap on phones.", cta: { label: "Open the Lab →", href: "#lab" } },

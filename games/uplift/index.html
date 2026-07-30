@@ -131,6 +131,24 @@
       "#                      #","#                      #","#                      #","#                      #",
       "#rw                 e  #",
       "########BBBB############"
+    ]},
+    { id:"UP2", name:"Level 2", gameId:"uplift-2", map:[
+      "#                      #","#                      #","#                      #","#                      #",
+      "#                      #","#                      #",
+      "#          N           #",
+      "#    #### ####         #",
+      "#                      #","#                      #","#                      #","#                      #",
+      "#rw                 e  #",
+      "##########BBBB##########"
+    ]},
+    { id:"UP3", name:"Level 3", gameId:"uplift-3", map:[
+      "#                      #","#                      #","#                      #","#                      #",
+      "#                      #","#                      #",
+      "#   N            M     #",
+      "# #####         ####   #",
+      "#                      #","#                      #","#                      #","#                      #",
+      "#rw                  e #",
+      "#####BBB#######CCC######"
     ]}
   ];
   let curLevel=0, pickedLevel=0;
@@ -143,8 +161,10 @@
     for(let y=0;y<ROWS;y++){ base[y]=[]; const row=MAP[y]||"";
       for(let x=0;x<COLS;x++){ const ch=row[x]||" "; let t="empty";
         if(ch==="#") t="solid";
-        else if(ch==="B") t="bridge";
-        else if(ch==="N"){ t="empty"; nodes.push({x,y}); }
+        else if(ch==="B") t="bridgeA";
+        else if(ch==="C") t="bridgeB";
+        else if(ch==="N"){ t="empty"; nodes.push({x,y,g:"a"}); }
+        else if(ch==="M"){ t="empty"; nodes.push({x,y,g:"b"}); }
         else if(ch==="e"){ t="empty"; exits.push({x,y}); }
         else if(ch==="r"){ t="empty"; spawnR={x,y}; }
         else if(ch==="w"){ t="empty"; spawnW={x,y}; }
@@ -157,7 +177,7 @@
   // Characters — Rook can't jump; Wren is agile
   const R={ name:"Rook", col:"#aa82f0", w:30, h:40, vx:0,vy:0, face:1, speed:1.9, jump:0 };
   const W={ name:"Wren", col:"#e06ec8", w:22, h:42, vx:0,vy:0, face:1, speed:3.2, jump:10.5, surge:0, surgeCd:0 };
-  let active="R", charged=false, tkFlash=0;
+  let active="R", charged={a:false,b:false}, tkFlash=0;
   const cur=()=> active==="R"?R:W;
   const other=()=> active==="R"?W:R;
   const LAUNCH_VY=17, SURGE_FR=9, SURGE_SPD=9, SURGE_CD=36;
@@ -165,7 +185,7 @@
   function reset(){
     R.x=spawnR.x*TILE+7; R.y=spawnR.y*TILE-R.h+TILE; R.vx=0; R.vy=0; R.face=1;
     W.x=spawnW.x*TILE+9; W.y=spawnW.y*TILE-W.h+TILE; W.vx=0; W.vy=0; W.face=1; W.surge=0; W.surgeCd=0;
-    active="R"; charged=false;
+    active="R"; charged={a:false,b:false};
   }
 
   function solidAt(tx,ty){
@@ -173,7 +193,8 @@
     if(ty<0||ty>=ROWS) return false;
     const t=base[ty][tx];
     if(t==="solid") return true;
-    if(t==="bridge") return charged;      // bridge is solid only once the node is charged
+    if(t==="bridgeA") return charged.a;   // bridge is solid only once its node is charged
+    if(t==="bridgeB") return charged.b;
     return false;
   }
   function overlapSolid(o){ const x0=Math.floor(o.x/TILE),x1=Math.floor((o.x+o.w-1)/TILE),y0=Math.floor(o.y/TILE),y1=Math.floor((o.y+o.h-1)/TILE);
@@ -238,8 +259,9 @@
 
   function updWho(){ whoEl.innerHTML="Controlling: "+(active==="R"?'<span class="r">Rook</span>':'<span class="w">Wren</span>');
     const lbl=document.getElementById("abilityLbl"); if(lbl) lbl.textContent = active==="R" ? "Launch" : "Surge"; }
-  function updStatus(){ statusEl.textContent = charged ? "Node: charged ⚡" : "Node: cold";
-    statusEl.className = "pill " + (charged ? "charged" : "ready"); }
+  function updStatus(){ const groups=[...new Set(nodes.map(n=>n.g))], on=groups.filter(g=>charged[g]).length, all=groups.length>0 && on===groups.length;
+    statusEl.textContent = groups.length>1 ? ("Nodes: "+on+"/"+groups.length+(all?" ⚡":"")) : (on ? "Node: charged ⚡" : "Node: cold");
+    statusEl.className = "pill " + (all ? "charged" : "ready"); }
 
   // Camera
   const worldW=COLS*TILE, worldH=ROWS*TILE;
@@ -270,12 +292,13 @@
     ctx.setTransform(zoom,0,0,zoom,-cam.x*zoom,-cam.y*zoom);
     for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){ const t=base[y][x], px=x*TILE, py=y*TILE;
       if(t==="solid") tile(px,py,"#242038","#15122a");
-      else if(t==="bridge"){ if(charged) tile(px,py,"#3a2c58","#241a3a"); else { ctx.strokeStyle="rgba(170,130,240,.35)"; ctx.setLineDash([5,4]); ctx.strokeRect(px+3,py+3,TILE-6,TILE-6); ctx.setLineDash([]); } }
+      else if(t==="bridgeA"){ if(charged.a) tile(px,py,"#3a2c58","#241a3a"); else ghostTile(px,py,"rgba(170,130,240,.4)"); }
+      else if(t==="bridgeB"){ if(charged.b) tile(px,py,"#22484c","#12292c"); else ghostTile(px,py,"rgba(96,214,220,.4)"); }
     }
-    nodes.forEach(n=>{ const px=n.x*TILE+TILE/2, py=n.y*TILE+TILE/2;
-      ctx.fillStyle= charged ? "rgba(232,193,90,.9)" : "rgba(96,214,220,.85)"; ctx.beginPath(); ctx.arc(px,py,9,0,7); ctx.fill();
-      ctx.strokeStyle= charged ? "#e8c15a" : "#60d6dc"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(px,py,13,0,7); ctx.stroke(); ctx.lineWidth=1;
-      ctx.fillStyle="#fff"; ctx.font="9px sans-serif"; ctx.textAlign="center"; ctx.fillText(charged?"⚡":"NODE",px,py-17); });
+    nodes.forEach(n=>{ const px=n.x*TILE+TILE/2, py=n.y*TILE+TILE/2, on=charged[n.g], base=n.g==="b"?"96,214,220":"170,130,240";
+      ctx.fillStyle= on ? "rgba(232,193,90,.9)" : "rgba("+base+",.85)"; ctx.beginPath(); ctx.arc(px,py,9,0,7); ctx.fill();
+      ctx.strokeStyle= on ? "#e8c15a" : "rgba("+base+",1)"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(px,py,13,0,7); ctx.stroke(); ctx.lineWidth=1;
+      ctx.fillStyle="#fff"; ctx.font="9px sans-serif"; ctx.textAlign="center"; ctx.fillText(on?"⚡":"NODE",px,py-17); });
     exits.forEach(e=>{ ctx.fillStyle="rgba(232,193,90,.18)"; ctx.fillRect(e.x*TILE,e.y*TILE-TILE,TILE,TILE*2);
       ctx.fillStyle="#e8c15a"; ctx.font="12px sans-serif"; ctx.textAlign="center"; ctx.fillText("EXIT",e.x*TILE+TILE/2,e.y*TILE-6); });
     if(tkFlash>0 && nearWren()){ ctx.strokeStyle="rgba(170,130,240,"+(tkFlash/22)+")"; ctx.lineWidth=2;
@@ -285,6 +308,7 @@
     if(tkFlash>0) tkFlash--;
   }
   function tile(px,py,top,bot){ ctx.fillStyle=bot; ctx.fillRect(px,py,TILE,TILE); ctx.fillStyle=top; ctx.fillRect(px,py,TILE,TILE-6); ctx.strokeStyle="rgba(0,0,0,.25)"; ctx.strokeRect(px+.5,py+.5,TILE-1,TILE-1); }
+  function ghostTile(px,py,c){ ctx.strokeStyle=c; ctx.setLineDash([5,4]); ctx.strokeRect(px+3,py+3,TILE-6,TILE-6); ctx.setLineDash([]); }
   function charBody(o){ ctx.fillStyle=o.col;
     if(o===W && W.surge>0){ ctx.globalAlpha=.5; roundRect(o.x-W.face*10,o.y,o.w,o.h,6); ctx.fill(); ctx.globalAlpha=1; }
     roundRect(o.x,o.y,o.w,o.h,6); ctx.fill();
@@ -325,7 +349,7 @@
       if(o.vx>0)o.face=1; else if(o.vx<0)o.face=-1;
       other().vx=0;
       stepChar(R); stepChar(W);
-      if(W.surge>0){ W.surge--; nodes.forEach(n=>{ if(!charged && overlapsTile(W,n.x,n.y)){ charged=true; chargeFlash(); } }); }
+      if(W.surge>0){ W.surge--; nodes.forEach(n=>{ if(!charged[n.g] && overlapsTile(W,n.x,n.y)) charged[n.g]=true; }); }
       if(W.surgeCd>0) W.surgeCd--;
       if(started){ if(!t0)t0=ts; elapsed=ts-t0; }
       timerEl.textContent=fmt(elapsed); hintEl.textContent=hint(); updStatus();
