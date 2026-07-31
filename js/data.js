@@ -334,14 +334,16 @@ VEILRUN.modes = [
       { id: "anvil-latch", label: "Anvil + Latch", sub: "Flip & charge · The Seam Gate", play: "games/pair-level/index.html" },
       { id: "cinder-vesper", label: "Cinder + Vesper", sub: "Stealth · Shadow Run (has the first enemy)", play: "games/shadow-run/index.html" },
       { id: "rook-wren", label: "Rook + Wren", sub: "Telekinesis · Uplift (launch + surge)", play: "games/uplift/index.html" },
-      { id: "temper-citrine", label: "Temper + Citrine", sub: "Blades & arc · Arcline (plant + power)", play: "games/arcline/index.html" }
+      { id: "temper-citrine", label: "Temper + Citrine", sub: "Blades & arc · Arcline (plant + power)", play: "games/arcline/index.html" },
+      { id: "magpie-babel", label: "Magpie + Babel", sub: "Build & command · Runeway (bridge + name)", play: "games/runeway/index.html" }
     ],
     boardTree: [
       { id: "v1", label: "v1 (current)", combos: [
         { id: "anvil-latch", label: "Anvil + Latch", levels: [ { id: "seam-gate", label: "Level 1" }, { id: "seam-gate-2", label: "Level 2" }, { id: "seam-gate-3", label: "Level 3" } ] },
         { id: "cinder-vesper", label: "Cinder + Vesper", levels: [ { id: "shadow-run", label: "Level 1" }, { id: "shadow-run-2", label: "Level 2" }, { id: "shadow-run-3", label: "Level 3" } ] },
         { id: "rook-wren", label: "Rook + Wren", levels: [ { id: "uplift", label: "Level 1" }, { id: "uplift-2", label: "Level 2" }, { id: "uplift-3", label: "Level 3" } ] },
-        { id: "temper-citrine", label: "Temper + Citrine", levels: [ { id: "arcline", label: "Level 1" }, { id: "arcline-2", label: "Level 2" }, { id: "arcline-3", label: "Level 3" } ] }
+        { id: "temper-citrine", label: "Temper + Citrine", levels: [ { id: "arcline", label: "Level 1" }, { id: "arcline-2", label: "Level 2" }, { id: "arcline-3", label: "Level 3" } ] },
+        { id: "magpie-babel", label: "Magpie + Babel", levels: [ { id: "runeway", label: "Level 1" } ] }
       ] },
       { id: "v0", label: "v0 (legacy)", combos: [
         { id: "anvil-latch", label: "Anvil + Latch · Foundry Gate", levels: [ { id: "foundry-gate", label: "Level 1" } ] }
@@ -409,6 +411,7 @@ VEILRUN.counters = {
 };
 
 VEILRUN.updates = [
+  { date: "2026-08-03", title: "Combo #5 is in — all ten crew now play: Magpie + Babel (Runeway)", text: "The roster's complete — every crew member is in a playable pair. The last one, Magpie + Babel: Magpie BUILDS — she places blocks to bridge the gaps you can't jump. Babel COMMANDS — he speaks the True Name of a foreign rune-lock to open it. Neither finishes alone: Magpie can't open the lock, Babel can't cross the gap. Find it under 2D Pair Levels → Play → Magpie + Babel. Its own best-times board. (Prototype, one level — tell us how building + naming feels.)", cta: { label: "Open the Lab →", href: "#lab" } },
   { date: "2026-08-02", title: "Arcline: two more levels (Temper + Citrine)", text: "Temper + Citrine now has three levels. Level 2 throws a live-wire hazard across the path — Citrine has to spark it off before you can pass (that short zap of his finally earns its keep) — then a two-trigger gate. Level 3 walls you off completely — no more walking over to the trigger. Two triggers sit behind the wall, and Temper has to thread blades through two tight gaps at different heights so the current can chain to both. Citrine sparks from your side; if you haven't built the line, nothing lights. Each keeps its own best-times board.", cta: { label: "Open the Lab →", href: "#lab" } },
   { date: "2026-08-01", title: "Combo #4 is playable: Temper + Citrine (Arcline)", text: "Four of five pairs are in. Temper THROWS blades that stick where they land — conductors, not footholds (so you can't just climb them). Citrine's Spark is short-range on its own, but it hops blade-to-blade: throw a line of blades to the gate's trigger, then spark it open. You genuinely need both. Find it under 2D Pair Levels → Play → Temper + Citrine. Its own best-times board. (Prototype, one level — tell us how the throw + spark feels and I'll build more.)", cta: { label: "Open the Lab →", href: "#lab" } },
   { date: "2026-07-31", title: "Uplift: two more levels (Rook + Wren)", text: "Rook + Wren now has three levels. Level 2 makes Wren work for it — launched onto a ledge, then Surge across a gap to reach the node. Level 3 is a two-circuit run: charge the first node to bridge Rook forward, then he launches Wren again to charge a second node and open the way to the exit. Each keeps its own best-times board.", cta: { label: "Open the Lab →", href: "#lab" } },
