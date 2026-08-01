@@ -335,7 +335,7 @@ VEILRUN.modes = [
       { id: "cinder-vesper", label: "Cinder + Vesper", sub: "Stealth · Shadow Run (has the first enemy)", play: "games/shadow-run/index.html" },
       { id: "rook-wren", label: "Rook + Wren", sub: "Telekinesis · Uplift (launch + surge)", play: "games/uplift/index.html" },
       { id: "temper-citrine", label: "Temper + Citrine", sub: "Blades & arc · Arcline (plant + power)", play: "games/arcline/index.html" },
-      { id: "magpie-babel", label: "Magpie + Babel", sub: "Build & command · Runeway (bridge + name)", play: "games/runeway/index.html" }
+      { id: "magpie-babel", label: "Magpie + Babel", sub: "Shield & command · Runeway (shield + power the lift)", play: "games/runeway/index.html" }
     ],
     boardTree: [
       { id: "v1", label: "v1 (current)", combos: [
@@ -343,7 +343,7 @@ VEILRUN.modes = [
         { id: "cinder-vesper", label: "Cinder + Vesper", levels: [ { id: "shadow-run", label: "Level 1" }, { id: "shadow-run-2", label: "Level 2" }, { id: "shadow-run-3", label: "Level 3" } ] },
         { id: "rook-wren", label: "Rook + Wren", levels: [ { id: "uplift", label: "Level 1" }, { id: "uplift-2", label: "Level 2" }, { id: "uplift-3", label: "Level 3" } ] },
         { id: "temper-citrine", label: "Temper + Citrine", levels: [ { id: "arcline", label: "Level 1" }, { id: "arcline-2", label: "Level 2" }, { id: "arcline-3", label: "Level 3" } ] },
-        { id: "magpie-babel", label: "Magpie + Babel", levels: [ { id: "runeway", label: "Level 1" } ] }
+        { id: "magpie-babel", label: "Magpie + Babel", levels: [ { id: "runeway", label: "Level 1" }, { id: "runeway-2", label: "Level 2" }, { id: "runeway-2b", label: "Level 2-2" }, { id: "runeway-3", label: "Level 3" } ] }
       ] },
       { id: "v0", label: "v0 (legacy)", combos: [
         { id: "anvil-latch", label: "Anvil + Latch · Foundry Gate", levels: [ { id: "foundry-gate", label: "Level 1" } ] }
@@ -413,6 +413,7 @@ VEILRUN.counters = {
 };
 
 VEILRUN.updates = [
+  { date: "2026-08-04", title: "Runeway: two more levels (Magpie + Babel)", text: "Magpie + Babel now has three levels, and the rune drives something different each time. Level 1: a lift straight up. Level 2: the rune powers a TRAM that ferries you across a pit you can't jump — the whole crossing is under fire, so time your shield and launch together; Babel can tap Read mid-ride to boost the tram for a faster run. Level 2-2 is that same tram turned brutal — a longer, fully-exposed crossing where one shield won't cover you, so you have to boost to survive (its own board, for the show-offs). Level 3 is the gauntlet: ride a lift up through one turret's fire — that one you can't reach, so shield it — then Babel silences the second turret and powers a tram across a high gap to the exit. Each keeps its own best-times board.", cta: { label: "Open the Lab →", href: "#lab" } },
   { date: "2026-08-03", title: "Combo #5 is in — all ten crew now play: Magpie + Babel (Runeway)", text: "The roster's complete — every crew member is in a playable pair. Magpie + Babel is combat-flavoured: a turret sprays fire across the way. Magpie throws up a SHIELD — an aura that wraps the whole crew and soaks up the fire for a few seconds, then recharges. Babel, the military linguist, reads foreign tech — stand by the turret to DISARM it, or by a rune to POWER its lift, an elevator that carries you up to the exit. Shield the crossing, silence the gun, ride the lift up. Find it under 2D Pair Levels → Play → Magpie + Babel. (Prototype — tell us how it feels; harder levels coming.)", cta: { label: "Open the Lab →", href: "#lab" } },
   { date: "2026-08-02", title: "Arcline: two more levels (Temper + Citrine)", text: "Temper + Citrine now has three levels. Level 2 throws a live-wire hazard across the path — Citrine has to spark it off before you can pass (that short zap of his finally earns its keep) — then a two-trigger gate. Level 3 walls you off completely — no more walking over to the trigger. Two triggers sit behind the wall, and Temper has to thread blades through two tight gaps at different heights so the current can chain to both. Citrine sparks from your side; if you haven't built the line, nothing lights. Each keeps its own best-times board.", cta: { label: "Open the Lab →", href: "#lab" } },
   { date: "2026-08-01", title: "Combo #4 is playable: Temper + Citrine (Arcline)", text: "Four of five pairs are in. Temper THROWS blades that stick where they land — conductors, not footholds (so you can't just climb them). Citrine's Spark is short-range on its own, but it hops blade-to-blade: throw a line of blades to the gate's trigger, then spark it open. You genuinely need both. Find it under 2D Pair Levels → Play → Temper + Citrine. Its own best-times board. (Prototype, one level — tell us how the throw + spark feels and I'll build more.)", cta: { label: "Open the Lab →", href: "#lab" } },
