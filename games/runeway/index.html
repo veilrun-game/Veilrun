@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>VEILRUN — Runeway: Magpie + Babel</title>
 <style>
-  :root { --magpie:#5ac8c8; --babel:#d9a441; --gold:#e8c15a; --line:#2a2740; }
+  :root { --magpie:#5ac8c8; --babel:#d9a441; --gold:#e8c15a; --red:#d6584f; --line:#2a2740; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html,body { margin:0; height:100%; background:#08060f; color:#eee;
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; overflow:hidden; }
@@ -18,8 +18,8 @@
   .pill { background:rgba(8,6,15,.65); border:1px solid var(--line); border-radius:999px; padding:4px 11px; }
   #who { font-weight:700; }
   #who .m{color:var(--magpie)} #who .b{color:var(--babel)}
-  #status.locked { color:var(--babel); border-color:var(--babel); }
-  #status.open { color:var(--gold); border-color:var(--gold); }
+  #status.warded { color:var(--magpie); border-color:var(--magpie); }
+  #status.up { color:var(--gold); border-color:var(--gold); }
   #hud-right { display:flex; gap:8px; align-items:center; pointer-events:auto; }
   #timer { font-size:clamp(17px,5.4vw,22px); font-weight:800; font-variant-numeric:tabular-nums; color:var(--gold); }
   #backBtn { pointer-events:auto; cursor:pointer; color:#fff; text-decoration:none; }
@@ -81,7 +81,7 @@
       <div id="hud-left">
         <a class="pill" id="backBtn" href="/app.html#lab">← Lab</a>
         <div class="pill" id="who">Controlling: <span class="m">Magpie</span></div>
-        <div class="pill" id="status">Rune-lock: sealed</div>
+        <div class="pill" id="status">Under fire</div>
       </div>
       <div id="hud-right">
         <div class="pill" id="timer">0:00.0</div>
@@ -91,7 +91,7 @@
     <div id="overlay">
       <div class="eyebrow" style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">VEILRUN · Runeway · v1</div>
       <h1><b>Magpie</b> + <i>Babel</i></h1>
-      <p><b style="color:var(--magpie)">Magpie</b> <b>builds</b> — she places blocks to bridge the gaps. <b style="color:var(--babel)">Babel</b> <b>speaks the True Name</b> of a foreign rune-lock to open it. Build the way, name what holds it. Get <em>both</em> to the exit.</p>
+      <p><b style="color:var(--magpie)">Magpie</b> throws up a <b>shield</b> — an aura that wraps the whole crew and soaks up enemy fire for a few seconds (then it needs a moment to recharge). <b style="color:var(--babel)">Babel</b> reads foreign tech: stand by a turret to <b>disarm</b> it, or by a rune to <b>power its lift</b>. Shield the crossing, silence the gun, ride the lift up. Get <em>both</em> to the exit.</p>
       <div id="levelSelect"></div>
       <div class="keys">
         <b>Move</b> ← →  ·  <b>Jump</b> ↑ / Space  ·  <b>Switch</b> Tab  ·  <b>Ability</b> E  ·  <b>Reset</b> R
@@ -106,7 +106,7 @@
     </div>
     <div class="cluster">
       <div class="btn wide" data-k="switch">Switch</div>
-      <div class="btn btn-stack" id="abilityBtn" data-k="ability"><span class="ico">✦</span><span class="lbl" id="abilityLbl">Build</span></div>
+      <div class="btn btn-stack" id="abilityBtn" data-k="ability"><span class="ico">✦</span><span class="lbl" id="abilityLbl">Shield</span></div>
       <div class="btn" data-k="jump">⤒</div>
     </div>
   </div>
@@ -119,30 +119,39 @@
   const overlay=document.getElementById("overlay"), hintEl=document.getElementById("hint");
   const whoEl=document.getElementById("who"), statusEl=document.getElementById("status"), timerEl=document.getElementById("timer");
 
-  // Legend: '#' solid  ' ' empty  'm' Magpie  'b' Babel  'e' exit  'G' rune-lock gate (Babel opens with True Name)
+  // Legend: '#' solid  ' ' empty  'm' Magpie  'b' Babel  'e' exit
+  //   'T' turret (fires left)   'E' elevator platform (rises when the rune is powered)   'R' rune (Babel powers it; sits on the lift)
   const LEVELS = [
     { id:"RW1", name:"Level 1", gameId:"runeway", map:[
-      "#                      #","#                      #","#                      #","#                      #",
-      "#                      #","#                      #","#                      #","#                      #",
       "#                      #",
-      "#             G        #",
-      "#             G        #",
-      "#             G        #",
-      "#mb           G   e    #",
-      "######    ##############"
+      "#                      #",
+      "#                      #",
+      "#            e          #",
+      "#                      #",
+      "#                      #",
+      "#                      #",
+      "#                      #",
+      "#                      #",
+      "#                      #",
+      "#                      #",
+      "#                      #",
+      "#mb      T   ERE        #",
+      "########################"
     ]}
   ];
   let curLevel=0, pickedLevel=0;
   let MAP=LEVELS[curLevel].map;
   function setLevel(i){ curLevel=i; MAP=LEVELS[i].map; parse(); }
 
-  let base=[], spawnM={x:1,y:12}, spawnB={x:2,y:12}, exits=[], gateCells=[];
+  let base=[], spawnM={x:1,y:12}, spawnB={x:2,y:12}, exits=[], turretDefs=[], runeDefs=[], elevDefs=[];
   function parse(){
-    base=[]; exits=[]; gateCells=[];
+    base=[]; exits=[]; turretDefs=[]; runeDefs=[]; elevDefs=[];
     for(let y=0;y<ROWS;y++){ base[y]=[]; const row=MAP[y]||"";
       for(let x=0;x<COLS;x++){ const ch=row[x]||" "; let t="empty";
         if(ch==="#") t="solid";
-        else if(ch==="G"){ t="gate"; gateCells.push({x,y}); }
+        else if(ch==="T"){ t="empty"; turretDefs.push({x,y}); }
+        else if(ch==="E"){ t="empty"; elevDefs.push({x,y}); }
+        else if(ch==="R"){ t="empty"; runeDefs.push({x,y}); elevDefs.push({x,y}); }  // rune sits on the lift platform
         else if(ch==="e"){ t="empty"; exits.push({x,y}); }
         else if(ch==="m"){ t="empty"; spawnM={x,y}; }
         else if(ch==="b"){ t="empty"; spawnB={x,y}; }
@@ -154,32 +163,46 @@
 
   const M={ name:"Magpie", col:"#5ac8c8", w:24, h:46, vx:0,vy:0, face:1, speed:2.7, jump:9.8 };
   const B={ name:"Babel",  col:"#d9a441", w:24, h:46, vx:0,vy:0, face:1, speed:2.7, jump:9.8 };
-  let active="M", blocks=new Set(), buildOrder=[], gateOpen=false, nameFlash=0, buildFlash=0;
+  let active="M", shieldT=0, shieldCd=0, shots=[], turrets=[], runes=[], elevator=null, cmdFlash=0, boostT=0;
   const cur=()=> active==="M"?M:B;
   const other=()=> active==="M"?B:M;
-  const MAX_BLOCKS=6, TN_RANGE=100;
+  const SHIELD_DUR=200, SHIELD_CD=120, TN_RANGE=105, SHOT_SPD=3.4, FIRE_CD=70, LIFT_SPD=1.8, BOOST_DUR=42, BOOST_MULT=2.6;
 
   function reset(){
     M.x=spawnM.x*TILE+8; M.y=spawnM.y*TILE-M.h+TILE; M.vx=0; M.vy=0; M.face=1;
     B.x=spawnB.x*TILE+8; B.y=spawnB.y*TILE-B.h+TILE; B.vx=0; B.vy=0; B.face=1;
-    active="M"; blocks=new Set(); buildOrder=[]; gateOpen=false; nameFlash=0; buildFlash=0;
+    active="M"; shieldT=0; shieldCd=0; shots=[]; cmdFlash=0; boostT=0;
+    turrets=turretDefs.map(t=>({x:t.x*TILE+TILE/2, y:t.y*TILE+TILE/2, dir:-1, cd:40, disabled:false}));
+    runes=runeDefs.map(r=>({x:r.x*TILE+TILE/2, y:r.y*TILE+TILE/2}));
+    if(elevDefs.length){
+      const xs=elevDefs.map(e=>e.x), row=elevDefs[0].y, minx=Math.min(...xs), maxx=Math.max(...xs);
+      const topY = exits.length ? (exits[0].y+1)*TILE : row*TILE;
+      elevator={ x:minx*TILE, y:row*TILE, w:(maxx-minx+1)*TILE, baseY:row*TILE, topY:topY, active:false };
+    } else elevator=null;
   }
 
   function solidAt(tx,ty){
     if(tx<0||tx>=COLS) return true;
     if(ty<0||ty>=ROWS) return false;
-    if(blocks.has(tx+","+ty)) return true;      // Magpie's built blocks
-    const t=base[ty][tx];
-    if(t==="solid") return true;
-    if(t==="gate") return !gateOpen;             // rune-lock blocks until Babel names it
-    return false;
+    return base[ty][tx]==="solid";
   }
-  function overlapsTile(o,tx,ty){ const px=tx*TILE,py=ty*TILE; return o.x<px+TILE && o.x+o.w>px && o.y<py+TILE && o.y+o.h>py; }
+  function overlapsTile(o,tx,ty){ const qx=tx*TILE,qy=ty*TILE; return o.x<qx+TILE && o.x+o.w>qx && o.y<qy+TILE && o.y+o.h>qy; }
   function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+
+  // ---- Elevator (one-way moving platform; only ascends with a rider aboard) ----
+  function onElevator(o){ return elevator && o.x+o.w>elevator.x+3 && o.x<elevator.x+elevator.w-3
+      && (o.y+o.h)>=elevator.y-3 && (o.y+o.h)<=elevator.y+12; }
+  function landElevator(o){ if(!elevator) return;
+    if(o.vy>=0 && o.x+o.w>elevator.x+3 && o.x<elevator.x+elevator.w-3){
+      const top=elevator.y; if((o.y+o.h)>=top && (o.y+o.h)<=top+14+o.vy){ o.y=top-o.h; o.vy=0; } } }
+  function elevatorRise(){ if(!elevator||!elevator.active||elevator.y<=elevator.topY) return;
+    const riders=[M,B].filter(onElevator); if(!riders.length) return;   // needs someone aboard
+    let spd=LIFT_SPD; if(boostT>0){ spd*=BOOST_MULT; boostT--; }         // Babel can urge it faster mid-ride
+    const dy=Math.min(spd, elevator.y-elevator.topY); elevator.y-=dy; riders.forEach(o=>o.y-=dy); }
 
   function stepChar(o){
     o.x+=o.vx; resolveAxis(o,"x");
-    o.vy+=0.55; if(o.vy>14)o.vy=14; o.y+=o.vy; resolveAxis(o,"y");
+    o.vy+=0.55; if(o.vy>14)o.vy=14; o.y+=o.vy; resolveAxis(o,"y"); landElevator(o);
     if(o.y>ROWS*TILE+60) softReset();
   }
   function resolveAxis(o,axis){
@@ -193,23 +216,28 @@
     }
   }
   function onGround(o){ const y=Math.floor((o.y+o.h+1)/TILE), x0=Math.floor((o.x+3)/TILE), x1=Math.floor((o.x+o.w-3)/TILE);
-    for(let tx=x0;tx<=x1;tx++) if(solidAt(tx,y)) return true; return false; }
+    for(let tx=x0;tx<=x1;tx++) if(solidAt(tx,y)) return true;
+    if(elevator && o.x+o.w>elevator.x+3 && o.x<elevator.x+elevator.w-3 && Math.abs((o.y+o.h)-elevator.y)<4) return true;
+    return false; }
 
   // Abilities
-  function useAbility(){ if(active==="M") build(); else trueName(); }
-  function build(){ const fx=Math.floor((M.x+M.w/2)/TILE)+M.face, fy=Math.floor((M.y+M.h+1)/TILE), key=fx+","+fy;
-    if(fx<1||fx>=COLS-1||fy<1||fy>=ROWS) return;
-    if(base[fy][fx]==="solid"||base[fy][fx]==="gate"||blocks.has(key)) return;
-    // don't build on top of the other character
-    if(overlapsTile(B, fx, fy)||overlapsTile(M, fx, fy)) return;
-    blocks.add(key); buildOrder.push(key); if(buildOrder.length>MAX_BLOCKS) blocks.delete(buildOrder.shift());
-    buildFlash=12;
-  }
-  function trueName(){ const bp={x:B.x+B.w/2, y:B.y+B.h/2};
-    if(!gateOpen && gateCells.some(g=>dist(bp,{x:g.x*TILE+TILE/2,y:g.y*TILE+TILE/2})<TN_RANGE)){ gateOpen=true; nameFlash=26; }
+  function useAbility(){ if(active==="M") shieldUp(); else command(); }
+  function shieldUp(){ if(shieldT<=0 && shieldCd<=0){ shieldT=SHIELD_DUR; } }
+  function command(){ const bp={x:B.x+B.w/2, y:B.y+B.h/2};
+    // nearest turret in range -> disarm; else nearest rune in range -> power the lift
+    let t=turrets.filter(t=>!t.disabled).sort((a,b)=>dist(bp,a)-dist(bp,b))[0];
+    if(t && dist(bp,t)<TN_RANGE){ t.disabled=true; cmdFlash=24; return; }
+    if(elevator && !elevator.active && runes.some(r=>dist(bp,r)<TN_RANGE)){ elevator.active=true; cmdFlash=24; return; }
+    if(elevator && elevator.active && elevator.y>elevator.topY && onElevator(B)){ boostT=BOOST_DUR; cmdFlash=18; }  // urge the lift faster mid-ride
   }
 
-  function bothInExit(){ const inE=(o)=>exits.some(e=>overlapsTile(o,e.x,e.y)||overlapsTile(o,e.x,e.y+1)); return inE(M)&&inE(B); }
+  function bothInExit(){
+    // Elevator levels: you arrive only when the lift tops out with BOTH aboard — unambiguous, no early clip.
+    if(elevator) return elevator.active && elevator.y<=elevator.topY+0.5 && onElevator(M) && onElevator(B);
+    // Walk-in exits: require the character's centre inside the exit doorway (not just any overlap).
+    const inE=(o)=>{ const cx=o.x+o.w/2, cy=o.y+o.h/2; return exits.some(e=> cx>e.x*TILE && cx<(e.x+1)*TILE && cy>e.y*TILE-6 && cy<(e.y+2)*TILE); };
+    return inE(M)&&inE(B);
+  }
 
   // Input
   const held={left:false,right:false};
@@ -242,9 +270,17 @@
   moveEl.addEventListener("touchend",e=>{ e.preventDefault(); moveTouch(e); if(!e.touches.length){ held.left=false; held.right=false; } },{passive:false});
 
   function updWho(){ whoEl.innerHTML="Controlling: "+(active==="M"?'<span class="m">Magpie</span>':'<span class="b">Babel</span>');
-    const lbl=document.getElementById("abilityLbl"); if(lbl) lbl.textContent = active==="M" ? "Build" : "Name"; }
-  function updStatus(){ statusEl.textContent = gateOpen ? "Rune-lock: OPEN ⚡" : ("Rune-lock: sealed · blocks "+blocks.size+"/"+MAX_BLOCKS);
-    statusEl.className = "pill " + (gateOpen ? "open" : "locked"); }
+    const lbl=document.getElementById("abilityLbl"); if(lbl) lbl.textContent = active==="M" ? "Shield" : "Read"; }
+  function updStatus(){ const anyLive=turrets.some(t=>!t.disabled);
+    let txt;
+    if(elevator && elevator.active && elevator.y<=elevator.topY) txt="Lift: topped out ⚡";
+    else if(elevator && elevator.active) txt="Lift: rising ⚡";
+    else if(shieldT>0) txt="Shielded "+Math.ceil(shieldT/60)+"s";
+    else if(shieldCd>0) txt="Shield: recharging";
+    else if(anyLive) txt="Under fire";
+    else txt="Turret down";
+    statusEl.textContent=txt;
+    statusEl.className="pill " + ((elevator&&elevator.active)?"up":(shieldT>0?"warded":"")); }
 
   // Camera
   const worldW=COLS*TILE, worldH=ROWS*TILE;
@@ -275,21 +311,37 @@
     ctx.setTransform(zoom,0,0,zoom,-cam.x*zoom,-cam.y*zoom);
     for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){ const t=base[y][x], px=x*TILE, py=y*TILE;
       if(t==="solid") tile(px,py,"#242038","#15122a");
-      else if(t==="gate"){ if(!gateOpen){ tile(px,py,"#3a3020","#241a10"); ctx.strokeStyle="rgba(217,164,65,.7)"; ctx.lineWidth=2;
-          ctx.strokeRect(px+8,py+8,TILE-16,TILE-16); ctx.beginPath(); ctx.moveTo(px+12,py+TILE/2); ctx.lineTo(px+TILE-12,py+TILE/2); ctx.stroke(); ctx.lineWidth=1; }
-        else { ctx.strokeStyle="rgba(232,193,90,.4)"; ctx.setLineDash([5,4]); ctx.strokeRect(px+3,py+3,TILE-6,TILE-6); ctx.setLineDash([]); } }
     }
-    // Magpie's built blocks (teal/brass fabrications)
-    blocks.forEach(k=>{ const [tx,ty]=k.split(",").map(Number); const px=tx*TILE, py=ty*TILE;
-      tile(px,py,"#2f4e4e","#1c3030"); ctx.strokeStyle="rgba(90,200,200,.6)"; ctx.strokeRect(px+3,py+3,TILE-6,TILE-6); });
+    // elevator shaft guide (base -> top)
+    if(elevator){ const cx=elevator.x+elevator.w/2;
+      ctx.strokeStyle="rgba(217,164,65,.16)"; ctx.setLineDash([4,6]);
+      ctx.beginPath(); ctx.moveTo(cx,elevator.topY); ctx.lineTo(cx,elevator.baseY); ctx.stroke(); ctx.setLineDash([]);
+      // platform
+      const ey=elevator.y; ctx.fillStyle= elevator.active ? "#3a5e5e" : "#2f4e4e";
+      ctx.fillRect(elevator.x+2,ey-4,elevator.w-4,10);
+      ctx.fillStyle= boostT>0 ? "#eaffff" : (elevator.active ? "#7fd6d6" : "#4f8080"); ctx.fillRect(elevator.x+2,ey-4,elevator.w-4,3);
+      if(boostT>0){ ctx.fillStyle="rgba(180,240,240,"+(0.5*boostT/BOOST_DUR)+")"; for(let i=0;i<3;i++){ const yy=ey+8+i*10; ctx.beginPath(); ctx.moveTo(elevator.x+elevator.w/2-5,yy+4); ctx.lineTo(elevator.x+elevator.w/2,yy); ctx.lineTo(elevator.x+elevator.w/2+5,yy+4); ctx.stroke(); } }
+      ctx.strokeStyle="rgba(127,214,214,.5)"; ctx.strokeRect(elevator.x+2.5,ey-3.5,elevator.w-5,9);
+    }
+    // runes
+    runes.forEach(r=>{ const powered= elevator&&elevator.active; ctx.fillStyle= powered ? "rgba(232,193,90,.9)" : "rgba(217,164,65,.8)"; ctx.beginPath(); ctx.arc(r.x,r.y-4,8,0,7); ctx.fill();
+      ctx.strokeStyle= powered ? "#e8c15a":"#d9a441"; ctx.lineWidth=2; ctx.strokeRect(r.x-11,r.y-15,22,22); ctx.lineWidth=1;
+      ctx.fillStyle="#fff"; ctx.font="9px sans-serif"; ctx.textAlign="center"; ctx.fillText(powered?"⚡":"RUNE",r.x,r.y-20); });
+    // turrets
+    turrets.forEach(t=>{ ctx.fillStyle= t.disabled ? "#5f5f68" : "#c0504a"; roundRect(t.x-13,t.y-13,26,26,4); ctx.fill();
+      ctx.fillStyle= t.disabled ? "#3a3a44" : "#e8c15a"; ctx.fillRect(t.x-20,t.y-4,10,8);   // barrel (points left)
+      if(t.disabled){ ctx.strokeStyle="#8f89a8"; ctx.beginPath(); ctx.moveTo(t.x-8,t.y-8); ctx.lineTo(t.x+8,t.y+8); ctx.stroke(); } });
+    // shots
+    ctx.fillStyle="#ffcc55"; shots.forEach(s=>{ ctx.beginPath(); ctx.arc(s.x,s.y,4,0,7); ctx.fill(); });
     exits.forEach(e=>{ ctx.fillStyle="rgba(232,193,90,.18)"; ctx.fillRect(e.x*TILE,e.y*TILE-TILE,TILE,TILE*2);
       ctx.fillStyle="#e8c15a"; ctx.font="12px sans-serif"; ctx.textAlign="center"; ctx.fillText("EXIT",e.x*TILE+TILE/2,e.y*TILE-6); });
-    // True Name flash — a naming ring around Babel
-    if(nameFlash>0){ ctx.strokeStyle="rgba(217,164,65,"+(nameFlash/26)+")"; ctx.lineWidth=2;
-      ctx.beginPath(); ctx.arc(B.x+B.w/2,B.y+B.h/2, (26-nameFlash)*4+10, 0, 7); ctx.stroke(); ctx.lineWidth=1; nameFlash--; }
+    if(cmdFlash>0){ ctx.strokeStyle="rgba(217,164,65,"+(cmdFlash/24)+")"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(B.x+B.w/2,B.y+B.h/2,(24-cmdFlash)*4+10,0,7); ctx.stroke(); ctx.lineWidth=1; cmdFlash--; }
+    // crew shield aura — opacity fades down as the shield depletes (a quiet visual timer)
+    if(shieldT>0){ const frac=shieldT/SHIELD_DUR; [M,B].forEach(o=>{
+        ctx.fillStyle="rgba(90,200,200,"+(0.04+0.13*frac)+")"; roundRect(o.x-5,o.y-5,o.w+10,o.h+10,9); ctx.fill();
+        ctx.strokeStyle="rgba(120,220,220,"+(0.15+0.6*frac)+")"; ctx.lineWidth=2; roundRect(o.x-5,o.y-5,o.w+10,o.h+10,9); ctx.stroke(); ctx.lineWidth=1; }); }
     charBody(M); charBody(B);
     const o=cur(); ctx.fillStyle="#fff"; ctx.beginPath(); ctx.moveTo(o.x+o.w/2,o.y-10); ctx.lineTo(o.x+o.w/2-6,o.y-20); ctx.lineTo(o.x+o.w/2+6,o.y-20); ctx.closePath(); ctx.fill();
-    if(buildFlash>0) buildFlash--;
   }
   function tile(px,py,top,bot){ ctx.fillStyle=bot; ctx.fillRect(px,py,TILE,TILE); ctx.fillStyle=top; ctx.fillRect(px,py,TILE,TILE-6); ctx.strokeStyle="rgba(0,0,0,.25)"; ctx.strokeRect(px+.5,py+.5,TILE-1,TILE-1); }
   function charBody(o){ ctx.fillStyle=o.col; roundRect(o.x,o.y,o.w,o.h,6); ctx.fill();
@@ -297,7 +349,12 @@
     ctx.fillStyle="rgba(255,255,255,.85)"; ctx.font="10px sans-serif"; ctx.textAlign="center"; ctx.fillText(o===M?"MAGPIE":"BABEL",o.x+o.w/2,o.y-2); }
   function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
 
-  function hint(){ return "Magpie: ✦ Build a block in front of you (bridge the gaps). Babel: ✦ Name the rune-lock open when you're next to it. Both to the exit."; }
+  function hint(){
+    if(elevator && elevator.active) return "Lift powered — both of you stand on it to ride up to the exit.";
+    const anyLive=turrets.some(t=>!t.disabled);
+    if(anyLive) return "Magpie: ✦ Shield wraps the crew (soaks fire, then recharges). Babel: ✦ next to the turret disarms it.";
+    return "Turret down. Get both onto the lift, then Babel ✦ powers the rune to ride up.";
+  }
 
   let t0=0, elapsed=0, state="title";
   function fmt(ms){ const s=ms/1000, m=Math.floor(s/60), r=s-m*60; return m+":"+(r<10?"0":"")+r.toFixed(1); }
@@ -328,6 +385,17 @@
       if(o.vx>0)o.face=1; else if(o.vx<0)o.face=-1;
       other().vx=0;
       stepChar(M); stepChar(B);
+      elevatorRise();
+      if(shieldT>0){ shieldT--; if(shieldT<=0) shieldCd=SHIELD_CD; } else if(shieldCd>0) shieldCd--;
+      // turrets fire
+      turrets.forEach(t=>{ if(t.disabled) return; t.cd--; if(t.cd<=0){ t.cd=FIRE_CD; shots.push({x:t.x+t.dir*16, y:t.y, vx:t.dir*SHOT_SPD}); } });
+      // shots travel; walls stop them; a shielded crew absorbs them, otherwise a hit resets
+      shots.forEach(s=>{ s.x+=s.vx;
+        if(s.dead) return;
+        if(s.x<0||s.x>worldW||solidAt(Math.floor(s.x/TILE),Math.floor(s.y/TILE))){ s.dead=true; return; }
+        if((M.x<s.x&&s.x<M.x+M.w&&M.y<s.y&&s.y<M.y+M.h)||(B.x<s.x&&s.x<B.x+B.w&&B.y<s.y&&s.y<B.y+B.h)){ if(shieldT>0) s.dead=true; else softReset(); }
+      });
+      shots=shots.filter(s=>!s.dead);
       if(started){ if(!t0)t0=ts; elapsed=ts-t0; }
       timerEl.textContent=fmt(elapsed); hintEl.textContent=hint(); updStatus();
       if(bothInExit()) win();
@@ -363,7 +431,7 @@
     const hasNext = curLevel+1 < LEVELS.length;
     overlay.style.display="flex";
     overlay.innerHTML='<div class="eyebrow" style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">Level '+(curLevel+1)+' cleared</div>'
-      +'<h1>Built and <b>named</b>.</h1><div id="winTime">'+fmt(elapsed)+'</div>'
+      +'<h1>Shielded and <b>raised</b>.</h1><div id="winTime">'+fmt(elapsed)+'</div>'
       +'<p style="margin:.15em 0 .1em">Your best: <b style="color:var(--gold)">'+fmt(localBest())+'</b></p>'
       +(earned.length?'<p style="color:var(--gold);font-weight:700;margin:.1em 0 .3em">'+earned.join(" · ")+'</p>':'')
       +'<div id="board" style="width:100%;max-width:340px;margin:.5em 0"><p style="color:#8f89a8;font-size:12px">Loading crew times…</p></div>'
