@@ -408,7 +408,7 @@
     const hasNext = curLevel+1 < LEVELS.length;
     overlay.style.display="flex";
     overlay.innerHTML='<div class="eyebrow" style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">Level '+(curLevel+1)+' cleared</div>'
-      +'<h1>You needed <b>both</b>.</h1><div id="winTime">'+fmt(elapsed)+'</div>'
+      +'<h1>Both made it through.</h1><div id="winTime">'+fmt(elapsed)+'</div>'
       +'<p style="margin:.15em 0 .1em">Your best: <b style="color:var(--gold)">'+fmt(localBest())+'</b></p>'
       +(earned.length?'<p style="color:var(--gold);font-weight:700;margin:.1em 0 .3em">'+earned.join(" · ")+'</p>':'')
       +'<div id="board" style="width:100%;max-width:340px;margin:.5em 0"><p style="color:#8f89a8;font-size:12px">Loading crew times…</p></div>'
