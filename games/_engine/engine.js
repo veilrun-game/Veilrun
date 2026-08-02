@@ -296,28 +296,32 @@
       stick.addEventListener("pointercancel", endPtr);
       stick.addEventListener("lostpointercapture", function () { if (activePtr != null) { activePtr = null; clearDir(); } });
 
-      // Keyboard (same mapping; routes through the same slot logic)
+      // Keyboard — two-handed desktop layout: RIGHT hand on the arrow keys (move + jump),
+      // LEFT hand on a QWE/ASD block that mirrors the on-screen 6-button grid:
+      //   Q W E = Primary / Secondary / Signature   ·   A S D = Interact / Switch / Reset
+      // Tab (switch) and R (reset) kept as aliases. (Down arrow = reserved.)
       function kd(e) {
         if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " "].indexOf(e.key) >= 0) e.preventDefault();
         if (!isPlay()) { if ((e.key === "Enter" || e.key === " ") && opts.onStart) opts.onStart(); return; }
         var k = e.key.toLowerCase(); opts.onStart && opts.onStart();
-        if (k === "arrowleft" || k === "a") held.left = true;
-        else if (k === "arrowright" || k === "d") held.right = true;
-        else if (k === "arrowup" || k === "w") { if (!held.up) { held.up = true; if (on.jump) on.jump(); } }
-        else if (k === "arrowdown" || k === "s") held.down = true;
-        else if (k === "j") triggerSlot("primary");
-        else if (k === "k") triggerSlot("secondary");
-        else if (k === "l") triggerSlot("signature");
-        else if (k === "e") triggerSlot("interact");
+        if (k === "arrowleft") held.left = true;
+        else if (k === "arrowright") held.right = true;
+        else if (k === "arrowup") { if (!held.up) { held.up = true; if (on.jump) on.jump(); } }
+        else if (k === "arrowdown") held.down = true;
+        else if (k === "q") triggerSlot("primary");
+        else if (k === "w") triggerSlot("secondary");
+        else if (k === "e") triggerSlot("signature");
+        else if (k === "a") triggerSlot("interact");
+        else if (k === "s") sys("switch");
+        else if (k === "d" || k === "r") sys("reset");
         else if (k === "tab" || k === "shift") { e.preventDefault(); sys("switch"); }
-        else if (k === "r") sys("reset");
       }
       function ku(e) {
         var k = e.key.toLowerCase();
-        if (k === "arrowleft" || k === "a") held.left = false;
-        else if (k === "arrowright" || k === "d") held.right = false;
-        else if (k === "arrowup" || k === "w") held.up = false;
-        else if (k === "arrowdown" || k === "s") held.down = false;
+        if (k === "arrowleft") held.left = false;
+        else if (k === "arrowright") held.right = false;
+        else if (k === "arrowup") held.up = false;
+        else if (k === "arrowdown") held.down = false;
       }
       document.addEventListener("keydown", kd);
       document.addEventListener("keyup", ku);

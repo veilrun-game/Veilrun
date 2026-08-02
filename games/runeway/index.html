@@ -467,7 +467,8 @@
       +'<div id="board" style="width:100%;max-width:340px;margin:.5em 0"><p style="color:#8f89a8;font-size:12px">Loading crew times…</p></div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center">'
       +'<button class="play ghost" id="againBtn">↻ Replay</button>'
-      +(hasNext?'<button class="play" id="nextBtn">Next level →</button>':'')
+      +(hasNext?'<button class="play" id="nextBtn">Next level →</button>'
+               :'<a class="play" href="/games/runeway-v2/index.html">Cross to v2 · new controller →</a>')
       +'</div>'
       +'<a href="/app.html#lab" class="backlab">← Back to the Lab</a>';
     document.getElementById("againBtn").addEventListener("click",()=>startGame(curLevel));

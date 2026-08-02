@@ -88,11 +88,11 @@
       <p>A chasm splits the Overcity. <b style="color:var(--babel)">Babel</b> <b>reads</b> the runes to slip into the Underweft (and the crew crosses with him), powers the tram, and reads his way back. <b style="color:var(--magpie)">Magpie</b> <b>shields</b> the ride from the guns. Get <em>both</em> to the exit.</p>
       <div id="levelSelect"></div>
       <div class="kithint">
-        <b>Magpie</b> — J Shield · K Ward · L Revive · (Interact: none yet)<br>
-        <i>Babel</i> — J Strike · K Reinforce · L True Name · E Read
+        <b>Magpie</b> — Q Shield · W Ward · E Revive · A Interact (none yet)<br>
+        <i>Babel</i> — Q Strike · W Reinforce · E True Name · A Read
       </div>
       <div class="keys">
-        <b>Move</b> stick / A·D / ← → · <b>Jump</b> stick up / W / ↑ · <b>Switch</b> Tab · <b>Reset</b> R
+        <b>Move</b> ← → · <b>Jump</b> ↑ / stick up · <b>Abilities</b> Q W E · <b>Interact</b> A · <b>Switch</b> S / Tab · <b>Reset</b> R / D
       </div>
       <a href="/app.html#lab" class="backlab" style="margin-top:16px">← Back to the Lab</a>
       <div id="verpick" data-cur="v2" style="margin-top:12px"></div>
@@ -373,10 +373,24 @@
   function tile(px,py,top,bot){ ctx.fillStyle=bot; ctx.fillRect(px,py,TILE,TILE); ctx.fillStyle=top; ctx.fillRect(px,py,TILE,TILE-6);
     ctx.strokeStyle="rgba(0,0,0,.25)"; ctx.strokeRect(px+.5,py+.5,TILE-1,TILE-1); }
   function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
-  function charBody(o,ghost){ ctx.globalAlpha=ghost?0.26:(o.down?0.6:1); ctx.fillStyle=o.col; roundRect(o.x,o.y,o.w,o.h,6); ctx.fill();
+  function charBody(o,ghost){
+    if(o.down){
+      // Fallen: lie horizontal (rotated 90°), and fade GRADUALLY as the revive timer runs out.
+      var frac=Math.max(0, o.downT/BABEL_DEATH);
+      ctx.save();
+      ctx.globalAlpha=0.18+0.62*frac;
+      ctx.translate(o.x+o.w/2, o.y+o.h/2); ctx.rotate(Math.PI/2);
+      ctx.fillStyle=o.col; roundRect(-o.w/2,-o.h/2,o.w,o.h,6); ctx.fill();
+      ctx.restore();
+      ctx.globalAlpha=1; ctx.fillStyle="rgba(255,180,175,.9)"; ctx.font="10px sans-serif"; ctx.textAlign="center";
+      ctx.fillText((o===M?"MAGPIE":"BABEL")+" ✖", o.x+o.w/2, o.y-4);
+      return;
+    }
+    ctx.globalAlpha=ghost?0.26:1; ctx.fillStyle=o.col; roundRect(o.x,o.y,o.w,o.h,6); ctx.fill();
     if(!ghost){ ctx.fillStyle="rgba(0,0,0,.35)"; ctx.fillRect(o.face>0?o.x+o.w-7:o.x+3,o.y+9,4,6); }
     ctx.fillStyle=ghost?"rgba(255,255,255,.5)":"rgba(255,255,255,.85)"; ctx.font="10px sans-serif"; ctx.textAlign="center";
-    ctx.fillText((o===M?"MAGPIE":"BABEL")+(o.down?" ✖":""),o.x+o.w/2,o.y-2); ctx.globalAlpha=1; }
+    ctx.fillText((o===M?"MAGPIE":"BABEL"),o.x+o.w/2,o.y-2); ctx.globalAlpha=1;
+  }
 
   function draw(){
     var W=cur().world;
