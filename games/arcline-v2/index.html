@@ -179,12 +179,12 @@
    * ======================================================================== */
   // Temper
   function throwBlade(){ if(flying) return; var hx=T.face>0?T.x+T.w-4:T.x+4, hy=T.y+14;
-    flying={ x:hx, y:hy, vx:T.face*THROW_VX, vy: onGround(T)?-5:-8, life:80 }; }
+    flying={ x:hx, y:hy, vx:T.face*THROW_VX, vy: onGround(T)?-5:-8, life:80, face:T.face }; }
   function bladedance(){ T.bladedanceT=BLADEDANCE_FR; cmdFlash=12; }                   // ⚑ PLACEHOLDER: parry/deflect stance
   function frankenforge(){ if(blades.length<2) return;                                 // fuse the two nearest planted blades into a longer-reach hybrid
     var bi=0,bj=1,bd=1e9; for(var i=0;i<blades.length;i++)for(var j=i+1;j<blades.length;j++){ var d=dist(blades[i],blades[j]); if(d<bd){bd=d;bi=i;bj=j;} }
     var mx=(blades[bi].x+blades[bj].x)/2, my=(blades[bi].y+blades[bj].y)/2;
-    blades=blades.filter(function(_,k){ return k!==bi&&k!==bj; }); blades.push({x:mx,y:my,hybrid:true}); cmdFlash=24; }
+    blades=blades.filter(function(_,k){ return k!==bi&&k!==bj; }); blades.push({x:mx,y:my,hybrid:true,face:1}); cmdFlash=24; }
   function retrieve(){ var best=-1,bd=RETRIEVE_R; for(var i=0;i<blades.length;i++){ var d=dist({x:T.x+T.w/2,y:T.y+T.h/2},blades[i]); if(d<bd){bd=d;best=i;} }
     if(best>=0){ blades.splice(best,1); cmdFlash=14; } }
   // Citrine
@@ -261,6 +261,11 @@
   function tile(px,py,top,bot){ ctx.fillStyle=bot; ctx.fillRect(px,py,TILE,TILE); ctx.fillStyle=top; ctx.fillRect(px,py,TILE,TILE-6);
     ctx.strokeStyle="rgba(0,0,0,.25)"; ctx.strokeRect(px+.5,py+.5,TILE-1,TILE-1); }
   function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+  function drawBlade(x,y,f,hybrid){                                    // grey blade + purple handle at the back (matches v1)
+    ctx.strokeStyle= hybrid ? "#e2dcf2" : "#c9c4da"; ctx.lineWidth= hybrid?5:3; ctx.lineCap="round";
+    ctx.beginPath(); ctx.moveTo(x - f*8, y); ctx.lineTo(x + f*15, y); ctx.stroke(); ctx.lineWidth=1; ctx.lineCap="butt";
+    ctx.fillStyle="#be6ef0"; ctx.fillRect(x - f*11 - 2.5, y-4, 5, 8);
+  }
   function charBody(o){ ctx.fillStyle=o.col; roundRect(o.x,o.y,o.w,o.h,6); ctx.fill();
     if(o===T && T.bladedanceT>0){ ctx.strokeStyle="rgba(190,110,240,0.8)"; ctx.lineWidth=2; roundRect(o.x-3,o.y-3,o.w+6,o.h+6,8); ctx.stroke(); ctx.lineWidth=1; }
     ctx.fillStyle="rgba(0,0,0,.35)"; ctx.fillRect(o.face>0?o.x+o.w-7:o.x+3,o.y+9,4,6);
@@ -284,10 +289,10 @@
     // hazards
     hazards.forEach(function(h){ if(!h.active) return; ctx.fillStyle="rgba(214,88,79,.8)"; ctx.fillRect(h.x*TILE+6,h.y*TILE+4,TILE-12,TILE-8);
       ctx.fillStyle="#ffce6a"; ctx.font="9px sans-serif"; ctx.textAlign="center"; ctx.fillText("⚡",h.x*TILE+TILE/2,h.y*TILE+TILE/2+3); });
-    // planted blades (conductors)
-    blades.forEach(function(b){ ctx.strokeStyle= b.hybrid ? "#e0a8ff" : "#be6ef0"; ctx.lineWidth= b.hybrid?4:3; ctx.beginPath(); ctx.moveTo(b.x-7,b.y+7); ctx.lineTo(b.x+7,b.y-7); ctx.stroke(); ctx.lineWidth=1; });
+    // planted blades (conductors) — grey blade with a purple handle at the back, pointed the way it was thrown
+    blades.forEach(function(b){ drawBlade(b.x, b.y, b.face||1, b.hybrid, 1); });
     // flying blade
-    if(flying){ ctx.strokeStyle="#be6ef0"; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(flying.x-6,flying.y+6); ctx.lineTo(flying.x+6,flying.y-6); ctx.stroke(); ctx.lineWidth=1; }
+    if(flying){ drawBlade(flying.x, flying.y, flying.face||1, false, 1); }
     // spark arcs
     if(arcT>0){ ctx.strokeStyle="rgba(245,205,70,"+(arcT/22)+")"; ctx.lineWidth=2; arcLinks.forEach(function(l){ ctx.beginPath(); ctx.moveTo(l[0].x,l[0].y); ctx.lineTo(l[1].x,l[1].y); ctx.stroke(); }); ctx.lineWidth=1; arcT--; }
     exits.forEach(function(e){ ctx.fillStyle="rgba(232,193,90,.18)"; ctx.fillRect(e.x*TILE,e.y*TILE-TILE,TILE,TILE*2);
@@ -337,7 +342,7 @@
         var tx=Math.floor(flying.x/TILE), ty=Math.floor(flying.y/TILE);
         if(flying.life<=0 || tx<=0 || tx>=COLS-1 || solidAt(tx,ty)){
           if(solidAt(tx,ty)){ flying.x-=flying.vx; flying.y-=flying.vy; }   // back off the surface a touch
-          blades.push({x:flying.x, y:flying.y}); if(blades.length>MAX_BLADES) blades.shift(); flying=null;
+          blades.push({x:flying.x, y:flying.y, face:flying.face}); if(blades.length>MAX_BLADES) blades.shift(); flying=null;
         }
       }
       if(T.bladedanceT>0) T.bladedanceT--; if(cascadeCd>0) cascadeCd--;

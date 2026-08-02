@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>VEILRUN — Seam Gate v2: Anvil + Latch</title>
+<!--
+  SEAM GATE v2 (pair-level) — vertical slice of the v2 kit + controller initiative (pair #5).
+  COPY-AND-ENHANCE of games/pair-level/index.html (v1 + its versions/ archive left untouched).
+  Loads the shared engine (../_engine/engine.js). New joystick/6-button controller +
+  Anvil's & Latch's v3 buckets. Uses the two-world traversal (Overcity/Underweft) —
+  built inline here like runeway-v2; the plan is to EXTRACT the common two-world code
+  into a shared VE.World from these two examples next. Latch FLIPS FREELY (no runes);
+  Anvil's BULWARK aura shields Latch from enemy fire. ⚑ PLACEHOLDER costs flagged.
+-->
+<style>
+  :root { --anvil:#C85A5A; --latch:#6EC8F5; --gold:#E8C15A; --red:#D6584F; --line:#3C345C;
+    --overcity:#4E8ED2; --underweft:#8f6ad6; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html,body { margin:0; height:100%; background:#08060f; color:#eee;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; overflow:hidden; }
+  #wrap { position:fixed; inset:0; display:flex; flex-direction:column; }
+  #stage { position:relative; flex:1 1 auto; min-height:0; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; background:#0b0a14; touch-action:none; display:block; }
+  #hud { position:absolute; top:8px; left:10px; right:10px; display:flex; justify-content:space-between;
+    align-items:flex-start; pointer-events:none; font-size:clamp(11px,2.4vw,15px); gap:8px; }
+  #hud-left { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .pill { background:rgba(8,6,15,.65); border:1px solid var(--line); border-radius:999px; padding:4px 11px; white-space:nowrap; }
+  #who { font-weight:700; } #who .a{color:var(--anvil)} #who .l{color:var(--latch)}
+  #world.w0 { color:var(--overcity); border-color:var(--overcity); }
+  #world.w1 { color:var(--underweft); border-color:var(--underweft); }
+  #status.bulwark { color:var(--anvil); border-color:var(--anvil); }
+  #status.charge { color:var(--gold); border-color:var(--gold); }
+  #status.exposed { color:var(--red); border-color:var(--red); }
+  #hud-right { display:flex; gap:8px; align-items:center; pointer-events:auto; }
+  #timer { font-size:clamp(17px,5.4vw,22px); font-weight:800; font-variant-numeric:tabular-nums; color:var(--gold); }
+  #backBtn { pointer-events:auto; cursor:pointer; color:#fff; text-decoration:none; }
+  #mapBtn { cursor:pointer; font-size:clamp(13px,3.6vw,16px); color:#fff; padding:8px 15px; }
+  #mapBtn.on { background:rgba(200,90,90,.5); border-color:var(--anvil); }
+  #ver { position:absolute; left:10px; bottom:6px; font-size:10px; letter-spacing:.03em; color:#6a6580; pointer-events:none; }
+  #hint { position:absolute; left:50%; transform:translateX(-50%); bottom:10px; max-width:94%; text-align:center;
+    background:rgba(8,6,15,.78); border:1px solid var(--line); border-radius:8px; padding:6px 12px;
+    font-size:clamp(11px,3.2vw,14px); color:#cfc9e6; }
+  #overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; background:rgba(6,4,12,.86); padding:20px; overflow:auto; }
+  #overlay h1 { font-size:clamp(22px,5vw,40px); margin:.1em 0; letter-spacing:.02em; }
+  #overlay h1 b{color:var(--anvil)} #overlay h1 i{color:var(--latch); font-style:normal}
+  #overlay p { color:#bdb7d6; max-width:42ch; line-height:1.5; font-size:clamp(12px,2.8vw,15px); }
+  .play { margin-top:14px; background:var(--gold); color:#1a1206; border:none; border-radius:10px;
+    padding:12px 26px; font-weight:700; font-size:16px; cursor:pointer; }
+  .play.ghost { background:none; border:1px solid var(--line); color:#e8e4f5; }
+  .backlab { margin-top:14px; display:inline-block; padding:11px 20px; border:1px solid var(--line);
+    border-radius:10px; color:#e8e4f5; font-size:14px; text-decoration:none; min-height:44px; }
+  #levelSelect { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:8px; margin-top:10px; }
+  #levelSelect .play { margin-top:0; }
+  .keys { margin-top:14px; font-size:12px; color:#8f89a8; line-height:1.7; } .keys b{color:#cfc9e6}
+  #winTime { color:var(--gold); font-weight:700; font-size:clamp(20px,5vw,34px); margin:.2em 0; }
+  .kithint { margin-top:12px; font-size:11.5px; color:#9a94b4; line-height:1.6; max-width:44ch; }
+  .kithint b{color:var(--anvil)} .kithint i{color:var(--latch);font-style:normal}
+  @media (pointer:coarse){ .keys { display:none; } }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <div id="hint"></div>
+    <div id="ver">Seam Gate · v2 · a VEILRUN prototype</div>
+    <canvas id="c" width="960" height="560"></canvas>
+    <div id="hud">
+      <div id="hud-left">
+        <a class="pill" id="backBtn" href="/app.html#lab">← Lab</a>
+        <div class="pill" id="who">Controlling: <span class="a">Anvil</span></div>
+        <div class="pill" id="world">The Overcity</div>
+        <div class="pill" id="status">Exposed</div>
+      </div>
+      <div id="hud-right">
+        <div class="pill" id="timer">0:00.0</div>
+        <button class="pill" id="mapBtn" title="Toggle map view">🗺 Map</button>
+      </div>
+    </div>
+    <div id="overlay">
+      <div class="eyebrow" style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">VEILRUN · Seam Gate · v2 · kit + controller slice</div>
+      <h1><b>Anvil</b> + <i>Latch</i> — Shield the Keystone</h1>
+      <p><b style="color:var(--latch)">Latch</b> can't take a hit, but he <b>flips</b> the whole crew into the Underweft whenever he wants — no runes. <b style="color:var(--anvil)">Anvil</b> is unbreakable: his <b>BULWARK</b> aura soaks the fire for anyone in his shadow, and his <b>Charge</b> plows through breakable walls. Flip between the halves, keep Latch behind Anvil, get <em>both</em> to the exit.</p>
+      <div id="levelSelect"></div>
+      <div class="kithint">
+        <b>Anvil</b> — Q Charge · W Grow · E Aggro · (A —)<br>
+        <i>Latch</i> — Q Flip · W Augment · E Bookmark · A Breach
+      </div>
+      <div class="keys">
+        <b>Move</b> ← → · <b>Jump</b> ↑ · <b>Abilities</b> Q W E · <b>Interact</b> A · <b>Switch</b> S / Tab · <b>Reset</b> R
+      </div>
+      <a href="/app.html#lab" class="backlab" style="margin-top:16px">← Back to the Lab</a>
+      <div id="verpick" data-cur="v2" style="margin-top:12px"></div>
+    </div>
+  </div>
+  <div id="pad"></div>
+</div>
+<script src="/games/pair-level/versions.js"></script>
+<script src="../_engine/engine.js"></script>
+<script>
+(function(){
+  "use strict";
+  var TILE=VE.util.TILE, COLS=VE.util.COLS, ROWS=VE.util.ROWS;
+  var dist=VE.util.dist, fmt=VE.util.fmt, esc=VE.util.esc;
+  var cv=document.getElementById("c"), ctx=cv.getContext("2d");
+  var overlay=document.getElementById("overlay"), hintEl=document.getElementById("hint");
+  var whoEl=document.getElementById("who"), statusEl=document.getElementById("status"),
+      worldEl=document.getElementById("world"), timerEl=document.getElementById("timer");
+
+  /* ==========================================================================
+   * LEVEL — two worlds (Overcity/Underweft). Legend: '#' solid · 'a'/'l' spawn ·
+   *   'e' exit · 'T' turret(→left) · 'K' breakable wall (Anvil charges through it).
+   * Overcity has a chasm only Latch's FLIP can bypass (via the Underweft bridge);
+   * the Underweft bridge is under turret fire (Anvil's BULWARK) and blocked by a
+   * breakable wall (Anvil's Charge).
+   * ======================================================================== */
+  var LEVELS=[
+    { id:"PL2S1", name:"Slice 1 — Shield the Keystone", gameId:"pair-level-v2", winMode:"walk",
+      worldNames:["The Overcity","The Underweft"],
+      worlds:[
+        // ---- The Overcity: start ledge + exit ledge, wide chasm between (Latch must flip to cross)
+        [ "#                      #","#                      #","#                      #","#                      #",
+          "#                      #","#                      #","#                      #","#                      #",
+          "#                      #","#                      #","#                      #",
+          "# a l                e #",
+          "#######          #######",
+          "#                      #" ],
+        // ---- The Underweft: floor bridge across; turret gates it (BULWARK); breakable wall (Charge)
+        [ "#                      #","#                      #","#                      #","#                      #",
+          "#                      #","#                      #","#                      #","#                      #",
+          "#                      #","#               K      #",
+          "#               K      #",
+          "#            T  K      #",
+          "########################",
+          "#                      #" ]
+      ]
+    }
+  ];
+  var curLevel=0;
+
+  var base=[[],[]], spawnA={x:2,y:11}, spawnL={x:4,y:11}, exits=[], turretDefs=[], breakDefs=[];
+  function parseWorld(w){ base[w]=[];
+    for(var y=0;y<ROWS;y++){ base[w][y]=[]; var row=LEVELS[curLevel].worlds[w][y]||"";
+      for(var x=0;x<COLS;x++){ var ch=row[x]||" "; var t="empty";
+        if(ch==="#") t="solid";
+        else if(ch==="K"){ t="break"; breakDefs.push({x:x,y:y,world:w}); }
+        else if(ch==="T") turretDefs.push({x:x,y:y,world:w});
+        else if(ch==="e") exits.push({x:x,y:y,world:w});
+        else if(ch==="a"){ spawnA={x:x,y:y}; }
+        else if(ch==="l"){ spawnL={x:x,y:y}; }
+        base[w][y][x]=t;
+      }
+    }
+  }
+  function parse(){ exits=[]; turretDefs=[]; breakDefs=[]; parseWorld(0); parseWorld(1); }
+  function setLevel(i){ curLevel=i; parse(); }
+  parse();
+
+  // ---- characters ----
+  var A={ key:"A", name:"Anvil", col:"#C85A5A", w:32, h:44, vx:0,vy:0, face:1, speed:2.4, jump:9.4, world:0, chargeT:0, growT:0, crossCd:0,
+    labels:{ primary:"Charge", secondary:"Grow", signature:"Aggro", interact:"" } };   // Anvil Interact intentionally empty
+  var L={ key:"L", name:"Latch", col:"#6EC8F5", w:22, h:44, vx:0,vy:0, face:1, speed:2.9, jump:9.8, world:0, crossCd:0, bookmark:null, augmentT:0,
+    labels:{ primary:"Flip", secondary:"Augment", signature:"Bookmark", interact:"Breach" } };
+  var active="A";
+  var cur=function(){ return active==="A"?A:L; };
+  var other=function(){ return active==="A"?L:A; };
+
+  /* ---- tunables (⚑ PLACEHOLDER) ---- */
+  var BULWARK_R=TILE*2.2;                         // Anvil's shadow — Latch is shielded inside it
+  var CHARGE_DUR=26, CHARGE_SPD=6.2;              // PLACEHOLDER Anvil Charge (plows breakables)
+  var GROW_DUR=180;                               // PLACEHOLDER Anvil Grow
+  var CROSS_CD=30, CARRY_RANGE=999;               // Latch's flip pulls the crew (always, they're a unit)
+  var SHOT_SPD=3.4, FIRE_CD=72;                   // turrets (from runeway)
+
+  var turrets=[], shots=[], broken={}, cmdFlash=0, flipFlash=0;
+  var phys=VE.Physics.create({});
+
+  function bkey(w,x,y){ return w+","+x+","+y; }
+  function solidAtW(w,tx,ty){ if(tx<0||tx>=COLS) return true; if(ty<0||ty>=ROWS) return false;
+    var t=base[w][ty][tx]; if(t==="solid") return true; if(t==="break") return !broken[bkey(w,tx,ty)]; return false; }
+  function worldFor(o){ return { solidAt:function(tx,ty){ return solidAtW(o.world,tx,ty); }, movers:[] }; }
+  function onGround(o){ return phys.onGround(o, worldFor(o)); }
+
+  function reset(){
+    A.x=spawnA.x*TILE+6; A.y=spawnA.y*TILE-A.h+TILE; A.vx=0; A.vy=0; A.face=1; A.world=0; A.chargeT=0; A.growT=0; A.crossCd=0;
+    L.x=spawnL.x*TILE+8; L.y=spawnL.y*TILE-L.h+TILE; L.vx=0; L.vy=0; L.face=1; L.world=0; L.crossCd=0; L.bookmark=null; L.augmentT=0;
+    active="A"; shots=[]; broken={}; cmdFlash=0; flipFlash=0;
+    turrets=turretDefs.map(function(t){ return {x:t.x*TILE+TILE/2, y:t.y*TILE+TILE/2, world:t.world, dir:-1, cd:40, disabled:false}; });
+  }
+
+  function bulwarked(o){ return o!==A && A.world===o.world && dist(A,o)<BULWARK_R; }  // Latch shielded in Anvil's shadow
+
+  /* ==========================================================================
+   * ABILITIES (v3 buckets)
+   * ======================================================================== */
+  // Latch — FREE flip: cross the seam anywhere, pulling the crew (his keystone identity)
+  function flip(){ var tw=1-L.world; L.world=tw; L.vy=0; L.crossCd=CROSS_CD;
+    A.world=tw; A.x=L.x; A.y=L.y; A.vx=0; A.vy=0;   // the crew flips together, landing on Latch's (safe) tile
+    flipFlash=20; }
+  function augment(){ L.augmentT=200; cmdFlash=16; }                                  // ⚑ PLACEHOLDER: buff Anvil's next ability
+  function bookmark(){ if(L.bookmark){ L.x=L.bookmark.x; L.y=L.bookmark.y; L.world=L.bookmark.w; L.vy=0; L.bookmark=null; cmdFlash=20; } // recall
+    else { L.bookmark={x:L.x, y:L.y, w:L.world}; cmdFlash=12; } }                       // ⚑ PLACEHOLDER: mark + recall
+  function breach(){ var t=turrets.filter(function(t){return !t.disabled && t.world===L.world;}).sort(function(a,b){return dist(L,a)-dist(L,b);})[0];
+    if(t && dist(L,t)<TILE*2.6){ t.disabled=true; cmdFlash=22; } }                      // disable a tech obstacle
+  // Anvil
+  function charge(){ if(A.chargeT>0) return; A.chargeT=CHARGE_DUR + (L.augmentT>0?14:0); if(L.augmentT>0) L.augmentT=0; cmdFlash=14; }
+  function grow(){ A.growT=GROW_DUR; cmdFlash=14; }                                     // ⚑ PLACEHOLDER Grow/Mass
+  function aggro(){ cmdFlash=18; }                                                      // ⚑ PLACEHOLDER Aggro taunt
+
+  function useSlot(slot){
+    if(active==="A"){ ({primary:charge, secondary:grow, signature:aggro}[slot]||function(){})(); }   // Anvil Interact = unbound
+    else            { ({primary:flip, secondary:augment, signature:bookmark, interact:breach}[slot]||function(){})(); }
+  }
+
+  function centreInExit(o){ var cx=o.x+o.w/2, cy=o.y+o.h/2;
+    return exits.some(function(e){ return e.world===o.world && cx>e.x*TILE && cx<(e.x+1)*TILE && cy>e.y*TILE-6 && cy<(e.y+2)*TILE; }); }
+  function bothInExit(){ return centreInExit(A) && centreInExit(L); }
+
+  /* ==========================================================================
+   * CONTROLLER (shared VE.Controller)
+   * ======================================================================== */
+  var state="title", started=false;
+  function jump(){ var o=cur(); if(onGround(o)) o.vy=-o.jump; }
+  function switchChar(){ active=active==="A"?"L":"A"; updWho(); ctl.setLabels(active); }
+  function softReset(){ reset(); updWho(); ctl.setLabels(active); updStatus(); cam.update(cur(),true); }
+  var flashUntil=0;
+  function flashHint(msg){ hintEl.textContent=msg; flashUntil=(performance.now?performance.now():Date.now())+2600; }
+
+  var ctl=VE.Controller.mount({
+    mount:document.getElementById("pad"), activeKey:"A", chars:{ A:A, L:L },
+    isPlay:function(){ return state==="play"; },
+    onStart:function(){ if(state!=="title") started=true; },
+    on:{
+      jump:jump, primary:function(){useSlot("primary");}, secondary:function(){useSlot("secondary");},
+      signature:function(){useSlot("signature");}, interact:function(){useSlot("interact");},
+      "switch":switchChar, reset:softReset,
+      unbound:function(slot){ flashHint((active==="A"?"Anvil":"Latch")+"’s "+slot+" has no action here yet — 👍/👎 in the Lab to shape it."); }
+    }
+  });
+  var held=ctl.held;
+  document.addEventListener("keydown",function(e){ if(state!=="play" && (e.key==="Enter"||e.key===" ")) startGame(); });
+
+  function updWho(){ whoEl.innerHTML="Controlling: "+(active==="A"?'<span class="a">Anvil</span>':'<span class="l">Latch</span>'); }
+  function updStatus(){ var o=cur();
+    worldEl.textContent=LEVELS[curLevel].worldNames[o.world]; worldEl.className="pill "+(o.world===0?"w0":"w1");
+    var anyLive=turrets.some(function(t){return !t.disabled&&t.world===o.world;});
+    var txt, cls="";
+    if(A.chargeT>0){ txt="Anvil: CHARGING"; cls="charge"; }
+    else if(bulwarked(L) && (active==="L")){ txt="Latch: shielded (BULWARK)"; cls="bulwark"; }
+    else if(anyLive){ txt="Under fire"; cls="exposed"; }
+    else { txt="Clear"; }
+    statusEl.textContent=txt; statusEl.className="pill "+cls; }
+
+  /* ==========================================================================
+   * CAMERA (shared VE.Camera)
+   * ======================================================================== */
+  var cam=VE.Camera.create({ canvas:cv, stage:document.getElementById("stage") });
+  window.addEventListener("resize",function(){ cam.resize(); });
+  window.addEventListener("orientationchange",function(){ setTimeout(function(){cam.resize();},200); });
+  document.getElementById("mapBtn").addEventListener("click",function(){ cam.toggleMap();
+    document.getElementById("mapBtn").classList.toggle("on",cam.mapMode); cam.update(cur(),true); });
+
+  /* ==========================================================================
+   * RENDER
+   * ======================================================================== */
+  function tile(px,py,top,bot){ ctx.fillStyle=bot; ctx.fillRect(px,py,TILE,TILE); ctx.fillStyle=top; ctx.fillRect(px,py,TILE,TILE-6);
+    ctx.strokeStyle="rgba(0,0,0,.25)"; ctx.strokeRect(px+.5,py+.5,TILE-1,TILE-1); }
+  function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+  function charBody(o,ghost){ var grow = (o===A && A.growT>0)?1.18:1; var w=o.w*grow, h=o.h*grow, x=o.x-(w-o.w)/2, y=o.y-(h-o.h);
+    ctx.globalAlpha=ghost?0.26:1; ctx.fillStyle=o.col; roundRect(x,y,w,h,6); ctx.fill();
+    if(!ghost){ ctx.fillStyle="rgba(0,0,0,.35)"; ctx.fillRect(o.face>0?o.x+o.w-7:o.x+3,o.y+9,4,6); }
+    ctx.fillStyle=ghost?"rgba(255,255,255,.5)":"rgba(255,255,255,.85)"; ctx.font="10px sans-serif"; ctx.textAlign="center"; ctx.fillText(o===A?"ANVIL":"LATCH",o.x+o.w/2,o.y-2); ctx.globalAlpha=1; }
+
+  function draw(){
+    var W=cur().world;
+    ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height);
+    var g=ctx.createLinearGradient(0,0,0,cv.height);
+    if(W===0){ g.addColorStop(0,"#0f1620"); g.addColorStop(1,"#080610"); } else { g.addColorStop(0,"#160f22"); g.addColorStop(1,"#0a0610"); }
+    ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
+    cam.apply(ctx);
+    for(var y=0;y<ROWS;y++)for(var x=0;x<COLS;x++){ var t=base[W][y][x], px=x*TILE, py=y*TILE;
+      if(t==="solid"){ if(W===0) tile(px,py,"#243040","#141d2a"); else tile(px,py,"#2a2038","#171029"); }
+      else if(t==="break"){ if(!broken[bkey(W,x,y)]){ tile(px,py,"#5a3a3a","#3a2323"); ctx.strokeStyle="rgba(232,120,90,.5)"; ctx.strokeRect(px+4,py+4,TILE-8,TILE-8); } } }
+    // turrets
+    turrets.forEach(function(t){ if(t.world!==W) return; ctx.fillStyle= t.disabled ? "#5f5f68":"#c0504a"; roundRect(t.x-13,t.y-13,26,26,4); ctx.fill();
+      ctx.fillStyle= t.disabled ? "#3a3a44":"#e8c15a"; ctx.fillRect(t.x-20,t.y-4,10,8);
+      if(t.disabled){ ctx.strokeStyle="#8f89a8"; ctx.beginPath(); ctx.moveTo(t.x-8,t.y-8); ctx.lineTo(t.x+8,t.y+8); ctx.stroke(); } });
+    // shots
+    ctx.fillStyle="#ffcc55"; shots.forEach(function(s){ if(s.world!==W) return; ctx.beginPath(); ctx.arc(s.x,s.y,4,0,7); ctx.fill(); });
+    exits.forEach(function(e){ if(e.world!==W) return; ctx.fillStyle="rgba(232,193,90,.18)"; ctx.fillRect(e.x*TILE,e.y*TILE-TILE,TILE,TILE*2);
+      ctx.fillStyle="#e8c15a"; ctx.font="12px sans-serif"; ctx.textAlign="center"; ctx.fillText("EXIT",e.x*TILE+TILE/2,e.y*TILE-6); });
+    // BULWARK aura (Anvil's shadow) — draw when Latch is inside it
+    if(A.world===W && bulwarked(L)){ ctx.fillStyle="rgba(200,90,90,.10)"; ctx.beginPath(); ctx.arc(A.x+A.w/2,A.y+A.h/2,BULWARK_R,0,7); ctx.fill();
+      ctx.strokeStyle="rgba(232,120,90,.4)"; ctx.beginPath(); ctx.arc(A.x+A.w/2,A.y+A.h/2,BULWARK_R,0,7); ctx.stroke(); }
+    if(A.chargeT>0 && A.world===W){ ctx.fillStyle="rgba(232,193,90,.5)"; ctx.fillRect(A.face>0?A.x-14:A.x+A.w+2, A.y+8, 12, A.h-16); }
+    if(flipFlash>0){ ctx.strokeStyle="rgba(110,200,245,"+(flipFlash/20)+")"; ctx.lineWidth=2; ctx.strokeRect(L.x-6,L.y-6,L.w+12,L.h+12); ctx.lineWidth=1; flipFlash--; }
+    if(cmdFlash>0){ var a2=cur(); ctx.strokeStyle="rgba(110,200,245,"+(cmdFlash/22)+")"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(a2.x+a2.w/2,a2.y+a2.h/2,(22-cmdFlash)*3+10,0,7); ctx.stroke(); ctx.lineWidth=1; cmdFlash--; }
+    [A,L].forEach(function(o){ charBody(o, o.world!==W); });
+    var act=cur(); if(act.world===W){ ctx.fillStyle="#fff"; ctx.beginPath(); ctx.moveTo(act.x+act.w/2,act.y-10); ctx.lineTo(act.x+act.w/2-6,act.y-20); ctx.lineTo(act.x+act.w/2+6,act.y-20); ctx.closePath(); ctx.fill(); }
+  }
+
+  function hint(){
+    var o=cur();
+    if(o.world===0) return "The chasm can't be jumped. Latch: Q Flip the crew into the Underweft to cross.";
+    var anyLive=turrets.some(function(t){return !t.disabled&&t.world===1;});
+    if(anyLive && !bulwarked(L)) return "Under fire — keep Latch in Anvil's shadow (BULWARK), or Latch A Breach the turret.";
+    if(o.world===1) return "Anvil: Q Charge plows the breakable wall. Then Latch Q Flips back to the Overcity exit.";
+    return "Get both to the exit.";
+  }
+
+  /* ==========================================================================
+   * LEADERBOARD + POINTS (shared VE.Net)
+   * ======================================================================== */
+  var net=VE.Net.create({
+    url:"https://jbprsreaosetmqxhsnkl.supabase.co",
+    key:"sb_publishable_fzxPI3jRqOmA-VIfWFuoNQ_zgXgBtAS",
+    prefix:"vr_pl2_",
+    gameId:function(){ return LEVELS[curLevel].gameId; }
+  });
+
+  var t0=0, elapsed=0;
+  function startGame(levelIndex){ if(typeof levelIndex==="number") setLevel(levelIndex);
+    net.tryOnce(LEVELS[curLevel].id);
+    overlay.style.display="none"; state="play"; started=false; elapsed=0; t0=0;
+    reset(); updWho(); ctl.setLabels(active); updStatus(); cam.resize(); cam.update(cur(),true); }
+  function renderLevelSelect(){ var el=document.getElementById("levelSelect"); if(!el) return;
+    el.innerHTML='<button class="play" id="lvlPlayBtn">▶ Play the slice</button>';
+    document.getElementById("lvlPlayBtn").addEventListener("click",function(){ startGame(0); }); }
+  renderLevelSelect();
+
+  /* ==========================================================================
+   * LOOP
+   * ======================================================================== */
+  function frame(ts){
+    if(state==="play"){
+      var o=cur();
+      if(o===A && A.chargeT>0){ o.vx=A.face*CHARGE_SPD; }                              // Charge: locked-in dash
+      else o.vx = held.left?-o.speed : held.right?o.speed : 0;
+      if(o.vx>0)o.face=1; else if(o.vx<0)o.face=-1;
+      other().vx=0;
+      [A,L].forEach(function(ch){ if(ch.crossCd>0) ch.crossCd--; if(phys.step(ch, worldFor(ch))){ softReset(); } });
+
+      // Anvil charge: plow breakable tiles he's overlapping
+      if(A.chargeT>0){ A.chargeT--;
+        var x0=Math.floor(A.x/TILE), x1=Math.floor((A.x+A.w-1)/TILE), y0=Math.floor(A.y/TILE), y1=Math.floor((A.y+A.h-1)/TILE);
+        for(var ty=y0;ty<=y1;ty++)for(var tx=x0;tx<=x1;tx++){ if(base[A.world][ty] && base[A.world][ty][tx]==="break" && !broken[bkey(A.world,tx,ty)]) broken[bkey(A.world,tx,ty)]=true; }
+      }
+      if(A.growT>0) A.growT--; if(L.augmentT>0) L.augmentT--;
+
+      // turrets fire (per world)
+      turrets.forEach(function(t){ if(t.disabled) return; t.cd--; if(t.cd<=0){ t.cd=FIRE_CD; shots.push({x:t.x+t.dir*16, y:t.y, vx:t.dir*SHOT_SPD, world:t.world}); } });
+      shots.forEach(function(s){ s.x+=s.vx; if(s.dead) return;
+        if(s.x<0||s.x>COLS*TILE||solidAtW(s.world,Math.floor(s.x/TILE),Math.floor(s.y/TILE))){ s.dead=true; return; }
+        // Anvil (Unbreakable) soaks any shot that reaches him; Latch dies unless in the BULWARK shadow
+        if(A.world===s.world && A.x<s.x&&s.x<A.x+A.w&&A.y<s.y&&s.y<A.y+A.h){ s.dead=true; return; }
+        if(L.world===s.world && L.x<s.x&&s.x<L.x+L.w&&L.y<s.y&&s.y<L.y+L.h){ if(bulwarked(L)) s.dead=true; else { softReset(); s.dead=true; } }
+      });
+      shots=shots.filter(function(s){ return !s.dead; });
+
+      if(started){ if(!t0)t0=ts; elapsed=ts-t0; }
+      timerEl.textContent=fmt(elapsed);
+      if((performance.now?performance.now():Date.now())>flashUntil) hintEl.textContent=hint();
+      updStatus();
+      if(bothInExit()) win();
+    }
+    cam.update(cur()); draw(); requestAnimationFrame(frame);
+  }
+
+  async function win(){ state="win"; started=false;
+    var lvId=LEVELS[curLevel].id, my=Math.round(elapsed), prevBest=net.localBest();
+    var before=await net.loadBoard();
+    var prevRecord=(before&&before.length)?before[0].ms:Infinity, prevRecordWho=(before&&before.length)?before[0].who:null;
+    net.setLocalBest(elapsed); net.markDone(lvId);
+    var earned=[];
+    if(net.clearOnce(lvId)) earned.push("+10 first clear");
+    else if(prevBest!=null && my<prevBest){ net.awardPoints("beat_pb",3,lvId); earned.push("+3 beat your best"); }
+    await net.saveScore(elapsed);
+    if(my<prevRecord && prevRecordWho!==net.who()){ net.awardPoints("record",5,lvId); earned.push("🏆 +5 new record"); }
+    overlay.style.display="flex";
+    overlay.innerHTML='<div class="eyebrow" style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">'+LEVELS[curLevel].name+' — cleared</div>'
+      +'<h1>Shielded the <b>keystone</b>.</h1><div id="winTime">'+fmt(elapsed)+'</div>'
+      +'<p style="margin:.15em 0 .1em">Your best: <b style="color:var(--gold)">'+fmt(net.localBest())+'</b></p>'
+      +(earned.length?'<p style="color:var(--gold);font-weight:700;margin:.1em 0 .3em">'+earned.join(" · ")+'</p>':'')
+      +'<div id="board" style="width:100%;max-width:340px;margin:.5em 0"><p style="color:#8f89a8;font-size:12px">Loading crew times…</p></div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center">'
+      +'<button class="play ghost" id="againBtn">↻ Replay</button></div>'
+      +'<a href="/app.html#lab" class="backlab">← Back to the Lab</a>';
+    document.getElementById("againBtn").addEventListener("click",function(){ startGame(curLevel); });
+    var board=await net.loadBoard(), el=document.getElementById("board"); if(!el) return;
+    if(!board||!board.length){ el.innerHTML='<p style="color:#8f89a8;font-size:12px">The crew leaderboard fills in as people post times.</p>'; return; }
+    var me=net.who();
+    var rows=board.slice(0,10).map(function(s,i){ var mine=s.who===me;
+      return '<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 10px;border-radius:6px;font-size:13px;'+(mine?'background:rgba(232,193,90,.16)':'')+'"><span>'+(i+1)+'. '+esc(s.who)+(mine?' (you)':'')+'</span><span style="font-variant-numeric:tabular-nums;color:var(--gold)">'+fmt(s.ms)+'</span></div>'; }).join("");
+    el.innerHTML='<div style="text-align:left"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#9b7bd6;margin:0 0 6px">Best times · the crew</div>'+rows+'</div>'; }
+
+  cam.resize(); reset(); updWho(); ctl.setLabels(active); updStatus(); cam.update(cur(),true); draw();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

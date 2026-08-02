@@ -4,6 +4,7 @@
    versions/<id>/, then add ONE line at the top of this array. */
 window.VR_VERSIONS = [
   { id: "v1", name: "Seam Gate",    url: "/games/pair-level/index.html" },
+  { id: "v2", name: "Shield the Keystone (preview)", url: "/games/pair-level-v2/index.html" },
   { id: "v0", name: "Foundry Gate", url: "/games/pair-level/versions/v0/index.html" }
 ];
 (function () {

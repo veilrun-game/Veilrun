@@ -415,7 +415,8 @@
       +'<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center">'
       +'<button class="play ghost" id="againBtn">↻ Replay</button>'
       +'<button class="play'+(hasNext?' ghost':'')+'" id="lvlBtn">Levels</button>'
-      +(hasNext?'<button class="play" id="nextBtn">Next level →</button>':'')
+      +(hasNext?'<button class="play" id="nextBtn">Next level →</button>'
+               :'<a class="play" href="/games/pair-level-v2/index.html">Cross to v2 · new controller →</a>')
       +'</div>'
       +'<a href="/app.html#lab" class="backlab">← Back to the Lab</a>';
     document.getElementById("againBtn").addEventListener("click",()=>startGame());
