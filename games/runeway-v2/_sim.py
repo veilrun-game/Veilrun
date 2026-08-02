@@ -169,5 +169,19 @@ body_top, body_bot = 12*TILE-CH, 12*TILE
 check("turret shot hits at body height on the ride", body_top <= shot_y <= body_bot,
       "shot_y=%.0f body=[%.0f,%.0f]" % (shot_y, body_top, body_bot))
 
+print("\n[5] Safe landing on every crossing (crew lands on ground, never the chasm)")
+# crossing rune -> (col, target_world). The crew is placed AT this column on cross,
+# so the target world MUST have solid ground under that column (and the +22px Magpie offset).
+CROSSINGS = [("over rune @Overcity col6 -> Underweft", 6, 1),
+             ("return rune @Underweft col17 -> Overcity", 17, 0)]
+for name, col, tw in CROSSINGS:
+    def lands(c):
+        o = {"x": c*TILE+8, "y": 11*TILE-CH+TILE, "vx": 0.0, "vy": 0.0}
+        for _ in range(40):
+            step(o, tw)
+            if o["y"] > ROWS*TILE+80: return False   # fell into a chasm
+        return on_ground(o, tw)
+    check(name, lands(col) and lands(col) and lands(col+0.55), "Babel col %d + Magpie col ~%.1f land on ground" % (col, col+0.55))
+
 print("\n" + ("ALL CHECKS PASSED" if not fails else "FAILURES: " + ", ".join(fails)))
 raise SystemExit(1 if fails else 0)

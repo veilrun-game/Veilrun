@@ -95,10 +95,12 @@
         <b>Move</b> stick / A·D / ← → · <b>Jump</b> stick up / W / ↑ · <b>Switch</b> Tab · <b>Reset</b> R
       </div>
       <a href="/app.html#lab" class="backlab" style="margin-top:16px">← Back to the Lab</a>
+      <div id="verpick" data-cur="v2" style="margin-top:12px"></div>
     </div>
   </div>
   <div id="pad"></div>
 </div>
+<script src="/games/runeway/versions.js"></script>
 <script src="../_engine/engine.js"></script>
 <script>
 (function(){
@@ -234,7 +236,8 @@
   function moverArrived(m){ return m.axis==="y" ? Math.abs(m.y-m.ty)<0.6 : Math.abs(m.x-m.tx)<0.6; }
   function onMover(o,m){ return o.world===m.world && o.x+o.w>m.x+3 && o.x<m.x+m.w-3 && (o.y+o.h)>=m.y-3 && (o.y+o.h)<=m.y+12; }
   function moversStep(){ movers.forEach(function(m){ if(!m.active||moverArrived(m)) return;
-    var riders=[M,B].filter(function(o){ return onMover(o,m); }); if(!riders.length) return;
+    var riders=[M,B].filter(function(o){ return onMover(o,m); });
+    if(riders.length<2) return;   // the tram only departs with BOTH aboard — no solo-departure soft-lock
     var spd=LIFT_SPD; if(m.boostT>0){ spd*=BOOST_MULT; m.boostT--; }
     if(m.axis==="y"){ var dir=m.ty<m.y?-1:1, dy=Math.min(spd,Math.abs(m.ty-m.y))*dir; m.y+=dy; riders.forEach(function(o){o.y+=dy;}); }
     else { var dir2=m.tx<m.x?-1:1, dx=Math.min(spd,Math.abs(m.tx-m.x))*dir2; m.x+=dx; riders.forEach(function(o){o.x+=dx;}); } }); }
@@ -248,9 +251,13 @@
    * CROSS-WORLD (Babel only) — the crew crosses together, so Magpie is never
    * stranded and never lands in a gap: she joins Babel at his landing spot.
    * ======================================================================== */
-  function crossSeam(tw){
-    B.world=tw; B.vy=0; B.crossCd=CROSS_CD;
-    if(!B.down){ M.world=tw; M.x=B.x-28; M.y=B.y; M.vx=0; M.vy=0; }
+  function crossSeam(tw, cr){
+    // Land the crew AT the rune's column in the target world. Runes are authored over
+    // safe ground on both sides, so a crossing can never drop anyone into a chasm —
+    // regardless of the exact x you happen to be standing on when you read the rune.
+    var bx=cr.col*TILE+8, by=cr.row*TILE-B.h+TILE;
+    B.world=tw; B.x=bx; B.y=by; B.vx=0; B.vy=0; B.crossCd=CROSS_CD;
+    if(!B.down){ M.world=tw; M.x=bx+22; M.y=by; M.vx=0; M.vy=0; }
     cmdFlash=22;
   }
 
@@ -279,7 +286,7 @@
     var rm=movers.find(function(m){ return m.active && !moverArrived(m) && onMover(o,m); });
     if(rm){ rm.boostT=BOOST_DUR; cmdFlash=18; return; }
     var cr=nearestActive(crossRunes, o, READ_RANGE);
-    if(cr && o.crossCd<=0){ crossSeam(1-o.world); return; }
+    if(cr && o.crossCd<=0){ crossSeam(1-o.world, cr); return; }
   }
 
   function useSlot(slot){ if(cur().down) return;
