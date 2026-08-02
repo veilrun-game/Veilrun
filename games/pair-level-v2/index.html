@@ -173,7 +173,7 @@
   var CROSS_CD=30, CARRY_RANGE=999;               // Latch's flip pulls the crew (always, they're a unit)
   var SHOT_SPD=3.4, FIRE_CD=72;                   // turrets (from runeway)
 
-  var turrets=[], shots=[], broken={}, cmdFlash=0, flipFlash=0;
+  var turrets=[], shots=[], sparks=[], broken={}, cmdFlash=0, flipFlash=0;
   var phys=VE.Physics.create({});
 
   function bkey(w,x,y){ return w+","+x+","+y; }
@@ -185,7 +185,7 @@
   function reset(){
     A.x=spawnA.x*TILE+6; A.y=spawnA.y*TILE-A.h+TILE; A.vx=0; A.vy=0; A.face=1; A.world=0; A.chargeT=0; A.growT=0; A.crossCd=0;
     L.x=spawnL.x*TILE+8; L.y=spawnL.y*TILE-L.h+TILE; L.vx=0; L.vy=0; L.face=1; L.world=0; L.crossCd=0; L.bookmark=null; L.augmentT=0;
-    active="A"; shots=[]; broken={}; cmdFlash=0; flipFlash=0;
+    active="A"; shots=[]; sparks=[]; broken={}; cmdFlash=0; flipFlash=0;
     turrets=turretDefs.map(function(t){ return {x:t.x*TILE+TILE/2, y:t.y*TILE+TILE/2, world:t.world, dir:-1, cd:40, disabled:false}; });
   }
 
@@ -195,8 +195,17 @@
    * ABILITIES (v3 buckets)
    * ======================================================================== */
   // Latch — FREE flip: cross the seam anywhere, pulling the crew (his keystone identity)
-  function flip(){ var tw=1-L.world; L.world=tw; L.vy=0; L.crossCd=CROSS_CD;
-    A.world=tw; A.x=L.x; A.y=L.y; A.vx=0; A.vy=0;   // the crew flips together, landing on Latch's (safe) tile
+  function groundBelow(world, cx){ var tx=Math.floor(cx/TILE), fy=Math.floor((L.y+L.h)/TILE);
+    for(var ty=fy; ty<Math.min(ROWS, fy+5); ty++){ if(solidAtW(world,tx,ty)) return true; } return false; }
+  function flip(){ var tw=1-L.world, cx=L.x+L.w/2, nx=L.x;
+    if(!groundBelow(tw,cx)){                                   // don't drop into the void — snap to nearest footing, else fizzle
+      var found=false;
+      for(var d=1; d<=3 && !found; d++){ for(var s=-1;s<=1;s+=2){ var tcx=cx+s*d*TILE;
+        if(tcx>TILE && tcx<(COLS-1)*TILE && groundBelow(tw,tcx)){ nx=tcx-L.w/2; found=true; break; } } }
+      if(!found){ flashHint("No footing on the other side there — flip from solid ground."); return; }
+    }
+    L.world=tw; L.x=nx; L.vy=0; L.crossCd=CROSS_CD;
+    A.world=tw; A.x=nx; A.y=L.y; A.vx=0; A.vy=0;               // the crew flips together, landing on Latch's (safe) tile
     flipFlash=20; }
   function augment(){ L.augmentT=200; cmdFlash=16; }                                  // ⚑ PLACEHOLDER: buff Anvil's next ability
   function bookmark(){ if(L.bookmark){ L.x=L.bookmark.x; L.y=L.bookmark.y; L.world=L.bookmark.w; L.vy=0; L.bookmark=null; cmdFlash=20; } // recall
@@ -288,11 +297,13 @@
       if(t.disabled){ ctx.strokeStyle="#8f89a8"; ctx.beginPath(); ctx.moveTo(t.x-8,t.y-8); ctx.lineTo(t.x+8,t.y+8); ctx.stroke(); } });
     // shots
     ctx.fillStyle="#ffcc55"; shots.forEach(function(s){ if(s.world!==W) return; ctx.beginPath(); ctx.arc(s.x,s.y,4,0,7); ctx.fill(); });
+    sparks.forEach(function(k){ if(k.world!==W) return; ctx.fillStyle="rgba(255,210,120,"+(k.t/12)+")"; ctx.beginPath(); ctx.arc(k.x,k.y,3,0,7); ctx.fill(); });
     exits.forEach(function(e){ if(e.world!==W) return; ctx.fillStyle="rgba(232,193,90,.18)"; ctx.fillRect(e.x*TILE,e.y*TILE-TILE,TILE,TILE*2);
       ctx.fillStyle="#e8c15a"; ctx.font="12px sans-serif"; ctx.textAlign="center"; ctx.fillText("EXIT",e.x*TILE+TILE/2,e.y*TILE-6); });
-    // BULWARK aura (Anvil's shadow) — draw when Latch is inside it
-    if(A.world===W && bulwarked(L)){ ctx.fillStyle="rgba(200,90,90,.10)"; ctx.beginPath(); ctx.arc(A.x+A.w/2,A.y+A.h/2,BULWARK_R,0,7); ctx.fill();
-      ctx.strokeStyle="rgba(232,120,90,.4)"; ctx.beginPath(); ctx.arc(A.x+A.w/2,A.y+A.h/2,BULWARK_R,0,7); ctx.stroke(); }
+    // BULWARK aura (Anvil's shadow) — the safe circle; shown whenever a turret is live (or Latch is inside)
+    if(A.world===W && (turrets.some(function(t){return !t.disabled&&t.world===W;}) || bulwarked(L))){
+      ctx.fillStyle= bulwarked(L) ? "rgba(200,90,90,.13)" : "rgba(200,90,90,.07)"; ctx.beginPath(); ctx.arc(A.x+A.w/2,A.y+A.h/2,BULWARK_R,0,7); ctx.fill();
+      ctx.strokeStyle="rgba(232,120,90,.45)"; ctx.beginPath(); ctx.arc(A.x+A.w/2,A.y+A.h/2,BULWARK_R,0,7); ctx.stroke(); }
     if(A.chargeT>0 && A.world===W){ ctx.fillStyle="rgba(232,193,90,.5)"; ctx.fillRect(A.face>0?A.x-14:A.x+A.w+2, A.y+8, 12, A.h-16); }
     if(flipFlash>0){ ctx.strokeStyle="rgba(110,200,245,"+(flipFlash/20)+")"; ctx.lineWidth=2; ctx.strokeRect(L.x-6,L.y-6,L.w+12,L.h+12); ctx.lineWidth=1; flipFlash--; }
     if(cmdFlash>0){ var a2=cur(); ctx.strokeStyle="rgba(110,200,245,"+(cmdFlash/22)+")"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(a2.x+a2.w/2,a2.y+a2.h/2,(22-cmdFlash)*3+10,0,7); ctx.stroke(); ctx.lineWidth=1; cmdFlash--; }
@@ -341,10 +352,12 @@
       other().vx=0;
       [A,L].forEach(function(ch){ if(ch.crossCd>0) ch.crossCd--; if(phys.step(ch, worldFor(ch))){ softReset(); } });
 
-      // Anvil charge: plow breakable tiles he's overlapping
+      // Anvil charge: plow breakable tiles + smash turrets he hits; escort Latch in his protective wake
       if(A.chargeT>0){ A.chargeT--;
         var x0=Math.floor(A.x/TILE), x1=Math.floor((A.x+A.w-1)/TILE), y0=Math.floor(A.y/TILE), y1=Math.floor((A.y+A.h-1)/TILE);
         for(var ty=y0;ty<=y1;ty++)for(var tx=x0;tx<=x1;tx++){ if(base[A.world][ty] && base[A.world][ty][tx]==="break" && !broken[bkey(A.world,tx,ty)]) broken[bkey(A.world,tx,ty)]=true; }
+        turrets.forEach(function(t){ if(!t.disabled && t.world===A.world && A.x<t.x+14 && A.x+A.w>t.x-14 && A.y<t.y+18 && A.y+A.h>t.y-18){ t.disabled=true; cmdFlash=20; } });
+        if(A.world===L.world && dist(A,L)<BULWARK_R*1.5){ L.x=A.x - A.face*(L.w+3); L.y=A.y+(A.h-L.h); L.vx=0; L.vy=0; }
       }
       if(A.growT>0) A.growT--; if(L.augmentT>0) L.augmentT--;
 
@@ -352,11 +365,13 @@
       turrets.forEach(function(t){ if(t.disabled) return; t.cd--; if(t.cd<=0){ t.cd=FIRE_CD; shots.push({x:t.x+t.dir*16, y:t.y, vx:t.dir*SHOT_SPD, world:t.world}); } });
       shots.forEach(function(s){ s.x+=s.vx; if(s.dead) return;
         if(s.x<0||s.x>COLS*TILE||solidAtW(s.world,Math.floor(s.x/TILE),Math.floor(s.y/TILE))){ s.dead=true; return; }
-        // Anvil (Unbreakable) soaks any shot that reaches him; Latch dies unless in the BULWARK shadow
-        if(A.world===s.world && A.x<s.x&&s.x<A.x+A.w&&A.y<s.y&&s.y<A.y+A.h){ s.dead=true; return; }
-        if(L.world===s.world && L.x<s.x&&s.x<L.x+L.w&&L.y<s.y&&s.y<L.y+L.h){ if(bulwarked(L)) s.dead=true; else { softReset(); s.dead=true; } }
+        // BULWARK: any shot entering Anvil's shadow ricochets off him (protects anyone inside the circle)
+        if(A.world===s.world && Math.hypot((A.x+A.w/2)-s.x,(A.y+A.h/2)-s.y) < BULWARK_R){ s.dead=true; sparks.push({x:s.x, y:s.y, vx:-s.vx*0.4, vy:-1.5, t:12, world:s.world}); return; }
+        // Latch outside the circle takes the hit
+        if(L.world===s.world && L.x<s.x&&s.x<L.x+L.w&&L.y<s.y&&s.y<L.y+L.h){ softReset(); s.dead=true; }
       });
       shots=shots.filter(function(s){ return !s.dead; });
+      sparks.forEach(function(k){ k.t--; k.x+=k.vx; k.y+=k.vy; k.vy+=0.3; }); sparks=sparks.filter(function(k){ return k.t>0; });
 
       if(started){ if(!t0)t0=ts; elapsed=ts-t0; }
       timerEl.textContent=fmt(elapsed);
