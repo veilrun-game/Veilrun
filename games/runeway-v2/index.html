@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>VEILRUN — Runeway v2: Magpie + Babel</title>
+<!--
+  RUNEWAY v2 — vertical slice of the v2 kit + controller initiative.
+  COPY-AND-ENHANCE of games/runeway/index.html (v1 left untouched & live).
+  Loads the shared engine (../_engine/engine.js: VE.Physics / VE.Camera /
+  VE.Controller / VE.Net). Kept deliberately close to v1's feel: shield the
+  crossing, Babel reads runes, ride the mover. The v2 additions are the new
+  joystick+6-button controller and one light Overcity<->Underweft crossing.
+
+  ⚑ PLACEHOLDER numeric costs are flagged "// PLACEHOLDER" — unspecced per the
+  Kickoff doc; tuned by sim + feel.
+-->
+<style>
+  :root { --magpie:#5AC8C8; --babel:#D9A441; --gold:#E8C15A; --red:#D6584F;
+    --line:#3C345C; --violet:#7C4AB6; --overcity:#4E8ED2; --underweft:#8f6ad6; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html,body { margin:0; height:100%; background:#08060f; color:#eee;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; overflow:hidden; }
+  #wrap { position:fixed; inset:0; display:flex; flex-direction:column; }
+  #stage { position:relative; flex:1 1 auto; min-height:0; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; background:#0b0a14; touch-action:none; display:block; }
+  #hud { position:absolute; top:8px; left:10px; right:10px; display:flex; justify-content:space-between;
+    align-items:flex-start; pointer-events:none; font-size:clamp(11px,2.4vw,15px); gap:8px; }
+  #hud-left { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .pill { background:rgba(8,6,15,.65); border:1px solid var(--line); border-radius:999px; padding:4px 11px; white-space:nowrap; }
+  #who { font-weight:700; }
+  #who .m{color:var(--magpie)} #who .b{color:var(--babel)}
+  #world.w0 { color:var(--overcity); border-color:var(--overcity); }
+  #world.w1 { color:var(--underweft); border-color:var(--underweft); }
+  #status.warded { color:var(--magpie); border-color:var(--magpie); }
+  #status.up { color:var(--gold); border-color:var(--gold); }
+  #status.down { color:var(--red); border-color:var(--red); }
+  #hud-right { display:flex; gap:8px; align-items:center; pointer-events:auto; }
+  #timer { font-size:clamp(17px,5.4vw,22px); font-weight:800; font-variant-numeric:tabular-nums; color:var(--gold); }
+  #backBtn { pointer-events:auto; cursor:pointer; color:#fff; text-decoration:none; }
+  #mapBtn { cursor:pointer; font-size:clamp(13px,3.6vw,16px); color:#fff; padding:8px 15px; }
+  #mapBtn.on { background:rgba(90,200,200,.5); border-color:var(--magpie); }
+  #ver { position:absolute; left:10px; bottom:6px; font-size:10px; letter-spacing:.03em; color:#6a6580; pointer-events:none; }
+  #hint { position:absolute; left:50%; transform:translateX(-50%); bottom:10px; max-width:94%; text-align:center;
+    background:rgba(8,6,15,.78); border:1px solid var(--line); border-radius:8px; padding:6px 12px;
+    font-size:clamp(11px,3.2vw,14px); color:#cfc9e6; }
+  #overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; background:rgba(6,4,12,.86); padding:20px; overflow:auto; }
+  #overlay h1 { font-size:clamp(22px,5vw,40px); margin:.1em 0; letter-spacing:.02em; }
+  #overlay h1 b{color:var(--magpie)} #overlay h1 i{color:var(--babel); font-style:normal}
+  #overlay p { color:#bdb7d6; max-width:42ch; line-height:1.5; font-size:clamp(12px,2.8vw,15px); }
+  .play { margin-top:14px; background:var(--gold); color:#1a1206; border:none; border-radius:10px;
+    padding:12px 26px; font-weight:700; font-size:16px; cursor:pointer; }
+  .play.ghost { background:none; border:1px solid var(--line); color:#e8e4f5; }
+  .backlab { margin-top:14px; display:inline-block; padding:11px 20px; border:1px solid var(--line);
+    border-radius:10px; color:#e8e4f5; font-size:14px; text-decoration:none; min-height:44px; }
+  #levelSelect { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:8px; margin-top:10px; }
+  #levelSelect .play { margin-top:0; }
+  .keys { margin-top:14px; font-size:12px; color:#8f89a8; line-height:1.7; }
+  .keys b{color:#cfc9e6}
+  #winTime { color:var(--gold); font-weight:700; font-size:clamp(20px,5vw,34px); margin:.2em 0; }
+  .kithint { margin-top:12px; font-size:11.5px; color:#9a94b4; line-height:1.6; max-width:44ch; }
+  .kithint b{color:var(--magpie)} .kithint i{color:var(--babel);font-style:normal}
+  @media (pointer:coarse){ .keys { display:none; } }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <div id="hint"></div>
+    <div id="ver">Runeway · v2 · a VEILRUN prototype</div>
+    <canvas id="c" width="960" height="560"></canvas>
+    <div id="hud">
+      <div id="hud-left">
+        <a class="pill" id="backBtn" href="/app.html#lab">← Lab</a>
+        <div class="pill" id="who">Controlling: <span class="m">Magpie</span></div>
+        <div class="pill" id="world">The Overcity</div>
+        <div class="pill" id="status">Get across</div>
+      </div>
+      <div id="hud-right">
+        <div class="pill" id="timer">0:00.0</div>
+        <button class="pill" id="mapBtn" title="Toggle map view">🗺 Map</button>
+      </div>
+    </div>
+    <div id="overlay">
+      <div class="eyebrow" style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">VEILRUN · Runeway · v2 · kit + controller slice</div>
+      <h1><b>Magpie</b> + <i>Babel</i> — Cross the Seam</h1>
+      <p>A chasm splits the Overcity. <b style="color:var(--babel)">Babel</b> <b>reads</b> the runes to slip into the Underweft (and the crew crosses with him), powers the tram, and reads his way back. <b style="color:var(--magpie)">Magpie</b> <b>shields</b> the ride from the guns. Get <em>both</em> to the exit.</p>
+      <div id="levelSelect"></div>
+      <div class="kithint">
+        <b>Magpie</b> — J Shield · K Ward · L Revive · (Interact: none yet)<br>
+        <i>Babel</i> — J Strike · K Reinforce · L True Name · E Read
+      </div>
+      <div class="keys">
+        <b>Move</b> stick / A·D / ← → · <b>Jump</b> stick up / W / ↑ · <b>Switch</b> Tab · <b>Reset</b> R
+      </div>
+      <a href="/app.html#lab" class="backlab" style="margin-top:16px">← Back to the Lab</a>
+    </div>
+  </div>
+  <div id="pad"></div>
+</div>
+<script src="../_engine/engine.js"></script>
+<script>
+(function(){
+  "use strict";
+  var TILE=VE.util.TILE, COLS=VE.util.COLS, ROWS=VE.util.ROWS;
+  var dist=VE.util.dist, fmt=VE.util.fmt, esc=VE.util.esc;
+  var cv=document.getElementById("c"), ctx=cv.getContext("2d");
+  var overlay=document.getElementById("overlay"), hintEl=document.getElementById("hint");
+  var whoEl=document.getElementById("who"), statusEl=document.getElementById("status"),
+      worldEl=document.getElementById("world"), timerEl=document.getElementById("timer");
+
+  /* ==========================================================================
+   * LEVELS. Cross-world = two 24x14 grids (worlds[0]=The Overcity / the Current,
+   * worlds[1]=The Underweft / the Weave). Kept light: one crossing over, a tram
+   * ride across the gap, one crossing back.
+   * Legend: '#' solid · 'm'/'b' spawn (Overcity) · 'e' exit · 'T' turret(→left)
+   *         'R' crossing rune (Babel reads to cross the seam, carrying the crew).
+   * movers[] (tram) defined in data, each powered by its own rune (Babel reads).
+   * ======================================================================== */
+  var LEVELS=[
+    { id:"RW2S1", name:"Slice 1 — Cross the Seam", gameId:"runeway-v2", winMode:"walk",
+      worldNames:["The Overcity","The Underweft"],
+      worlds:[
+        // ---- The Overcity (Current): start ledge (left) + exit ledge (right), wide chasm between
+        [ "#                      #",
+          "#                      #",
+          "#                      #",
+          "#                      #",
+          "#                      #",
+          "#                      #",
+          "#                      #",
+          "#                      #",
+          "#                      #",
+          "#                      #",
+          "#                      #",
+          "# m b R            e   #",
+          "#######          #######",
+          "#                      #" ],
+        // ---- The Underweft (Weave): left/right floor, gap bridged by a tram; turret + return rune
+        [ "#                      #",
+          "#                      #",
+          "#                      #",
+          "#                      #",
+          "#                      #",
+          "#                      #",
+          "#                      #",
+          "#                      #",
+          "#                      #",
+          "#                      #",
+          "#                      #",
+          "#              T R     #",
+          "#########       ########",
+          "#                      #" ]
+      ],
+      // tram lives in the Underweft: cols9-11 travel right to col13 (abuts col16 floor), powered by rune @col8
+      movers:[ { world:1, col:9, row:12, w:3, axis:"x", to:13, rune:{col:8,row:11} } ]
+    }
+  ];
+
+  var curLevel=0;
+
+  // ---- parsed per-level world state ----
+  var base=[[],[]];
+  var spawnM={x:2,y:11}, spawnB={x:4,y:11};
+  var exits=[], turretDefs=[], runeDefs=[];
+
+  function parseWorld(w){
+    base[w]=[];
+    for(var y=0;y<ROWS;y++){ base[w][y]=[]; var rowS=(LEVELS[curLevel].worlds[w][y])||"";
+      for(var x=0;x<COLS;x++){ var ch=rowS[x]||" "; var t="empty";
+        if(ch==="#") t="solid";
+        else if(ch==="T") turretDefs.push({x:x,y:y,world:w});
+        else if(ch==="e") exits.push({x:x,y:y,world:w});
+        else if(ch==="R") runeDefs.push({x:x,y:y,world:w});
+        else if(ch==="m"){ spawnM={x:x,y:y}; }
+        else if(ch==="b"){ spawnB={x:x,y:y}; }
+        base[w][y][x]=t;
+      }
+    }
+  }
+  function parse(){ exits=[]; turretDefs=[]; runeDefs=[]; parseWorld(0); parseWorld(1); }
+  function setLevel(i){ curLevel=i; parse(); }
+  parse();
+
+  // ---- characters ----
+  var M={ key:"M", name:"Magpie", col:"#5AC8C8", w:24, h:46, vx:0,vy:0, face:1, speed:2.7, jump:9.8, world:0,
+    labels:{ primary:"Shield", secondary:"Ward", signature:"Revive", interact:"" } };   // Interact intentionally unbound this build
+  var B={ key:"B", name:"Babel",  col:"#D9A441", w:24, h:46, vx:0,vy:0, face:1, speed:2.7, jump:9.8, world:0, down:false, downT:0, crossCd:0,
+    labels:{ primary:"Strike", secondary:"Reinforce", signature:"True Name", interact:"Read" } };
+  var active="M";
+  var cur=function(){ return active==="M"?M:B; };
+  var other=function(){ return active==="M"?B:M; };
+
+  /* ---- tunables (⚑ PLACEHOLDER — none specced yet) ---- */
+  var SHIELD_DUR=170, SHIELD_CD=90;               // PLACEHOLDER Magpie Primary (Shield Pulse)
+  var WARD_MAX=2, WARD_W=3*TILE, WARD_H=3*TILE;   // PLACEHOLDER Magpie Secondary (Warded Sanctum)
+  var REVIVE_RANGE=76;                            // PLACEHOLDER Magpie Signature (revive downed Babel)
+  var BABEL_DEATH=260;                            // PLACEHOLDER Babel's death timer once downed (frames)
+  var CROSS_CD=36;                                // PLACEHOLDER re-cross lockout
+  var STRIKE_DUR=12, STRIKE_RANGE=48, STRIKE_CD=26; // PLACEHOLDER Babel Primary
+  var REINF_DUR=300, REINF_CD=600, REINF_R=64;    // PLACEHOLDER Babel Secondary (Amber & Cookie)
+  var TN_CD=240;                                  // PLACEHOLDER Babel Signature (True Name single-target)
+  var READ_RANGE=105;                             // Babel Interact reach (from v1)
+  var SHOT_SPD=3.4, FIRE_CD=70;                   // turrets (from v1)
+  var LIFT_SPD=1.8, BOOST_DUR=42, BOOST_MULT=2.6; // tram (from v1)
+
+  // ---- runtime mechanic state ----
+  var shieldT=0, shieldCd=0, wards=[];            // Magpie
+  var strikeT=0, strikeCd=0, reinforce=[], reinfCd=0, tnCd=0, cmdFlash=0; // Babel
+  var shots=[], turrets=[], movers=[], runes=[], crossRunes=[];
+
+  var phys=VE.Physics.create({});
+
+  function solidAtW(w,tx,ty){ if(tx<0||tx>=COLS) return true; if(ty<0||ty>=ROWS) return false; return base[w][ty][tx]==="solid"; }
+  function moversFor(w){ return movers.filter(function(m){ return m.world===w; }); }
+  function worldFor(o){ return { solidAt:function(tx,ty){ return solidAtW(o.world,tx,ty); }, movers:moversFor(o.world) }; }
+
+  function reset(){
+    // Always start both in THE OVERCITY (world 0). (Fixes the replay-into-Underweft bug.)
+    M.x=spawnM.x*TILE+8; M.y=spawnM.y*TILE-M.h+TILE; M.vx=0; M.vy=0; M.face=1; M.world=0;
+    B.x=spawnB.x*TILE+8; B.y=spawnB.y*TILE-B.h+TILE; B.vx=0; B.vy=0; B.face=1; B.world=0; B.down=false; B.downT=0; B.crossCd=0;
+    active="M"; shieldT=0; shieldCd=0; wards=[]; strikeT=0; strikeCd=0; reinforce=[]; reinfCd=0; tnCd=0; cmdFlash=0; shots=[];
+    turrets=turretDefs.map(function(t){ return {x:t.x*TILE+TILE/2, y:t.y*TILE+TILE/2, world:t.world, dir:-1, cd:40, disabled:false}; });
+    var defs=LEVELS[curLevel].movers||[];
+    movers=defs.map(function(md){ var x=md.col*TILE, y=md.row*TILE, w=md.w*TILE;
+      var tx = md.axis==="x" ? md.to*TILE : x, ty = md.axis==="y" ? md.to*TILE : y;
+      return { x:x,y:y,w:w, world:md.world, baseX:x, baseY:y, tx:tx,ty:ty, axis:md.axis, active:false, boostT:0, _rune:md.rune }; });
+    runes=movers.map(function(m,i){ return { x:m._rune.col*TILE+TILE/2, y:m._rune.row*TILE+TILE/2, world:m.world, mover:i }; });
+    crossRunes=runeDefs.map(function(r){ return { x:r.x*TILE+TILE/2, y:r.y*TILE+TILE/2, col:r.x, row:r.y, world:r.world }; });
+  }
+
+  function overlapsRect(o,rx,ry,rw,rh){ return o.x<rx+rw && o.x+o.w>rx && o.y<ry+rh && o.y+o.h>ry; }
+  function moverArrived(m){ return m.axis==="y" ? Math.abs(m.y-m.ty)<0.6 : Math.abs(m.x-m.tx)<0.6; }
+  function onMover(o,m){ return o.world===m.world && o.x+o.w>m.x+3 && o.x<m.x+m.w-3 && (o.y+o.h)>=m.y-3 && (o.y+o.h)<=m.y+12; }
+  function moversStep(){ movers.forEach(function(m){ if(!m.active||moverArrived(m)) return;
+    var riders=[M,B].filter(function(o){ return onMover(o,m); }); if(!riders.length) return;
+    var spd=LIFT_SPD; if(m.boostT>0){ spd*=BOOST_MULT; m.boostT--; }
+    if(m.axis==="y"){ var dir=m.ty<m.y?-1:1, dy=Math.min(spd,Math.abs(m.ty-m.y))*dir; m.y+=dy; riders.forEach(function(o){o.y+=dy;}); }
+    else { var dir2=m.tx<m.x?-1:1, dx=Math.min(spd,Math.abs(m.tx-m.x))*dir2; m.x+=dx; riders.forEach(function(o){o.x+=dx;}); } }); }
+
+  function nearestActive(list,o,range){ var best=null,bd=range;
+    list.forEach(function(it){ if(it.world!=null && it.world!==o.world) return;
+      var d=dist({x:o.x+o.w/2,y:o.y+o.h/2},it); if(d<bd){bd=d;best=it;} });
+    return best; }
+
+  /* ==========================================================================
+   * CROSS-WORLD (Babel only) — the crew crosses together, so Magpie is never
+   * stranded and never lands in a gap: she joins Babel at his landing spot.
+   * ======================================================================== */
+  function crossSeam(tw){
+    B.world=tw; B.vy=0; B.crossCd=CROSS_CD;
+    if(!B.down){ M.world=tw; M.x=B.x-28; M.y=B.y; M.vx=0; M.vy=0; }
+    cmdFlash=22;
+  }
+
+  /* ==========================================================================
+   * ABILITIES (v3 buckets)
+   * ======================================================================== */
+  // Magpie
+  function shieldPulse(){ if(shieldT<=0 && shieldCd<=0){ shieldT=SHIELD_DUR; } }
+  function placeWard(){ if(wards.length>=WARD_MAX) return; wards.push({ x:M.x+M.w/2-WARD_W/2, y:M.y+M.h-WARD_H, w:WARD_W, h:WARD_H, world:M.world }); }
+  function revive(){ if(B.down && M.world===B.world && dist(M,B)<REVIVE_RANGE){ B.down=false; B.downT=0; cmdFlash=24; } }
+  // Babel
+  function strike(){ if(strikeCd>0) return; strikeT=STRIKE_DUR; strikeCd=STRIKE_CD;
+    var t=turrets.filter(function(t){return !t.disabled && t.world===B.world;}).sort(function(a,b){return dist(B,a)-dist(B,b);})[0];
+    if(t && dist(B,t)<STRIKE_RANGE+6){ t.disabled=true; cmdFlash=16; } }
+  function reinforcements(){ if(reinfCd>0) return; reinfCd=REINF_CD;  // ⚑ PLACEHOLDER companion AI
+    reinforce=[ {x:B.x-30, y:B.y, world:B.world, t:REINF_DUR}, {x:B.x+30, y:B.y, world:B.world, t:REINF_DUR} ]; }
+  function trueName(){ if(tnCd>0) return;  // ⚑ PLACEHOLDER (single-target; hold-for-Field TBD)
+    var t=nearestActive(turrets.filter(function(t){return !t.disabled;}), B, READ_RANGE+40);
+    if(t){ t.disabled=true; t.trueName=true; tnCd=TN_CD; cmdFlash=30; } }
+  // Babel Interact — Read: disarm turret · power tram · boost ride · cross a rune (carry crew)
+  function babelRead(){ var o=B;
+    var t=nearestActive(turrets.filter(function(t){return !t.disabled;}), o, READ_RANGE);
+    if(t){ t.disabled=true; cmdFlash=24; return; }
+    var r=nearestActive(runes.filter(function(r){return !movers[r.mover].active;}), o, READ_RANGE);
+    if(r){ movers[r.mover].active=true; cmdFlash=24; return; }
+    var rm=movers.find(function(m){ return m.active && !moverArrived(m) && onMover(o,m); });
+    if(rm){ rm.boostT=BOOST_DUR; cmdFlash=18; return; }
+    var cr=nearestActive(crossRunes, o, READ_RANGE);
+    if(cr && o.crossCd<=0){ crossSeam(1-o.world); return; }
+  }
+
+  function useSlot(slot){ if(cur().down) return;
+    if(active==="M"){ ({primary:shieldPulse, secondary:placeWard, signature:revive}[slot]||function(){})(); }
+    else            { ({primary:strike, secondary:reinforcements, signature:trueName, interact:babelRead}[slot]||function(){})(); }
+  }
+
+  /* ==========================================================================
+   * HIT / DEATH  (per design: only Babel can be downed & revived by Magpie
+   * against a death timer; Magpie dying — or Babel's timer expiring — is an
+   * instant reset to the Overcity.)
+   * ======================================================================== */
+  function shieldedAt(o){
+    if(shieldT>0 && !o.down) return true;
+    for(var i=0;i<wards.length;i++){ var w=wards[i]; if(w.world===o.world && overlapsRect(o,w.x,w.y,w.w,w.h)) return true; }
+    return false;
+  }
+  function shotHits(o){                        // returns true if the shot should be consumed
+    if(o.down) return false;
+    if(shieldedAt(o)) return true;             // absorbed
+    if(o===M){ softReset(); return true; }     // Magpie dies -> instant reset
+    // Babel: downed with a death timer; hand control to Magpie to revive
+    B.down=true; B.downT=BABEL_DEATH; B.vx=0;
+    if(active==="B"){ active="M"; updWho(); ctl.setLabels(active); }
+    return true;
+  }
+
+  function centreInExit(o){ var cx=o.x+o.w/2, cy=o.y+o.h/2;
+    return exits.some(function(e){ return e.world===o.world && cx>e.x*TILE && cx<(e.x+1)*TILE && cy>e.y*TILE-6 && cy<(e.y+2)*TILE; }); }
+  function bothInExit(){ return !B.down && centreInExit(M) && centreInExit(B); }
+
+  /* ==========================================================================
+   * CONTROLLER (shared VE.Controller — joystick + 6-button grid)
+   * ======================================================================== */
+  var state="title", started=false;
+  function jump(){ var o=cur(); if(o.down) return; if(phys.onGround(o, worldFor(o))) o.vy=-o.jump; }
+  function switchChar(){ var n=active==="M"?"B":"M"; if((n==="B"?B:M).down) return; active=n; updWho(); ctl.setLabels(active); }
+  function softReset(){ reset(); updWho(); ctl.setLabels(active); updStatus(); cam.update(cur(),true); }
+
+  var flashUntil=0;
+  function flashHint(msg){ hintEl.textContent=msg; flashUntil=(performance.now?performance.now():Date.now())+2600; }
+
+  var ctl=VE.Controller.mount({
+    mount:document.getElementById("pad"),
+    activeKey:"M",
+    chars:{ M:M, B:B },
+    isPlay:function(){ return state==="play"; },
+    onStart:function(){ if(state!=="title") started=true; },
+    on:{
+      jump:jump, primary:function(){useSlot("primary");}, secondary:function(){useSlot("secondary");},
+      signature:function(){useSlot("signature");}, interact:function(){useSlot("interact");},
+      "switch":switchChar, reset:softReset,
+      unbound:function(slot){ flashHint((active==="M"?"Magpie":"Babel")+"’s "+slot+" has no action here yet — 👍/👎 in the Lab to shape it."); }
+    }
+  });
+  var held=ctl.held;
+  document.addEventListener("keydown",function(e){ if(state!=="play" && (e.key==="Enter"||e.key===" ")) startGame(); });
+
+  function updWho(){ whoEl.innerHTML="Controlling: "+(active==="M"?'<span class="m">Magpie</span>':'<span class="b">Babel</span>'); }
+  function updStatus(){ var o=cur();
+    worldEl.textContent=LEVELS[curLevel].worldNames[o.world]; worldEl.className="pill "+(o.world===0?"w0":"w1");
+    var riding=movers.some(function(m){return m.active&&!moverArrived(m);});
+    var txt, cls="";
+    if(B.down){ txt="Babel down — revive! "+Math.ceil(B.downT/60)+"s"; cls="down"; }
+    else if(riding){ txt="Riding ⚡"; cls="up"; }
+    else if(shieldT>0){ txt="Shielded "+Math.ceil(shieldT/60)+"s"; cls="warded"; }
+    else if(shieldCd>0){ txt="Shield: recharging"; }
+    else if(turrets.some(function(t){return !t.disabled&&t.world===o.world;})){ txt="Under fire"; }
+    else { txt="Get across"; }
+    statusEl.textContent=txt; statusEl.className="pill "+cls; }
+
+  /* ==========================================================================
+   * CAMERA (shared VE.Camera)
+   * ======================================================================== */
+  var cam=VE.Camera.create({ canvas:cv, stage:document.getElementById("stage") });
+  window.addEventListener("resize",function(){ cam.resize(); });
+  window.addEventListener("orientationchange",function(){ setTimeout(function(){cam.resize();},200); });
+  document.getElementById("mapBtn").addEventListener("click",function(){ cam.toggleMap();
+    document.getElementById("mapBtn").classList.toggle("on",cam.mapMode); cam.update(cur(),true); });
+
+  /* ==========================================================================
+   * RENDER
+   * ======================================================================== */
+  function tile(px,py,top,bot){ ctx.fillStyle=bot; ctx.fillRect(px,py,TILE,TILE); ctx.fillStyle=top; ctx.fillRect(px,py,TILE,TILE-6);
+    ctx.strokeStyle="rgba(0,0,0,.25)"; ctx.strokeRect(px+.5,py+.5,TILE-1,TILE-1); }
+  function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+  function charBody(o,ghost){ ctx.globalAlpha=ghost?0.26:(o.down?0.6:1); ctx.fillStyle=o.col; roundRect(o.x,o.y,o.w,o.h,6); ctx.fill();
+    if(!ghost){ ctx.fillStyle="rgba(0,0,0,.35)"; ctx.fillRect(o.face>0?o.x+o.w-7:o.x+3,o.y+9,4,6); }
+    ctx.fillStyle=ghost?"rgba(255,255,255,.5)":"rgba(255,255,255,.85)"; ctx.font="10px sans-serif"; ctx.textAlign="center";
+    ctx.fillText((o===M?"MAGPIE":"BABEL")+(o.down?" ✖":""),o.x+o.w/2,o.y-2); ctx.globalAlpha=1; }
+
+  function draw(){
+    var W=cur().world;
+    ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height);
+    var g=ctx.createLinearGradient(0,0,0,cv.height);
+    if(W===0){ g.addColorStop(0,"#0f1620"); g.addColorStop(1,"#080610"); } else { g.addColorStop(0,"#160f22"); g.addColorStop(1,"#0a0610"); }
+    ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
+    cam.apply(ctx);
+    for(var y=0;y<ROWS;y++)for(var x=0;x<COLS;x++){ if(base[W][y][x]==="solid"){
+      if(W===0) tile(x*TILE,y*TILE,"#243040","#141d2a"); else tile(x*TILE,y*TILE,"#2a2038","#171029"); } }
+    // wards
+    wards.forEach(function(wd){ if(wd.world!==W) return; ctx.fillStyle="rgba(90,200,200,.10)"; ctx.fillRect(wd.x,wd.y,wd.w,wd.h);
+      ctx.strokeStyle="rgba(120,220,220,.6)"; ctx.setLineDash([5,5]); ctx.strokeRect(wd.x+.5,wd.y+.5,wd.w-1,wd.h-1); ctx.setLineDash([]); });
+    // tram
+    movers.forEach(function(m){ if(m.world!==W) return;
+      ctx.strokeStyle="rgba(217,164,65,.14)"; ctx.setLineDash([4,6]); ctx.beginPath(); ctx.moveTo(m.baseX+m.w/2,m.baseY); ctx.lineTo(m.tx+m.w/2,m.ty); ctx.stroke(); ctx.setLineDash([]);
+      var ey=m.y; ctx.fillStyle= m.active ? "#3a5e5e" : "#2f4e4e"; ctx.fillRect(m.x+2,ey-4,m.w-4,10);
+      ctx.fillStyle= m.boostT>0 ? "#eaffff" : (m.active ? "#7fd6d6" : "#4f8080"); ctx.fillRect(m.x+2,ey-4,m.w-4,3);
+      ctx.strokeStyle="rgba(127,214,214,.5)"; ctx.strokeRect(m.x+2.5,ey-3.5,m.w-5,9); });
+    // tram power runes
+    runes.forEach(function(r){ if(r.world!==W) return; var powered=movers[r.mover]&&movers[r.mover].active;
+      ctx.fillStyle= powered ? "rgba(232,193,90,.9)" : "rgba(217,164,65,.8)"; ctx.beginPath(); ctx.arc(r.x,r.y-4,8,0,7); ctx.fill();
+      ctx.strokeStyle= powered ? "#e8c15a":"#d9a441"; ctx.lineWidth=2; ctx.strokeRect(r.x-11,r.y-15,22,22); ctx.lineWidth=1;
+      ctx.fillStyle="#fff"; ctx.font="8px sans-serif"; ctx.textAlign="center"; ctx.fillText(powered?"⚡":"TRAM",r.x,r.y-20); });
+    // crossing runes (seam)
+    crossRunes.forEach(function(cr){ if(cr.world!==W) return; ctx.strokeStyle="#8f6ad6"; ctx.lineWidth=2;
+      ctx.strokeRect(cr.x-12,cr.y-16,24,24); ctx.fillStyle="rgba(143,106,214,.5)"; ctx.fillRect(cr.x-12,cr.y-16,24,24); ctx.lineWidth=1;
+      ctx.fillStyle="#dcd0ff"; ctx.font="8px sans-serif"; ctx.textAlign="center"; ctx.fillText("SEAM",cr.x,cr.y-20); });
+    // turrets
+    turrets.forEach(function(t){ if(t.world!==W) return; ctx.fillStyle= t.disabled ? "#5f5f68" : "#c0504a"; roundRect(t.x-13,t.y-13,26,26,4); ctx.fill();
+      ctx.fillStyle= t.disabled ? "#3a3a44" : "#e8c15a"; ctx.fillRect(t.x-20,t.y-4,10,8);
+      if(t.disabled){ ctx.strokeStyle= t.trueName?"#8f6ad6":"#8f89a8"; ctx.beginPath(); ctx.moveTo(t.x-8,t.y-8); ctx.lineTo(t.x+8,t.y+8); ctx.stroke(); } });
+    // shots
+    ctx.fillStyle="#ffcc55"; shots.forEach(function(s){ if(s.world!==W) return; ctx.beginPath(); ctx.arc(s.x,s.y,4,0,7); ctx.fill(); });
+    // reinforcements
+    reinforce.forEach(function(r){ if(r.world!==W) return; ctx.fillStyle="rgba(217,164,65,.8)"; roundRect(r.x,r.y+8,16,34,4); ctx.fill();
+      ctx.fillStyle="#3a2a08"; ctx.font="7px sans-serif"; ctx.textAlign="center"; ctx.fillText("A&C",r.x+8,r.y+6); });
+    // exit
+    exits.forEach(function(e){ if(e.world!==W) return; ctx.fillStyle="rgba(232,193,90,.18)"; ctx.fillRect(e.x*TILE,e.y*TILE-TILE,TILE,TILE*2);
+      ctx.fillStyle="#e8c15a"; ctx.font="12px sans-serif"; ctx.textAlign="center"; ctx.fillText("EXIT",e.x*TILE+TILE/2,e.y*TILE-6); });
+    // strike arc
+    if(strikeT>0 && B.world===W){ ctx.strokeStyle="rgba(232,193,90,"+(strikeT/STRIKE_DUR)+")"; ctx.lineWidth=3;
+      var sx=B.x+(B.face>0?B.w:0); ctx.beginPath(); ctx.arc(sx,B.y+B.h/2,STRIKE_RANGE*0.6,-1,1); ctx.stroke(); ctx.lineWidth=1; }
+    // read / cross flash
+    if(cmdFlash>0){ var a=cur(); ctx.strokeStyle="rgba(217,164,65,"+(cmdFlash/30)+")"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(a.x+a.w/2,a.y+a.h/2,(30-cmdFlash)*3+10,0,7); ctx.stroke(); ctx.lineWidth=1; cmdFlash--; }
+    // shield aura
+    if(shieldT>0){ var frac=shieldT/SHIELD_DUR; [M,B].forEach(function(o){ if(o.world!==W||o.down) return;
+        ctx.fillStyle="rgba(90,200,200,"+(0.04+0.13*frac)+")"; roundRect(o.x-5,o.y-5,o.w+10,o.h+10,9); ctx.fill();
+        ctx.strokeStyle="rgba(120,220,220,"+(0.15+0.6*frac)+")"; ctx.lineWidth=2; roundRect(o.x-5,o.y-5,o.w+10,o.h+10,9); ctx.stroke(); ctx.lineWidth=1; }); }
+    // bodies (other-world char shows as a faint ghost)
+    [M,B].forEach(function(o){ charBody(o, o.world!==W); });
+    var act=cur(); if(act.world===W && !act.down){ ctx.fillStyle="#fff"; ctx.beginPath(); ctx.moveTo(act.x+act.w/2,act.y-10); ctx.lineTo(act.x+act.w/2-6,act.y-20); ctx.lineTo(act.x+act.w/2+6,act.y-20); ctx.closePath(); ctx.fill(); }
+  }
+
+  /* ==========================================================================
+   * HINT
+   * ======================================================================== */
+  function hint(){
+    if(B.down) return "Babel is down — switch to Magpie (Tab) and L (Revive) beside him before the timer runs out.";
+    var o=cur();
+    if(o.world===0){
+      if(active==="B" && nearestActive(crossRunes,B,READ_RANGE)) return "Babel: E reads the seam rune — the crew slips into the Underweft with you.";
+      return "The chasm can't be jumped. Switch to Babel (Tab) and E on the rune to cross into the Underweft.";
+    }
+    var riding=movers.some(function(m){return m.active&&!moverArrived(m);});
+    if(riding) return "Riding — Babel E again urges the tram faster. Magpie J shields the ride.";
+    var runeIn=nearestActive(runes.filter(function(r){return !movers[r.mover].active;}),B,READ_RANGE);
+    if(runeIn && active==="B") return "Babel: E powers the tram. Board it with Magpie, then ride across.";
+    if(active==="B" && nearestActive(crossRunes,B,READ_RANGE)) return "Babel: E reads the return rune — cross back to the exit with the crew.";
+    if(turrets.some(function(t){return !t.disabled&&t.world===o.world;})) return "Under fire — Magpie J (Shield) to cross safely, or Babel E to disarm the turret.";
+    return "Ride the tram across, then read the return rune back to the Overcity exit.";
+  }
+
+  /* ==========================================================================
+   * LEADERBOARD + POINTS (shared VE.Net)
+   * ======================================================================== */
+  var net=VE.Net.create({
+    url:"https://jbprsreaosetmqxhsnkl.supabase.co",
+    key:"sb_publishable_fzxPI3jRqOmA-VIfWFuoNQ_zgXgBtAS",
+    prefix:"vr_rw2_",
+    gameId:function(){ return LEVELS[curLevel].gameId; }
+  });
+
+  var t0=0, elapsed=0;
+  function startGame(levelIndex){ if(typeof levelIndex==="number") setLevel(levelIndex);
+    net.tryOnce(LEVELS[curLevel].id);
+    overlay.style.display="none"; state="play"; started=false; elapsed=0; t0=0;
+    reset(); updWho(); ctl.setLabels(active); updStatus(); cam.resize(); cam.update(cur(),true); }
+
+  function renderLevelSelect(){ var el=document.getElementById("levelSelect"); if(!el) return;
+    el.innerHTML='<button class="play" id="lvlPlayBtn">▶ Play the slice</button>';
+    document.getElementById("lvlPlayBtn").addEventListener("click",function(){ startGame(0); }); }
+  renderLevelSelect();
+
+  /* ==========================================================================
+   * LOOP
+   * ======================================================================== */
+  function frame(ts){
+    if(state==="play"){
+      var o=cur();
+      if(!o.down){ o.vx = held.left?-o.speed : held.right?o.speed : 0; if(o.vx>0)o.face=1; else if(o.vx<0)o.face=-1; }
+      else o.vx=0;
+      other().vx=0;
+      [M,B].forEach(function(ch){ if(ch.crossCd>0) ch.crossCd--; if(ch.down){ ch.vx=0; return; }
+        if(phys.step(ch, worldFor(ch))){ softReset(); } });   // fall off world -> instant reset (either character)
+      moversStep();
+
+      if(shieldT>0){ shieldT--; if(shieldT<=0) shieldCd=SHIELD_CD; } else if(shieldCd>0) shieldCd--;
+      if(strikeT>0) strikeT--; if(strikeCd>0) strikeCd--; if(tnCd>0) tnCd--; if(reinfCd>0) reinfCd--;
+      if(B.down){ B.downT--; if(B.downT<=0) softReset(); }    // death timer expired -> reset
+      reinforce.forEach(function(r){ r.t--; }); reinforce=reinforce.filter(function(r){ return r.t>0; });
+
+      turrets.forEach(function(t){ if(t.disabled) return; t.cd--; if(t.cd<=0){ t.cd=FIRE_CD; shots.push({x:t.x+t.dir*16, y:t.y, vx:t.dir*SHOT_SPD, world:t.world}); } });
+      shots.forEach(function(s){ s.x+=s.vx; if(s.dead) return;
+        if(s.x<0||s.x>COLS*TILE||solidAtW(s.world,Math.floor(s.x/TILE),Math.floor(s.y/TILE))){ s.dead=true; return; }
+        if(strikeT>0 && s.world===B.world){ var sx=B.x+(B.face>0?B.w:0); if(Math.abs(s.x-sx)<STRIKE_RANGE && Math.abs(s.y-(B.y+B.h/2))<26){ s.dead=true; return; } }
+        for(var i=0;i<reinforce.length;i++){ var r=reinforce[i]; if(r.world===s.world && Math.abs(s.x-(r.x+8))<REINF_R && Math.abs(s.y-(r.y+20))<REINF_R){ s.dead=true; return; } }
+        [M,B].forEach(function(ch){ if(s.dead||ch.world!==s.world) return;
+          if(ch.x<s.x&&s.x<ch.x+ch.w&&ch.y<s.y&&s.y<ch.y+ch.h){ if(shotHits(ch)) s.dead=true; } });
+      });
+      shots=shots.filter(function(s){ return !s.dead; });
+
+      if(started){ if(!t0)t0=ts; elapsed=ts-t0; }
+      timerEl.textContent=fmt(elapsed);
+      if((performance.now?performance.now():Date.now())>flashUntil) hintEl.textContent=hint();
+      updStatus();
+      if(bothInExit()) win();
+    }
+    cam.update(cur()); draw(); requestAnimationFrame(frame);
+  }
+
+  async function win(){ state="win"; started=false;
+    var lvId=LEVELS[curLevel].id, my=Math.round(elapsed), prevBest=net.localBest();
+    var before=await net.loadBoard();
+    var prevRecord=(before&&before.length)?before[0].ms:Infinity;
+    var prevRecordWho=(before&&before.length)?before[0].who:null;
+    net.setLocalBest(elapsed); net.markDone(lvId);
+    var earned=[];
+    if(net.clearOnce(lvId)) earned.push("+10 first clear");
+    else if(prevBest!=null && my<prevBest){ net.awardPoints("beat_pb",3,lvId); earned.push("+3 beat your best"); }
+    await net.saveScore(elapsed);
+    if(my<prevRecord && prevRecordWho!==net.who()){ net.awardPoints("record",5,lvId); earned.push("🏆 +5 new record"); }
+    overlay.style.display="flex";
+    overlay.innerHTML='<div class="eyebrow" style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">'+LEVELS[curLevel].name+' — cleared</div>'
+      +'<h1>Across the <b>seam</b>.</h1><div id="winTime">'+fmt(elapsed)+'</div>'
+      +'<p style="margin:.15em 0 .1em">Your best: <b style="color:var(--gold)">'+fmt(net.localBest())+'</b></p>'
+      +(earned.length?'<p style="color:var(--gold);font-weight:700;margin:.1em 0 .3em">'+earned.join(" · ")+'</p>':'')
+      +'<div id="board" style="width:100%;max-width:340px;margin:.5em 0"><p style="color:#8f89a8;font-size:12px">Loading crew times…</p></div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center">'
+      +'<button class="play ghost" id="againBtn">↻ Replay</button></div>'
+      +'<a href="/app.html#lab" class="backlab">← Back to the Lab</a>';
+    document.getElementById("againBtn").addEventListener("click",function(){ startGame(curLevel); });
+    var board=await net.loadBoard(), el=document.getElementById("board"); if(!el) return;
+    if(!board||!board.length){ el.innerHTML='<p style="color:#8f89a8;font-size:12px">The crew leaderboard fills in as people post times.</p>'; return; }
+    var me=net.who();
+    var rows=board.slice(0,10).map(function(s,i){ var mine=s.who===me;
+      return '<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 10px;border-radius:6px;font-size:13px;'+(mine?'background:rgba(232,193,90,.16)':'')+'"><span>'+(i+1)+'. '+esc(s.who)+(mine?' (you)':'')+'</span><span style="font-variant-numeric:tabular-nums;color:var(--gold)">'+fmt(s.ms)+'</span></div>'; }).join("");
+    el.innerHTML='<div style="text-align:left"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#9b7bd6;margin:0 0 6px">Best times · the crew</div>'+rows+'</div>'; }
+
+  cam.resize(); reset(); updWho(); ctl.setLabels(active); updStatus(); cam.update(cur(),true); draw();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
