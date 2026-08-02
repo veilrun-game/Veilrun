@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>VEILRUN — Shadow Run v2: Cinder + Vesper</title>
+<!--
+  SHADOW RUN v2 — vertical slice of the v2 kit + controller initiative (pair #2).
+  COPY-AND-ENHANCE of games/shadow-run/index.html (v1 left untouched & live).
+  Loads the shared engine (../_engine/engine.js). Adds the new joystick/6-button
+  controller + Cinder's and Vesper's full v3 buckets on top of v1's stealth
+  systems (guard patrol + vision cones + LOS, Shroud, lobbed gas, Dose).
+  ⚑ PLACEHOLDER numeric costs are flagged "// PLACEHOLDER".
+-->
+<style>
+  :root { --green:#78D28C; --indigo:#9A6EF0; --gold:#E8C15A; --red:#D6584F; --line:#3C345C; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html,body { margin:0; height:100%; background:#08060f; color:#eee;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; overflow:hidden; }
+  #wrap { position:fixed; inset:0; display:flex; flex-direction:column; }
+  #stage { position:relative; flex:1 1 auto; min-height:0; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; background:#0b0a14; touch-action:none; display:block; }
+  #hud { position:absolute; top:8px; left:10px; right:10px; display:flex; justify-content:space-between;
+    align-items:flex-start; pointer-events:none; font-size:clamp(11px,2.4vw,15px); gap:8px; }
+  #hud-left { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .pill { background:rgba(8,6,15,.65); border:1px solid var(--line); border-radius:999px; padding:4px 11px; white-space:nowrap; }
+  #who { font-weight:700; } #who .c{color:var(--green)} #who .v{color:var(--indigo)}
+  #status.cloaked { color:var(--indigo); border-color:var(--indigo); }
+  #status.dosed { color:var(--green); border-color:var(--green); }
+  #status.exposed { color:var(--red); border-color:var(--red); }
+  #hud-right { display:flex; gap:8px; align-items:center; pointer-events:auto; }
+  #timer { font-size:clamp(17px,5.4vw,22px); font-weight:800; font-variant-numeric:tabular-nums; color:var(--gold); }
+  #backBtn { pointer-events:auto; cursor:pointer; color:#fff; text-decoration:none; }
+  #mapBtn { cursor:pointer; font-size:clamp(13px,3.6vw,16px); color:#fff; padding:8px 15px; }
+  #mapBtn.on { background:rgba(154,110,240,.5); border-color:var(--indigo); }
+  #ver { position:absolute; left:10px; bottom:6px; font-size:10px; letter-spacing:.03em; color:#6a6580; pointer-events:none; }
+  #hint { position:absolute; left:50%; transform:translateX(-50%); bottom:10px; max-width:94%; text-align:center;
+    background:rgba(8,6,15,.78); border:1px solid var(--line); border-radius:8px; padding:6px 12px;
+    font-size:clamp(11px,3.2vw,14px); color:#cfc9e6; }
+  #overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; background:rgba(6,4,12,.86); padding:20px; overflow:auto; }
+  #overlay h1 { font-size:clamp(22px,5vw,40px); margin:.1em 0; letter-spacing:.02em; }
+  #overlay h1 b{color:var(--green)} #overlay h1 i{color:var(--indigo); font-style:normal}
+  #overlay p { color:#bdb7d6; max-width:42ch; line-height:1.5; font-size:clamp(12px,2.8vw,15px); }
+  .play { margin-top:14px; background:var(--gold); color:#1a1206; border:none; border-radius:10px;
+    padding:12px 26px; font-weight:700; font-size:16px; cursor:pointer; }
+  .play.ghost { background:none; border:1px solid var(--line); color:#e8e4f5; }
+  .backlab { margin-top:14px; display:inline-block; padding:11px 20px; border:1px solid var(--line);
+    border-radius:10px; color:#e8e4f5; font-size:14px; text-decoration:none; min-height:44px; }
+  #levelSelect { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:8px; margin-top:10px; }
+  #levelSelect .play { margin-top:0; }
+  .keys { margin-top:14px; font-size:12px; color:#8f89a8; line-height:1.7; } .keys b{color:#cfc9e6}
+  #winTime { color:var(--gold); font-weight:700; font-size:clamp(20px,5vw,34px); margin:.2em 0; }
+  .kithint { margin-top:12px; font-size:11.5px; color:#9a94b4; line-height:1.6; max-width:44ch; }
+  .kithint b{color:var(--green)} .kithint i{color:var(--indigo);font-style:normal}
+  @media (pointer:coarse){ .keys { display:none; } }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <div id="hint"></div>
+    <div id="ver">Shadow Run · v2 · a VEILRUN prototype</div>
+    <canvas id="c" width="960" height="560"></canvas>
+    <div id="hud">
+      <div id="hud-left">
+        <a class="pill" id="backBtn" href="/app.html#lab">← Lab</a>
+        <div class="pill" id="who">Controlling: <span class="v">Vesper</span></div>
+        <div class="pill" id="status">Exposed</div>
+      </div>
+      <div id="hud-right">
+        <div class="pill" id="timer">0:00.0</div>
+        <button class="pill" id="mapBtn" title="Toggle map view">🗺 Map</button>
+      </div>
+    </div>
+    <div id="overlay">
+      <div class="eyebrow" style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">VEILRUN · Shadow Run · v2 · kit + controller slice</div>
+      <h1><b>Cinder</b> + <i>Vesper</i> — Quiet Catering</h1>
+      <p><b style="color:var(--indigo)">Vesper</b> vanishes when he holds still (Shroud) and can Veilstep, Execute a guard from stealth, or Peek a patrol. <b style="color:var(--green)">Cinder</b> lobs <b>gas</b> to blind, <b>doses</b> Vesper to cross the fumes (Cinder's immune), and can silently take a guard down. The exit scanner only gas can blind. Get <em>both</em> past to the exit.</p>
+      <div id="levelSelect"></div>
+      <div class="kithint">
+        <b>Cinder</b> — Q Gas · W Dose · E Last Supper · A Field Kitchen<br>
+        <i>Vesper</i> — Q Veilstep · W Execute · (E —) · A Peek
+      </div>
+      <div class="keys">
+        <b>Move</b> ← → · <b>Jump</b> ↑ · <b>Abilities</b> Q W E · <b>Interact</b> A · <b>Switch</b> S / Tab · <b>Reset</b> R
+      </div>
+      <a href="/app.html#lab" class="backlab" style="margin-top:16px">← Back to the Lab</a>
+      <div id="verpick" data-cur="v2" style="margin-top:12px"></div>
+    </div>
+  </div>
+  <div id="pad"></div>
+</div>
+<script src="/games/shadow-run/versions.js"></script>
+<script src="../_engine/engine.js"></script>
+<script>
+(function(){
+  "use strict";
+  var TILE=VE.util.TILE, COLS=VE.util.COLS, ROWS=VE.util.ROWS;
+  var fmt=VE.util.fmt, esc=VE.util.esc;
+  var cv=document.getElementById("c"), ctx=cv.getContext("2d");
+  var overlay=document.getElementById("overlay"), hintEl=document.getElementById("hint");
+  var whoEl=document.getElementById("who"), statusEl=document.getElementById("status"), timerEl=document.getElementById("timer");
+
+  /* ==========================================================================
+   * LEVEL. Legend: '#' solid · 'c'/'v' spawn · 'e' exit.
+   * Guards per-level: {x0,x1,row,face,range,still, sensor?}. `sensor:true` = a
+   * mechanical scanner (only GAS blinds it, can't be taken down) — this keeps the
+   * gas+Dose synergy REQUIRED even with Vesper's Execute in the kit.
+   * ======================================================================== */
+  var LEVELS=[
+    { id:"SR2S1", name:"Slice 1 — Quiet Catering", gameId:"shadow-run-v2",
+      map:[
+      "#                      #","#                      #","#                      #","#                      #",
+      "#                      #","#                      #","#                      #","#                      #",
+      "#                      #","#                      #","#                      #","#                      #",
+      "#cv                  e #","########################"
+      ],
+      guards:[
+        { x0:5, x1:9, row:12, face:1, range:3, still:false },                 // human patrol — cloak/time past, or take down
+        { x0:19, x1:19, row:12, face:-1, range:4.5, still:true, sensor:true } // exit SCANNER — only gas blinds it (gas+Dose gate)
+      ] }
+  ];
+  var curLevel=0;
+
+  var base=[], spawnC={x:1,y:12}, spawnV={x:2,y:12}, exits=[], guardDefs=[];
+  function parse(){ base=[]; exits=[]; var MAP=LEVELS[curLevel].map;
+    for(var y=0;y<ROWS;y++){ base[y]=[]; var row=MAP[y]||"";
+      for(var x=0;x<COLS;x++){ var ch=row[x]||" "; var t="empty";
+        if(ch==="#") t="solid";
+        else if(ch==="e") exits.push({x:x,y:y});
+        else if(ch==="c") spawnC={x:x,y:y};
+        else if(ch==="v") spawnV={x:x,y:y};
+        base[y][x]=t;
+      }
+    }
+    guardDefs=LEVELS[curLevel].guards||[];
+  }
+  function setLevel(i){ curLevel=i; parse(); }
+  parse();
+
+  // ---- characters ----
+  var C={ key:"C", name:"Cinder", col:"#78D28C", w:26, h:50, vx:0,vy:0, face:1, speed:2.6, jump:9.2,
+    labels:{ primary:"Gas", secondary:"Dose", signature:"Last Supper", interact:"Field Kitchen" } };
+  var V={ key:"V", name:"Vesper", col:"#9A6EF0", w:22, h:48, vx:0,vy:0, face:1, speed:3.0, jump:9.6, cloak:0, dosed:0, blink:0,
+    labels:{ primary:"Veilstep", secondary:"Execute", signature:"", interact:"Peek" } };  // Signature intentionally empty (canon-complete)
+  var active="V";
+  var cur=function(){ return active==="C"?C:V; };
+  var other=function(){ return active==="C"?V:C; };
+
+  /* ---- tunables (⚑ PLACEHOLDER) ---- */
+  var GUARD_SPD=0.9, CONE_ANG=0.5, SEEN_GRACE=6;
+  var DOSE_MS=420;                                   // PLACEHOLDER Cinder Dose window
+  var GAS_T=300, GAS_R=TILE*1.5, GAS_BLIND=26;       // PLACEHOLDER Cinder Gas
+  var BLINK_DIST=TILE*2.4, BLINK_CD=45;              // PLACEHOLDER Vesper Veilstep
+  var TAKE_RANGE=TILE*0.95;                          // Execute / Last Supper reach
+  var KITCHEN_MAX=1, KITCHEN_R=TILE*1.6;             // PLACEHOLDER Cinder Field Kitchen
+  var PEEK_MS=150;                                   // PLACEHOLDER Vesper Peek (recon pulse)
+
+  // ---- runtime state ----
+  var guards=[], clouds=[], kitchens=[], seenT=0, caughtFlash=0, doseFlash=0, cmdFlash=0, peekT=0, kitchensLeft=KITCHEN_MAX;
+  var phys=VE.Physics.create({});
+  function solidAt(tx,ty){ if(tx<0||tx>=COLS) return true; if(ty<0||ty>=ROWS) return false; return base[ty][tx]==="solid"; }
+  function worldFor(){ return { solidAt:solidAt, movers:[] }; }
+  function overlapSolid(o){ var x0=Math.floor(o.x/TILE),x1=Math.floor((o.x+o.w-1)/TILE),y0=Math.floor(o.y/TILE),y1=Math.floor((o.y+o.h-1)/TILE);
+    for(var ty=y0;ty<=y1;ty++)for(var tx=x0;tx<=x1;tx++) if(solidAt(tx,ty)) return true; return false; }
+
+  function buildGuards(){ guards=guardDefs.map(function(g){ var w=26,h=48, y=g.row*TILE-h+TILE;
+    return { x0:g.x0*TILE+7, x1:g.x1*TILE+7, x:g.x0*TILE+7, y:y, w:w, h:h, dir:g.face||1, face:g.face||1,
+             range:(g.range||5)*TILE, still:!!g.still, sensor:!!g.sensor, blind:0, down:false }; }); }
+
+  function reset(){
+    C.x=spawnC.x*TILE+7; C.y=spawnC.y*TILE-C.h+TILE; C.vx=0; C.vy=0; C.face=1;
+    V.x=spawnV.x*TILE+9; V.y=spawnV.y*TILE-V.h+TILE; V.vx=0; V.vy=0; V.face=1; V.cloak=0; V.dosed=0; V.blink=0;
+    active="V"; clouds=[]; kitchens=[]; kitchensLeft=KITCHEN_MAX; seenT=0; caughtFlash=0; peekT=0; cmdFlash=0; buildGuards();
+  }
+
+  function onGround(o){ return phys.onGround(o, worldFor()); }
+  function adjacentCV(){ return Math.abs((C.x+C.w/2)-(V.x+V.w/2)) < TILE*1.15 && Math.abs(C.y-V.y) < TILE; }
+  function nearestGuard(o, range, undetectedOnly){ var best=null,bd=range;
+    guards.forEach(function(g){ if(g.down||g.sensor) return;                       // sensors can't be taken down
+      var d=Math.hypot((g.x+g.w/2)-(o.x+o.w/2),(g.y+g.h/2)-(o.y+o.h/2)); if(d<bd){bd=d;best=g;} });
+    return best; }
+
+  /* ==========================================================================
+   * ABILITIES (v3 buckets)
+   * ======================================================================== */
+  // Cinder
+  function throwGas(){ clouds.push({ x:C.x+C.w/2, y:C.y+C.h*0.35, vx:C.face*6, vy:-5.5, r:GAS_R, t:GAS_T, burst:false, fT:0 }); cmdFlash=14; }
+  function dose(){ if(adjacentCV()){ V.dosed=DOSE_MS; doseFlash=30; } }
+  function lastSupper(){ var g=nearestGuard(C, TAKE_RANGE, true);                  // silent takedown — undetected only
+    if(g && !anySeen()){ g.down=true; cmdFlash=24; } }
+  function fieldKitchen(){ if(kitchensLeft<=0) return;                             // ⚑ PLACEHOLDER: station that re-doses nearby crew
+    kitchens.push({ x:C.x+C.w/2, y:C.y+C.h }); kitchensLeft--; cmdFlash=20; }
+  // Vesper
+  function veilstep(){ if(V.blink>0) return; var old=V.x; V.x+=V.face*BLINK_DIST;
+    if(overlapSolid(V)) V.x=old; V.blink=BLINK_CD; V.cloak=0; cmdFlash=14; }         // blink breaks cloak
+  function execute(){ if(V.cloak<100) return; var g=nearestGuard(V, TAKE_RANGE, true); // guaranteed takedown from stealth
+    if(g){ g.down=true; cmdFlash=24; } }
+  function peek(){ peekT=PEEK_MS; }                                                 // recon pulse — read patrols without breaking stealth
+
+  function useSlot(slot){
+    if(active==="C"){ ({primary:throwGas, secondary:dose, signature:lastSupper, interact:fieldKitchen}[slot]||function(){})(); }
+    else            { ({primary:veilstep, secondary:execute, interact:peek}[slot]||function(){})(); }  // Vesper Signature = unbound
+  }
+
+  /* ==========================================================================
+   * VISION / DETECTION (ported from v1)
+   * ======================================================================== */
+  function sees(g,o){
+    if(g.down||g.blind>0) return false;
+    if(o===V && V.cloak>=100) return false;                                        // fully cloaked Vesper is invisible
+    var ex=g.x+g.w/2, ey=g.y+g.h*0.38, cx=o.x+o.w/2, cy=o.y+o.h*0.5;
+    var dx=cx-ex, dy=cy-ey;
+    if(g.face>0 && dx<6) return false; if(g.face<0 && dx>-6) return false;
+    var d=Math.hypot(dx,dy); if(d>g.range) return false;
+    if(Math.atan2(Math.abs(dy), Math.abs(dx)) > CONE_ANG) return false;
+    var steps=Math.ceil(d/(TILE*0.5));
+    for(var i=1;i<steps;i++){ var t=i/steps; if(solidAt(Math.floor((ex+dx*t)/TILE), Math.floor((ey+dy*t)/TILE))) return false; }
+    return true;
+  }
+  function anySeen(){ return guards.some(function(g){ return sees(g,C)||sees(g,V); }); }
+  function caught(){ caughtFlash=26; softReset(); }
+
+  function overlaps(o,tx,ty){ var px=tx*TILE,py=ty*TILE; return o.x<px+TILE && o.x+o.w>px && o.y<py+TILE && o.y+o.h>py; }
+  function bothInExit(){ var inE=function(o){ return exits.some(function(e){ return overlaps(o,e.x,e.y)||overlaps(o,e.x,e.y+1); }); }; return inE(C)&&inE(V); }
+
+  /* ==========================================================================
+   * CONTROLLER (shared VE.Controller)
+   * ======================================================================== */
+  var state="title", started=false;
+  function jump(){ var o=cur(); if(onGround(o)) o.vy=-o.jump; }
+  function switchChar(){ active=active==="C"?"V":"C"; updWho(); ctl.setLabels(active); }
+  function softReset(){ reset(); updWho(); ctl.setLabels(active); updStatus(); cam.update(cur(),true); }
+  var flashUntil=0;
+  function flashHint(msg){ hintEl.textContent=msg; flashUntil=(performance.now?performance.now():Date.now())+2600; }
+
+  var ctl=VE.Controller.mount({
+    mount:document.getElementById("pad"), activeKey:"V", chars:{ C:C, V:V },
+    isPlay:function(){ return state==="play"; },
+    onStart:function(){ if(state!=="title") started=true; },
+    on:{
+      jump:jump, primary:function(){useSlot("primary");}, secondary:function(){useSlot("secondary");},
+      signature:function(){useSlot("signature");}, interact:function(){useSlot("interact");},
+      "switch":switchChar, reset:softReset,
+      unbound:function(slot){ flashHint((active==="C"?"Cinder":"Vesper")+"’s "+slot+" has no action here yet — 👍/👎 in the Lab to shape it."); }
+    }
+  });
+  var held=ctl.held;
+  document.addEventListener("keydown",function(e){ if(state!=="play" && (e.key==="Enter"||e.key===" ")) startGame(); });
+
+  function updWho(){ whoEl.innerHTML="Controlling: "+(active==="C"?'<span class="c">Cinder</span>':'<span class="v">Vesper</span>'); }
+  function updStatus(){ var cls="exposed", txt="Exposed";
+    if(V.dosed>0){ cls="dosed"; txt="Vesper: Dosed"; }
+    else if(V.cloak>=100){ cls="cloaked"; txt="Vesper: Cloaked"; }
+    else if(V.cloak>0){ cls="cloaked"; txt="Vesper: Fading… "+Math.round(V.cloak)+"%"; }
+    statusEl.textContent=txt; statusEl.className="pill "+cls; }
+
+  /* ==========================================================================
+   * CAMERA (shared VE.Camera)
+   * ======================================================================== */
+  var cam=VE.Camera.create({ canvas:cv, stage:document.getElementById("stage") });
+  window.addEventListener("resize",function(){ cam.resize(); });
+  window.addEventListener("orientationchange",function(){ setTimeout(function(){cam.resize();},200); });
+  document.getElementById("mapBtn").addEventListener("click",function(){ cam.toggleMap();
+    document.getElementById("mapBtn").classList.toggle("on",cam.mapMode); cam.update(cur(),true); });
+
+  /* ==========================================================================
+   * RENDER
+   * ======================================================================== */
+  function tile(px,py,top,bot){ ctx.fillStyle=bot; ctx.fillRect(px,py,TILE,TILE); ctx.fillStyle=top; ctx.fillRect(px,py,TILE,TILE-6);
+    ctx.strokeStyle="rgba(0,0,0,.25)"; ctx.strokeRect(px+.5,py+.5,TILE-1,TILE-1); }
+  function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+  function charBody(o){ var a=1;
+    if(o===V) a = V.cloak>=100 ? 0.25 : 1 - 0.55*(V.cloak/100);
+    ctx.globalAlpha=a; ctx.fillStyle=o.col; roundRect(o.x,o.y,o.w,o.h,6); ctx.fill(); ctx.globalAlpha=1;
+    if(o===V && V.dosed>0){ ctx.strokeStyle="rgba(120,210,140,0.9)"; ctx.lineWidth=2; roundRect(o.x-2,o.y-2,o.w+4,o.h+4,7); ctx.stroke(); ctx.lineWidth=1; }
+    ctx.fillStyle="rgba(0,0,0,.35)"; ctx.fillRect(o.face>0?o.x+o.w-7:o.x+3,o.y+9,4,6);
+    ctx.fillStyle="rgba(255,255,255,.85)"; ctx.font="10px sans-serif"; ctx.textAlign="center"; ctx.fillText(o===C?"CINDER":"VESPER",o.x+o.w/2,o.y-2); }
+
+  function draw(){
+    ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height);
+    var g=ctx.createLinearGradient(0,0,0,cv.height); g.addColorStop(0,"#0d0b16"); g.addColorStop(1,"#080610");
+    ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
+    cam.apply(ctx);
+    for(var y=0;y<ROWS;y++)for(var x=0;x<COLS;x++){ if(base[y][x]==="solid") tile(x*TILE,y*TILE,"#242038","#15122a"); }
+    exits.forEach(function(e){ ctx.fillStyle="rgba(232,193,90,.18)"; ctx.fillRect(e.x*TILE,e.y*TILE-TILE,TILE,TILE*2);
+      ctx.fillStyle="#e8c15a"; ctx.font="12px sans-serif"; ctx.textAlign="center"; ctx.fillText("EXIT",e.x*TILE+TILE/2,e.y*TILE-6); });
+    // Field Kitchens
+    kitchens.forEach(function(k){ ctx.strokeStyle="rgba(120,210,140,.5)"; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.arc(k.x,k.y-6,KITCHEN_R,0,7); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle="#78D28C"; ctx.font="8px sans-serif"; ctx.textAlign="center"; ctx.fillText("KITCHEN",k.x,k.y-KITCHEN_R-2); });
+    // vision cones (highlighted brighter during a Peek)
+    var peeking = peekT>0;
+    guards.forEach(function(gd){ if(gd.down||gd.blind>0) return; var ex=gd.x+gd.w/2, ey=gd.y+gd.h*0.38, r=gd.range, sp=Math.tan(CONE_ANG)*r;
+      ctx.fillStyle= peeking ? "rgba(214,88,79,0.30)" : "rgba(214,88,79,0.16)"; ctx.beginPath(); ctx.moveTo(ex,ey);
+      ctx.lineTo(ex+gd.face*r, ey-sp); ctx.lineTo(ex+gd.face*r, ey+sp); ctx.closePath(); ctx.fill();
+      if(peeking && !gd.still){ ctx.strokeStyle="rgba(154,110,240,.6)"; ctx.beginPath(); ctx.moveTo(gd.x0,gd.y+gd.h+3); ctx.lineTo(gd.x1+gd.w,gd.y+gd.h+3); ctx.stroke(); } });
+    // gas
+    clouds.forEach(function(cl){ if(!cl.burst){ ctx.fillStyle="rgba(120,210,140,0.85)"; ctx.beginPath(); ctx.arc(cl.x,cl.y,6,0,7); ctx.fill(); }
+      else { var a=Math.min(0.32, cl.t/GAS_T*0.4+0.08); ctx.fillStyle="rgba(120,210,140,"+a+")"; ctx.beginPath(); ctx.arc(cl.x,cl.y,cl.r,0,7); ctx.fill(); } });
+    // guards (sensors drawn as a diamond scanner)
+    guards.forEach(function(gd){ if(gd.down) return;
+      if(gd.sensor){ ctx.fillStyle= gd.blind>0 ? "#5f5f68":"#b0484a"; ctx.save(); ctx.translate(gd.x+gd.w/2,gd.y+gd.h/2); ctx.rotate(Math.PI/4); roundRect(-13,-13,26,26,4); ctx.fill(); ctx.restore();
+        ctx.fillStyle="#e8c15a"; ctx.font="8px sans-serif"; ctx.textAlign="center"; ctx.fillText("SCAN",gd.x+gd.w/2,gd.y-4); }
+      else { ctx.fillStyle= gd.blind>0 ? "#5f5f68":"#c0504a"; roundRect(gd.x,gd.y,gd.w,gd.h,5); ctx.fill();
+        ctx.fillStyle="rgba(0,0,0,.4)"; ctx.fillRect(gd.face>0?gd.x+gd.w-7:gd.x+3, gd.y+9, 4, 6); }
+      if(gd.blind>0){ ctx.fillStyle="#78d28c"; ctx.font="12px sans-serif"; ctx.textAlign="center"; ctx.fillText(gd.sensor?"—":"zzz",gd.x+gd.w/2,gd.y-4); } });
+    charBody(C); charBody(V);
+    if(cmdFlash>0){ var a2=cur(); ctx.strokeStyle="rgba(120,210,140,"+(cmdFlash/24)+")"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(a2.x+a2.w/2,a2.y+a2.h/2,(24-cmdFlash)*3+10,0,7); ctx.stroke(); ctx.lineWidth=1; cmdFlash--; }
+    var o=cur(); ctx.fillStyle="#fff"; ctx.beginPath(); ctx.moveTo(o.x+o.w/2,o.y-10); ctx.lineTo(o.x+o.w/2-6,o.y-20); ctx.lineTo(o.x+o.w/2+6,o.y-20); ctx.closePath(); ctx.fill();
+    if(caughtFlash>0){ ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle="rgba(214,88,79,"+(caughtFlash/26*0.5)+")"; ctx.fillRect(0,0,cv.width,cv.height); caughtFlash--; }
+  }
+
+  function hint(){
+    if(V.dosed>0) return "Dosed — Vesper can cross the fumes. Slip both past the scanner to the exit.";
+    var o=cur();
+    if(active==="V") return "Vesper: hold still to cloak (Q Veilstep · W Execute a guard from stealth · A Peek a patrol).";
+    return "Cinder: Q gasses to blind the scanner · W Doses Vesper (stand together) to cross · E takes a guard down when unseen.";
+  }
+
+  /* ==========================================================================
+   * LEADERBOARD + POINTS (shared VE.Net)
+   * ======================================================================== */
+  var net=VE.Net.create({
+    url:"https://jbprsreaosetmqxhsnkl.supabase.co",
+    key:"sb_publishable_fzxPI3jRqOmA-VIfWFuoNQ_zgXgBtAS",
+    prefix:"vr_sr2_",
+    gameId:function(){ return LEVELS[curLevel].gameId; }
+  });
+
+  var t0=0, elapsed=0;
+  function startGame(levelIndex){ if(typeof levelIndex==="number") setLevel(levelIndex);
+    net.tryOnce(LEVELS[curLevel].id);
+    overlay.style.display="none"; state="play"; started=false; elapsed=0; t0=0;
+    reset(); updWho(); ctl.setLabels(active); updStatus(); cam.resize(); cam.update(cur(),true); }
+  function renderLevelSelect(){ var el=document.getElementById("levelSelect"); if(!el) return;
+    el.innerHTML='<button class="play" id="lvlPlayBtn">▶ Play the slice</button>';
+    document.getElementById("lvlPlayBtn").addEventListener("click",function(){ startGame(0); }); }
+  renderLevelSelect();
+
+  /* ==========================================================================
+   * LOOP
+   * ======================================================================== */
+  function frame(ts){
+    if(state==="play"){
+      var o=cur();
+      o.vx = held.left?-o.speed : held.right?o.speed : 0; if(o.vx>0)o.face=1; else if(o.vx<0)o.face=-1;
+      other().vx=0;
+      [C,V].forEach(function(ch){ if(phys.step(ch, worldFor())) caught(); });
+
+      // Vesper Shroud: fills while still on ground (not blinking), drains while moving; blink & dose override
+      var vStill = Math.abs(V.vx)<0.1 && onGround(V) && V.blink<=0;
+      if(vStill) V.cloak=Math.min(100, V.cloak+2.4); else V.cloak=Math.max(0, V.cloak-5);
+      if(V.blink>0) V.blink--; if(V.dosed>0) V.dosed--; if(peekT>0) peekT--; if(doseFlash>0) doseFlash--;
+
+      // Field Kitchen: re-dose whoever stands in it (Cinder is immune anyway; the point is topping up Vesper)
+      kitchens.forEach(function(k){ [C,V].forEach(function(ch){ if(Math.hypot((ch.x+ch.w/2)-k.x,(ch.y+ch.h)-k.y)<KITCHEN_R){ if(ch===V) V.dosed=Math.max(V.dosed, 90); } }); });
+
+      // guards patrol + blind timer
+      guards.forEach(function(gd){ if(gd.down) return; if(gd.blind>0){ gd.blind--; return; }
+        if(!gd.still){ gd.x+=gd.dir*GUARD_SPD; if(gd.x<=gd.x0){gd.x=gd.x0;gd.dir=1;} if(gd.x>=gd.x1){gd.x=gd.x1;gd.dir=-1;} gd.face=gd.dir; } });
+
+      // gas: bombs arc then burst; a burst cloud blinds guards/sensors inside + blocks UN-dosed Vesper (Cinder is immune — Tolerance)
+      clouds.forEach(function(cl){
+        if(!cl.burst){ cl.fT++; cl.vy+=0.3; cl.x+=cl.vx; cl.y+=cl.vy;
+          if(cl.fT>42 || solidAt(Math.floor(cl.x/TILE),Math.floor(cl.y/TILE))) cl.burst=true; return; }
+        cl.t--;
+        guards.forEach(function(gd){ if(gd.down) return; if(Math.hypot((gd.x+gd.w/2)-cl.x,(gd.y+gd.h/2)-cl.y) < cl.r+8) gd.blind=Math.max(gd.blind,GAS_BLIND); });
+        if(V.dosed<=0 && Math.hypot((V.x+V.w/2)-cl.x,(V.y+V.h/2)-cl.y) < cl.r){ V.x += (V.x+V.w/2 < cl.x ? -3.2 : 3.2); }  // Cinder unaffected
+      });
+      clouds=clouds.filter(function(cl){ return cl.burst ? cl.t>0 : true; });
+
+      // detection
+      var spotted = anySeen(); seenT = spotted ? seenT+1 : 0; if(seenT>SEEN_GRACE) caught();
+
+      if(started){ if(!t0)t0=ts; elapsed=ts-t0; }
+      timerEl.textContent=fmt(elapsed);
+      if((performance.now?performance.now():Date.now())>flashUntil) hintEl.textContent=hint();
+      updStatus();
+      if(bothInExit()) win();
+    }
+    cam.update(cur()); draw(); requestAnimationFrame(frame);
+  }
+
+  async function win(){ state="win"; started=false;
+    var lvId=LEVELS[curLevel].id, my=Math.round(elapsed), prevBest=net.localBest();
+    var before=await net.loadBoard();
+    var prevRecord=(before&&before.length)?before[0].ms:Infinity, prevRecordWho=(before&&before.length)?before[0].who:null;
+    net.setLocalBest(elapsed); net.markDone(lvId);
+    var earned=[];
+    if(net.clearOnce(lvId)) earned.push("+10 first clear");
+    else if(prevBest!=null && my<prevBest){ net.awardPoints("beat_pb",3,lvId); earned.push("+3 beat your best"); }
+    await net.saveScore(elapsed);
+    if(my<prevRecord && prevRecordWho!==net.who()){ net.awardPoints("record",5,lvId); earned.push("🏆 +5 new record"); }
+    overlay.style.display="flex";
+    overlay.innerHTML='<div class="eyebrow" style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">'+LEVELS[curLevel].name+' — cleared</div>'
+      +'<h1>Past the <b>patrol</b>.</h1><div id="winTime">'+fmt(elapsed)+'</div>'
+      +'<p style="margin:.15em 0 .1em">Your best: <b style="color:var(--gold)">'+fmt(net.localBest())+'</b></p>'
+      +(earned.length?'<p style="color:var(--gold);font-weight:700;margin:.1em 0 .3em">'+earned.join(" · ")+'</p>':'')
+      +'<div id="board" style="width:100%;max-width:340px;margin:.5em 0"><p style="color:#8f89a8;font-size:12px">Loading crew times…</p></div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center">'
+      +'<button class="play ghost" id="againBtn">↻ Replay</button></div>'
+      +'<a href="/app.html#lab" class="backlab">← Back to the Lab</a>';
+    document.getElementById("againBtn").addEventListener("click",function(){ startGame(curLevel); });
+    var board=await net.loadBoard(), el=document.getElementById("board"); if(!el) return;
+    if(!board||!board.length){ el.innerHTML='<p style="color:#8f89a8;font-size:12px">The crew leaderboard fills in as people post times.</p>'; return; }
+    var me=net.who();
+    var rows=board.slice(0,10).map(function(s,i){ var mine=s.who===me;
+      return '<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 10px;border-radius:6px;font-size:13px;'+(mine?'background:rgba(232,193,90,.16)':'')+'"><span>'+(i+1)+'. '+esc(s.who)+(mine?' (you)':'')+'</span><span style="font-variant-numeric:tabular-nums;color:var(--gold)">'+fmt(s.ms)+'</span></div>'; }).join("");
+    el.innerHTML='<div style="text-align:left"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#9b7bd6;margin:0 0 6px">Best times · the crew</div>'+rows+'</div>'; }
+
+  cam.resize(); reset(); updWho(); ctl.setLabels(active); updStatus(); cam.update(cur(),true); draw();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
