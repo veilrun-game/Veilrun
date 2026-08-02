@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>VEILRUN — Uplift v2: Rook + Wren</title>
+<!--
+  UPLIFT v2 — vertical slice of the v2 kit + controller initiative (pair #3).
+  COPY-AND-ENHANCE of games/uplift/index.html (v1 left untouched & live).
+  Loads the shared engine (../_engine/engine.js). Adds the new joystick/6-button
+  controller + Rook's and Wren's full v3 buckets on top of v1's launch/surge/
+  current-node/bridge systems. ⚑ PLACEHOLDER numeric costs flagged "// PLACEHOLDER".
+-->
+<style>
+  :root { --rook:#AA82F0; --wren:#E06EC8; --cyan:#60D6DC; --gold:#E8C15A; --red:#D6584F; --line:#3C345C; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html,body { margin:0; height:100%; background:#08060f; color:#eee;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; overflow:hidden; }
+  #wrap { position:fixed; inset:0; display:flex; flex-direction:column; }
+  #stage { position:relative; flex:1 1 auto; min-height:0; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; background:#0b0a14; touch-action:none; display:block; }
+  #hud { position:absolute; top:8px; left:10px; right:10px; display:flex; justify-content:space-between;
+    align-items:flex-start; pointer-events:none; font-size:clamp(11px,2.4vw,15px); gap:8px; }
+  #hud-left { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .pill { background:rgba(8,6,15,.65); border:1px solid var(--line); border-radius:999px; padding:4px 11px; white-space:nowrap; }
+  #who { font-weight:700; } #who .r{color:var(--rook)} #who .w{color:var(--wren)}
+  #status.ready { color:var(--rook); border-color:var(--rook); }
+  #status.charged { color:var(--gold); border-color:var(--gold); }
+  #hud-right { display:flex; gap:8px; align-items:center; pointer-events:auto; }
+  #timer { font-size:clamp(17px,5.4vw,22px); font-weight:800; font-variant-numeric:tabular-nums; color:var(--gold); }
+  #backBtn { pointer-events:auto; cursor:pointer; color:#fff; text-decoration:none; }
+  #mapBtn { cursor:pointer; font-size:clamp(13px,3.6vw,16px); color:#fff; padding:8px 15px; }
+  #mapBtn.on { background:rgba(170,130,240,.5); border-color:var(--rook); }
+  #ver { position:absolute; left:10px; bottom:6px; font-size:10px; letter-spacing:.03em; color:#6a6580; pointer-events:none; }
+  #hint { position:absolute; left:50%; transform:translateX(-50%); bottom:10px; max-width:94%; text-align:center;
+    background:rgba(8,6,15,.78); border:1px solid var(--line); border-radius:8px; padding:6px 12px;
+    font-size:clamp(11px,3.2vw,14px); color:#cfc9e6; }
+  #overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; background:rgba(6,4,12,.86); padding:20px; overflow:auto; }
+  #overlay h1 { font-size:clamp(22px,5vw,40px); margin:.1em 0; letter-spacing:.02em; }
+  #overlay h1 b{color:var(--rook)} #overlay h1 i{color:var(--wren); font-style:normal}
+  #overlay p { color:#bdb7d6; max-width:42ch; line-height:1.5; font-size:clamp(12px,2.8vw,15px); }
+  .play { margin-top:14px; background:var(--gold); color:#1a1206; border:none; border-radius:10px;
+    padding:12px 26px; font-weight:700; font-size:16px; cursor:pointer; }
+  .play.ghost { background:none; border:1px solid var(--line); color:#e8e4f5; }
+  .backlab { margin-top:14px; display:inline-block; padding:11px 20px; border:1px solid var(--line);
+    border-radius:10px; color:#e8e4f5; font-size:14px; text-decoration:none; min-height:44px; }
+  #levelSelect { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:8px; margin-top:10px; }
+  #levelSelect .play { margin-top:0; }
+  .keys { margin-top:14px; font-size:12px; color:#8f89a8; line-height:1.7; } .keys b{color:#cfc9e6}
+  #winTime { color:var(--gold); font-weight:700; font-size:clamp(20px,5vw,34px); margin:.2em 0; }
+  .kithint { margin-top:12px; font-size:11.5px; color:#9a94b4; line-height:1.6; max-width:44ch; }
+  .kithint b{color:var(--rook)} .kithint i{color:var(--wren);font-style:normal}
+  @media (pointer:coarse){ .keys { display:none; } }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <div id="hint"></div>
+    <div id="ver">Uplift · v2 · a VEILRUN prototype</div>
+    <canvas id="c" width="960" height="560"></canvas>
+    <div id="hud">
+      <div id="hud-left">
+        <a class="pill" id="backBtn" href="/app.html#lab">← Lab</a>
+        <div class="pill" id="who">Controlling: <span class="r">Rook</span></div>
+        <div class="pill" id="status">Node: cold</div>
+      </div>
+      <div id="hud-right">
+        <div class="pill" id="timer">0:00.0</div>
+        <button class="pill" id="mapBtn" title="Toggle map view">🗺 Map</button>
+      </div>
+    </div>
+    <div id="overlay">
+      <div class="eyebrow" style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">VEILRUN · Uplift · v2 · kit + controller slice</div>
+      <h1><b>Rook</b> + <i>Wren</i> — Brains &amp; Body</h1>
+      <p><b style="color:var(--rook)">Rook</b> can't jump — he <b>Telekinetically launches</b> Wren up (then you steer her), Blinks, and can Anchor a barrier. <b style="color:var(--wren)">Wren</b> <b>Surges</b> through a current-node to charge Rook's bridge, and can Trigger a node by hand. Neither finishes alone. Get <em>both</em> to the exit.</p>
+      <div id="levelSelect"></div>
+      <div class="kithint">
+        <b>Rook</b> — Q Telekinesis (launch) · W Blink · E Anchor · A Focus<br>
+        <i>Wren</i> — Q Surge · W Cadence · E Aegis · A Trigger
+      </div>
+      <div class="keys">
+        <b>Move</b> ← → · <b>Jump</b> ↑ (Wren) · <b>Abilities</b> Q W E · <b>Interact</b> A · <b>Switch</b> S / Tab · <b>Reset</b> R
+      </div>
+      <a href="/app.html#lab" class="backlab" style="margin-top:16px">← Back to the Lab</a>
+      <div id="verpick" data-cur="v2" style="margin-top:12px"></div>
+    </div>
+  </div>
+  <div id="pad"></div>
+</div>
+<script src="/games/uplift/versions.js"></script>
+<script src="../_engine/engine.js"></script>
+<script>
+(function(){
+  "use strict";
+  var TILE=VE.util.TILE, COLS=VE.util.COLS, ROWS=VE.util.ROWS;
+  var fmt=VE.util.fmt, esc=VE.util.esc;
+  var cv=document.getElementById("c"), ctx=cv.getContext("2d");
+  var overlay=document.getElementById("overlay"), hintEl=document.getElementById("hint");
+  var whoEl=document.getElementById("who"), statusEl=document.getElementById("status"), timerEl=document.getElementById("timer");
+
+  /* ==========================================================================
+   * LEVEL. Legend: '#' solid · 'r'/'w' spawn · 'e' exit
+   *   'N' current-node (Wren Surges/Triggers it) · 'B' bridge (empty until the node is charged, then solid)
+   * (Reuses v1 L1 geometry — proven: Wren reaches the node only via Rook's launch;
+   *  Rook can't cross the bridge gap until the node is charged.)
+   * ======================================================================== */
+  var LEVELS=[
+    { id:"UP2S1", name:"Slice 1 — Brains & Body", gameId:"uplift-v2", map:[
+      "#                      #","#                      #","#                      #","#                      #",
+      "#                      #","#                      #",
+      "#      N               #",
+      "#   #######            #",
+      "#                      #","#                      #","#                      #","#                      #",
+      "#rw                 e  #",
+      "########BBBB############"
+    ]}
+  ];
+  var curLevel=0;
+
+  var base=[], spawnR={x:1,y:12}, spawnW={x:2,y:12}, exits=[], nodes=[];
+  function parse(){ base=[]; exits=[]; nodes=[]; var MAP=LEVELS[curLevel].map;
+    for(var y=0;y<ROWS;y++){ base[y]=[]; var row=MAP[y]||"";
+      for(var x=0;x<COLS;x++){ var ch=row[x]||" "; var t="empty";
+        if(ch==="#") t="solid";
+        else if(ch==="B") t="bridgeA";
+        else if(ch==="N"){ nodes.push({x:x,y:y,g:"a"}); }
+        else if(ch==="e") exits.push({x:x,y:y});
+        else if(ch==="r") spawnR={x:x,y:y};
+        else if(ch==="w") spawnW={x:x,y:y};
+        base[y][x]=t;
+      }
+    }
+  }
+  function setLevel(i){ curLevel=i; parse(); }
+  parse();
+
+  // ---- characters (Rook can't jump; Wren is agile) ----
+  var R={ key:"R", name:"Rook", col:"#AA82F0", w:30, h:40, vx:0,vy:0, face:1, speed:1.9, jump:0, blinkCd:0,
+    labels:{ primary:"Telekinesis", secondary:"Blink", signature:"Anchor", interact:"Focus" } };
+  var W={ key:"W", name:"Wren", col:"#E06EC8", w:22, h:42, vx:0,vy:0, face:1, speed:3.2, jump:10.5, surge:0, surgeCd:0, cadence:0, aegis:0,
+    labels:{ primary:"Surge", secondary:"Cadence", signature:"Aegis", interact:"Trigger" } };
+  var active="R";
+  var cur=function(){ return active==="R"?R:W; };
+  var other=function(){ return active==="R"?W:R; };
+
+  /* ---- tunables (⚑ PLACEHOLDER) ---- */
+  var LAUNCH_VY=17, SURGE_FR=9, SURGE_SPD=9, SURGE_CD=36;   // built (from v1)
+  var BLINK_DIST=TILE*2.2, BLINK_CD=45;                     // PLACEHOLDER Rook Blink
+  var ANCHOR_DUR=210, ANCHOR_MAX=1;                         // PLACEHOLDER Rook Anchor (a held barrier/step)
+  var FOCUS_MS=150;                                         // PLACEHOLDER Rook Focus (Sixth Sense reveal)
+  var CADENCE_MAX=100, CADENCE_BONUS=6;                     // PLACEHOLDER Wren Cadence (momentum meter -> longer Surge)
+  var AEGIS_DUR=180;                                        // PLACEHOLDER Wren Aegis (one fall-save ward)
+
+  var charged={a:false}, tkFlash=0, cmdFlash=0, focusT=0, anchors=[];
+  var phys=VE.Physics.create({});
+
+  function solidAt(tx,ty){
+    if(tx<0||tx>=COLS) return true;
+    if(ty<0||ty>=ROWS) return false;
+    var t=base[ty][tx];
+    if(t==="solid") return true;
+    if(t==="bridgeA") return charged.a;                     // bridge solid only once its node is charged
+    for(var i=0;i<anchors.length;i++){ var a=anchors[i]; if(a.t>0 && tx>=a.tx && tx<a.tx+a.w && ty===a.ty) return true; }
+    return false;
+  }
+  function worldFor(){ return { solidAt:solidAt, movers:[] }; }
+  function overlapSolid(o){ var x0=Math.floor(o.x/TILE),x1=Math.floor((o.x+o.w-1)/TILE),y0=Math.floor(o.y/TILE),y1=Math.floor((o.y+o.h-1)/TILE);
+    for(var ty=y0;ty<=y1;ty++)for(var tx=x0;tx<=x1;tx++) if(solidAt(tx,ty)) return true; return false; }
+  function overlapsTile(o,tx,ty){ var px=tx*TILE,py=ty*TILE; return o.x<px+TILE && o.x+o.w>px && o.y<py+TILE && o.y+o.h>py; }
+  function onGround(o){ return phys.onGround(o, worldFor()); }
+
+  function reset(){
+    R.x=spawnR.x*TILE+7; R.y=spawnR.y*TILE-R.h+TILE; R.vx=0; R.vy=0; R.face=1; R.blinkCd=0;
+    W.x=spawnW.x*TILE+9; W.y=spawnW.y*TILE-W.h+TILE; W.vx=0; W.vy=0; W.face=1; W.surge=0; W.surgeCd=0; W.cadence=0; W.aegis=0;
+    active="R"; charged={a:false}; tkFlash=0; cmdFlash=0; focusT=0; anchors=[];
+  }
+
+  /* ==========================================================================
+   * ABILITIES (v3 buckets)
+   * ======================================================================== */
+  function nearWren(){ return Math.abs((W.x+W.w/2)-(R.x+R.w/2)) < TILE*2.2 && Math.abs(W.y-R.y) < TILE*1.6; }
+  // Rook
+  function telekinesis(){ if(!nearWren()) return; W.vy=-LAUNCH_VY; W.surge=0; tkFlash=22; active="W"; updWho(); ctl.setLabels(active); } // launch Wren, hand control
+  function blink(){ var o=cur(); if(o.blinkCd>0) return; var old=o.x; o.x+=o.face*BLINK_DIST; if(overlapSolid(o)) o.x=old; o.blinkCd=BLINK_CD; cmdFlash=14; }
+  function anchor(){ if(anchors.filter(function(a){return a.t>0;}).length>=ANCHOR_MAX) return;   // ⚑ PLACEHOLDER: TK-held barrier / step
+    var tx=Math.floor((R.x+ (R.face>0?R.w:0))/TILE)+ (R.face>0?0:-1), ty=Math.floor((R.y+R.h)/TILE);
+    anchors.push({ tx:tx, ty:ty, w:2, t:ANCHOR_DUR }); cmdFlash=20; }
+  function focus(){ focusT=FOCUS_MS; }                                              // ⚑ PLACEHOLDER: on-demand Sixth Sense reveal
+  // Wren
+  function surge(){ if(W.surge>0||W.surgeCd>0) return; W.surge=SURGE_FR + (W.cadence>=50?CADENCE_BONUS:0); W.surgeCd=SURGE_CD; }
+  function cadence(){ if(onGround(W)) W.cadence=Math.min(CADENCE_MAX, W.cadence+34); cmdFlash=12; }  // ⚑ PLACEHOLDER momentum meter
+  function aegis(){ W.aegis=AEGIS_DUR; cmdFlash=16; }                                // ⚑ PLACEHOLDER: one fall-save ward
+  function trigger(){ nodes.forEach(function(n){ if(!charged[n.g] && Math.abs((W.x+W.w/2)-(n.x*TILE+TILE/2))<TILE*0.9 && Math.abs((W.y+W.h/2)-(n.y*TILE+TILE/2))<TILE*1.1){ charged[n.g]=true; cmdFlash=22; } }); }
+
+  function useSlot(slot){
+    if(active==="R"){ ({primary:telekinesis, secondary:blink, signature:anchor, interact:focus}[slot]||function(){})(); }
+    else            { ({primary:surge, secondary:cadence, signature:aegis, interact:trigger}[slot]||function(){})(); }
+  }
+
+  function bothInExit(){ var inE=function(o){ return exits.some(function(e){ return overlapsTile(o,e.x,e.y)||overlapsTile(o,e.x,e.y+1); }); }; return inE(R)&&inE(W); }
+
+  /* ==========================================================================
+   * CONTROLLER (shared VE.Controller)
+   * ======================================================================== */
+  var state="title", started=false;
+  function jump(){ var o=cur(); if(o===R) return; if(onGround(o)) o.vy=-o.jump; }     // Rook can't jump
+  function switchChar(){ active=active==="R"?"W":"R"; updWho(); ctl.setLabels(active); }
+  function softReset(){ reset(); updWho(); ctl.setLabels(active); updStatus(); cam.update(cur(),true); }
+  var flashUntil=0;
+  function flashHint(msg){ hintEl.textContent=msg; flashUntil=(performance.now?performance.now():Date.now())+2600; }
+
+  var ctl=VE.Controller.mount({
+    mount:document.getElementById("pad"), activeKey:"R", chars:{ R:R, W:W },
+    isPlay:function(){ return state==="play"; },
+    onStart:function(){ if(state!=="title") started=true; },
+    on:{
+      jump:jump, primary:function(){useSlot("primary");}, secondary:function(){useSlot("secondary");},
+      signature:function(){useSlot("signature");}, interact:function(){useSlot("interact");},
+      "switch":switchChar, reset:softReset,
+      unbound:function(slot){ flashHint((active==="R"?"Rook":"Wren")+"’s "+slot+" has no action here yet — 👍/👎 in the Lab to shape it."); }
+    }
+  });
+  var held=ctl.held;
+  document.addEventListener("keydown",function(e){ if(state!=="play" && (e.key==="Enter"||e.key===" ")) startGame(); });
+
+  function updWho(){ whoEl.innerHTML="Controlling: "+(active==="R"?'<span class="r">Rook</span>':'<span class="w">Wren</span>'); }
+  function updStatus(){ statusEl.textContent = charged.a ? "Bridge: charged ⚡" : "Node: cold";
+    statusEl.className = "pill " + (charged.a ? "charged" : "ready"); }
+
+  /* ==========================================================================
+   * CAMERA (shared VE.Camera)
+   * ======================================================================== */
+  var cam=VE.Camera.create({ canvas:cv, stage:document.getElementById("stage") });
+  window.addEventListener("resize",function(){ cam.resize(); });
+  window.addEventListener("orientationchange",function(){ setTimeout(function(){cam.resize();},200); });
+  document.getElementById("mapBtn").addEventListener("click",function(){ cam.toggleMap();
+    document.getElementById("mapBtn").classList.toggle("on",cam.mapMode); cam.update(cur(),true); });
+
+  /* ==========================================================================
+   * RENDER
+   * ======================================================================== */
+  function tile(px,py,top,bot){ ctx.fillStyle=bot; ctx.fillRect(px,py,TILE,TILE); ctx.fillStyle=top; ctx.fillRect(px,py,TILE,TILE-6);
+    ctx.strokeStyle="rgba(0,0,0,.25)"; ctx.strokeRect(px+.5,py+.5,TILE-1,TILE-1); }
+  function ghostTile(px,py,c){ ctx.strokeStyle=c; ctx.setLineDash([5,4]); ctx.strokeRect(px+3,py+3,TILE-6,TILE-6); ctx.setLineDash([]); }
+  function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+  function charBody(o){ ctx.fillStyle=o.col;
+    if(o===W && W.surge>0){ ctx.globalAlpha=.5; roundRect(o.x-W.face*10,o.y,o.w,o.h,6); ctx.fill(); ctx.globalAlpha=1; }
+    if(o===W && W.aegis>0){ ctx.strokeStyle="rgba(224,110,200,0.8)"; ctx.lineWidth=2; roundRect(o.x-3,o.y-3,o.w+6,o.h+6,8); ctx.stroke(); ctx.lineWidth=1; }
+    roundRect(o.x,o.y,o.w,o.h,6); ctx.fill();
+    if(o===R){ ctx.fillStyle="rgba(0,0,0,.3)"; ctx.fillRect(o.x+2,o.y+o.h-6,o.w-4,5); }
+    ctx.fillStyle="rgba(0,0,0,.35)"; ctx.fillRect(o.face>0?o.x+o.w-7:o.x+3,o.y+9,4,6);
+    ctx.fillStyle="rgba(255,255,255,.85)"; ctx.font="10px sans-serif"; ctx.textAlign="center"; ctx.fillText(o===R?"ROOK":"WREN",o.x+o.w/2,o.y-2); }
+
+  function draw(){
+    ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height);
+    var g=ctx.createLinearGradient(0,0,0,cv.height); g.addColorStop(0,"#100b1a"); g.addColorStop(1,"#080610");
+    ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
+    cam.apply(ctx);
+    for(var y=0;y<ROWS;y++)for(var x=0;x<COLS;x++){ var t=base[y][x], px=x*TILE, py=y*TILE;
+      if(t==="solid") tile(px,py,"#242038","#15122a");
+      else if(t==="bridgeA"){ if(charged.a) tile(px,py,"#3a2c58","#241a3a"); else ghostTile(px,py,"rgba(170,130,240,.4)"); } }
+    // anchors (TK-held barriers)
+    anchors.forEach(function(a){ if(a.t<=0) return; var px=a.tx*TILE, py=a.ty*TILE; ctx.fillStyle="rgba(170,130,240,.5)"; ctx.fillRect(px,py,a.w*TILE,TILE);
+      ctx.strokeStyle="rgba(200,168,255,.8)"; ctx.strokeRect(px+.5,py+.5,a.w*TILE-1,TILE-1); });
+    // nodes (brighter during a Focus)
+    nodes.forEach(function(n){ var px=n.x*TILE+TILE/2, py=n.y*TILE+TILE/2, on=charged[n.g];
+      ctx.fillStyle= on ? "rgba(232,193,90,.9)" : (focusT>0?"rgba(170,130,240,1)":"rgba(170,130,240,.85)"); ctx.beginPath(); ctx.arc(px,py,9,0,7); ctx.fill();
+      ctx.strokeStyle= on ? "#e8c15a" : "rgba(170,130,240,1)"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(px,py, focusT>0?16:13,0,7); ctx.stroke(); ctx.lineWidth=1;
+      ctx.fillStyle="#fff"; ctx.font="9px sans-serif"; ctx.textAlign="center"; ctx.fillText(on?"⚡":"NODE",px,py-17); });
+    exits.forEach(function(e){ ctx.fillStyle="rgba(232,193,90,.18)"; ctx.fillRect(e.x*TILE,e.y*TILE-TILE,TILE,TILE*2);
+      ctx.fillStyle="#e8c15a"; ctx.font="12px sans-serif"; ctx.textAlign="center"; ctx.fillText("EXIT",e.x*TILE+TILE/2,e.y*TILE-6); });
+    if(tkFlash>0 && nearWren()){ ctx.strokeStyle="rgba(170,130,240,"+(tkFlash/22)+")"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(R.x+R.w/2,R.y+R.h/2); ctx.lineTo(W.x+W.w/2,W.y+W.h/2); ctx.stroke(); ctx.lineWidth=1; }
+    if(cmdFlash>0){ var a2=cur(); ctx.strokeStyle="rgba(170,130,240,"+(cmdFlash/22)+")"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(a2.x+a2.w/2,a2.y+a2.h/2,(22-cmdFlash)*3+10,0,7); ctx.stroke(); ctx.lineWidth=1; cmdFlash--; }
+    charBody(R); charBody(W);
+    var o=cur(); ctx.fillStyle="#fff"; ctx.beginPath(); ctx.moveTo(o.x+o.w/2,o.y-10); ctx.lineTo(o.x+o.w/2-6,o.y-20); ctx.lineTo(o.x+o.w/2+6,o.y-20); ctx.closePath(); ctx.fill();
+    if(tkFlash>0) tkFlash--;
+    // Cadence meter (bottom-left, when built)
+    if(W.cadence>0){ ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle="rgba(224,110,200,.22)"; ctx.fillRect(12, cv.height-16, 90, 5);
+      ctx.fillStyle="rgba(224,110,200,.9)"; ctx.fillRect(12, cv.height-16, 90*(W.cadence/CADENCE_MAX), 5); cam.apply(ctx); }
+  }
+
+  function hint(){
+    if(charged.a) return "Bridge charged — switch to Rook (Tab) and walk him across to the exit.";
+    if(active==="W") return "Wren: launched? Surge (Q) through the NODE to charge Rook's bridge — or Trigger (A) beside it.";
+    return "Rook can't jump. Stand beside Wren and Q (Telekinesis) to launch her up to the node.";
+  }
+
+  /* ==========================================================================
+   * LEADERBOARD + POINTS (shared VE.Net)
+   * ======================================================================== */
+  var net=VE.Net.create({
+    url:"https://jbprsreaosetmqxhsnkl.supabase.co",
+    key:"sb_publishable_fzxPI3jRqOmA-VIfWFuoNQ_zgXgBtAS",
+    prefix:"vr_up2_",
+    gameId:function(){ return LEVELS[curLevel].gameId; }
+  });
+
+  var t0=0, elapsed=0;
+  function startGame(levelIndex){ if(typeof levelIndex==="number") setLevel(levelIndex);
+    net.tryOnce(LEVELS[curLevel].id);
+    overlay.style.display="none"; state="play"; started=false; elapsed=0; t0=0;
+    reset(); updWho(); ctl.setLabels(active); updStatus(); cam.resize(); cam.update(cur(),true); }
+  function renderLevelSelect(){ var el=document.getElementById("levelSelect"); if(!el) return;
+    el.innerHTML='<button class="play" id="lvlPlayBtn">▶ Play the slice</button>';
+    document.getElementById("lvlPlayBtn").addEventListener("click",function(){ startGame(0); }); }
+  renderLevelSelect();
+
+  /* ==========================================================================
+   * LOOP
+   * ======================================================================== */
+  function frame(ts){
+    if(state==="play"){
+      var o=cur();
+      if(o===W && W.surge>0){ o.vx=W.face*SURGE_SPD; o.vy=0; }                    // Surge: horizontal dash, floats across gaps
+      else o.vx = held.left?-o.speed : held.right?o.speed : 0;
+      if(o.vx>0)o.face=1; else if(o.vx<0)o.face=-1;
+      other().vx=0;
+
+      var wWasAir = !onGround(W);
+      [R,W].forEach(function(ch){ if(phys.step(ch, worldFor())){                  // fell in a pit
+        if(ch===W && W.aegis>0){ W.aegis=0; W.y=spawnW.y*TILE-W.h+TILE; W.x=Math.max(TILE, W.x); W.vy=0; }  // Aegis saves one fall
+        else softReset(); } });
+      // Wren Surge charges the node it passes through
+      if(W.surge>0){ W.surge--; nodes.forEach(function(n){ if(!charged[n.g] && overlapsTile(W,n.x,n.y)) charged[n.g]=true; }); }
+      if(W.surgeCd>0) W.surgeCd--;
+      if(R.blinkCd>0) R.blinkCd--; if(focusT>0) focusT--;
+      if(W.cadence>0) W.cadence=Math.max(0, W.cadence-0.3);                        // Cadence meter decays
+      if(wWasAir && onGround(W)) W.cadence=Math.min(CADENCE_MAX, W.cadence+18);      // ...and tops up on a clean landing
+      if(W.aegis>0) W.aegis--;
+      anchors.forEach(function(a){ if(a.t>0) a.t--; });
+
+      if(started){ if(!t0)t0=ts; elapsed=ts-t0; }
+      timerEl.textContent=fmt(elapsed);
+      if((performance.now?performance.now():Date.now())>flashUntil) hintEl.textContent=hint();
+      updStatus();
+      if(bothInExit()) win();
+    }
+    cam.update(cur()); draw(); requestAnimationFrame(frame);
+  }
+
+  async function win(){ state="win"; started=false;
+    var lvId=LEVELS[curLevel].id, my=Math.round(elapsed), prevBest=net.localBest();
+    var before=await net.loadBoard();
+    var prevRecord=(before&&before.length)?before[0].ms:Infinity, prevRecordWho=(before&&before.length)?before[0].who:null;
+    net.setLocalBest(elapsed); net.markDone(lvId);
+    var earned=[];
+    if(net.clearOnce(lvId)) earned.push("+10 first clear");
+    else if(prevBest!=null && my<prevBest){ net.awardPoints("beat_pb",3,lvId); earned.push("+3 beat your best"); }
+    await net.saveScore(elapsed);
+    if(my<prevRecord && prevRecordWho!==net.who()){ net.awardPoints("record",5,lvId); earned.push("🏆 +5 new record"); }
+    overlay.style.display="flex";
+    overlay.innerHTML='<div class="eyebrow" style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">'+LEVELS[curLevel].name+' — cleared</div>'
+      +'<h1>Launched <b>&amp;</b> <i>charged</i>.</h1><div id="winTime">'+fmt(elapsed)+'</div>'
+      +'<p style="margin:.15em 0 .1em">Your best: <b style="color:var(--gold)">'+fmt(net.localBest())+'</b></p>'
+      +(earned.length?'<p style="color:var(--gold);font-weight:700;margin:.1em 0 .3em">'+earned.join(" · ")+'</p>':'')
+      +'<div id="board" style="width:100%;max-width:340px;margin:.5em 0"><p style="color:#8f89a8;font-size:12px">Loading crew times…</p></div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center">'
+      +'<button class="play ghost" id="againBtn">↻ Replay</button></div>'
+      +'<a href="/app.html#lab" class="backlab">← Back to the Lab</a>';
+    document.getElementById("againBtn").addEventListener("click",function(){ startGame(curLevel); });
+    var board=await net.loadBoard(), el=document.getElementById("board"); if(!el) return;
+    if(!board||!board.length){ el.innerHTML='<p style="color:#8f89a8;font-size:12px">The crew leaderboard fills in as people post times.</p>'; return; }
+    var me=net.who();
+    var rows=board.slice(0,10).map(function(s,i){ var mine=s.who===me;
+      return '<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 10px;border-radius:6px;font-size:13px;'+(mine?'background:rgba(232,193,90,.16)':'')+'"><span>'+(i+1)+'. '+esc(s.who)+(mine?' (you)':'')+'</span><span style="font-variant-numeric:tabular-nums;color:var(--gold)">'+fmt(s.ms)+'</span></div>'; }).join("");
+    el.innerHTML='<div style="text-align:left"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#9b7bd6;margin:0 0 6px">Best times · the crew</div>'+rows+'</div>'; }
+
+  cam.resize(); reset(); updWho(); ctl.setLabels(active); updStatus(); cam.update(cur(),true); draw();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
