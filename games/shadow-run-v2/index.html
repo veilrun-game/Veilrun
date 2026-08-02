@@ -189,14 +189,14 @@
   function throwGas(){ clouds.push({ x:C.x+C.w/2, y:C.y+C.h*0.35, vx:C.face*6, vy:-5.5, r:GAS_R, t:GAS_T, burst:false, fT:0 }); cmdFlash=14; }
   function dose(){ if(adjacentCV()){ V.dosed=DOSE_MS; doseFlash=30; } }
   function lastSupper(){ var g=nearestGuard(C, TAKE_RANGE, true);                  // silent takedown — undetected only
-    if(g && !anySeen()){ g.down=true; cmdFlash=24; } }
+    if(g && !anySeen()){ g.down=true; g.deadT=0; cmdFlash=24; } }
   function fieldKitchen(){ if(kitchensLeft<=0) return;                             // ⚑ PLACEHOLDER: station that re-doses nearby crew
     kitchens.push({ x:C.x+C.w/2, y:C.y+C.h }); kitchensLeft--; cmdFlash=20; }
   // Vesper
   function veilstep(){ if(V.blink>0) return; var old=V.x; V.x+=V.face*BLINK_DIST;
     if(overlapSolid(V)) V.x=old; V.blink=BLINK_CD; V.cloak=0; cmdFlash=14; }         // blink breaks cloak
   function execute(){ if(V.cloak<100) return; var g=nearestGuard(V, TAKE_RANGE, true); // guaranteed takedown from stealth
-    if(g){ g.down=true; cmdFlash=24; } }
+    if(g){ g.down=true; g.deadT=0; cmdFlash=24; } }
   function peek(){ peekT=PEEK_MS; }                                                 // recon pulse — read patrols without breaking stealth
 
   function useSlot(slot){
@@ -299,7 +299,16 @@
     clouds.forEach(function(cl){ if(!cl.burst){ ctx.fillStyle="rgba(120,210,140,0.85)"; ctx.beginPath(); ctx.arc(cl.x,cl.y,6,0,7); ctx.fill(); }
       else { var a=Math.min(0.32, cl.t/GAS_T*0.4+0.08); ctx.fillStyle="rgba(120,210,140,"+a+")"; ctx.beginPath(); ctx.arc(cl.x,cl.y,cl.r,0,7); ctx.fill(); } });
     // guards (sensors drawn as a diamond scanner)
-    guards.forEach(function(gd){ if(gd.down) return;
+    guards.forEach(function(gd){
+      if(gd.down){                                   // taken down: fall + fade to a persistent dead body (Magpie/Babel style)
+        var f=Math.min(1, (gd.deadT||0)/40);
+        ctx.save(); ctx.globalAlpha=1-0.55*f;
+        ctx.translate(gd.x+gd.w/2, gd.y+gd.h); ctx.rotate(-Math.PI/2*f);
+        ctx.fillStyle="#6a5560"; roundRect(-gd.w/2,-gd.h,gd.w,gd.h,5); ctx.fill();
+        ctx.restore(); ctx.globalAlpha=1;
+        ctx.fillStyle="rgba(154,110,240,.5)"; ctx.font="8px sans-serif"; ctx.textAlign="center"; ctx.fillText("✖",gd.x+gd.w/2,gd.y-2);
+        return;
+      }
       if(gd.sensor){ ctx.fillStyle= gd.blind>0 ? "#5f5f68":"#b0484a"; ctx.save(); ctx.translate(gd.x+gd.w/2,gd.y+gd.h/2); ctx.rotate(Math.PI/4); roundRect(-13,-13,26,26,4); ctx.fill(); ctx.restore();
         ctx.fillStyle="#e8c15a"; ctx.font="8px sans-serif"; ctx.textAlign="center"; ctx.fillText("SCAN",gd.x+gd.w/2,gd.y-4); }
       else { ctx.fillStyle= gd.blind>0 ? "#5f5f68":"#c0504a"; roundRect(gd.x,gd.y,gd.w,gd.h,5); ctx.fill();
@@ -356,8 +365,8 @@
       // Field Kitchen: re-dose whoever stands in it (Cinder is immune anyway; the point is topping up Vesper)
       kitchens.forEach(function(k){ [C,V].forEach(function(ch){ if(Math.hypot((ch.x+ch.w/2)-k.x,(ch.y+ch.h)-k.y)<KITCHEN_R){ if(ch===V) V.dosed=Math.max(V.dosed, 90); } }); });
 
-      // guards patrol + blind timer
-      guards.forEach(function(gd){ if(gd.down) return; if(gd.blind>0){ gd.blind--; return; }
+      // guards patrol + blind timer (downed guards fall to a dead body — no patrol, no detection)
+      guards.forEach(function(gd){ if(gd.down){ gd.deadT=(gd.deadT||0)+1; return; } if(gd.blind>0){ gd.blind--; return; }
         if(!gd.still){ gd.x+=gd.dir*GUARD_SPD; if(gd.x<=gd.x0){gd.x=gd.x0;gd.dir=1;} if(gd.x>=gd.x1){gd.x=gd.x1;gd.dir=-1;} gd.face=gd.dir; } });
 
       // gas: bombs arc then burst; a burst cloud blinds guards/sensors inside + blocks UN-dosed Vesper (Cinder is immune — Tolerance)

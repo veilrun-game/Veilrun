@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>VEILRUN — Arcline v2: Temper + Citrine</title>
+<!--
+  ARCLINE v2 — vertical slice of the v2 kit + controller initiative (pair #4).
+  COPY-AND-ENHANCE of games/arcline/index.html (v1 left untouched & live).
+  Loads the shared engine (../_engine/engine.js). New joystick/6-button controller
+  + Temper's & Citrine's v3 buckets on v1's throw/spark/conduct/gate systems.
+  Fixed throw kept for this slice (aimable/chargeable throw upgrade = separate round).
+  ⚑ PLACEHOLDER numeric costs flagged "// PLACEHOLDER".
+-->
+<style>
+  :root { --temper:#BE6EF0; --citrine:#F5CD46; --gold:#E8C15A; --red:#D6584F; --line:#3C345C; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html,body { margin:0; height:100%; background:#08060f; color:#eee;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; overflow:hidden; }
+  #wrap { position:fixed; inset:0; display:flex; flex-direction:column; }
+  #stage { position:relative; flex:1 1 auto; min-height:0; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; background:#0b0a14; touch-action:none; display:block; }
+  #hud { position:absolute; top:8px; left:10px; right:10px; display:flex; justify-content:space-between;
+    align-items:flex-start; pointer-events:none; font-size:clamp(11px,2.4vw,15px); gap:8px; }
+  #hud-left { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .pill { background:rgba(8,6,15,.65); border:1px solid var(--line); border-radius:999px; padding:4px 11px; white-space:nowrap; }
+  #who { font-weight:700; } #who .t{color:var(--temper)} #who .c{color:var(--citrine)}
+  #status.ready { color:var(--citrine); border-color:var(--citrine); }
+  #status.open { color:var(--gold); border-color:var(--gold); }
+  #hud-right { display:flex; gap:8px; align-items:center; pointer-events:auto; }
+  #timer { font-size:clamp(17px,5.4vw,22px); font-weight:800; font-variant-numeric:tabular-nums; color:var(--gold); }
+  #backBtn { pointer-events:auto; cursor:pointer; color:#fff; text-decoration:none; }
+  #mapBtn { cursor:pointer; font-size:clamp(13px,3.6vw,16px); color:#fff; padding:8px 15px; }
+  #mapBtn.on { background:rgba(190,110,240,.5); border-color:var(--temper); }
+  #ver { position:absolute; left:10px; bottom:6px; font-size:10px; letter-spacing:.03em; color:#6a6580; pointer-events:none; }
+  #hint { position:absolute; left:50%; transform:translateX(-50%); bottom:10px; max-width:94%; text-align:center;
+    background:rgba(8,6,15,.78); border:1px solid var(--line); border-radius:8px; padding:6px 12px;
+    font-size:clamp(11px,3.2vw,14px); color:#cfc9e6; }
+  #overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; background:rgba(6,4,12,.86); padding:20px; overflow:auto; }
+  #overlay h1 { font-size:clamp(22px,5vw,40px); margin:.1em 0; letter-spacing:.02em; }
+  #overlay h1 b{color:var(--temper)} #overlay h1 i{color:var(--citrine); font-style:normal}
+  #overlay p { color:#bdb7d6; max-width:42ch; line-height:1.5; font-size:clamp(12px,2.8vw,15px); }
+  .play { margin-top:14px; background:var(--gold); color:#1a1206; border:none; border-radius:10px;
+    padding:12px 26px; font-weight:700; font-size:16px; cursor:pointer; }
+  .play.ghost { background:none; border:1px solid var(--line); color:#e8e4f5; }
+  .backlab { margin-top:14px; display:inline-block; padding:11px 20px; border:1px solid var(--line);
+    border-radius:10px; color:#e8e4f5; font-size:14px; text-decoration:none; min-height:44px; }
+  #levelSelect { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:8px; margin-top:10px; }
+  #levelSelect .play { margin-top:0; }
+  .keys { margin-top:14px; font-size:12px; color:#8f89a8; line-height:1.7; } .keys b{color:#cfc9e6}
+  #winTime { color:var(--gold); font-weight:700; font-size:clamp(20px,5vw,34px); margin:.2em 0; }
+  .kithint { margin-top:12px; font-size:11.5px; color:#9a94b4; line-height:1.6; max-width:44ch; }
+  .kithint b{color:var(--temper)} .kithint i{color:var(--citrine);font-style:normal}
+  @media (pointer:coarse){ .keys { display:none; } }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <div id="hint"></div>
+    <div id="ver">Arcline · v2 · a VEILRUN prototype</div>
+    <canvas id="c" width="960" height="560"></canvas>
+    <div id="hud">
+      <div id="hud-left">
+        <a class="pill" id="backBtn" href="/app.html#lab">← Lab</a>
+        <div class="pill" id="who">Controlling: <span class="t">Temper</span></div>
+        <div class="pill" id="status">Gate: closed</div>
+      </div>
+      <div id="hud-right">
+        <div class="pill" id="timer">0:00.0</div>
+        <button class="pill" id="mapBtn" title="Toggle map view">🗺 Map</button>
+      </div>
+    </div>
+    <div id="overlay">
+      <div class="eyebrow" style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">VEILRUN · Arcline · v2 · kit + controller slice</div>
+      <h1><b>Temper</b> + <i>Citrine</i> — Plant &amp; Power</h1>
+      <p><b style="color:var(--temper)">Temper</b> <b>throws</b> blades that stick as conductors (not footholds) — and can Retrieve, Bladedance, or Frankenforge them. <b style="color:var(--citrine)">Citrine's</b> <b>Spark</b> is short-range, but it hops blade-to-blade to a far trigger; she can also Trapline and Cascade. The trigger's out of her reach — plant a blade to bridge the arc. Open the gate, get <em>both</em> to the exit.</p>
+      <div id="levelSelect"></div>
+      <div class="kithint">
+        <b>Temper</b> — Q Throw · W Bladedance · E Frankenforge · A Retrieve<br>
+        <i>Citrine</i> — Q Spark · W Trapline · E Cascade · A Force
+      </div>
+      <div class="keys">
+        <b>Move</b> ← → · <b>Jump</b> ↑ · <b>Abilities</b> Q W E · <b>Interact</b> A · <b>Switch</b> S / Tab · <b>Reset</b> R
+      </div>
+      <a href="/app.html#lab" class="backlab" style="margin-top:16px">← Back to the Lab</a>
+      <div id="verpick" data-cur="v2" style="margin-top:12px"></div>
+    </div>
+  </div>
+  <div id="pad"></div>
+</div>
+<script src="/games/arcline/versions.js"></script>
+<script src="../_engine/engine.js"></script>
+<script>
+(function(){
+  "use strict";
+  var TILE=VE.util.TILE, COLS=VE.util.COLS, ROWS=VE.util.ROWS;
+  var fmt=VE.util.fmt, esc=VE.util.esc, dist=VE.util.dist;
+  var cv=document.getElementById("c"), ctx=cv.getContext("2d");
+  var overlay=document.getElementById("overlay"), hintEl=document.getElementById("hint");
+  var whoEl=document.getElementById("who"), statusEl=document.getElementById("status"), timerEl=document.getElementById("timer");
+
+  /* Legend: '#' solid · 't'/'c' spawn · 'e' exit · 'G' gate (solid until sparked open) · 'X' trigger · 'H' live-wire hazard */
+  var LEVELS=[
+    { id:"AR2S1", name:"Slice 1 — Plant & Power", gameId:"arcline-v2", map:[
+      "#                      #","#                      #","#                      #","#                      #",
+      "#                      #","#                      #","#                      #","#                      #",
+      "#                      #",
+      "#            GG        #",
+      "#            GG        #",
+      "#            GG X      #",
+      "#tc          GG     e  #",
+      "########################"
+    ]}
+  ];
+  var curLevel=0;
+
+  var base=[], spawnT={x:1,y:12}, spawnC={x:2,y:12}, exits=[], triggers=[], hazards=[];
+  function parse(){ base=[]; exits=[]; triggers=[]; hazards=[]; var MAP=LEVELS[curLevel].map;
+    for(var y=0;y<ROWS;y++){ base[y]=[]; var row=MAP[y]||"";
+      for(var x=0;x<COLS;x++){ var ch=row[x]||" "; var t="empty";
+        if(ch==="#") t="solid";
+        else if(ch==="G") t="gate";
+        else if(ch==="B") t="bridge";
+        else if(ch==="H") hazards.push({x:x,y:y,active:true});
+        else if(ch==="X") triggers.push({x:x*TILE+TILE/2, y:y*TILE+TILE/2, charged:false});
+        else if(ch==="e") exits.push({x:x,y:y});
+        else if(ch==="t") spawnT={x:x,y:y};
+        else if(ch==="c") spawnC={x:x,y:y};
+        base[y][x]=t;
+      }
+    }
+  }
+  function setLevel(i){ curLevel=i; parse(); }
+  parse();
+
+  // ---- characters ----
+  var T={ key:"T", name:"Temper", col:"#BE6EF0", w:24, h:46, vx:0,vy:0, face:1, speed:2.8, jump:9.8, bladedanceT:0,
+    labels:{ primary:"Throw", secondary:"Bladedance", signature:"Frankenforge", interact:"Retrieve" } };
+  var C={ key:"C", name:"Citrine", col:"#F5CD46", w:24, h:46, vx:0,vy:0, face:1, speed:2.8, jump:9.8,
+    labels:{ primary:"Spark", secondary:"Trapline", signature:"Cascade", interact:"Force" } };
+  var active="T";
+  var cur=function(){ return active==="T"?T:C; };
+  var other=function(){ return active==="T"?C:T; };
+
+  /* ---- tunables (⚑ PLACEHOLDER where noted) ---- */
+  var MAX_BLADES=3, SPARK_RANGE=120, CONDUCT_RANGE=160, THROW_VX=8;   // built (from v1)
+  var CASCADE_MULT=1.6, CASCADE_CD=180;                              // PLACEHOLDER Citrine Cascade
+  var FUSE_CONDUCT=230;                                              // PLACEHOLDER Frankenforge hybrid conduct range
+  var BLADEDANCE_FR=20, TRAP_MAX=1;                                  // PLACEHOLDER Temper Bladedance / Citrine Trapline
+  var RETRIEVE_R=TILE*1.8;
+
+  var blades=[], flying=null, gateOpen=false, arcT=0, arcLinks=[], traps=[], cascadeCd=0, cmdFlash=0;
+  var phys=VE.Physics.create({});
+
+  function solidAt(tx,ty){
+    if(tx<0||tx>=COLS) return true;
+    if(ty<0||ty>=ROWS) return false;
+    var t=base[ty][tx];
+    if(t==="solid") return true;
+    if(t==="gate") return !gateOpen;      // gate blocks until sparked open
+    if(t==="bridge") return gateOpen;
+    return false;                          // blades are NON-solid conductors (no climbing)
+  }
+  function worldFor(){ return { solidAt:solidAt, movers:[] }; }
+  function overlapsTile(o,tx,ty){ var px=tx*TILE,py=ty*TILE; return o.x<px+TILE && o.x+o.w>px && o.y<py+TILE && o.y+o.h>py; }
+  function onGround(o){ return phys.onGround(o, worldFor()); }
+
+  function reset(){
+    T.x=spawnT.x*TILE+8; T.y=spawnT.y*TILE-T.h+TILE; T.vx=0; T.vy=0; T.face=1; T.bladedanceT=0;
+    C.x=spawnC.x*TILE+8; C.y=spawnC.y*TILE-C.h+TILE; C.vx=0; C.vy=0; C.face=1;
+    active="T"; blades=[]; flying=null; gateOpen=false; arcT=0; arcLinks=[]; traps=[]; cascadeCd=0; cmdFlash=0;
+    triggers.forEach(function(t){ t.charged=false; }); hazards.forEach(function(h){ h.active=true; });
+  }
+
+  /* ==========================================================================
+   * ABILITIES (v3 buckets)
+   * ======================================================================== */
+  // Temper
+  function throwBlade(){ if(flying) return; var hx=T.face>0?T.x+T.w-4:T.x+4, hy=T.y+14;
+    flying={ x:hx, y:hy, vx:T.face*THROW_VX, vy: onGround(T)?-5:-8, life:80 }; }
+  function bladedance(){ T.bladedanceT=BLADEDANCE_FR; cmdFlash=12; }                   // ⚑ PLACEHOLDER: parry/deflect stance
+  function frankenforge(){ if(blades.length<2) return;                                 // fuse the two nearest planted blades into a longer-reach hybrid
+    var bi=0,bj=1,bd=1e9; for(var i=0;i<blades.length;i++)for(var j=i+1;j<blades.length;j++){ var d=dist(blades[i],blades[j]); if(d<bd){bd=d;bi=i;bj=j;} }
+    var mx=(blades[bi].x+blades[bj].x)/2, my=(blades[bi].y+blades[bj].y)/2;
+    blades=blades.filter(function(_,k){ return k!==bi&&k!==bj; }); blades.push({x:mx,y:my,hybrid:true}); cmdFlash=24; }
+  function retrieve(){ var best=-1,bd=RETRIEVE_R; for(var i=0;i<blades.length;i++){ var d=dist({x:T.x+T.w/2,y:T.y+T.h/2},blades[i]); if(d<bd){bd=d;best=i;} }
+    if(best>=0){ blades.splice(best,1); cmdFlash=14; } }
+  // Citrine
+  function spark(){ doSpark(1); }
+  function cascade(){ if(cascadeCd>0) return; cascadeCd=CASCADE_CD; doSpark(CASCADE_MULT); }  // ⚑ PLACEHOLDER: scaled EMP
+  function trapline(){ if(traps.length>=TRAP_MAX) return; traps.push({x:C.x+C.w/2, y:C.y+C.h}); cmdFlash=12; } // ⚑ PLACEHOLDER
+  function force(){ triggers.forEach(function(tg){ if(!tg.charged && Math.abs((C.x+C.w/2)-tg.x)<TILE*0.9 && Math.abs((C.y+C.h/2)-tg.y)<TILE*1.1){ tg.charged=true; cmdFlash=20; } });
+    if(triggers.length && triggers.every(function(t){return t.charged;})) gateOpen=true; }
+
+  function conductR(b){ return b && b.hybrid ? FUSE_CONDUCT : CONDUCT_RANGE; }
+  function doSpark(mult){ arcT=22; arcLinks=[]; var sr=SPARK_RANGE*mult;
+    var cpt={x:C.x+C.w/2, y:C.y+C.h*0.45};
+    var seen=blades.map(function(){ return false; });
+    for(var i=0;i<blades.length;i++){ if(dist(cpt,blades[i])<sr){ seen[i]=true; arcLinks.push([cpt,blades[i]]); } }
+    var changed=true; while(changed){ changed=false;
+      for(var a=0;a<blades.length;a++){ if(!seen[a])continue;
+        for(var b=0;b<blades.length;b++){ if(!seen[b] && dist(blades[a],blades[b])<Math.min(conductR(blades[a]),conductR(blades[b]))*mult){ seen[b]=true; arcLinks.push([blades[a],blades[b]]); changed=true; } } } }
+    triggers.forEach(function(tg){ if(tg.charged) return;
+      if(dist(cpt,tg)<sr){ tg.charged=true; arcLinks.push([cpt,tg]); }
+      else blades.forEach(function(bl,i){ if(seen[i] && dist(bl,tg)<conductR(bl)*mult){ tg.charged=true; arcLinks.push([bl,tg]); } });
+    });
+    if(triggers.length && triggers.every(function(t){return t.charged;})) gateOpen=true;
+    hazards.forEach(function(h){ if(!h.active) return; var hp={x:h.x*TILE+TILE/2,y:h.y*TILE+TILE/2}; if(dist(cpt,hp)<sr){ h.active=false; arcLinks.push([cpt,hp]); } });
+  }
+
+  function useSlot(slot){
+    if(active==="T"){ ({primary:throwBlade, secondary:bladedance, signature:frankenforge, interact:retrieve}[slot]||function(){})(); }
+    else            { ({primary:spark, secondary:trapline, signature:cascade, interact:force}[slot]||function(){})(); }
+  }
+
+  function bothInExit(){ var inE=function(o){ return exits.some(function(e){ return overlapsTile(o,e.x,e.y)||overlapsTile(o,e.x,e.y+1); }); }; return inE(T)&&inE(C); }
+
+  /* ==========================================================================
+   * CONTROLLER (shared VE.Controller)
+   * ======================================================================== */
+  var state="title", started=false;
+  function jump(){ var o=cur(); if(onGround(o)) o.vy=-o.jump; }
+  function switchChar(){ active=active==="T"?"C":"T"; updWho(); ctl.setLabels(active); }
+  function softReset(){ reset(); updWho(); ctl.setLabels(active); updStatus(); cam.update(cur(),true); }
+  var flashUntil=0;
+  function flashHint(msg){ hintEl.textContent=msg; flashUntil=(performance.now?performance.now():Date.now())+2600; }
+
+  var ctl=VE.Controller.mount({
+    mount:document.getElementById("pad"), activeKey:"T", chars:{ T:T, C:C },
+    isPlay:function(){ return state==="play"; },
+    onStart:function(){ if(state!=="title") started=true; },
+    on:{
+      jump:jump, primary:function(){useSlot("primary");}, secondary:function(){useSlot("secondary");},
+      signature:function(){useSlot("signature");}, interact:function(){useSlot("interact");},
+      "switch":switchChar, reset:softReset,
+      unbound:function(slot){ flashHint((active==="T"?"Temper":"Citrine")+"’s "+slot+" has no action here yet — 👍/👎 in the Lab to shape it."); }
+    }
+  });
+  var held=ctl.held;
+  document.addEventListener("keydown",function(e){ if(state!=="play" && (e.key==="Enter"||e.key===" ")) startGame(); });
+
+  function updWho(){ whoEl.innerHTML="Controlling: "+(active==="T"?'<span class="t">Temper</span>':'<span class="c">Citrine</span>'); }
+  function updStatus(){ var on=triggers.filter(function(t){return t.charged;}).length;
+    statusEl.textContent = gateOpen ? "Gate: OPEN ⚡" : ("Triggers "+on+"/"+triggers.length);
+    statusEl.className = "pill " + (gateOpen ? "open" : "ready"); }
+
+  /* ==========================================================================
+   * CAMERA (shared VE.Camera)
+   * ======================================================================== */
+  var cam=VE.Camera.create({ canvas:cv, stage:document.getElementById("stage") });
+  window.addEventListener("resize",function(){ cam.resize(); });
+  window.addEventListener("orientationchange",function(){ setTimeout(function(){cam.resize();},200); });
+  document.getElementById("mapBtn").addEventListener("click",function(){ cam.toggleMap();
+    document.getElementById("mapBtn").classList.toggle("on",cam.mapMode); cam.update(cur(),true); });
+
+  /* ==========================================================================
+   * RENDER
+   * ======================================================================== */
+  function tile(px,py,top,bot){ ctx.fillStyle=bot; ctx.fillRect(px,py,TILE,TILE); ctx.fillStyle=top; ctx.fillRect(px,py,TILE,TILE-6);
+    ctx.strokeStyle="rgba(0,0,0,.25)"; ctx.strokeRect(px+.5,py+.5,TILE-1,TILE-1); }
+  function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+  function charBody(o){ ctx.fillStyle=o.col; roundRect(o.x,o.y,o.w,o.h,6); ctx.fill();
+    if(o===T && T.bladedanceT>0){ ctx.strokeStyle="rgba(190,110,240,0.8)"; ctx.lineWidth=2; roundRect(o.x-3,o.y-3,o.w+6,o.h+6,8); ctx.stroke(); ctx.lineWidth=1; }
+    ctx.fillStyle="rgba(0,0,0,.35)"; ctx.fillRect(o.face>0?o.x+o.w-7:o.x+3,o.y+9,4,6);
+    ctx.fillStyle="rgba(255,255,255,.85)"; ctx.font="10px sans-serif"; ctx.textAlign="center"; ctx.fillText(o===T?"TEMPER":"CITRINE",o.x+o.w/2,o.y-2); }
+
+  function draw(){
+    ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height);
+    var g=ctx.createLinearGradient(0,0,0,cv.height); g.addColorStop(0,"#141020"); g.addColorStop(1,"#080610");
+    ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
+    cam.apply(ctx);
+    for(var y=0;y<ROWS;y++)for(var x=0;x<COLS;x++){ var t=base[y][x], px=x*TILE, py=y*TILE;
+      if(t==="solid") tile(px,py,"#242038","#15122a");
+      else if(t==="gate"){ if(!gateOpen) tile(px,py,"#3a2c58","#241a3a"); else { ctx.strokeStyle="rgba(190,110,240,.35)"; ctx.setLineDash([5,4]); ctx.strokeRect(px+3,py+3,TILE-6,TILE-6); ctx.setLineDash([]); } }
+      else if(t==="bridge"){ if(gateOpen) tile(px,py,"#3a2c58","#241a3a"); } }
+    // traps
+    traps.forEach(function(tp){ ctx.strokeStyle="rgba(245,205,70,.7)"; ctx.beginPath(); ctx.arc(tp.x,tp.y-4,7,0,7); ctx.stroke(); });
+    // triggers
+    triggers.forEach(function(tg){ ctx.fillStyle= tg.charged ? "rgba(232,193,90,.95)" : "rgba(245,205,70,.85)"; ctx.beginPath(); ctx.arc(tg.x,tg.y,8,0,7); ctx.fill();
+      ctx.strokeStyle= tg.charged ? "#e8c15a":"#f5cd46"; ctx.lineWidth=2; ctx.strokeRect(tg.x-11,tg.y-11,22,22); ctx.lineWidth=1;
+      ctx.fillStyle="#fff"; ctx.font="8px sans-serif"; ctx.textAlign="center"; ctx.fillText(tg.charged?"⚡":"TRIG",tg.x,tg.y-15); });
+    // hazards
+    hazards.forEach(function(h){ if(!h.active) return; ctx.fillStyle="rgba(214,88,79,.8)"; ctx.fillRect(h.x*TILE+6,h.y*TILE+4,TILE-12,TILE-8);
+      ctx.fillStyle="#ffce6a"; ctx.font="9px sans-serif"; ctx.textAlign="center"; ctx.fillText("⚡",h.x*TILE+TILE/2,h.y*TILE+TILE/2+3); });
+    // planted blades (conductors)
+    blades.forEach(function(b){ ctx.strokeStyle= b.hybrid ? "#e0a8ff" : "#be6ef0"; ctx.lineWidth= b.hybrid?4:3; ctx.beginPath(); ctx.moveTo(b.x-7,b.y+7); ctx.lineTo(b.x+7,b.y-7); ctx.stroke(); ctx.lineWidth=1; });
+    // flying blade
+    if(flying){ ctx.strokeStyle="#be6ef0"; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(flying.x-6,flying.y+6); ctx.lineTo(flying.x+6,flying.y-6); ctx.stroke(); ctx.lineWidth=1; }
+    // spark arcs
+    if(arcT>0){ ctx.strokeStyle="rgba(245,205,70,"+(arcT/22)+")"; ctx.lineWidth=2; arcLinks.forEach(function(l){ ctx.beginPath(); ctx.moveTo(l[0].x,l[0].y); ctx.lineTo(l[1].x,l[1].y); ctx.stroke(); }); ctx.lineWidth=1; arcT--; }
+    exits.forEach(function(e){ ctx.fillStyle="rgba(232,193,90,.18)"; ctx.fillRect(e.x*TILE,e.y*TILE-TILE,TILE,TILE*2);
+      ctx.fillStyle="#e8c15a"; ctx.font="12px sans-serif"; ctx.textAlign="center"; ctx.fillText("EXIT",e.x*TILE+TILE/2,e.y*TILE-6); });
+    if(cmdFlash>0){ var a2=cur(); ctx.strokeStyle="rgba(190,110,240,"+(cmdFlash/24)+")"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(a2.x+a2.w/2,a2.y+a2.h/2,(24-cmdFlash)*3+10,0,7); ctx.stroke(); ctx.lineWidth=1; cmdFlash--; }
+    charBody(T); charBody(C);
+    var o=cur(); ctx.fillStyle="#fff"; ctx.beginPath(); ctx.moveTo(o.x+o.w/2,o.y-10); ctx.lineTo(o.x+o.w/2-6,o.y-20); ctx.lineTo(o.x+o.w/2+6,o.y-20); ctx.closePath(); ctx.fill();
+  }
+
+  function hint(){
+    if(gateOpen) return "Gate open — walk both to the exit.";
+    if(active==="T") return "Temper: Q throws a blade (jump-throw arcs higher). Plant one by the gate so Citrine's spark can hop to the trigger. A retrieves a blade.";
+    return "Citrine: Q Sparks — it hops blade-to-blade to the trigger if a blade bridges the gap. E Cascade is a bigger zap.";
+  }
+
+  /* ==========================================================================
+   * LEADERBOARD + POINTS (shared VE.Net)
+   * ======================================================================== */
+  var net=VE.Net.create({
+    url:"https://jbprsreaosetmqxhsnkl.supabase.co",
+    key:"sb_publishable_fzxPI3jRqOmA-VIfWFuoNQ_zgXgBtAS",
+    prefix:"vr_ar2_",
+    gameId:function(){ return LEVELS[curLevel].gameId; }
+  });
+
+  var t0=0, elapsed=0;
+  function startGame(levelIndex){ if(typeof levelIndex==="number") setLevel(levelIndex);
+    net.tryOnce(LEVELS[curLevel].id);
+    overlay.style.display="none"; state="play"; started=false; elapsed=0; t0=0;
+    reset(); updWho(); ctl.setLabels(active); updStatus(); cam.resize(); cam.update(cur(),true); }
+  function renderLevelSelect(){ var el=document.getElementById("levelSelect"); if(!el) return;
+    el.innerHTML='<button class="play" id="lvlPlayBtn">▶ Play the slice</button>';
+    document.getElementById("lvlPlayBtn").addEventListener("click",function(){ startGame(0); }); }
+  renderLevelSelect();
+
+  /* ==========================================================================
+   * LOOP
+   * ======================================================================== */
+  function frame(ts){
+    if(state==="play"){
+      var o=cur();
+      o.vx = held.left?-o.speed : held.right?o.speed : 0; if(o.vx>0)o.face=1; else if(o.vx<0)o.face=-1;
+      other().vx=0;
+      [T,C].forEach(function(ch){ if(phys.step(ch, worldFor())) softReset(); });
+      // flying blade: arcs, sticks into first surface (non-solid conductor)
+      if(flying){ flying.vy+=0.55; flying.x+=flying.vx; flying.y+=flying.vy; flying.life--;
+        var tx=Math.floor(flying.x/TILE), ty=Math.floor(flying.y/TILE);
+        if(flying.life<=0 || tx<=0 || tx>=COLS-1 || solidAt(tx,ty)){
+          if(solidAt(tx,ty)){ flying.x-=flying.vx; flying.y-=flying.vy; }   // back off the surface a touch
+          blades.push({x:flying.x, y:flying.y}); if(blades.length>MAX_BLADES) blades.shift(); flying=null;
+        }
+      }
+      if(T.bladedanceT>0) T.bladedanceT--; if(cascadeCd>0) cascadeCd--;
+      if(started){ if(!t0)t0=ts; elapsed=ts-t0; }
+      timerEl.textContent=fmt(elapsed);
+      if((performance.now?performance.now():Date.now())>flashUntil) hintEl.textContent=hint();
+      updStatus();
+      if(bothInExit()) win();
+    }
+    cam.update(cur()); draw(); requestAnimationFrame(frame);
+  }
+
+  async function win(){ state="win"; started=false;
+    var lvId=LEVELS[curLevel].id, my=Math.round(elapsed), prevBest=net.localBest();
+    var before=await net.loadBoard();
+    var prevRecord=(before&&before.length)?before[0].ms:Infinity, prevRecordWho=(before&&before.length)?before[0].who:null;
+    net.setLocalBest(elapsed); net.markDone(lvId);
+    var earned=[];
+    if(net.clearOnce(lvId)) earned.push("+10 first clear");
+    else if(prevBest!=null && my<prevBest){ net.awardPoints("beat_pb",3,lvId); earned.push("+3 beat your best"); }
+    await net.saveScore(elapsed);
+    if(my<prevRecord && prevRecordWho!==net.who()){ net.awardPoints("record",5,lvId); earned.push("🏆 +5 new record"); }
+    overlay.style.display="flex";
+    overlay.innerHTML='<div class="eyebrow" style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">'+LEVELS[curLevel].name+' — cleared</div>'
+      +'<h1>Planted <b>&amp;</b> <i>powered</i>.</h1><div id="winTime">'+fmt(elapsed)+'</div>'
+      +'<p style="margin:.15em 0 .1em">Your best: <b style="color:var(--gold)">'+fmt(net.localBest())+'</b></p>'
+      +(earned.length?'<p style="color:var(--gold);font-weight:700;margin:.1em 0 .3em">'+earned.join(" · ")+'</p>':'')
+      +'<div id="board" style="width:100%;max-width:340px;margin:.5em 0"><p style="color:#8f89a8;font-size:12px">Loading crew times…</p></div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center">'
+      +'<button class="play ghost" id="againBtn">↻ Replay</button></div>'
+      +'<a href="/app.html#lab" class="backlab">← Back to the Lab</a>';
+    document.getElementById("againBtn").addEventListener("click",function(){ startGame(curLevel); });
+    var board=await net.loadBoard(), el=document.getElementById("board"); if(!el) return;
+    if(!board||!board.length){ el.innerHTML='<p style="color:#8f89a8;font-size:12px">The crew leaderboard fills in as people post times.</p>'; return; }
+    var me=net.who();
+    var rows=board.slice(0,10).map(function(s,i){ var mine=s.who===me;
+      return '<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 10px;border-radius:6px;font-size:13px;'+(mine?'background:rgba(232,193,90,.16)':'')+'"><span>'+(i+1)+'. '+esc(s.who)+(mine?' (you)':'')+'</span><span style="font-variant-numeric:tabular-nums;color:var(--gold)">'+fmt(s.ms)+'</span></div>'; }).join("");
+    el.innerHTML='<div style="text-align:left"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#9b7bd6;margin:0 0 6px">Best times · the crew</div>'+rows+'</div>'; }
+
+  cam.resize(); reset(); updWho(); ctl.setLabels(active); updStatus(); cam.update(cur(),true); draw();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
