@@ -189,7 +189,11 @@
     turrets=turretDefs.map(function(t){ return {x:t.x*TILE+TILE/2, y:t.y*TILE+TILE/2, world:t.world, dir:-1, cd:40, disabled:false}; });
   }
 
-  function bulwarked(o){ return o!==A && A.world===o.world && dist(A,o)<BULWARK_R; }  // Latch shielded in Anvil's shadow
+  function bulwarked(o){ // directional: is o behind Anvil relative to a live turret (Anvil's body blocks the shot line)?
+    if(o===A||A.world!==o.world||Math.abs(A.y-o.y)>TILE) return false;
+    var oc=o.x+o.w/2, ac=A.x+A.w/2;
+    return turrets.some(function(t){ return !t.disabled && t.world===o.world && Math.abs(t.y-(o.y+o.h/2))<TILE && (t.x>oc)===(ac>oc) && Math.abs(ac-oc)<Math.abs(t.x-oc); });
+  }
 
   /* ==========================================================================
    * ABILITIES (v3 buckets)
@@ -292,10 +296,11 @@
     sparks.forEach(function(k){ if(k.world!==W) return; ctx.fillStyle="rgba(255,210,120,"+(k.t/12)+")"; ctx.beginPath(); ctx.arc(k.x,k.y,3,0,7); ctx.fill(); });
     exits.forEach(function(e){ if(e.world!==W) return; ctx.fillStyle="rgba(232,193,90,.18)"; ctx.fillRect(e.x*TILE,e.y*TILE-TILE,TILE,TILE*2);
       ctx.fillStyle="#e8c15a"; ctx.font="12px sans-serif"; ctx.textAlign="center"; ctx.fillText("EXIT",e.x*TILE+TILE/2,e.y*TILE-6); });
-    // BULWARK aura (Anvil's shadow) — the safe circle; shown whenever a turret is live (or Latch is inside)
-    if(A.world===W && (turrets.some(function(t){return !t.disabled&&t.world===W;}) || bulwarked(L))){
-      ctx.fillStyle= bulwarked(L) ? "rgba(200,90,90,.13)" : "rgba(200,90,90,.07)"; ctx.beginPath(); ctx.arc(A.x+A.w/2,A.y+A.h/2,BULWARK_R,0,7); ctx.fill();
-      ctx.strokeStyle="rgba(232,120,90,.45)"; ctx.beginPath(); ctx.arc(A.x+A.w/2,A.y+A.h/2,BULWARK_R,0,7); ctx.stroke(); }
+    // BULWARK — a directional shield edge on the side facing the nearest live turret (he blocks shots; whoever's behind him is safe)
+    var lt=turrets.filter(function(t){return !t.disabled&&t.world===W;}).sort(function(a,b){return Math.abs(a.x-(A.x+A.w/2))-Math.abs(b.x-(A.x+A.w/2));})[0];
+    if(lt){ var side = lt.x > A.x+A.w/2 ? 1 : -1, sx = side>0 ? A.x+A.w+2 : A.x-5;
+      ctx.fillStyle= bulwarked(L) ? "rgba(232,120,90,.85)" : "rgba(232,120,90,.5)"; ctx.fillRect(sx, A.y+3, 3, A.h-6);
+      ctx.fillStyle= bulwarked(L) ? "rgba(232,120,90,.18)" : "rgba(232,120,90,.08)"; ctx.fillRect(side>0?sx:sx-6, A.y+3, 8, A.h-6); }
     if(A.chargeT>0 && A.world===W){ ctx.fillStyle="rgba(232,193,90,.5)"; ctx.fillRect(A.face>0?A.x-14:A.x+A.w+2, A.y+8, 12, A.h-16); }
     if(flipFlash>0){ ctx.strokeStyle="rgba(110,200,245,"+(flipFlash/20)+")"; ctx.lineWidth=2; ctx.strokeRect(L.x-6,L.y-6,L.w+12,L.h+12); ctx.lineWidth=1; flipFlash--; }
     if(cmdFlash>0){ var a2=cur(); ctx.strokeStyle="rgba(110,200,245,"+(cmdFlash/22)+")"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(a2.x+a2.w/2,a2.y+a2.h/2,(22-cmdFlash)*3+10,0,7); ctx.stroke(); ctx.lineWidth=1; cmdFlash--; }
@@ -357,9 +362,9 @@
       turrets.forEach(function(t){ if(t.disabled) return; t.cd--; if(t.cd<=0){ t.cd=FIRE_CD; shots.push({x:t.x+t.dir*16, y:t.y, vx:t.dir*SHOT_SPD, world:t.world}); } });
       shots.forEach(function(s){ s.x+=s.vx; if(s.dead) return;
         if(s.x<0||s.x>COLS*TILE||solidAtW(s.world,Math.floor(s.x/TILE),Math.floor(s.y/TILE))){ s.dead=true; return; }
-        // BULWARK: any shot entering Anvil's shadow ricochets off him (protects anyone inside the circle)
-        if(A.world===s.world && Math.hypot((A.x+A.w/2)-s.x,(A.y+A.h/2)-s.y) < BULWARK_R){ s.dead=true; sparks.push({x:s.x, y:s.y, vx:-s.vx*0.4, vy:-1.5, t:12, world:s.world}); return; }
-        // Latch outside the circle takes the hit
+        // Anvil's BODY blocks shots — directional: whoever is behind him is safe (no bubble)
+        if(A.world===s.world && A.x<s.x&&s.x<A.x+A.w && A.y<s.y&&s.y<A.y+A.h){ s.dead=true; sparks.push({x:s.x, y:s.y, vx:-s.vx*0.4, vy:-1.5, t:12, world:s.world}); return; }
+        // Latch takes the hit if a shot reaches him (i.e. he wasn't behind Anvil)
         if(L.world===s.world && L.x<s.x&&s.x<L.x+L.w&&L.y<s.y&&s.y<L.y+L.h){ softReset(); s.dead=true; }
       });
       shots=shots.filter(function(s){ return !s.dead; });
