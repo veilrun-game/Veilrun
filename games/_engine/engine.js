@@ -396,5 +396,53 @@
     }
   };
 
-  global.VE = { Physics: Physics, Camera: Camera, Controller: Controller, Net: Net, util: util };
+  /* ======================================================================
+   * VE.World — the shared two-world (Overcity / Underweft) model.
+   * A LEVEL supplies what the two halves look like (its own worlds[0]/worlds[1]);
+   * the game supplies how to read a tile via `blocks(tileType, world, tx, ty)`
+   * (so breakable/gate/mover state stays game-owned); a CHARACTER supplies how it
+   * opens the door (Latch flips free, Babel reads a rune, Magpie makes a passage).
+   * Centralises the crossing so "land safely + carry the crew" lives in ONE place.
+   * ==================================================================== */
+  var World = {
+    solidAt: function (base, world, tx, ty, blocks) {
+      if (tx < 0 || tx >= COLS) return true;
+      if (ty < 0) return true;
+      if (ty >= ROWS) return false;
+      return blocks(base[world][ty][tx], world, tx, ty);
+    },
+    // {solidAt, movers} for VE.Physics, bound to o.world.
+    worldFor: function (o, base, blocks, movers) {
+      return { solidAt: function (tx, ty) { return World.solidAt(base, o.world, tx, ty, blocks); }, movers: movers || [] };
+    },
+    // Is there footing within a few tiles below (cx, feetY) in `world`?
+    groundBelow: function (base, world, cx, feetY, blocks) {
+      var tx = Math.floor(cx / TILE), fy = Math.floor(feetY / TILE);
+      for (var ty = fy; ty < Math.min(ROWS, fy + 5); ty++) if (World.solidAt(base, world, tx, ty, blocks)) return true;
+      return false;
+    },
+    // Cross `o` (and optionally carry `mate`) into targetWorld. opts:
+    //   base, blocks (required) · atX (explicit landing x — for rune/anchor doors;
+    //   omit for a free flip, which snaps to nearest footing) · mateDX · carry (default true)
+    // Returns false if a free flip found no footing (caller can show a hint).
+    cross: function (o, mate, tw, opts) {
+      var base = opts.base, blocks = opts.blocks, feetY = o.y + o.h, nx = (opts.atX != null) ? opts.atX : o.x;
+      if (opts.atX == null && opts.snap !== false) {
+        var cx = nx + o.w / 2;
+        if (!World.groundBelow(base, tw, cx, feetY, blocks)) {
+          var found = false;
+          for (var d = 1; d <= 3 && !found; d++) for (var s = -1; s <= 1; s += 2) {
+            var t = cx + s * d * TILE;
+            if (t > TILE && t < (COLS - 1) * TILE && World.groundBelow(base, tw, t, feetY, blocks)) { nx = t - o.w / 2; found = true; break; }
+          }
+          if (!found) return false;
+        }
+      }
+      o.world = tw; o.x = nx; o.vy = 0;
+      if (mate && opts.carry !== false) { mate.world = tw; mate.x = nx + (opts.mateDX || 0); mate.y = o.y; mate.vx = 0; mate.vy = 0; }
+      return true;
+    }
+  };
+
+  global.VE = { Physics: Physics, Camera: Camera, Controller: Controller, Net: Net, World: World, util: util };
 })(typeof window !== "undefined" ? window : this);

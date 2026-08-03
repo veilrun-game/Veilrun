@@ -214,9 +214,10 @@
 
   var phys=VE.Physics.create({});
 
-  function solidAtW(w,tx,ty){ if(tx<0||tx>=COLS) return true; if(ty<0||ty>=ROWS) return false; return base[w][ty][tx]==="solid"; }
+  var blocks=function(t){ return t==="solid"; };   // runeway tiles are solid/empty (movers handled separately)
+  function solidAtW(w,tx,ty){ return VE.World.solidAt(base,w,tx,ty,blocks); }
   function moversFor(w){ return movers.filter(function(m){ return m.world===w; }); }
-  function worldFor(o){ return { solidAt:function(tx,ty){ return solidAtW(o.world,tx,ty); }, movers:moversFor(o.world) }; }
+  function worldFor(o){ return VE.World.worldFor(o, base, blocks, moversFor(o.world)); }
 
   function reset(){
     // Always start both in THE OVERCITY (world 0). (Fixes the replay-into-Underweft bug.)
@@ -252,13 +253,10 @@
    * stranded and never lands in a gap: she joins Babel at his landing spot.
    * ======================================================================== */
   function crossSeam(tw, cr){
-    // Land the crew AT the rune's column in the target world. Runes are authored over
-    // safe ground on both sides, so a crossing can never drop anyone into a chasm —
-    // regardless of the exact x you happen to be standing on when you read the rune.
-    var bx=cr.col*TILE+8, by=cr.row*TILE-B.h+TILE;
-    B.world=tw; B.x=bx; B.y=by; B.vx=0; B.vy=0; B.crossCd=CROSS_CD;
-    if(!B.down){ M.world=tw; M.x=bx+22; M.y=by; M.vx=0; M.vy=0; }
-    cmdFlash=22;
+    // Cross AT the rune's authored-safe column via the shared VE.World crossing (carries the crew).
+    B.y = cr.row*TILE - B.h + TILE;
+    VE.World.cross(B, B.down?null:M, tw, { base:base, blocks:blocks, atX:cr.col*TILE+8, mateDX:22, carry:true });
+    B.crossCd=CROSS_CD; cmdFlash=22;
   }
 
   /* ==========================================================================

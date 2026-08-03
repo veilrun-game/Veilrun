@@ -177,9 +177,9 @@
   var phys=VE.Physics.create({});
 
   function bkey(w,x,y){ return w+","+x+","+y; }
-  function solidAtW(w,tx,ty){ if(tx<0||tx>=COLS) return true; if(ty<0||ty>=ROWS) return false;
-    var t=base[w][ty][tx]; if(t==="solid") return true; if(t==="break") return !broken[bkey(w,tx,ty)]; return false; }
-  function worldFor(o){ return { solidAt:function(tx,ty){ return solidAtW(o.world,tx,ty); }, movers:[] }; }
+  var blocks=function(t,w,tx,ty){ if(t==="solid") return true; if(t==="break") return !broken[bkey(w,tx,ty)]; return false; };
+  function solidAtW(w,tx,ty){ return VE.World.solidAt(base,w,tx,ty,blocks); }
+  function worldFor(o){ return VE.World.worldFor(o, base, blocks, []); }
   function onGround(o){ return phys.onGround(o, worldFor(o)); }
 
   function reset(){
@@ -195,18 +195,10 @@
    * ABILITIES (v3 buckets)
    * ======================================================================== */
   // Latch — FREE flip: cross the seam anywhere, pulling the crew (his keystone identity)
-  function groundBelow(world, cx){ var tx=Math.floor(cx/TILE), fy=Math.floor((L.y+L.h)/TILE);
-    for(var ty=fy; ty<Math.min(ROWS, fy+5); ty++){ if(solidAtW(world,tx,ty)) return true; } return false; }
-  function flip(){ var tw=1-L.world, cx=L.x+L.w/2, nx=L.x;
-    if(!groundBelow(tw,cx)){                                   // don't drop into the void — snap to nearest footing, else fizzle
-      var found=false;
-      for(var d=1; d<=3 && !found; d++){ for(var s=-1;s<=1;s+=2){ var tcx=cx+s*d*TILE;
-        if(tcx>TILE && tcx<(COLS-1)*TILE && groundBelow(tw,tcx)){ nx=tcx-L.w/2; found=true; break; } } }
-      if(!found){ flashHint("No footing on the other side there — flip from solid ground."); return; }
-    }
-    L.world=tw; L.x=nx; L.vy=0; L.crossCd=CROSS_CD;
-    A.world=tw; A.x=nx; A.y=L.y; A.vx=0; A.vy=0;               // the crew flips together, landing on Latch's (safe) tile
-    flipFlash=20; }
+  function flip(){ var tw=1-L.world;
+    // free flip via the shared VE.World crossing — snaps to nearest footing, carries Anvil, or fizzles
+    if(!VE.World.cross(L, A, tw, { base:base, blocks:blocks, carry:true })){ flashHint("No footing on the other side there — flip from solid ground."); return; }
+    L.crossCd=CROSS_CD; flipFlash=20; }
   function augment(){ L.augmentT=200; cmdFlash=16; }                                  // ⚑ PLACEHOLDER: buff Anvil's next ability
   function bookmark(){ if(L.bookmark){ L.x=L.bookmark.x; L.y=L.bookmark.y; L.world=L.bookmark.w; L.vy=0; L.bookmark=null; cmdFlash=20; } // recall
     else { L.bookmark={x:L.x, y:L.y, w:L.world}; cmdFlash=12; } }                       // ⚑ PLACEHOLDER: mark + recall
