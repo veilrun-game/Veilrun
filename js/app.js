@@ -397,7 +397,7 @@ window.VApp = (function () {
             </div>
           </div>
           <div class="panel play-board">
-            <div class="play-board-head"><div class="eyebrow" style="margin:0">Best times · the crew</div></div>
+            <div class="play-board-head"><div class="eyebrow" style="margin:0">${m.scoreKind === "points" ? "Best scores · the crew" : "Best times · the crew"}</div></div>
             ${tree.length ? `<div class="gb-picks-col">
               <select class="gb-sel" id="gbver-${C.esc(m.id)}" onchange="VApp.gameBoardVer('${C.esc(m.id)}')">${verOpts}</select>
               <select class="gb-sel" id="gbcombo-${C.esc(m.id)}" onchange="VApp.gameBoardCombo('${C.esc(m.id)}')">${comboOpts}</select>
@@ -837,16 +837,30 @@ window.VApp = (function () {
     });
   }
   function fmtTime(ms) { const s = (ms || 0) / 1000, m = Math.floor(s / 60), r = s - m * 60; return m + ":" + (r < 10 ? "0" : "") + r.toFixed(1); }
+  // Some game modes score by points (higher = better), not time (lower = better).
+  // The value is still stored in the game_scores.time_ms column; only the ranking/format differs.
+  function scoreKindOf(gameId) {
+    const modes = D.modes || [];
+    for (const m of modes) {
+      const t = m.boardTree; if (!t) continue;
+      for (const v of t) for (const c of v.combos) for (const l of c.levels) if (l.id === gameId) return m.scoreKind || "time";
+      if (m.combos && m.combos.some(c => c.id === gameId)) return m.scoreKind || "time";
+    }
+    return "time";
+  }
   // Load one leaderboard (best run per person) for a game_id into a container.
   async function loadBoardInto(containerId, gameId) {
     if (!window.VBackend || !window.VBackend.loadGameScores) return;
     const el = document.getElementById(containerId); if (!el) return;
+    const kind = scoreKindOf(gameId);
     const rows = await window.VBackend.loadGameScores(gameId);
-    const best = {}; (rows || []).forEach(r => { if (best[r.who] == null || r.time_ms < best[r.who]) best[r.who] = r.time_ms; });
-    const board = Object.entries(best).map(([who, ms]) => ({ who, ms })).sort((a, b) => a.ms - b.ms);
-    if (!board.length) { el.innerHTML = '<p class="mute" style="font-size:.85rem">No runs on this one yet — be the first to post a time.</p>'; return; }
+    const better = (a, b) => kind === "points" ? a > b : a < b; // keep the "better" value per person
+    const best = {}; (rows || []).forEach(r => { if (best[r.who] == null || better(r.time_ms, best[r.who])) best[r.who] = r.time_ms; });
+    const board = Object.entries(best).map(([who, ms]) => ({ who, ms })).sort((a, b) => kind === "points" ? b.ms - a.ms : a.ms - b.ms);
+    if (!board.length) { const empty = kind === "points" ? "No runs on this one yet — be the first to post a score." : "No runs on this one yet — be the first to post a time."; el.innerHTML = `<p class="mute" style="font-size:.85rem">${empty}</p>`; return; }
     const me = myWho();
-    el.innerHTML = board.slice(0, 8).map((s, i) => `<div class="gb-row${s.who === me ? " me" : ""}"><span>${i + 1}. ${C.esc(s.who)}${s.who === me ? " (you)" : ""}</span><span class="gb-t">${fmtTime(s.ms)}</span></div>`).join("");
+    const fmt = v => kind === "points" ? `${Math.round(v)} pts` : fmtTime(v);
+    el.innerHTML = board.slice(0, 8).map((s, i) => `<div class="gb-row${s.who === me ? " me" : ""}"><span>${i + 1}. ${C.esc(s.who)}${s.who === me ? " (you)" : ""}</span><span class="gb-t">${fmt(s.ms)}</span></div>`).join("");
   }
   // ---- Leaderboard nav: Version → Combo → Level (dependent dropdowns) ----
   function boardTreeOf(modeId) { const m = (D.modes || []).find(x => x.id === modeId); return m && m.boardTree; }

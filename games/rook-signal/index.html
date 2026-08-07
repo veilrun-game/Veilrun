@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Rook Signal — VEILRUN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0B0818; --ink-2:#121224; --ink-3:#191933; --line:#3C345C; --mute:#9692AC; --white:#F0EEFA;
+    --violet:#7C4AB6; --violet-lt:#B79CED; --magenta:#D65CDC; --steel:#4E8ED2; --cyan:#60D6DC; --amber:#F09646;
+    --c-saffron:#78D28C; --c-temper:#BE6EF0; --c-vesper:#965AE6; --c-citrine:#F5CD46; --c-latch:#6EC8F5;
+    --c-wren:#E06EC8; --c-anvil:#C85A5A; --c-magpie:#5AC8C8; --c-rook:#AA82F0; --c-babel:#D9A441;
+    --radius:14px; --radius-sm:8px; --tracking:0.14em;
+    --font-display:"Oswald",system-ui,sans-serif; --font-body:"Inter",system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:radial-gradient(1200px 800px at 50% -10%, #1a1533 0%, var(--ink) 60%);
+    color:var(--white); font-family:var(--font-body); min-height:100vh;
+    -webkit-font-smoothing:antialiased; line-height:1.55;
+  }
+  .wrap{max-width:760px; margin:0 auto; padding:18px 18px 60px; min-height:100vh; display:flex; flex-direction:column}
+  .topbar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px}
+  .brand{font-family:var(--font-display); text-transform:uppercase; letter-spacing:var(--tracking); font-weight:600; font-size:.82rem; color:var(--mute)}
+  .brand b{color:var(--c-rook)}
+  .pill{display:inline-flex; align-items:center; gap:6px; font-size:.8rem; text-decoration:none; color:var(--white);
+    border:1px solid var(--line); background:rgba(18,18,36,.6); padding:7px 12px; border-radius:999px}
+  .pill:hover{border-color:var(--c-rook)}
+  .eyebrow{font-family:var(--font-display); text-transform:uppercase; letter-spacing:var(--tracking); font-size:.72rem; color:var(--magenta); font-weight:600}
+  h1{font-family:var(--font-display); text-transform:uppercase; letter-spacing:.06em; font-weight:700; font-size:clamp(1.9rem,6vw,3rem); margin:.2rem 0 .3rem; line-height:1.02}
+  h2{font-family:var(--font-display); text-transform:uppercase; letter-spacing:.05em; font-weight:600; font-size:1.15rem; margin:0 0 .5rem}
+  .lede{color:var(--mute); max-width:56ch; margin:.2rem 0 1.2rem}
+  .card{background:rgba(18,18,36,.66); border:1px solid var(--line); border-radius:var(--radius); box-shadow:0 8px 30px rgba(0,0,0,.45)}
+  .fade{animation:fade .5s ease both}
+  @keyframes fade{from{opacity:0; transform:translateY(8px)}to{opacity:1; transform:none}}
+
+  /* character select grid */
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:12px; margin-top:12px}
+  .ch{position:relative; text-align:left; cursor:pointer; padding:14px; border-radius:var(--radius);
+    border:1px solid var(--line); background:linear-gradient(180deg, rgba(25,25,51,.7), rgba(18,18,36,.7));
+    color:var(--white); font-family:inherit; overflow:hidden; transition:transform .12s ease, border-color .12s ease}
+  .ch:before{content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--accent)}
+  .ch:hover{transform:translateY(-2px); border-color:var(--accent)}
+  .ch .nm{font-family:var(--font-display); text-transform:uppercase; letter-spacing:.05em; font-weight:600; font-size:1.05rem}
+  .ch .rl{color:var(--mute); font-size:.78rem; margin-top:2px}
+  .ch.soon{opacity:.5; cursor:not-allowed}
+  .ch.soon:hover{transform:none; border-color:var(--line)}
+  .ch .tag{display:inline-block; margin-top:9px; font-size:.66rem; text-transform:uppercase; letter-spacing:.1em;
+    padding:3px 7px; border-radius:999px; border:1px solid var(--accent); color:var(--accent)}
+  .ch .tag.soontag{border-color:var(--line); color:var(--mute)}
+
+  /* companion picker */
+  .comp{display:flex; gap:12px; align-items:flex-start; width:100%; text-align:left; cursor:pointer;
+    padding:13px 15px; border-radius:var(--radius); border:1px solid var(--line);
+    background:rgba(25,25,51,.5); color:var(--white); font-family:inherit; margin-bottom:10px; transition:border-color .12s}
+  .comp:hover{border-color:var(--accent)}
+  .comp.on{border-color:var(--accent); background:linear-gradient(90deg, color-mix(in srgb, var(--accent) 14%, transparent), transparent)}
+  .comp .dot{flex:none; width:14px; height:14px; border-radius:50%; margin-top:4px; background:var(--accent); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent)}
+  .comp .nm{font-family:var(--font-display); text-transform:uppercase; letter-spacing:.04em; font-weight:600}
+  .comp .bl{color:var(--mute); font-size:.82rem; margin-top:1px}
+  .comp .chk{margin-left:auto; flex:none; align-self:center; color:var(--accent); font-weight:700; opacity:0}
+  .comp.on .chk{opacity:1}
+
+  /* HUD */
+  .hud{display:flex; gap:18px; align-items:center; flex-wrap:wrap; padding:12px 15px; margin-bottom:14px;
+    border:1px solid var(--line); border-radius:var(--radius); background:rgba(18,18,36,.55)}
+  .hud .lab{font-family:var(--font-display); text-transform:uppercase; letter-spacing:.12em; font-size:.66rem; color:var(--mute)}
+  .pips{display:flex; gap:5px; margin-top:3px}
+  .pip{width:16px; height:16px; border-radius:50%; border:1px solid var(--c-rook); background:transparent}
+  .pip.on{background:var(--c-rook); box-shadow:0 0 8px color-mix(in srgb, var(--c-rook) 60%, transparent)}
+  .clockwrap{min-width:150px; flex:1}
+  .cbar{height:12px; border-radius:999px; background:#241f38; overflow:hidden; margin-top:5px; border:1px solid var(--line)}
+  .cfill{height:100%; width:0%; border-radius:999px; background:linear-gradient(90deg,var(--cyan),var(--magenta)); transition:width .45s ease}
+  .cfill.warn{background:linear-gradient(90deg,var(--amber),#e0483f)}
+  .party{margin-left:auto; display:flex; gap:6px; align-items:center}
+  .party .pd{width:11px; height:11px; border-radius:50%; background:var(--accent)}
+
+  /* story */
+  .story{padding:20px 20px 8px}
+  .beatlab{font-family:var(--font-display); text-transform:uppercase; letter-spacing:.14em; font-size:.68rem; color:var(--magenta); margin-bottom:8px}
+  .prose p{margin:0 0 1rem; font-size:1.05rem}
+  .prose p:last-child{margin-bottom:0}
+  .choices{margin-top:8px; display:flex; flex-direction:column; gap:10px}
+  .choice{width:100%; text-align:left; cursor:pointer; font-family:inherit; font-size:1rem; color:var(--white);
+    padding:14px 16px; border-radius:var(--radius-sm); border:1px solid var(--line); background:rgba(25,25,51,.55); transition:border-color .12s, transform .1s}
+  .choice:hover{border-color:var(--magenta); transform:translateX(3px)}
+  .choice .k{color:var(--magenta); font-weight:600; margin-right:8px}
+
+  /* buttons */
+  .btn{display:inline-flex; align-items:center; justify-content:center; gap:8px; cursor:pointer; font-family:var(--font-display);
+    text-transform:uppercase; letter-spacing:.08em; font-weight:600; font-size:.9rem; color:var(--ink);
+    background:var(--magenta); border:none; border-radius:var(--radius-sm); padding:13px 22px; text-decoration:none}
+  .btn:disabled{opacity:.4; cursor:not-allowed}
+  .btn.ghost{background:transparent; color:var(--white); border:1px solid var(--line)}
+  .btn.ghost:hover{border-color:var(--magenta)}
+  .rowbtns{display:flex; gap:10px; flex-wrap:wrap; margin-top:16px}
+  .backlab{display:inline-block; margin-top:22px; color:var(--mute); text-decoration:none; font-size:.85rem}
+  .backlab:hover{color:var(--white)}
+  .hint{color:var(--mute); font-size:.82rem; margin-top:10px}
+
+  /* ending */
+  .endwrap{padding:26px 22px}
+  .endtier{font-family:var(--font-display); text-transform:uppercase; letter-spacing:.12em; font-size:.72rem; margin-bottom:6px}
+  .endtier.good{color:var(--cyan)} .endtier.bad{color:#e0724f}
+  .scorebox{display:flex; gap:22px; flex-wrap:wrap; margin:16px 0; padding:14px 16px; border:1px solid var(--line); border-radius:var(--radius); background:rgba(18,18,36,.5)}
+  .scorebox .n{font-family:var(--font-display); font-size:1.7rem; font-weight:700; line-height:1}
+  .scorebox .l{font-size:.7rem; text-transform:uppercase; letter-spacing:.1em; color:var(--mute); margin-top:4px}
+  .earned{margin-top:6px; font-size:.85rem; color:var(--cyan)}
+  .foundrow{display:flex; gap:6px; flex-wrap:wrap; margin-top:14px}
+  .fdot{font-size:.68rem; text-transform:uppercase; letter-spacing:.08em; padding:4px 9px; border-radius:999px; border:1px solid var(--line); color:var(--mute)}
+  .fdot.got{border-color:var(--cyan); color:var(--cyan)}
+  .sr-note{color:var(--mute); font-size:.8rem; margin-top:18px; max-width:60ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand"><b>VEILRUN</b> · Story Chapters</div>
+    <a class="pill" href="/app.html#lab">← Lab</a>
+  </div>
+  <div id="app"></div>
+</div>
+
+<script src="story.js"></script>
+<script>
+(function(){
+  "use strict";
+  var S = window.ROOK_SIGNAL_STORY;
+  var app = document.getElementById("app");
+  var GAME_ID = "rook-signal";
+
+  // ---- backend (same pattern as the pair-levels; time_ms column carries the Resolve Score) ----
+  var SB_URL="https://jbprsreaosetmqxhsnkl.supabase.co", SB_KEY="sb_publishable_fzxPI3jRqOmA-VIfWFuoNQ_zgXgBtAS";
+  var gwho=function(){ return localStorage.getItem("vr_who")||localStorage.getItem("vr_account")||"anon"; };
+  function saveScore(score){ try{ fetch(SB_URL+"/rest/v1/game_scores",{method:"POST",headers:{apikey:SB_KEY,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({who:gwho(),game_id:GAME_ID,time_ms:Math.round(score)})}); }catch(e){} }
+  function awardPoints(event,pts,meta){ try{ fetch(SB_URL+"/rest/v1/game_points",{method:"POST",headers:{apikey:SB_KEY,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({who:gwho(),event:event,points:pts,meta:meta||""})}); }catch(e){} }
+
+  // ---- local progress ----
+  var LK={ endings:"vr_cyoa_endings_"+GAME_ID, best:"vr_cyoa_best_"+GAME_ID, tried:"vr_cyoa_tried_"+GAME_ID, cleared:"vr_cyoa_cleared_"+GAME_ID };
+  function gotEndings(){ try{ return JSON.parse(localStorage.getItem(LK.endings)||"[]"); }catch(e){ return []; } }
+  function bestScore(){ var v=+localStorage.getItem(LK.best); return v>0?v:0; }
+
+  // ---- 10 crew for the select screen (Rook live, rest coming soon) ----
+  var CREW=[
+    {id:"rook",name:"Rook",role:"Psionic · Chapter 1",accent:"var(--c-rook)",live:true},
+    {id:"vesper",name:"Vesper",role:"Phantom assassin",accent:"var(--c-vesper)"},
+    {id:"latch",name:"Latch",role:"Keystone",accent:"var(--c-latch)"},
+    {id:"wren",name:"Wren",role:"Prodigy",accent:"var(--c-wren)"},
+    {id:"magpie",name:"Magpie",role:"Hexwright",accent:"var(--c-magpie)"},
+    {id:"anvil",name:"Anvil",role:"Juggernaut",accent:"var(--c-anvil)"},
+    {id:"cinder",name:"Cinder",role:"Alchemist",accent:"var(--c-saffron)"},
+    {id:"temper",name:"Temper",role:"Blademaster",accent:"var(--c-temper)"},
+    {id:"citrine",name:"Citrine",role:"Trap engineer",accent:"var(--c-citrine)"},
+    {id:"babel",name:"Babel",role:"Linguist",accent:"var(--c-babel)"}
+  ];
+
+  var esc=function(s){ return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];}); };
+  function toParas(t){ return t.split("\n\n").map(function(p){ return "<p>"+esc(p).replace(/\n/g,"<br>")+"</p>"; }).join(""); }
+
+  // ---- state ----
+  var picked=[]; // companion ids
+  var flags=null, node=null;
+
+  // ================= SCREENS =================
+  function screenCharacters(){
+    picked=[]; flags=null;
+    var cards=CREW.map(function(c){
+      if(c.live){
+        return '<button class="ch fade" style="--accent:'+c.accent+'" onclick="RS.pickChar(\''+c.id+'\')">'
+          +'<div class="nm">'+esc(c.name)+'</div><div class="rl">'+esc(c.role)+'</div>'
+          +'<span class="tag">▶ Playable</span></button>';
+      }
+      return '<div class="ch soon" style="--accent:'+c.accent+'">'
+        +'<div class="nm">'+esc(c.name)+'</div><div class="rl">'+esc(c.role)+'</div>'
+        +'<span class="tag soontag">Coming soon</span></div>';
+    }).join("");
+    app.innerHTML='<div class="eyebrow">Choose-Your-Adventure</div>'
+      +'<h1>Story Chapters</h1>'
+      +'<p class="lede">Pick a character to play their chapter. Each is a self-contained story with many ways to win — and to fail. Rook is up first; the rest of the crew are on the way.</p>'
+      +'<div class="grid">'+cards+'</div>';
+  }
+
+  function pickChar(id){
+    if(id!=="rook") return;
+    screenCompanions();
+  }
+
+  function screenCompanions(){
+    var list=S.COMPANIONS.map(function(c){
+      var on=picked.indexOf(c.id)!==-1;
+      return '<button class="comp'+(on?' on':'')+'" style="--accent:'+c.accent+'" onclick="RS.toggle(\''+c.id+'\')">'
+        +'<span class="dot"></span>'
+        +'<span><span class="nm">'+esc(c.name)+'</span><span class="bl">'+esc(c.blurb)+'</span></span>'
+        +'<span class="chk">✓</span></button>';
+    }).join("");
+    var n=picked.length;
+    var sub = n===0 ? "Going in alone — the hardest way to play." : (n===1?"One on-site.":"Two on-site — the most options.");
+    app.innerHTML='<div class="eyebrow" style="color:var(--c-rook)">Rook · Chapter 1</div>'
+      +'<h1>Rook Signal</h1>'
+      +'<p class="lede">A job went bad behind the Seam. <b>Wren</b> is trapped in a pocket of the Underweft that\'s thinning fast — and you\'re the only one who can reach her, mind-first, from the safe side. Choose who (if anyone) is on-site as your hands. Pick <b>up to two</b>.</p>'
+      +'<div class="card" style="padding:16px 16px 6px">'+list+'</div>'
+      +'<p class="hint">'+esc(sub)+' You can bring 0, 1, or 2.</p>'
+      +'<div class="rowbtns">'
+      +'<button class="btn" onclick="RS.begin()">Begin ▶</button>'
+      +'<button class="btn ghost" onclick="RS.chars()">← Characters</button>'
+      +'</div>';
+  }
+
+  function toggle(id){
+    var i=picked.indexOf(id);
+    if(i!==-1){ picked.splice(i,1); }
+    else { if(picked.length>=2){ picked.shift(); } picked.push(id); }
+    screenCompanions();
+  }
+
+  function begin(){
+    flags=S.newFlags(picked);
+    if(!localStorage.getItem(LK.tried)){ localStorage.setItem(LK.tried,"1"); awardPoints("try",2,GAME_ID); }
+    go(S.START);
+  }
+
+  function hud(){
+    var pips="";
+    for(var i=0;i<S.REACH_MAX;i++){ pips+='<span class="pip'+(i<flags.reach?' on':'')+'"></span>'; }
+    var pct=Math.round((flags.clock/S.CLOCK_MAX)*100);
+    var warn=flags.clock>=S.CLOCK_MAX-2;
+    var party=flags.companions.length
+      ? flags.companions.map(function(id){ var c=S.COMPANIONS.filter(function(x){return x.id===id;})[0]; return '<span class="pd" style="--accent:'+(c?c.accent:'var(--mute)')+'"></span>'; }).join("")
+      : '<span class="lab">solo</span>';
+    return '<div class="hud">'
+      +'<div><div class="lab">Reach</div><div class="pips">'+pips+'</div></div>'
+      +'<div class="clockwrap"><div class="lab">Thinning</div><div class="cbar"><div class="cfill'+(warn?' warn':'')+'" style="width:'+pct+'%"></div></div></div>'
+      +'<div class="party">'+party+'</div>'
+      +'</div>';
+  }
+
+  var BEAT_NAMES={1:"The Call",2:"First Contact",3:"The Threshold",4:"The Obstacle",5:"The Cost Moment",6:"The Complication",7:"The Exit"};
+
+  function go(nodeId){
+    if(nodeId==="resolve"){ return ending(S.resolve(flags)); }
+    node=S.NODES[nodeId];
+    if(!node){ return; }
+    var choices=(node.choices||[]).filter(function(ch){ return !ch.when||ch.when(flags); });
+    var text=typeof node.text==="function"?node.text(flags):node.text;
+    var btns=choices.map(function(ch,idx){
+      var lbl=typeof ch.label==="function"?ch.label(flags):ch.label;
+      return '<button class="choice" onclick="RS.choose('+idx+')"><span class="k">'+(idx+1)+'</span>'+esc(lbl)+'</button>';
+    }).join("");
+    // stash the filtered choices so choose() uses the same list
+    node._active=choices;
+    app.innerHTML=hud()
+      +'<div class="card story fade">'
+      +'<div class="beatlab">'+(BEAT_NAMES[node.beat]||"")+'</div>'
+      +'<div class="prose">'+toParas(text)+'</div>'
+      +'<div class="choices">'+btns+'</div>'
+      +'</div>'
+      +'<a class="backlab" href="/app.html#lab">← Give up and leave the Lab</a>';
+    window.scrollTo(0,0);
+  }
+
+  function choose(idx){
+    var ch=node._active[idx]; if(!ch) return;
+    if(ch.effect) ch.effect(flags);
+    go(ch.to);
+  }
+
+  function ending(endId){
+    var e=S.ENDINGS[endId]||{};
+    var score=S.scoreFor(flags,endId);
+    var text=typeof e.text==="function"?e.text(flags):(e.text||"");
+    // ---- points + persistence ----
+    var earned=[];
+    var prevBest=bestScore();
+    if(!localStorage.getItem(LK.cleared)){ localStorage.setItem(LK.cleared,"1"); awardPoints("clear",10,GAME_ID); earned.push("+10 first time through"); }
+    var got=gotEndings();
+    if(got.indexOf(endId)===-1 && S.ENDING_IDS.indexOf(endId)!==-1){
+      got.push(endId); localStorage.setItem(LK.endings,JSON.stringify(got));
+      awardPoints("ending",8,GAME_ID+":"+endId); earned.push("+8 new ending found");
+    }
+    if(score>prevBest){ localStorage.setItem(LK.best,String(score)); if(prevBest>0){ awardPoints("best",5,GAME_ID); earned.push("+5 new best score"); } }
+    saveScore(score);
+
+    var foundRow=S.ENDING_IDS.map(function(id){
+      var has=got.indexOf(id)!==-1;
+      return '<span class="fdot'+(has?' got':'')+'">'+(has?(S.ENDINGS[id].title):'???')+'</span>';
+    }).join("");
+
+    app.innerHTML='<div class="card endwrap fade">'
+      +'<div class="endtier '+(e.good?'good':'bad')+'">'+esc(e.tier||"")+'</div>'
+      +'<h1>'+esc(e.title||"Ending")+'</h1>'
+      +'<div class="prose">'+toParas(text)+'</div>'
+      +'<div class="scorebox">'
+        +'<div><div class="n">'+score+'</div><div class="l">Resolve Score</div></div>'
+        +'<div><div class="n">'+flags.reach+'/'+S.REACH_MAX+'</div><div class="l">Reach left</div></div>'
+        +'<div><div class="n">'+got.length+'/'+S.ENDING_IDS.length+'</div><div class="l">Endings found</div></div>'
+      +'</div>'
+      +(earned.length?'<div class="earned">'+earned.join(" · ")+'</div>':'')
+      +'<div class="foundrow">'+foundRow+'</div>'
+      +'<div class="rowbtns">'
+        +'<button class="btn" onclick="RS.replay()">↻ Play again — try another way</button>'
+        +'<button class="btn ghost" onclick="RS.chars()">Characters</button>'
+      +'</div>'
+      +'<p class="sr-note">Every distinct ending you reach is worth points on the crew leaderboard, so it pays to run it again with a different crew and different calls. Six endings in all.</p>'
+      +'<a class="backlab" href="/app.html#lab">← Back to the Lab</a>'
+      +'</div>';
+    window.scrollTo(0,0);
+  }
+
+  // ---- expose ----
+  window.RS={
+    pickChar:pickChar, toggle:toggle, begin:begin, choose:choose,
+    chars:screenCharacters, replay:screenCompanions
+  };
+
+  // keyboard 1-9 for choices
+  document.addEventListener("keydown",function(ev){
+    if(node&&node._active){ var n=parseInt(ev.key,10); if(n>=1&&n<=node._active.length){ choose(n-1); } }
+  });
+
+  screenCharacters();
+})();
+</script>
+</body>
+</html>
