@@ -1,9 +1,10 @@
 /* VEILRUN — Board / action tracker for the site (mirrors the Kanban doc; kept in sync). */
 window.VEILRUN = window.VEILRUN || {};
 VEILRUN.board = {
-  updated: "2026-07-25",
+  updated: "2026-08-08",
   columns: [
     { name: "In progress", cards: [
+      { id: "VR-79", t: "3D wave arena — Proving Ground v0 (Vesper slice); Anvil + Citrine next", who: "Claude", pri: "P1" },
       { id: "VR-64", t: "Babel / Manafest — build the 10th character (lore + kit + synergy)", who: "Both", pri: "P2" },
       { id: "VR-65", t: "Balance the 9 landing silhouettes (crop/scale to match) — Photoshop/Figma", who: "Jordan", pri: "P3" }
     ]},
@@ -27,6 +28,7 @@ VEILRUN.board = {
       { id: "VR-34", t: "Art pipeline: AI-assisted → toward original", who: "Both", pri: "P2" }
     ]},
     { name: "Done (recent)", cards: [
+      { id: "★", t: "Veilrun's first 3D game — Proving Ground wave arena, playable in the Lab", who: "Claude", pri: "" },
       { id: "★", t: "Crew silhouette row live on the landing + tap-to-gallery", who: "Both", pri: "" },
       { id: "★", t: "All art → WebP (971MB → 104MB, ~89% lighter)", who: "Claude", pri: "" },
       { id: "★", t: "Enemy concept art live; galleries sort by group likes", who: "Both", pri: "" },

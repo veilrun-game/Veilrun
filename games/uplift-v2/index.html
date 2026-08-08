@@ -214,7 +214,7 @@
   var ctl=VE.Controller.mount({
     mount:document.getElementById("pad"), activeKey:"R", chars:{ R:R, W:W },
     isPlay:function(){ return state==="play"; },
-    onStart:function(){ if(state!=="title") started=true; },
+    onStart:function(){ if(state==="play") started=true; },
     on:{
       jump:jump, primary:function(){useSlot("primary");}, secondary:function(){useSlot("secondary");},
       signature:function(){useSlot("signature");}, interact:function(){useSlot("interact");},
@@ -223,7 +223,7 @@
     }
   });
   var held=ctl.held;
-  document.addEventListener("keydown",function(e){ if(state!=="play" && (e.key==="Enter"||e.key===" ")) startGame(); });
+  document.addEventListener("keydown",function(e){ if(state!=="play" && state!=="help" && (e.key==="Enter"||e.key===" ")) startGame(); });
 
   function updWho(){ whoEl.innerHTML="Controlling: "+(active==="R"?'<span class="r">Rook</span>':'<span class="w">Wren</span>'); }
   function updStatus(){ statusEl.textContent = charged.a ? "Bridge: charged ⚡" : "Node: cold";
@@ -307,6 +307,26 @@
     document.getElementById("lvlPlayBtn").addEventListener("click",function(){ startGame(0); }); }
   renderLevelSelect();
 
+  /* ---- help overlay: the kit legend, reachable mid-run (H or the HUD button) ----
+   * Opening it parks the run clock so reading the controls never costs you a time. */
+  var helpPauseAt = 0;
+  var help = VE.Help.install({
+    button: "hud-right",
+    canOpen: function () { return state === "play" || state === "help"; },
+    onOpen: function () {
+      if (state !== "play") return;
+      state = "help";
+      helpPauseAt = (performance.now ? performance.now() : Date.now());
+    },
+    onClose: function () {
+      if (state !== "help") return;
+      state = "play";
+      // shift the run's start stamp forward so the paused span is not billed to the player
+      if (started && t0) t0 += (performance.now ? performance.now() : Date.now()) - helpPauseAt;
+    }
+  });
+
+
   /* ==========================================================================
    * LOOP
    * ======================================================================== */
@@ -347,7 +367,7 @@
     net.setLocalBest(elapsed); net.markDone(lvId);
     var earned=[];
     if(net.clearOnce(lvId)) earned.push("+10 first clear");
-    else if(prevBest!=null && my<prevBest){ net.awardPoints("beat_pb",3,lvId); earned.push("+3 beat your best"); }
+    else if(prevBest!=null && my<prevBest && net.beatPbOnce(lvId)) earned.push("+3 beat your best");
     await net.saveScore(elapsed);
     if(my<prevRecord && prevRecordWho!==net.who()){ net.awardPoints("record",5,lvId); earned.push("🏆 +5 new record"); }
     overlay.style.display="flex";

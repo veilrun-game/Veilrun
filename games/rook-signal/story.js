@@ -57,7 +57,13 @@
       companions: companions.slice(),
       reach: 5, clock: 0,
       intel: null, pathRisk: "med",
-      thinned: false, covered: false, overreached: false
+      thinned: false, covered: false, overreached: false,
+      // Beat-2 follow-through flags. Each is bought with a resource at the intel beat and
+      // pays off at a DIFFERENT later beat, so it's additive to `intel` rather than a
+      // second name for it (intel already gates its own effects).
+      steadied: false,      // c_condition → cheaper to hold the arch at beat 6
+      routeMarked: false,   // c_exits     → the careful crossing costs less time at beat 3
+      siphonKnown: false    // c_source    → score + the Chapter 2 thread
     };
   }
 
@@ -81,22 +87,40 @@
       ]
     },
 
+    // Each beat-2 node ends on a real decision: one option buys a downstream advantage with a
+    // resource, one is free. Both route to `threshold`, so the graph never widens.
     c_condition: {
       beat: 2,
       text: function (f) {
         return "You find her heartbeat first — fast, steady, scared but not panicking. Good. She's pinned but whole, tucked in the lee of a fallen archway where the thinning hasn't reached yet.\n\n"
           + "\"Rook.\" Not a question. She felt you arrive. \"It's getting quiet in here. Like the room's forgetting the words for itself.\"\n\n"
-          + "You know exactly how long she has now. Not long. But you know.";
+          + "You know exactly how long she has now. Not long. But you know.\n\n"
+          + "You could give her something to hold onto before you go to work — a piece of your own steadiness, pushed across the Seam into her. It would cost you.";
       },
-      choices: [ { label: "Reach for her, then", to: "threshold" } ]
+      choices: [
+        { label: "Steady her — lend her some of your calm", to: "threshold",
+          effect: function (f) { spend(f, "reach", 1); f.steadied = true; } },
+        { label: "Say nothing — she's holding. Save it for the walls", to: "threshold" }
+      ]
     },
     c_exits: {
       beat: 2,
       text: function (f) {
         return "You run your attention along the walls. Three ways this pocket meets the rest of the Underweft: a stairwell already going grey and untrustworthy, a service seam behind the archway, and a live rune-crossing that still hums — the one clean door.\n\n"
-          + "You mark the clean one. Whatever else happens, you know where you're taking her.";
+          + "You mark the clean one. Whatever else happens, you know where you're taking her.\n\n"
+          + (f.companions.length
+              ? "You could push the whole map into " + nameList(f) + " too — let them move without feeling for every wall. Holding a picture in someone else's head is real work."
+              : "There's no one down there to give it to. The map stays where it is: in your head, and in what you tell her.");
       },
-      choices: [ { label: "Reach in", to: "threshold" } ]
+      choices: [
+        { label: "Put the route in their heads too", when: function (f) { return f.companions.length > 0; }, to: "threshold",
+          effect: function (f) { spend(f, "reach", 1); f.routeMarked = true; } },
+        { label: "Keep it to yourself — you'll call the turns as they come", when: function (f) { return f.companions.length > 0; }, to: "threshold" },
+        // solo has no one to share it with, so the decision becomes when to start moving
+        { label: "Talk her toward the crossing while you still can", when: function (f) { return f.companions.length === 0; }, to: "threshold",
+          effect: function (f) { spend(f, "reach", 1); f.routeMarked = true; f.steadied = true; } },
+        { label: "Hold the map and go in now", when: function (f) { return f.companions.length === 0; }, to: "threshold" }
+      ]
     },
     c_source: {
       beat: 2,
@@ -104,9 +128,14 @@
         var extra = has(f, "babel")
           ? "\n\nThe shape of it snags on something Babel taught you to notice — that's not natural drift. That's a made thing, drinking the place dry. Concord-made."
           : "\n\nIt isn't natural drift. Something is *drinking* this place — a made thing, siphoning the Weave out on purpose. You don't have the language to read it. Not yet.";
-        return "You follow the drain to its root. There's a cold knot at the pocket's heart where the color is vanishing fastest, pulling everything toward it like a slow drain in a tub." + extra;
+        return "You follow the drain to its root. There's a cold knot at the pocket's heart where the color is vanishing fastest, pulling everything toward it like a slow drain in a tub." + extra
+          + "\n\nYou could push closer and learn its shape properly. It would tell you something worth knowing. It would also cost you the one thing Wren doesn't have: time.";
       },
-      choices: [ { label: "Get to Wren before it finishes", to: "threshold" } ]
+      choices: [
+        { label: "Push closer — learn what this thing actually is", to: "threshold",
+          effect: function (f) { spend(f, "clock", 2); f.siphonKnown = true; } },
+        { label: "Leave it. Wren first — always", to: "threshold" }
+      ]
     },
 
     // BEAT 3 — The Threshold. Indexed only by whether Latch is in the party.
@@ -127,11 +156,12 @@
             if (f.intel === "exits") { f.pathRisk = "low"; }
             else { spend(f, "clock", 2); f.pathRisk = "med"; }
           } },
+        // A shared route costs a measure of time back: nobody has to feel for the walls.
         { label: "Have Latch line it up slow and sure", when: function (f) { return has(f, "latch"); }, to: "obstacle",
-          effect: function (f) { spend(f, "clock", 3); f.pathRisk = "low"; } },
+          effect: function (f) { spend(f, "clock", f.routeMarked ? 2 : 3); f.pathRisk = "low"; } },
         // Without Latch
         { label: "Take the long crossing — careful footing", when: function (f) { return !has(f, "latch"); }, to: "obstacle",
-          effect: function (f) { spend(f, "clock", 3); f.pathRisk = "low"; } },
+          effect: function (f) { spend(f, "clock", f.routeMarked ? 2 : 3); f.pathRisk = "low"; } },
         { label: "Force a crossing yourself — shove them through", when: function (f) { return !has(f, "latch"); }, to: "obstacle",
           effect: function (f) { spend(f, "reach", 1); f.pathRisk = "med"; } }
       ]
@@ -143,9 +173,9 @@
       text: function (f) {
         var lead = "The way to Wren is blocked — a run of passage where the ceiling has half-come-down and the thinning is worst. ";
         if (nonLatch(f).length === 0) {
-          return lead + "You brought no hands for this. It's you and her voice and whatever you can move from the far side of the Seam.";
+          return lead + "You brought no hands for this. It's you, her, and whatever you can move from the far side of the Seam.";
         }
-        return lead + "You've got people on-site. Pick how this gets solved.";
+        return lead + "You've got people on-site — and you've always got your own two options, if you'd rather not spend them.";
       },
       choices: [
         { label: "Vesper — thread the dead-air gap without touching the debris", when: function (f) { return has(f, "vesper"); }, to: "cost",
@@ -156,9 +186,15 @@
           effect: function (f) { spend(f, "reach", 1); f.pathRisk = "high"; } },
         { label: "Babel — the siphon's console is here; read it, choke the drain", when: function (f) { return has(f, "babel"); }, to: "cost",
           effect: function (f) { spend(f, "reach", 2); f.pathRisk = "low"; f.siphonKnown = true; } },
-        { label: "Do it yourself — lift the fall with your mind, piece by piece", when: function (f) { return nonLatch(f).length === 0; }, to: "cost",
-          // solo is punishing, but if you truly know her state you can guide it precisely instead of blindly
-          effect: function (f) { spend(f, "reach", 2); f.pathRisk = (f.intel === "condition") ? "med" : "high"; } }
+        // ---- The two universal options. Always available, whoever you brought (or didn't).
+        // These are what stop beat 4 collapsing to a single button on solo and half the crews.
+        { label: "Do it yourself — lift the fall with your mind, piece by piece", to: "cost",
+          // expensive and risky, but it's the most Rook answer in the chapter;
+          // knowing her state lets you guide it precisely instead of blindly
+          effect: function (f) { spend(f, "reach", 2); f.pathRisk = (f.intel === "condition" || f.steadied) ? "med" : "high"; } },
+        { label: "Talk her through it — she moves herself, you just hold the light", to: "cost",
+          // costs no Reach at all: she does the work. But picking her way through a collapse takes time.
+          effect: function (f) { spend(f, "clock", f.steadied ? 2 : 3); f.pathRisk = "low"; } }
       ]
     },
 
@@ -187,11 +223,13 @@
           return "And of course it isn't clean. The archway sheltering Wren gives a low groan and starts to go — and you're nearly empty, your grip on this place trembling, the clock almost run out.\n\n"
             + "Whatever you do next, do it with what little you have left.";
         }
-        return "The archway sheltering Wren gives a groan and shifts. Not down yet — but moving. You've got a breath to decide how to spend it.";
+        return "The archway sheltering Wren gives a groan and shifts. Not down yet — but moving. You've got a breath to decide how to spend it."
+          + (f.steadied ? "\n\nShe doesn't freeze. Whatever you gave her back at the start is still in there, holding — she's already moving before you tell her to." : "");
       },
       choices: [
+        // Steadying her at beat 2 pays here: she doesn't need talking down first.
         { label: "Hold steady — shield her, save your Reach", to: "exit",
-          effect: function (f) { spend(f, "clock", 2); f.covered = true; } },
+          effect: function (f) { spend(f, "clock", f.steadied ? 1 : 2); f.covered = true; } },
         { label: "Spend Reach to shore the arch and keep pace", to: "exit",
           effect: function (f) { spend(f, "reach", 1); } }
       ]
@@ -232,6 +270,14 @@
     return "costly";
   }
 
+  // Knowing what the siphon actually was doesn't change WHICH ending you get — it changes what
+  // you carry out of it. Deliberately not a 7th ending: the score model and the "find all six"
+  // leaderboard stay exactly as they are.
+  function siphonTag(f) {
+    if (!f.siphonKnown) return "";
+    return "\n\nAnd you know what it was. Not drift, not bad luck — a made thing with a maker, sunk into the Underweft on purpose to drink it dry. Somebody built that. Somebody is still building them.";
+  }
+
   // ---- ENDINGS ----
   var ENDINGS = {
     clean: {
@@ -240,7 +286,8 @@
       text: function (f) {
         return "You bring Wren through the live crossing with Reach to spare, and the pocket holds behind you — grey at the edges, but alive. It'll heal.\n\n"
           + (f.companions.length ? nameList(f) + " " + (f.companions.length > 1 ? "come" : "comes") + " out with her, unhurt. " : "")
-          + "Wren pulls the Seam-side air into her lungs like she's tasting it. \"You made that look easy,\" she says. It wasn't. But you didn't leave a scar on the world to do it, and that's the whole art.";
+          + "Wren pulls the Seam-side air into her lungs like she's tasting it. \"You made that look easy,\" she says. It wasn't. But you didn't leave a scar on the world to do it, and that's the whole art."
+          + siphonTag(f);
       }
     },
     costly: {
@@ -249,7 +296,8 @@
       text: function (f) {
         return "Wren comes out. That's what matters, and you hold onto that.\n\n"
           + "But the pocket doesn't. Behind you the colour finishes draining out of it, sound dying to nothing, and the Underweft closes over a stretch of itself that won't come back. The Weave remembers what you took to save her.\n\n"
-          + "\"We had to,\" Wren says, watching it go grey. Neither of you quite believes there wasn't another way. That's the price, and you paid it in full.";
+          + "\"We had to,\" Wren says, watching it go grey. Neither of you quite believes there wasn't another way. That's the price, and you paid it in full."
+          + siphonTag(f);
       }
     },
     companionHurt: {
@@ -260,7 +308,8 @@
         who = who || "your partner";
         return "It was loud and it was fast and it worked — Wren's out. But the collapse caught " + who + " on the way, and you felt it happen a half-second before you could move to stop it.\n\n"
           + who + " will mend. But you'll carry the shape of that half-second, and so will they. Some jobs you win and still owe something afterward.\n\n"
-          + "Wren won't let go of your sleeve. \"Next time,\" she says quietly, \"we go quieter.\"";
+          + "Wren won't let go of your sleeve. \"Next time,\" she says quietly, \"we go quieter.\""
+          + siphonTag(f);
       }
     },
     tooslow: {
@@ -286,7 +335,8 @@
       text: function (f) {
         return "No hands. No Latch to fold the distance. Just you, across the Seam, and a scared kid in a room that's forgetting itself — and your voice, steady, telling her exactly where to put each foot.\n\n"
           + "\"Left. Now down. Trust it — I've got the floor.\" And you do have the floor; you're holding it with your mind from a world away. She walks out of a collapsing pocket on nothing but your word and comes through the crossing shaking and whole.\n\n"
-          + "You didn't touch a thing you didn't have to. You just refused to be the reason she was alone in there. Sometimes that's the entire power.";
+          + "You didn't touch a thing you didn't have to. You just refused to be the reason she was alone in there. Sometimes that's the entire power."
+          + siphonTag(f);
       }
     }
   };
@@ -294,7 +344,8 @@
   function scoreFor(f, endingId) {
     var e = ENDINGS[endingId];
     var base = e ? e.base : 0;
-    return base + f.reach * 4; // reach 0..5 → up to +20
+    // reach 0..5 → up to +20; the siphon is a flat bonus for paying time to learn something true
+    return base + f.reach * 4 + (f.siphonKnown ? 5 : 0);
   }
 
   // Ordered list of endings for "discover all paths" tracking / validation.

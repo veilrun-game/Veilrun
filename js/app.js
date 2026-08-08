@@ -379,36 +379,59 @@ window.VApp = (function () {
     lab() {
       const playable = (D.modes || []).filter(m => m.combos && m.combos.length);
       const ideas = (D.modes || []).filter(m => !(m.combos && m.combos.length));
+      /* Full-width prototype card. One card = one game. The three selects at the top of
+         the config rail are the card's single control surface: changing any of them
+         re-scopes BOTH the leaderboard and the Play button, so there is never a second,
+         contradictory way to choose what you're about to launch (the old modal). Play sits
+         bottom-right, after the board — the last thing you read is the thing you press. */
       const playBlocks = playable.map(m => {
         const tree = m.boardTree || [];
         const v0 = tree[0], c0 = v0 && v0.combos[0];
         const verOpts = tree.map((v, i) => `<option value="${i}">${C.esc(v.label)}</option>`).join("");
         const comboOpts = v0 ? v0.combos.map((c, i) => `<option value="${i}">${C.esc(c.label)}</option>`).join("") : "";
         const lvlOpts = c0 ? c0.levels.map(l => `<option value="${C.esc(l.id)}">${C.esc(l.label)}</option>`).join("") : "";
+        const multiVer = tree.length > 1;
+        const multiCombo = v0 && v0.combos.length > 1;
+        const multiLvl = c0 && c0.levels.length > 1;
+        const id = C.esc(m.id);
         return `
-        <div class="play-block">
-          <div class="panel play-card">
-            <div class="eyebrow">Playable prototype${m.version ? " · " + C.esc(m.version) : ""}</div>
-            <h3 style="margin:.35rem 0">${C.esc(m.name)}</h3>
-            <p class="mute" style="font-size:.9rem">${C.esc(m.text)}</p>
-            <div class="play-actions">
-              <button class="btn" onclick="VApp.comboChoose('${C.esc(m.id)}')" style="padding:12px 24px">▶ Play</button>
-              ${C.feedbackButton("Mode: " + m.name)}
+        <div class="panel play-full" id="playcard-${id}">
+          <div class="pc-head">
+            <div class="pc-title">
+              <div class="eyebrow">Playable prototype${m.version ? " · " + C.esc(m.version) : ""}</div>
+              <h3>${C.esc(m.name)}</h3>
+              <p class="mute pc-desc">${C.esc(m.text)}</p>
+            </div>
+            <div class="pc-head-act">${C.feedbackButton("Mode: " + m.name)}</div>
+          </div>
+          <div class="pc-body">
+            <div class="pc-config">
+              <div class="pc-rail-lab">Choose your run</div>
+              ${tree.length ? `
+                <label class="pc-field${multiVer ? "" : " solo"}"><span>Version</span>
+                  <select class="gb-sel" id="gbver-${id}" onchange="VApp.gameBoardVer('${id}')">${verOpts}</select></label>
+                <label class="pc-field${multiCombo ? "" : " solo"}"><span>Characters</span>
+                  <select class="gb-sel" id="gbcombo-${id}" onchange="VApp.gameBoardCombo('${id}')">${comboOpts}</select></label>
+                <label class="pc-field${multiLvl ? "" : " solo"}"><span>Level</span>
+                  <select class="gb-sel" id="gblvl-${id}" onchange="VApp.gameBoardLevel('${id}', this.value)">${lvlOpts}</select></label>` : ""}
+              <div class="pc-you" id="gbyou-${id}"></div>
+            </div>
+            <div class="pc-board">
+              <div class="play-board-head">
+                <div class="eyebrow" style="margin:0">${m.scoreKind === "points" ? "Best scores · the crew" : "Best times · the crew"}</div>
+                <span class="pc-scope mute" id="gbscope-${id}"></span>
+              </div>
+              <div id="gboard-${id}" class="pc-rows"><p class="mute" style="font-size:.85rem">Loading…</p></div>
             </div>
           </div>
-          <div class="panel play-board">
-            <div class="play-board-head"><div class="eyebrow" style="margin:0">${m.scoreKind === "points" ? "Best scores · the crew" : "Best times · the crew"}</div></div>
-            ${tree.length ? `<div class="gb-picks-col">
-              <select class="gb-sel" id="gbver-${C.esc(m.id)}" onchange="VApp.gameBoardVer('${C.esc(m.id)}')">${verOpts}</select>
-              <select class="gb-sel" id="gbcombo-${C.esc(m.id)}" onchange="VApp.gameBoardCombo('${C.esc(m.id)}')">${comboOpts}</select>
-              <select class="gb-sel" id="gblvl-${C.esc(m.id)}" onchange="VApp.gameBoardLevel('${C.esc(m.id)}', this.value)">${lvlOpts}</select>
-            </div>` : ""}
-            <div id="gboard-${C.esc(m.id)}" style="margin-top:.6rem"><p class="mute" style="font-size:.85rem">Loading…</p></div>
+          <div class="pc-foot">
+            <p class="mute pc-launch" id="gblaunch-${id}"></p>
+            <a class="btn pc-play" id="gbplay-${id}" href="#">▶ Play</a>
           </div>
         </div>`; }).join("");
       const playSection = playable.length ? `
-        <div class="dash-head" style="margin-top:1.5rem"><h2 style="margin:0">▶ Playable now</h2><span class="mute" style="font-size:.85rem">jump straight in</span></div>
-        <div style="margin-top:1rem;display:flex;flex-direction:column;gap:var(--s-4)">${playBlocks}</div>` : "";
+        <div class="dash-head" style="margin-top:1.5rem"><h2 style="margin:0">▶ Playable now</h2><span class="mute" style="font-size:.85rem">pick a run, see the board, jump in</span></div>
+        <div style="margin-top:1rem;display:flex;flex-direction:column;gap:var(--s-6)">${playBlocks}</div>` : "";
       const cta = `<div class="panel cta-card" onclick="VApp.feedback('New mode idea','idea')">
         <div class="eyebrow">Your turn</div>
         <h3 style="margin:.3rem 0">＋ Pitch a game mode</h3>
@@ -474,7 +497,7 @@ window.VApp = (function () {
     leaderboard() {
       return `<div class="wrap section">
         ${C.sectionHeader("The crew","Leaderboard")}
-        <p class="mute" style="max-width:62ch;margin-top:1rem">Who's shaping Veilrun the most. Points for contributing — <strong>feedback counts triple</strong>, plus likes, votes, and <strong>playing the prototypes</strong>: you earn points for trying a level, clearing it, beating your own best, and taking #1 on a game's board. Crew-only for now.</p>
+        <p class="mute" style="max-width:62ch;margin-top:1rem">Who's shaping Veilrun the most. Points for contributing — <strong>feedback counts triple</strong>, plus likes, votes, and <strong>playing the prototypes</strong>: you earn points the first time you try a level, the first time you clear it, the first time you beat your own best on it, and any time you take #1 on a game's board. Each of those is a one-time award per level, so the board measures what you've contributed rather than how many times you've replayed. Crew-only for now.</p>
         <div id="lb-board" style="margin-top:1.5rem"><p class="mute">Loading…</p></div>
       </div>`;
     },
@@ -849,7 +872,9 @@ window.VApp = (function () {
     return "time";
   }
   // Load one leaderboard (best run per person) for a game_id into a container.
-  async function loadBoardInto(containerId, gameId) {
+  // modeId is optional: when present we also fill that card's "where you stand" line,
+  // which is the whole point of the level picker — knowing if this is one worth re-running.
+  async function loadBoardInto(containerId, gameId, modeId) {
     if (!window.VBackend || !window.VBackend.loadGameScores) return;
     const el = document.getElementById(containerId); if (!el) return;
     const kind = scoreKindOf(gameId);
@@ -857,49 +882,94 @@ window.VApp = (function () {
     const better = (a, b) => kind === "points" ? a > b : a < b; // keep the "better" value per person
     const best = {}; (rows || []).forEach(r => { if (best[r.who] == null || better(r.time_ms, best[r.who])) best[r.who] = r.time_ms; });
     const board = Object.entries(best).map(([who, ms]) => ({ who, ms })).sort((a, b) => kind === "points" ? b.ms - a.ms : a.ms - b.ms);
-    if (!board.length) { const empty = kind === "points" ? "No runs on this one yet — be the first to post a score." : "No runs on this one yet — be the first to post a time."; el.innerHTML = `<p class="mute" style="font-size:.85rem">${empty}</p>`; return; }
     const me = myWho();
     const fmt = v => kind === "points" ? `${Math.round(v)} pts` : fmtTime(v);
+    if (modeId) {
+      const you = document.getElementById("gbyou-" + modeId);
+      if (you) {
+        const rank = board.findIndex(s => s.who === me);
+        if (!board.length) you.innerHTML = `<span class="pc-you-lab">Where you stand</span><span class="pc-you-v new">Nobody has run this yet</span>`;
+        else if (rank === -1) you.innerHTML = `<span class="pc-you-lab">Where you stand</span><span class="pc-you-v new">You haven't run this one</span>`;
+        else you.innerHTML = `<span class="pc-you-lab">Where you stand</span>`
+          + `<span class="pc-you-v${rank === 0 ? " top" : ""}">#${rank + 1} of ${board.length} · ${fmt(board[rank].ms)}</span>`
+          + (rank > 0 ? `<span class="pc-you-gap">${kind === "points"
+              ? `${Math.round(board[0].ms - board[rank].ms)} pts off the lead`
+              : `${((board[rank].ms - board[0].ms) / 1000).toFixed(1)}s off the lead`}</span>` : `<span class="pc-you-gap">You hold this one</span>`);
+      }
+    }
+    if (!board.length) { const empty = kind === "points" ? "No runs on this one yet — be the first to post a score." : "No runs on this one yet — be the first to post a time."; el.innerHTML = `<p class="mute" style="font-size:.85rem">${empty}</p>`; return; }
     el.innerHTML = board.slice(0, 8).map((s, i) => `<div class="gb-row${s.who === me ? " me" : ""}"><span>${i + 1}. ${C.esc(s.who)}${s.who === me ? " (you)" : ""}</span><span class="gb-t">${fmt(s.ms)}</span></div>`).join("");
   }
   // ---- Leaderboard nav: Version → Combo → Level (dependent dropdowns) ----
   function boardTreeOf(modeId) { const m = (D.modes || []).find(x => x.id === modeId); return m && m.boardTree; }
   function gbIdx(id) { const el = document.getElementById(id); return el ? el.selectedIndex : 0; }
+  // The card's current (version, combo, level) selection — the one source of truth
+  // that the board, the "where you stand" line, and the Play button all read from.
+  function gbSelection(modeId) {
+    const tree = boardTreeOf(modeId); if (!tree) return null;
+    const v = tree[gbIdx("gbver-" + modeId)]; if (!v) return null;
+    const c = v.combos[gbIdx("gbcombo-" + modeId)]; if (!c) return null;
+    const ls = document.getElementById("gblvl-" + modeId);
+    const lvlId = ls && ls.value ? ls.value : (c.levels[0] && c.levels[0].id);
+    const l = c.levels.find(x => x.id === lvlId) || c.levels[0];
+    return { ver: v, combo: c, level: l };
+  }
+  // Point the Play button + its caption at whatever is currently selected, so the card
+  // never claims one thing and launches another (visibility of system status).
+  function syncPlay(modeId) {
+    const sel = gbSelection(modeId); if (!sel) return;
+    const btn = document.getElementById("gbplay-" + modeId);
+    const cap = document.getElementById("gblaunch-" + modeId);
+    const scope = document.getElementById("gbscope-" + modeId);
+    const tree = boardTreeOf(modeId) || [];
+    const fallback = (((D.modes || []).find(x => x.id === modeId) || {}).combos || [])[0];
+    const href = sel.combo.play || (fallback && fallback.play);
+    if (btn) {
+      if (href) { btn.setAttribute("href", href); btn.classList.remove("disabled"); btn.removeAttribute("aria-disabled"); }
+      else { btn.setAttribute("href", "#"); btn.classList.add("disabled"); btn.setAttribute("aria-disabled", "true"); }
+      btn.textContent = "▶ Play " + (sel.combo.label || "").split(" · ")[0];
+    }
+    if (cap) {
+      const bits = [];
+      if (tree.length > 1) bits.push(sel.ver.label);
+      if (sel.level && sel.combo.levels.length > 1) bits.push(sel.level.label);
+      cap.textContent = bits.length ? "Launching " + bits.join(" · ") : "";
+    }
+    if (scope) scope.textContent = sel.level ? sel.level.label : "";
+  }
   function fillLevelSel(modeId) {
     const tree = boardTreeOf(modeId); if (!tree) return;
     const v = tree[gbIdx("gbver-" + modeId)]; if (!v) return;
     const c = v.combos[gbIdx("gbcombo-" + modeId)]; if (!c) return;
     const ls = document.getElementById("gblvl-" + modeId);
-    if (ls) ls.innerHTML = c.levels.map(l => `<option value="${C.esc(l.id)}">${C.esc(l.label)}</option>`).join("");
-    loadBoardInto("gboard-" + modeId, c.levels[0].id);
+    if (ls) {
+      ls.innerHTML = c.levels.map(l => `<option value="${C.esc(l.id)}">${C.esc(l.label)}</option>`).join("");
+      const f = ls.closest(".pc-field"); if (f) f.classList.toggle("solo", c.levels.length < 2);
+    }
+    syncPlay(modeId);
+    loadBoardInto("gboard-" + modeId, c.levels[0].id, modeId);
   }
   function fillComboSel(modeId) {
     const tree = boardTreeOf(modeId); if (!tree) return;
     const v = tree[gbIdx("gbver-" + modeId)]; if (!v) return;
     const cs = document.getElementById("gbcombo-" + modeId);
-    if (cs) cs.innerHTML = v.combos.map((c, i) => `<option value="${i}">${C.esc(c.label)}</option>`).join("");
+    if (cs) {
+      cs.innerHTML = v.combos.map((c, i) => `<option value="${i}">${C.esc(c.label)}</option>`).join("");
+      const f = cs.closest(".pc-field"); if (f) f.classList.toggle("solo", v.combos.length < 2);
+    }
     fillLevelSel(modeId);
   }
   function gameBoardVer(modeId) { fillComboSel(modeId); }        // version changed → rebuild combo + level
   function gameBoardCombo(modeId) { fillLevelSel(modeId); }      // combo changed → rebuild level
-  function gameBoardLevel(modeId, gameId) { loadBoardInto("gboard-" + modeId, gameId); }
-  // Combo chooser popup — "choose your characters," then launch that prototype.
-  function comboChoose(modeId) {
-    const m = (D.modes || []).find(x => x.id === modeId); if (!m || !m.combos) return;
-    const wrap = document.createElement("div"); wrap.className = "combo-modal";
-    wrap.innerHTML = `<div class="combo-sheet"><div class="eyebrow" style="margin:0 0 .2rem">Choose your characters</div>
-      ${m.combos.map(c => `<a class="combo-opt" href="${C.esc(c.play)}"><span class="combo-lbl">${C.esc(c.label)}</span><span class="combo-sub">${C.esc(c.sub || "")}</span></a>`).join("")}
-      <button class="combo-cancel" type="button">Cancel</button></div>`;
-    wrap.addEventListener("click", e => { if (e.target === wrap || e.target.classList.contains("combo-cancel")) document.body.removeChild(wrap); });
-    document.body.appendChild(wrap);
-  }
-  // Fill each playable prototype's default board on Lab render.
+  function gameBoardLevel(modeId, gameId) { syncPlay(modeId); loadBoardInto("gboard-" + modeId, gameId, modeId); }
+  // Fill each playable prototype's default board + Play target on Lab render.
   async function renderGameBoards() {
     const playable = (D.modes || []).filter(m => m.combos && m.combos.length);
     for (const m of playable) {
       const t = m.boardTree;
       const first = (t && t[0] && t[0].combos[0] && t[0].combos[0].levels[0] && t[0].combos[0].levels[0].id) || m.id;
-      loadBoardInto("gboard-" + m.id, first);
+      syncPlay(m.id);
+      loadBoardInto("gboard-" + m.id, first, m.id);
     }
   }
   function labVote(poll) {
@@ -1782,6 +1852,6 @@ window.VApp = (function () {
   }
 
   const galMore = galLoadMore;
-  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter, counterVote, gameBoardVer, gameBoardCombo, gameBoardLevel, comboChoose };
+  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter, counterVote, gameBoardVer, gameBoardCombo, gameBoardLevel };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);

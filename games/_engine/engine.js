@@ -379,6 +379,13 @@
           if (!localStorage.getItem(prefix + "clearpts_" + id)) { localStorage.setItem(prefix + "clearpts_" + id, "1"); this.awardPoints("clear", 10, id); return true; }
           return false;
         },
+        // Award the "beat your best" point ONCE per level id. Without this gate a player can
+        // shave a millisecond off their own time forever and mint 3 points every run, which
+        // makes the contribution board a measure of persistence rather than contribution.
+        beatPbOnce: function (id) {
+          if (!localStorage.getItem(prefix + "pbpts_" + id)) { localStorage.setItem(prefix + "pbpts_" + id, "1"); this.awardPoints("beat_pb", 3, id); return true; }
+          return false;
+        },
         awardPoints: function (event, pts, meta) { return post("/rest/v1/game_points", { who: who(), event: event, points: pts, meta: meta || "" }); },
         saveScore: function (ms) { return post("/rest/v1/game_scores", { who: who(), game_id: gameId(), time_ms: Math.round(ms) }); },
         loadBoard: function () {
@@ -444,5 +451,78 @@
     }
   };
 
-  global.VE = { Physics: Physics, Camera: Camera, Controller: Controller, Net: Net, World: World, util: util };
+  /* ---- Help overlay -----------------------------------------------------
+   * The kit/controls legend already lives on each game's start overlay, but it
+   * vanishes the moment you press Play — which is exactly when you need it.
+   * install() lifts that markup into a re-openable panel bound to H and a HUD
+   * button, and hands pause bookkeeping back to the game so the run clock does
+   * not tick while the panel is up.
+   * ------------------------------------------------------------------------*/
+  var Help = {
+    install: function (opts) {
+      opts = opts || {};
+      var srcSel = opts.source || ".kithint, .keys";
+      var title = opts.title || "Controls & kit";
+      var body = Array.prototype.map.call(document.querySelectorAll(srcSel), function (n) {
+        return n.outerHTML;
+      }).join("");
+      if (!body) return null;
+
+      var el = document.createElement("div");
+      el.id = "ve-help";
+      el.setAttribute("role", "dialog");
+      el.setAttribute("aria-modal", "true");
+      el.setAttribute("aria-label", title);
+      el.style.cssText = "position:absolute;inset:0;z-index:30;display:none;flex-direction:column;" +
+        "align-items:center;justify-content:center;text-align:center;padding:20px;" +
+        "background:rgba(8,6,20,.86);backdrop-filter:blur(2px)";
+      el.innerHTML =
+        '<div style="max-width:min(520px,92%)">' +
+        '<div style="letter-spacing:.2em;color:#9b7bd6;font-size:12px;text-transform:uppercase">' + util.esc(title) + '</div>' +
+        '<div style="margin:14px 0 4px;display:flex;flex-direction:column;align-items:center">' + body + '</div>' +
+        '<button id="ve-help-close" style="margin-top:18px;cursor:pointer;font:inherit;font-size:14px;' +
+        'color:#0B0818;background:#D65CDC;border:none;border-radius:8px;padding:11px 20px">Back to it</button>' +
+        '<div style="margin-top:12px;font-size:11.5px;color:#8f89a8">H — open or close this any time</div>' +
+        '</div>';
+
+      var host = opts.host || document.getElementById("stage") || document.body;
+      host.appendChild(el);
+
+      var open = false;
+      function isOpen() { return open; }
+      function show() {
+        if (open || (opts.canOpen && !opts.canOpen())) return;
+        open = true; el.style.display = "flex";
+        if (opts.onOpen) opts.onOpen();
+        var b = document.getElementById("ve-help-close"); if (b) b.focus();
+      }
+      function hide() {
+        if (!open) return;
+        open = false; el.style.display = "none";
+        if (opts.onClose) opts.onClose();
+      }
+      function toggle() { open ? hide() : show(); }
+
+      el.addEventListener("click", function (ev) { if (ev.target === el || ev.target.id === "ve-help-close") hide(); });
+      window.addEventListener("keydown", function (ev) {
+        var k = (ev.key || "").toLowerCase();
+        if (k === "h") { ev.preventDefault(); toggle(); }
+        else if (k === "escape" && open) { ev.preventDefault(); hide(); }
+      });
+      if (opts.button) {
+        var btn = document.createElement("button");
+        btn.className = opts.buttonClass || "pill";
+        btn.type = "button";
+        btn.textContent = "? Help";
+        btn.title = "Controls & kit (H)";
+        btn.setAttribute("aria-label", "Controls and kit");
+        btn.addEventListener("click", show);
+        var slot = typeof opts.button === "string" ? document.getElementById(opts.button) : opts.button;
+        if (slot) slot.appendChild(btn);
+      }
+      return { show: show, hide: hide, toggle: toggle, isOpen: isOpen };
+    }
+  };
+
+  global.VE = { Physics: Physics, Camera: Camera, Controller: Controller, Net: Net, World: World, Help: Help, util: util };
 })(typeof window !== "undefined" ? window : this);

@@ -92,7 +92,7 @@
 
   /* buttons */
   .btn{display:inline-flex; align-items:center; justify-content:center; gap:8px; cursor:pointer; font-family:var(--font-display);
-    text-transform:uppercase; letter-spacing:.08em; font-weight:600; font-size:.9rem; color:var(--ink);
+    letter-spacing:.02em; font-weight:600; font-size:1rem; color:var(--ink);
     background:var(--magenta); border:none; border-radius:var(--radius-sm); padding:13px 22px; text-decoration:none}
   .btn:disabled{opacity:.4; cursor:not-allowed}
   .btn.ghost{background:transparent; color:var(--white); border:1px solid var(--line)}
@@ -101,6 +101,45 @@
   .backlab{display:inline-block; margin-top:22px; color:var(--mute); text-decoration:none; font-size:.85rem}
   .backlab:hover{color:var(--white)}
   .hint{color:var(--mute); font-size:.82rem; margin-top:10px}
+
+  /* --- rules / help --- */
+  .rulecard{margin-top:14px; padding:14px 16px; border:1px solid var(--line); border-radius:var(--radius); background:rgba(18,18,36,.5)}
+  .rulecard .rt{font-family:var(--font-display); text-transform:uppercase; letter-spacing:.1em; font-size:.7rem; color:var(--cyan); margin-bottom:9px}
+  .rulegrid{display:grid; grid-template-columns:auto 1fr; gap:9px 14px; align-items:start; font-size:.86rem; margin:0}
+  .rulegrid dt{font-family:var(--font-display); text-transform:uppercase; letter-spacing:.06em; font-size:.78rem; color:var(--white); white-space:nowrap; margin:0}
+  .rulegrid dd{margin:0; color:var(--mute); line-height:1.5}
+  .rulegrid dd b{color:var(--white); font-weight:600}
+  .helpbtn{flex:none; width:26px; height:26px; border-radius:50%; cursor:pointer; font-family:var(--font-display); font-weight:600;
+    border:1px solid var(--line); background:rgba(18,18,36,.7); color:var(--mute); line-height:1; font-size:.82rem; padding:0}
+  .helpbtn:hover,.helpbtn:focus-visible{border-color:var(--cyan); color:var(--cyan); outline:none}
+  .modal{position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center; padding:20px;
+    background:rgba(6,4,16,.72); animation:fade .18s ease both}
+  .modal .sheet{max-width:540px; width:100%; padding:20px 20px 16px; background:var(--ink-2); border:1px solid var(--line);
+    border-radius:var(--radius); box-shadow:0 20px 60px rgba(0,0,0,.6); max-height:86vh; overflow:auto}
+  .modal .sheet h2{margin-bottom:.75rem}
+
+  /* --- micro-interactions --- */
+  .fxwrap{display:flex; flex-direction:column; align-items:flex-start; gap:6px; margin:0 0 12px}
+  .fx{display:inline-flex; align-items:center; gap:7px; font-size:.8rem; font-weight:600;
+    padding:6px 12px; border-radius:999px; border:1px solid var(--line); background:rgba(18,18,36,.85);
+    animation:fxin .32s cubic-bezier(.2,.9,.3,1.4) both, fxout .5s ease 2.4s both}
+  .fx.neg{border-color:#e0724f; color:#f0a184}
+  .fx.pos{border-color:var(--cyan); color:var(--cyan)}
+  .fx .ic{font-size:.9rem; line-height:1}
+  @keyframes fxin{from{opacity:0; transform:translateY(-6px) scale(.94)}to{opacity:1; transform:none}}
+  @keyframes fxout{to{opacity:0; transform:translateY(-4px)}}
+  .pip.spent{animation:pipdrain .55s ease both}
+  @keyframes pipdrain{
+    0%{background:var(--c-rook); box-shadow:0 0 10px var(--c-rook); transform:scale(1)}
+    45%{transform:scale(1.35)}
+    100%{background:transparent; box-shadow:none; transform:scale(1)}}
+  .cbar.tick{animation:barshake .5s ease both}
+  @keyframes barshake{0%,100%{transform:none}25%{transform:translateX(-3px)}60%{transform:translateX(3px)}}
+  .cfill.grew{animation:barflash .6s ease both}
+  @keyframes barflash{0%{filter:brightness(2.2)}100%{filter:none}}
+  @media (prefers-reduced-motion: reduce){
+    .fx,.pip.spent,.cbar.tick,.cfill.grew,.fade,.modal{animation:none}
+  }
 
   /* ending */
   .endwrap{padding:26px 22px}
@@ -164,6 +203,9 @@
   // ---- state ----
   var picked=[]; // companion ids
   var flags=null, node=null;
+  var modalOpen=false;          // rules sheet open — swallows number/Escape keys
+  var pendingFx=[];             // one-shot toasts describing what the last choice cost
+  var fxPips=0, fxClock=false;  // one-shot HUD animations to play on the next render
 
   // ================= SCREENS =================
   function screenCharacters(){
@@ -204,6 +246,7 @@
       +'<p class="lede">A job went bad behind the Seam. <b>Wren</b> is trapped in a pocket of the Underweft that\'s thinning fast — and you\'re the only one who can reach her, mind-first, from the safe side. Choose who (if anyone) is on-site as your hands. Pick <b>up to two</b>.</p>'
       +'<div class="card" style="padding:16px 16px 6px">'+list+'</div>'
       +'<p class="hint">'+esc(sub)+' You can bring 0, 1, or 2.</p>'
+      +'<div class="rulecard"><div class="rt">How this works</div>'+rulesBody()+'</div>'
       +'<div class="rowbtns">'
       +'<button class="btn" onclick="RS.begin()">Begin ▶</button>'
       +'<button class="btn ghost" onclick="RS.chars()">← Characters</button>'
@@ -223,9 +266,40 @@
     go(S.START);
   }
 
+  // Shared rules copy — shown once before Begin, and re-openable any time from the HUD.
+  function rulesBody(){
+    return '<dl class="rulegrid">'
+      +'<dt>Reach</dt><dd>Rook is working from the safe side of the Seam, so everything he does costs him. You start with <b>'+S.REACH_MAX+'</b>. Acting at range spends it. You can still act at zero — but that is <b>overreaching</b>, and it changes how the chapter ends.</dd>'
+      +'<dt>Thinning</dt><dd>The pocket Wren is trapped in is dissolving. The bar fills when you take time or force a way through. Fill it and the pocket is gone with her still inside. <b>Lower is better.</b></dd>'
+      +'<dt>Crew</dt><dd>The dots on the right are who you brought in as your hands. Most routes through this chapter open <b>because a specific person is standing there</b> — so who you pick matters more than any single choice.</dd>'
+      +'<dt>Score</dt><dd>Your <b>Resolve Score</b> rewards getting Wren out cheaply: Reach to spare, a low Thinning clock, and no scars left on the world. There are <b>'+S.ENDING_IDS.length+'</b> endings, and every new one you reach is worth points on the crew board — so replaying with a different crew pays.</dd>'
+      +'</dl>';
+  }
+
+  function openRules(){
+    if(modalOpen) return;
+    modalOpen=true;
+    var m=document.createElement("div");
+    m.className="modal"; m.setAttribute("role","dialog"); m.setAttribute("aria-modal","true"); m.setAttribute("aria-label","How this works");
+    m.innerHTML='<div class="sheet"><div class="eyebrow">Rook Signal</div><h2>How this works</h2>'+rulesBody()
+      +'<div class="rowbtns"><button class="btn ghost" id="rules-close">Close</button></div></div>';
+    m.addEventListener("click",function(ev){ if(ev.target===m||ev.target.id==="rules-close") closeRules(); });
+    document.body.appendChild(m);
+    var btn=document.getElementById("rules-close"); if(btn) btn.focus();
+  }
+  function closeRules(){
+    var m=document.querySelector(".modal"); if(m&&m.parentNode) m.parentNode.removeChild(m);
+    modalOpen=false;
+  }
+
   function hud(){
     var pips="";
-    for(var i=0;i<S.REACH_MAX;i++){ pips+='<span class="pip'+(i<flags.reach?' on':'')+'"></span>'; }
+    for(var i=0;i<S.REACH_MAX;i++){
+      var on=i<flags.reach;
+      // the pips drained by the choice we just made get a one-shot drain animation
+      var spent=(!on && i<flags.reach+fxPips);
+      pips+='<span class="pip'+(on?' on':'')+(spent?' spent':'')+'"></span>';
+    }
     var pct=Math.round((flags.clock/S.CLOCK_MAX)*100);
     var warn=flags.clock>=S.CLOCK_MAX-2;
     var party=flags.companions.length
@@ -233,9 +307,37 @@
       : '<span class="lab">solo</span>';
     return '<div class="hud">'
       +'<div><div class="lab">Reach</div><div class="pips">'+pips+'</div></div>'
-      +'<div class="clockwrap"><div class="lab">Thinning</div><div class="cbar"><div class="cfill'+(warn?' warn':'')+'" style="width:'+pct+'%"></div></div></div>'
+      +'<div class="clockwrap"><div class="lab">Thinning</div><div class="cbar'+(fxClock?' tick':'')+'"><div class="cfill'+(warn?' warn':'')+(fxClock?' grew':'')+'" style="width:'+pct+'%"></div></div></div>'
       +'<div class="party">'+party+'</div>'
+      +'<button class="helpbtn" onclick="RS.rules()" aria-label="How this works" title="How this works (H)">?</button>'
       +'</div>';
+  }
+
+  // ---- micro-interactions: name the cost (or the lack of one) right after a choice ----
+  function computeFx(b){
+    pendingFx=[]; fxPips=0; fxClock=false;
+    var dR=b.reach-flags.reach;
+    var dC=flags.clock-b.clock;
+    if(dR>0){ fxPips=dR; pendingFx.push({k:"neg",ic:"◈",t:"−"+dR+" Reach"}); }
+    if(dC>0){ fxClock=true; pendingFx.push({k:"neg",ic:"◷",t:"Thinning +"+dC}); }
+    if(!b.intel&&flags.intel) pendingFx.push({k:"pos",ic:"✦",t:"You know something you didn't"});
+    if(!b.covered&&flags.covered) pendingFx.push({k:"pos",ic:"✦",t:"Covered — someone has your back"});
+    if(!b.steadied&&flags.steadied) pendingFx.push({k:"pos",ic:"✦",t:"She's steady — she'll hold when it matters"});
+    if(!b.routeMarked&&flags.routeMarked) pendingFx.push({k:"pos",ic:"✦",t:"They know the way now"});
+    if(!b.siphonKnown&&flags.siphonKnown) pendingFx.push({k:"pos",ic:"✦",t:"You know what's draining this place"});
+    if(!b.thinned&&flags.thinned) pendingFx.push({k:"neg",ic:"✕",t:"You left a scar on the world"});
+    if(!b.overreached&&flags.overreached) pendingFx.push({k:"neg",ic:"✕",t:"Overreached — you pushed past empty"});
+    if(!pendingFx.length) pendingFx.push({k:"pos",ic:"✓",t:"Cost you nothing"});
+    var left=S.CLOCK_MAX-flags.clock;
+    if(left>0&&left<=2) pendingFx.push({k:"neg",ic:"⚠",t:"The pocket is nearly gone"});
+  }
+
+  function fxRow(){
+    if(!pendingFx.length) return "";
+    return '<div class="fxwrap" aria-live="polite">'+pendingFx.map(function(f,i){
+      return '<span class="fx '+f.k+'" style="animation-delay:'+(i*90)+'ms,'+(2400+i*90)+'ms">'
+        +'<span class="ic" aria-hidden="true">'+f.ic+'</span>'+esc(f.t)+'</span>';
+    }).join("")+'</div>';
   }
 
   var BEAT_NAMES={1:"The Call",2:"First Contact",3:"The Threshold",4:"The Obstacle",5:"The Cost Moment",6:"The Complication",7:"The Exit"};
@@ -253,18 +355,26 @@
     // stash the filtered choices so choose() uses the same list
     node._active=choices;
     app.innerHTML=hud()
+      +fxRow()
       +'<div class="card story fade">'
       +'<div class="beatlab">'+(BEAT_NAMES[node.beat]||"")+'</div>'
       +'<div class="prose">'+toParas(text)+'</div>'
       +'<div class="choices">'+btns+'</div>'
       +'</div>'
       +'<a class="backlab" href="/app.html#lab">← Give up and leave the Lab</a>';
+    // one-shot fx are consumed by the render above; clear so they don't replay
+    pendingFx=[]; fxPips=0; fxClock=false;
     window.scrollTo(0,0);
   }
 
   function choose(idx){
+    if(modalOpen) return;
     var ch=node._active[idx]; if(!ch) return;
+    var before={ reach:flags.reach, clock:flags.clock, intel:flags.intel,
+                 covered:flags.covered, thinned:flags.thinned, overreached:flags.overreached,
+                 steadied:flags.steadied, routeMarked:flags.routeMarked, siphonKnown:flags.siphonKnown };
     if(ch.effect) ch.effect(flags);
+    computeFx(before);
     go(ch.to);
   }
 
@@ -313,11 +423,15 @@
   // ---- expose ----
   window.RS={
     pickChar:pickChar, toggle:toggle, begin:begin, choose:choose,
-    chars:screenCharacters, replay:screenCompanions
+    chars:screenCharacters, replay:screenCompanions,
+    rules:openRules, closeRules:closeRules
   };
 
-  // keyboard 1-9 for choices
+  // keyboard: 1-9 picks a choice, H opens the rules, Escape closes them
   document.addEventListener("keydown",function(ev){
+    if(ev.key==="Escape"&&modalOpen){ closeRules(); return; }
+    if(modalOpen) return;
+    if((ev.key==="h"||ev.key==="H")&&flags){ openRules(); return; }
     if(node&&node._active){ var n=parseInt(ev.key,10); if(n>=1&&n<=node._active.length){ choose(n-1); } }
   });
 

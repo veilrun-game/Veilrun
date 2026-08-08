@@ -383,7 +383,7 @@
     setLocalBest(elapsed); localStorage.setItem("vr_up_done_"+lvId,"1");
     const earned=[];
     if(!localStorage.getItem("vr_up_clearpts_"+lvId)){ localStorage.setItem("vr_up_clearpts_"+lvId,"1"); awardPoints("clear",10,lvId); earned.push("+10 first clear"); }
-    else if(prevBest!=null && my<prevBest){ awardPoints("beat_pb",3,lvId); earned.push("+3 beat your best"); }
+    else if(prevBest!=null && my<prevBest && !localStorage.getItem("vr_up_pbpts_"+lvId)){ localStorage.setItem("vr_up_pbpts_"+lvId,"1"); awardPoints("beat_pb",3,lvId); earned.push("+3 beat your best"); }
     await saveScore(elapsed);
     if(my<prevRecord && prevRecordWho!==gwho()){ awardPoints("record",5,lvId); earned.push("🏆 +5 new record"); }
     const hasNext = curLevel+1 < LEVELS.length;

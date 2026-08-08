@@ -264,32 +264,59 @@ html { scroll-behavior: smooth; }
 .votebtn:active { transform: scale(0.94); }
 .votebtn.on { color: #140a16; background: var(--magenta); border-color: var(--magenta); font-weight: 600; }
 .votebtn .vc { font-variant-numeric: tabular-nums; }
-/* Playable-now block in the Lab: prototype card + its leaderboard side by side */
-.play-block { display: grid; grid-template-columns: 1fr; gap: var(--s-3); }
-@media (min-width: 760px) { .play-block { grid-template-columns: 1.1fr 1fr; align-items: start; } }
-.play-card, .play-board { padding: var(--s-4); }
-.play-actions { display: flex; flex-wrap: wrap; gap: 0.7rem; align-items: center; margin-top: 0.9rem; }
+/* ---------------------------------------------------------------------------
+   Lab · playable prototype card (full width)
+   One card per game. Reading order top-to-bottom is: what this is → configure
+   your run → how the crew did → play it. The config rail and the board sit in
+   the same bordered container so it reads as one object whose controls re-scope
+   the whole card, and the primary action lands at the end of that scan path.
+   --------------------------------------------------------------------------- */
+.play-full { padding: 0; overflow: hidden; }
+.pc-head { display: flex; gap: var(--s-4); align-items: flex-start; justify-content: space-between;
+  flex-wrap: wrap; padding: var(--s-5) var(--s-5) var(--s-4); border-bottom: 1px solid var(--line); }
+.pc-title { min-width: 0; flex: 1 1 320px; }
+.pc-head h3 { margin: 0.3rem 0 0.4rem; font-size: clamp(1.15rem, 2.4vw, 1.5rem); }
+.pc-desc { font-size: 0.9rem; max-width: 78ch; margin: 0; }
+.pc-head-act { flex: none; }
+.pc-body { display: grid; grid-template-columns: 1fr; gap: 0; }
+@media (min-width: 860px) { .pc-body { grid-template-columns: minmax(240px, 300px) 1fr; } }
+.pc-config { padding: var(--s-5); display: flex; flex-direction: column; gap: 0.7rem;
+  background: rgba(11, 8, 24, 0.35); border-bottom: 1px solid var(--line); }
+@media (min-width: 860px) { .pc-config { border-bottom: 0; border-right: 1px solid var(--line); } }
+.pc-rail-lab { font-family: var(--font-display); text-transform: uppercase; letter-spacing: var(--tracking);
+  font-size: 0.68rem; color: var(--mute); }
+.pc-field { display: flex; flex-direction: column; gap: 5px; }
+.pc-field > span { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mute); }
+/* A picker with a single option carries no decision — keep it visible for orientation
+   but recede it, so attention goes to the choices that actually branch (Hick's law). */
+.pc-field.solo { opacity: 0.55; }
+.pc-field.solo:focus-within { opacity: 1; }
+.pc-field .gb-sel { width: 100%; }
+/* "Where you stand" — the answer to "is this a level I need to better?" */
+.pc-you { margin-top: 0.3rem; padding-top: 0.8rem; border-top: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 2px; min-height: 62px; }
+.pc-you-lab { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mute); }
+.pc-you-v { font-family: var(--font-display); font-size: 1.15rem; color: var(--white); letter-spacing: 0.02em; }
+.pc-you-v.top { color: #e8c15a; }
+.pc-you-v.new { font-size: 0.92rem; color: var(--mute); }
+.pc-you-gap { font-size: 0.78rem; color: var(--mute); }
+.pc-board { padding: var(--s-5); min-width: 0; }
+.pc-scope { font-size: 0.78rem; }
+.pc-rows { margin-top: 0.6rem; min-height: 120px; }
+.pc-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4);
+  flex-wrap: wrap; padding: var(--s-4) var(--s-5); border-top: 1px solid var(--line);
+  background: rgba(11, 8, 24, 0.35); }
+.pc-launch { margin: 0; font-size: 0.82rem; }
+.pc-play { padding: 13px 28px; font-size: 1rem; margin-left: auto; }
+.pc-play.disabled { opacity: 0.45; pointer-events: none; }
+@media (max-width: 560px) { .pc-play { width: 100%; text-align: center; margin-left: 0; } }
 .play-board-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
-.gb-picks { display: flex; gap: 8px; flex-wrap: wrap; }
-.gb-picks-col { display: flex; flex-direction: column; gap: 8px; margin-top: 0.5rem; }
-.gb-picks-col .gb-sel { width: 100%; }
-/* Desktop: sit the pickers in a row when there's room; stack on mobile. */
-@media (min-width: 900px) {
-  .gb-picks-col { flex-direction: row; flex-wrap: wrap; }
-  .gb-picks-col .gb-sel { flex: 1 1 150px; width: auto; }
-}
 .gb-sel { appearance: none; -webkit-appearance: none; background-color: var(--ink-2);
   background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="8" viewBox="0 0 12 8" fill="none" stroke="%239692ac" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l5 5 5-5"/></svg>');
   background-repeat: no-repeat; background-position: right 12px center;
   color: var(--white); border: 1px solid var(--line); border-radius: 8px; padding: 11px 36px 11px 14px; font-size: 0.9rem; min-height: 44px; }
-.combo-modal { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; background: rgba(6,4,12,0.7); backdrop-filter: blur(3px); padding: 1rem; }
-.combo-sheet { background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--s-6); width: 100%; max-width: 360px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 0.6rem; }
-.combo-opt { display: flex; flex-direction: column; gap: 2px; text-decoration: none; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 0.8rem 1rem; background: var(--ink); transition: border-color .15s, background .15s; }
-.combo-opt:hover { border-color: var(--magenta); background: rgba(214,92,220,0.08); }
-.combo-lbl { color: var(--white); font-weight: 600; font-size: 1rem; }
-.combo-sub { color: var(--mute); font-size: 0.8rem; }
-.combo-cancel { margin-top: 0.2rem; background: none; border: none; color: var(--mute); font-family: var(--font-body); font-size: 0.85rem; cursor: pointer; padding: 6px; }
-.combo-cancel:hover { color: var(--white); }
+/* (The "choose your characters" modal was retired when the prototype card gained its
+   own config rail — the card's selects are now the only way to pick a run.) */
 .gb-row { display: flex; justify-content: space-between; gap: 10px; padding: 6px 8px; border-radius: 6px; font-size: 0.9rem; }
 .gb-row.me { background: rgba(232,193,90,0.14); }
 .gb-t { font-variant-numeric: tabular-nums; color: #e8c15a; font-weight: 600; }
