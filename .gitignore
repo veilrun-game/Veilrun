@@ -1,0 +1,57 @@
+# VEILRUN — things that should never land in the repo.
+# Keep this tight: the site is deployed straight from git, so anything ignored
+# here is also absent from the live build.
+
+# --- macOS / Finder noise ---
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+
+# --- Windows noise (in case anyone else clones) ---
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# --- FUSE tombstones ---
+# Created when a mounted process holds a file open while something else rewrites
+# it (agent sessions working in this repo). Empty artifacts, never content.
+.fuse_hidden*
+
+# --- Editor / tooling ---
+.vscode/
+.idea/
+*.swp
+*~
+.claude/settings.local.json
+
+# --- Local dev servers & scratch ---
+# Local-only helper scripts (e.g. a python http.server launcher for playtesting
+# the 3D builds). Keep these OUTSIDE the repo where possible.
+_serve.command
+*.local.command
+/scratch/
+/tmp/
+
+# --- Secrets ---
+# The Supabase anon/publishable key is browser-safe and lives in js/config.js on
+# purpose. The service_role key must NEVER be committed, in any form.
+.env
+.env.*
+!.env.example
+*.pem
+*secret*
+*service_role*
+
+# --- Dependencies / build output ---
+# There is no build step today (every game is a standalone single file), but if
+# one is ever added this stops the output being committed by accident.
+node_modules/
+dist/
+build/
+.cache/
+*.log
+npm-debug.log*
