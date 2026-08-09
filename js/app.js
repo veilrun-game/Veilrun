@@ -863,11 +863,9 @@ window.VApp = (function () {
   // Some game modes score by points (higher = better), not time (lower = better).
   // The value is still stored in the game_scores.time_ms column; only the ranking/format differs.
   function scoreKindOf(gameId) {
-    const modes = D.modes || [];
-    for (const m of modes) {
-      const t = m.boardTree; if (!t) continue;
-      for (const v of t) for (const c of v.combos) for (const l of c.levels) if (l.id === gameId) return m.scoreKind || "time";
-      if (m.combos && m.combos.some(c => c.id === gameId)) return m.scoreKind || "time";
+    for (const g of (D.games || [])) {
+      for (const v of g.versions) for (const c of v.combos) for (const l of c.levels) if (l.id === gameId) return g.scoreKind || "time";
+      if (g.id === gameId) return g.scoreKind || "time";
     }
     return "time";
   }
@@ -901,7 +899,30 @@ window.VApp = (function () {
     el.innerHTML = board.slice(0, 8).map((s, i) => `<div class="gb-row${s.who === me ? " me" : ""}"><span>${i + 1}. ${C.esc(s.who)}${s.who === me ? " (you)" : ""}</span><span class="gb-t">${fmt(s.ms)}</span></div>`).join("");
   }
   // ---- Leaderboard nav: Version → Combo → Level (dependent dropdowns) ----
-  function boardTreeOf(modeId) { const m = (D.modes || []).find(x => x.id === modeId); return m && m.boardTree; }
+  // Reads VEILRUN.games — the single manifest (VR-94). `versions` is what used to be
+  // `boardTree`; the combo now carries its own play path and levels, stated once.
+  const gameOf = (id) => (D.games || []).find(x => x.id === id);
+  function boardTreeOf(gameId) { const g = gameOf(gameId); return g && g.versions; }
+  // Controls are per-version (v2 rebound everything). A version without its own list
+  // inherits the first version that has one — v0 legacy plays like v1.
+  function controlsFor(g, ver) {
+    if (ver && ver.controls) return ver.controls;
+    const withControls = (g.versions || []).find(v => v.controls);
+    return (withControls && withControls.controls) || [];
+  }
+  /* The selection is passed INTO the game by URL param (VR-94): the site owns the
+     choice, the game reads it and skips its own picker. Games that haven't been
+     migrated yet ignore these and fall back to their internal picker, which is what
+     makes a one-game-at-a-time migration safe. */
+  function playHref(ver, combo, level) {
+    if (!combo || !combo.play) return "";
+    const q = [];
+    if (combo.char) q.push("char=" + encodeURIComponent(combo.char));
+    if (combo.crew && combo.crew.length) q.push("crew=" + encodeURIComponent(combo.crew.join(",")));
+    if (level) q.push("level=" + encodeURIComponent(level.id));
+    if (ver) q.push("v=" + encodeURIComponent(ver.id));
+    return combo.play + (q.length ? "?" + q.join("&") : "");
+  }
   function gbIdx(id) { const el = document.getElementById(id); return el ? el.selectedIndex : 0; }
   // The card's current (version, combo, level) selection — the one source of truth
   // that the board, the "where you stand" line, and the Play button all read from.
@@ -922,8 +943,7 @@ window.VApp = (function () {
     const cap = document.getElementById("gblaunch-" + modeId);
     const scope = document.getElementById("gbscope-" + modeId);
     const tree = boardTreeOf(modeId) || [];
-    const fallback = (((D.modes || []).find(x => x.id === modeId) || {}).combos || [])[0];
-    const href = sel.combo.play || (fallback && fallback.play);
+    const href = playHref(sel.ver, sel.combo, sel.combo.levels.length > 1 ? sel.level : null);
     if (btn) {
       if (href) { btn.setAttribute("href", href); btn.classList.remove("disabled"); btn.removeAttribute("aria-disabled"); }
       else { btn.setAttribute("href", "#"); btn.classList.add("disabled"); btn.setAttribute("aria-disabled", "true"); }
@@ -959,17 +979,25 @@ window.VApp = (function () {
     }
     fillLevelSel(modeId);
   }
-  function gameBoardVer(modeId) { fillComboSel(modeId); }        // version changed → rebuild combo + level
-  function gameBoardCombo(modeId) { fillLevelSel(modeId); }      // combo changed → rebuild level
-  function gameBoardLevel(modeId, gameId) { syncPlay(modeId); loadBoardInto("gboard-" + modeId, gameId, modeId); }
-  // Fill each playable prototype's default board + Play target on Lab render.
-  async function renderGameBoards() {
-    const playable = (D.modes || []).filter(m => m.combos && m.combos.length);
-    for (const m of playable) {
-      const t = m.boardTree;
-      const first = (t && t[0] && t[0].combos[0] && t[0].combos[0].levels[0] && t[0].combos[0].levels[0].id) || m.id;
-      syncPlay(m.id);
-      loadBoardInto("gboard-" + m.id, first, m.id);
+  function gameBoardVer(gameId) { fillComboSel(gameId); syncControls(gameId); } // version → rebuild combo + level + controls
+  function gameBoardCombo(gameId) { fillLevelSel(gameId); }      // combo changed → rebuild level
+  function gameBoardLevel(gameId, levelId) { syncPlay(gameId); loadBoardInto("gboard-" + gameId, levelId, gameId); }
+  // The controls list belongs to the selected version, so it has to follow the dropdown.
+  function syncControls(gameId) {
+    const el = document.getElementById("gbcontrols-" + gameId); if (!el) return;
+    const g = gameOf(gameId); const tree = boardTreeOf(gameId) || [];
+    const ver = tree[gbIdx("gbver-" + gameId)];
+    el.innerHTML = controlsRows(g, ver);
+  }
+  const controlsRows = (g, ver) => controlsFor(g, ver).map(([keys, does]) =>
+    `<div class="kit-row"><span class="name" style="min-width:11rem;display:inline-block">${C.esc(keys)}</span><div class="mute">${C.esc(does)}</div></div>`).join("");
+  // Fill a playable game's default board + Play target once its card is in the DOM.
+  async function renderGameBoards(only) {
+    const list = only ? [gameOf(only)].filter(Boolean) : (D.games || []);
+    for (const g of list) {
+      const first = (g.versions[0] && g.versions[0].combos[0] && g.versions[0].combos[0].levels[0] || {}).id || g.id;
+      syncPlay(g.id);
+      loadBoardInto("gboard-" + g.id, first, g.id);
     }
   }
   function labVote(poll) {
