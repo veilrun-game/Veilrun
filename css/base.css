@@ -271,6 +271,29 @@ html { scroll-behavior: smooth; }
    the same bordered container so it reads as one object whose controls re-scope
    the whole card, and the primary action lands at the end of that scan path.
    --------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------------
+   Games index card. Art is the first thing read, so it has to be uniform —
+   every card locks to the same 16:9 box and crops overflow rather than letting
+   a portrait render three times taller than a landscape and blow the row's
+   height out. The body is deliberately short: pill + counts, name, two lines of
+   description, one action. Everything else lives on the game page.
+   --------------------------------------------------------------------------- */
+.gamecard { padding: 0; overflow: hidden; cursor: pointer; display: flex; flex-direction: column;
+  transition: border-color 0.15s ease, transform 0.12s ease; }
+.gamecard:hover { border-color: var(--magenta); transform: translateY(-2px); }
+.gamecard-img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; object-position: center;
+  border-bottom: 1px solid var(--line); }
+.gamecard-body { padding: var(--s-4) var(--s-4) var(--s-5); display: flex; flex-direction: column; gap: 0.4rem; }
+.gamecard-top { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
+.gamecard-meta { font-size: 0.74rem; }
+.gamecard h3 { margin: 0; font-size: 1.05rem; }
+/* Two lines, always — so the row can't be dragged tall by the wordiest pitch. */
+.gamecard-desc { margin: 0; font-size: 0.88rem; display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden; }
+.gamecard-go { margin-top: 0.2rem; font-family: var(--font-display); text-transform: uppercase;
+  letter-spacing: 0.06em; font-size: 0.8rem; color: var(--magenta); }
+.gamecard:hover .gamecard-go { color: var(--white); }
+
 .play-full { padding: 0; overflow: hidden; }
 .pc-head { display: flex; gap: var(--s-4); align-items: flex-start; justify-content: space-between;
   flex-wrap: wrap; padding: var(--s-5) var(--s-5) var(--s-4); border-bottom: 1px solid var(--line); }
@@ -278,11 +301,15 @@ html { scroll-behavior: smooth; }
 .pc-head h3 { margin: 0.3rem 0 0.4rem; font-size: clamp(1.15rem, 2.4vw, 1.5rem); }
 .pc-desc { font-size: 0.9rem; max-width: 78ch; margin: 0; }
 .pc-head-act { flex: none; }
+/* Board first, pickers second. The board is the thing you came to read — the
+   pickers are the control you reach for once you've seen where you stand. On
+   mobile the grid collapses and source order puts the board on top, which is
+   the same priority. */
 .pc-body { display: grid; grid-template-columns: 1fr; gap: 0; }
-@media (min-width: 860px) { .pc-body { grid-template-columns: minmax(240px, 300px) 1fr; } }
+@media (min-width: 860px) { .pc-body { grid-template-columns: minmax(0, 1fr) minmax(230px, 280px); } }
 .pc-config { padding: var(--s-5); display: flex; flex-direction: column; gap: 0.7rem;
-  background: rgba(11, 8, 24, 0.35); border-bottom: 1px solid var(--line); }
-@media (min-width: 860px) { .pc-config { border-bottom: 0; border-right: 1px solid var(--line); } }
+  background: rgba(11, 8, 24, 0.35); border-top: 1px solid var(--line); }
+@media (min-width: 860px) { .pc-config { border-top: 0; border-left: 1px solid var(--line); } }
 .pc-rail-lab { font-family: var(--font-display); text-transform: uppercase; letter-spacing: var(--tracking);
   font-size: 0.68rem; color: var(--mute); }
 .pc-field { display: flex; flex-direction: column; gap: 5px; }
@@ -292,15 +319,14 @@ html { scroll-behavior: smooth; }
 .pc-field.solo { opacity: 0.55; }
 .pc-field.solo:focus-within { opacity: 1; }
 .pc-field .gb-sel { width: 100%; }
-/* "Where you stand" — the answer to "is this a level I need to better?" */
-.pc-you { margin-top: 0.3rem; padding-top: 0.8rem; border-top: 1px solid var(--line);
-  display: flex; flex-direction: column; gap: 2px; min-height: 62px; }
-.pc-you-lab { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mute); }
-.pc-you-v { font-family: var(--font-display); font-size: 1.15rem; color: var(--white); letter-spacing: 0.02em; }
-.pc-you-v.top { color: #e8c15a; }
-.pc-you-v.new { font-size: 0.92rem; color: var(--mute); }
-.pc-you-gap { font-size: 0.78rem; color: var(--mute); }
+/* The old "Where you stand" rail is gone — your row is already highlighted in the
+   board, so it was saying the same thing twice. The one fact it carried that the
+   board doesn't is the gap to the lead, which now rides on the highlighted row. */
 .pc-board { padding: var(--s-5); min-width: 0; }
+/* A leaderboard is a short list of names and numbers; letting it run the full
+   width of a desktop panel strands the times miles from the names. */
+.pc-rows, .play-board-head { max-width: 34rem; }
+.gb-row .gb-gap { color: var(--mute); font-size: 0.78rem; margin-left: 0.5rem; }
 .pc-scope { font-size: 0.78rem; }
 .pc-rows { margin-top: 0.6rem; min-height: 120px; }
 .pc-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4);

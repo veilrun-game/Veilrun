@@ -349,7 +349,7 @@ VEILRUN.synergy = {
    VEILRUN.modes below. --------------------------------------------------- */
 VEILRUN.games = [
   { id: "pair-levels", name: "2D Pair Levels", status: "prototyping", chars: "Pairs", scoreKind: "time",
-    art: "assets/world/gameplay-views/01.webp",
+    art: "assets/world/gameplay-views/02.webp",
     short: "Levels only clearable with a specific pair's combo — the purest test of the synergy rule.",
     text: "Levels only clearable with a specific pair's combo — the purest synergy test. Choose your characters, then run their levels: Anvil + Latch (flip the world & charge through walls) or Cinder + Vesper (stealth — cloak, gas, and the Dose combo).",
     howToPlay: [
@@ -409,7 +409,7 @@ VEILRUN.games = [
     ] },
 
   { id: "story-cyoa", name: "Story Chapters (Choose-Your-Adventure)", status: "prototyping", chars: "Solo lead + 0\u20132 crew", scoreKind: "points",
-    art: "assets/img/rook.webp",
+    art: "assets/img/seam.webp",
     short: "Branching single-character chapters. Who you bring decides which routes exist at all.",
     text: "Single-character branching stories, Lifeline/Reigns-style. You guide a lead through one self-contained chapter; who you bring and the calls you make decide how it ends — many ways to win, many ways to fail. Chapter 1: Rook Signal (guide the crew through a thinning pocket to reach Wren). More characters coming.",
     howToPlay: [
@@ -434,7 +434,7 @@ VEILRUN.games = [
     ] },
 
   { id: "arena-3d", name: "Proving Ground (3D wave arena)", status: "prototyping", chars: "Solo \u2014 one crew member per run", scoreKind: "points",
-    art: "assets/img/vesper.webp",
+    art: "assets/world/gameplay-views/04.webp",
     short: "The first 3D game on the site \u2014 endless waves in a walled pit, and the first real answer to how a character FEELS.",
     text: "The first 3D game on the site \u2014 and the first real look at how one character FEELS to control. Drop into a walled pit in the Underweft, pick a crew member, and survive endless waves of husks coming through tears in the seam. Vesper is playable now: a three-hit blade chain, a two-charge Veilstep blink, and Execute \u2014 a finisher that kills anything already wounded, refunds a blink, and thins the floor where it lands. Stand perfectly still and the Shroud takes you: they lose track of you, and your next strike kills outright. Endless, with a named milestone wave every five.",
     howToPlay: [

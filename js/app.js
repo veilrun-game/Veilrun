@@ -419,13 +419,14 @@ window.VApp = (function () {
         const vers = g.versions.length;
         const bits = [`${combos} ${combos === 1 ? "line-up" : "line-ups"}`, `${levels} ${levels === 1 ? "level" : "levels"}`];
         if (vers > 1) bits.push(`${vers} versions`);
-        return `<div class="panel modecard" style="cursor:pointer" onclick="location.hash='#games/${C.esc(g.id)}'">
-          ${g.art ? `<img class="card-img" src="${C.esc(g.art)}" alt="${C.esc(g.name)}" loading="lazy" style="border-radius:10px;margin-bottom:.8rem" />` : ""}
-          <div class="modecard-top">${C.statusPill(g.status)}</div>
-          <h3 style="margin:.5rem 0 .35rem">${C.esc(g.name)}</h3>
-          <p class="mute">${C.esc(g.short || g.text)}</p>
-          <p class="mute" style="font-size:.8rem;margin-top:.6rem">${C.esc(bits.join(" · "))} · ${C.esc(g.chars)}</p>
-          <div style="margin-top:.9rem"><span class="btn" style="width:100%;text-align:center;padding:12px">Open ${C.esc(g.name.split(" (")[0])} →</span></div>
+        return `<div class="panel gamecard" onclick="location.hash='#games/${C.esc(g.id)}'">
+          ${g.art ? `<img class="gamecard-img" src="${C.esc(g.art)}" alt="${C.esc(g.name)}" loading="lazy" />` : ""}
+          <div class="gamecard-body">
+            <div class="gamecard-top">${C.statusPill(g.status)}<span class="mute gamecard-meta">${C.esc(bits.join(" · "))}</span></div>
+            <h3>${C.esc(g.name)}</h3>
+            <p class="mute gamecard-desc">${C.esc(g.short || g.text)}</p>
+            <span class="gamecard-go">Open ${C.esc(g.name.split(" (")[0])} →</span>
+          </div>
         </div>`;
       }).join("");
       return `<div class="wrap section">
@@ -900,21 +901,15 @@ window.VApp = (function () {
     const board = Object.entries(best).map(([who, ms]) => ({ who, ms })).sort((a, b) => kind === "points" ? b.ms - a.ms : a.ms - b.ms);
     const me = myWho();
     const fmt = v => kind === "points" ? `${Math.round(v)} pts` : fmtTime(v);
-    if (gameId) {
-      const you = document.getElementById("gbyou-" + gameId);
-      if (you) {
-        const rank = board.findIndex(s => s.who === me);
-        if (!board.length) you.innerHTML = `<span class="pc-you-lab">Where you stand</span><span class="pc-you-v new">Nobody has run this yet</span>`;
-        else if (rank === -1) you.innerHTML = `<span class="pc-you-lab">Where you stand</span><span class="pc-you-v new">You haven't run this one</span>`;
-        else you.innerHTML = `<span class="pc-you-lab">Where you stand</span>`
-          + `<span class="pc-you-v${rank === 0 ? " top" : ""}">#${rank + 1} of ${board.length} · ${fmt(board[rank].ms)}</span>`
-          + (rank > 0 ? `<span class="pc-you-gap">${kind === "points"
-              ? `${Math.round(board[0].ms - board[rank].ms)} pts off the lead`
-              : `${((board[rank].ms - board[0].ms) / 1000).toFixed(1)}s off the lead`}</span>` : `<span class="pc-you-gap">You hold this one</span>`);
-      }
-    }
     if (!board.length) { const empty = kind === "points" ? "No runs on this one yet — be the first to post a score." : "No runs on this one yet — be the first to post a time."; el.innerHTML = `<p class="mute" style="font-size:.85rem">${empty}</p>`; return; }
-    el.innerHTML = board.slice(0, 8).map((s, i) => `<div class="gb-row${s.who === me ? " me" : ""}"><span>${i + 1}. ${C.esc(s.who)}${s.who === me ? " (you)" : ""}</span><span class="gb-t">${fmt(s.ms)}</span></div>`).join("");
+    // Your row is the highlight, so it also carries the one thing the ranking alone
+    // doesn't answer: how far off the lead you are — i.e. is this worth another run.
+    const gapFor = (s, i) => {
+      if (s.who !== me || i === 0) return "";
+      const d = kind === "points" ? board[0].ms - s.ms : s.ms - board[0].ms;
+      return `<span class="gb-gap">${kind === "points" ? Math.round(d) + " pts off" : (d / 1000).toFixed(1) + "s off"}</span>`;
+    };
+    el.innerHTML = board.slice(0, 8).map((s, i) => `<div class="gb-row${s.who === me ? " me" : ""}"><span>${i + 1}. ${C.esc(s.who)}${s.who === me ? " (you)" : ""}${gapFor(s, i)}</span><span class="gb-t">${fmt(s.ms)}</span></div>`).join("");
   }
   // ---- Leaderboard nav: Version → Combo → Level (dependent dropdowns) ----
   // Reads VEILRUN.games — the single manifest (VR-94). `versions` is what used to be
@@ -1035,6 +1030,13 @@ window.VApp = (function () {
           <div class="pc-head-act">${C.feedbackButton("Game: " + g.name)}</div>
         </div>
         <div class="pc-body">
+          <div class="pc-board">
+            <div class="play-board-head">
+              <div class="eyebrow" style="margin:0">${g.scoreKind === "points" ? "Best scores · the crew" : "Best times · the crew"}</div>
+              <span class="pc-scope mute" id="gbscope-${id}"></span>
+            </div>
+            <div id="gboard-${id}" class="pc-rows"><p class="mute" style="font-size:.85rem">Loading…</p></div>
+          </div>
           <div class="pc-config">
             <div class="pc-rail-lab">Pick a run</div>
             ${tree.length ? `
@@ -1044,14 +1046,6 @@ window.VApp = (function () {
                 <select class="gb-sel" id="gbcombo-${id}" onchange="VApp.gameBoardCombo('${id}')">${comboOpts}</select></label>
               <label class="pc-field${multiLvl ? "" : " solo"}"><span>Level</span>
                 <select class="gb-sel" id="gblvl-${id}" onchange="VApp.gameBoardLevel('${id}', this.value)">${lvlOpts}</select></label>` : ""}
-            <div class="pc-you" id="gbyou-${id}"></div>
-          </div>
-          <div class="pc-board">
-            <div class="play-board-head">
-              <div class="eyebrow" style="margin:0">${g.scoreKind === "points" ? "Best scores · the crew" : "Best times · the crew"}</div>
-              <span class="pc-scope mute" id="gbscope-${id}"></span>
-            </div>
-            <div id="gboard-${id}" class="pc-rows"><p class="mute" style="font-size:.85rem">Loading…</p></div>
           </div>
         </div>
         <div class="pc-foot">
