@@ -37,7 +37,13 @@
         </div>
       </div>
       <a data-route href="#gallery">Gallery</a>
-      <a data-route href="#lab">Lab</a>
+      <div class="navdrop" id="navdrop-lab">
+        <a class="navdrop-btn" data-route href="#lab" aria-haspopup="true">Lab <span class="caret" aria-hidden="true"></span></a>
+        <div class="navdrop-menu">
+          <a data-route href="#lab">The Lab</a>
+          <a data-route href="#games">Games</a>
+        </div>
+      </div>
     </div>
     <!-- Ever-present CTA. Swap this to Discord / Play when the site opens up more broadly. -->
     <button class="btn nav-fb" onclick="VApp.feedback()">

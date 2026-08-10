@@ -30,6 +30,7 @@ window.VApp = (function () {
         ["#threats","Threats","The Severant and the roster."],
         ["#synergy","Synergy","The matrix + combo builder."],
         ["#gallery","Gallery","Every concept image, by category."],
+        ["#games","Games","Everything playable — versions, levels, leaderboards."],
         ["#lab","The Lab","Game ideas, votes, and experiments."]
       ].map(([h,k,d]) => `<a href="${h}"><div class="k">${k}</div><div class="d">${C.esc(d)}</div></a>`).join("");
       const latest = D.updates[0];
@@ -377,61 +378,24 @@ window.VApp = (function () {
     },
 
     lab() {
-      const playable = (D.modes || []).filter(m => m.combos && m.combos.length);
-      const ideas = (D.modes || []).filter(m => !(m.combos && m.combos.length));
-      /* Full-width prototype card. One card = one game. The three selects at the top of
-         the config rail are the card's single control surface: changing any of them
-         re-scopes BOTH the leaderboard and the Play button, so there is never a second,
-         contradictory way to choose what you're about to launch (the old modal). Play sits
-         bottom-right, after the board — the last thing you read is the thing you press. */
-      const playBlocks = playable.map(m => {
-        const tree = m.boardTree || [];
-        const v0 = tree[0], c0 = v0 && v0.combos[0];
-        const verOpts = tree.map((v, i) => `<option value="${i}">${C.esc(v.label)}</option>`).join("");
-        const comboOpts = v0 ? v0.combos.map((c, i) => `<option value="${i}">${C.esc(c.label)}</option>`).join("") : "";
-        const lvlOpts = c0 ? c0.levels.map(l => `<option value="${C.esc(l.id)}">${C.esc(l.label)}</option>`).join("") : "";
-        const multiVer = tree.length > 1;
-        const multiCombo = v0 && v0.combos.length > 1;
-        const multiLvl = c0 && c0.levels.length > 1;
-        const id = C.esc(m.id);
-        return `
-        <div class="panel play-full" id="playcard-${id}">
-          <div class="pc-head">
-            <div class="pc-title">
-              <div class="eyebrow">Playable prototype${m.version ? " · " + C.esc(m.version) : ""}</div>
-              <h3>${C.esc(m.name)}</h3>
-              <p class="mute pc-desc">${C.esc(m.text)}</p>
+      const ideas = D.modes || [];
+      /* VR-94: the Lab is the ideas board again. Everything playable moved to #games,
+         and the Lab keeps ONE compact section pointing at it — a summary and a button,
+         not a second copy of the game cards. */
+      const nPlay = (D.games || []).length;
+      const nLevels = (D.games || []).reduce((n, g) =>
+        n + g.versions.reduce((m, v) => m + v.combos.reduce((k, c) => k + c.levels.length, 0), 0), 0);
+      const playSection = nPlay ? `
+        <div class="panel" style="margin-top:1.5rem;border-color:var(--magenta)">
+          <div class="dash-head" style="margin-top:0">
+            <div>
+              <div class="eyebrow">Playable now</div>
+              <h3 style="margin:.3rem 0 .4rem">${nPlay} game${nPlay === 1 ? "" : "s"}, ${nLevels} levels, live leaderboards</h3>
+              <p class="mute" style="font-size:.9rem;margin:0;max-width:58ch">The prototypes have their own home now — pick a game to get its versions, levels, controls and board in one place.</p>
             </div>
-            <div class="pc-head-act">${C.feedbackButton("Mode: " + m.name)}</div>
+            <a class="btn" href="#games">View playable games →</a>
           </div>
-          <div class="pc-body">
-            <div class="pc-config">
-              <div class="pc-rail-lab">Choose your run</div>
-              ${tree.length ? `
-                <label class="pc-field${multiVer ? "" : " solo"}"><span>Version</span>
-                  <select class="gb-sel" id="gbver-${id}" onchange="VApp.gameBoardVer('${id}')">${verOpts}</select></label>
-                <label class="pc-field${multiCombo ? "" : " solo"}"><span>Characters</span>
-                  <select class="gb-sel" id="gbcombo-${id}" onchange="VApp.gameBoardCombo('${id}')">${comboOpts}</select></label>
-                <label class="pc-field${multiLvl ? "" : " solo"}"><span>Level</span>
-                  <select class="gb-sel" id="gblvl-${id}" onchange="VApp.gameBoardLevel('${id}', this.value)">${lvlOpts}</select></label>` : ""}
-              <div class="pc-you" id="gbyou-${id}"></div>
-            </div>
-            <div class="pc-board">
-              <div class="play-board-head">
-                <div class="eyebrow" style="margin:0">${m.scoreKind === "points" ? "Best scores · the crew" : "Best times · the crew"}</div>
-                <span class="pc-scope mute" id="gbscope-${id}"></span>
-              </div>
-              <div id="gboard-${id}" class="pc-rows"><p class="mute" style="font-size:.85rem">Loading…</p></div>
-            </div>
-          </div>
-          <div class="pc-foot">
-            <p class="mute pc-launch" id="gblaunch-${id}"></p>
-            <a class="btn pc-play" id="gbplay-${id}" href="#">▶ Play</a>
-          </div>
-        </div>`; }).join("");
-      const playSection = playable.length ? `
-        <div class="dash-head" style="margin-top:1.5rem"><h2 style="margin:0">▶ Playable now</h2><span class="mute" style="font-size:.85rem">pick a run, see the board, jump in</span></div>
-        <div style="margin-top:1rem;display:flex;flex-direction:column;gap:var(--s-6)">${playBlocks}</div>` : "";
+        </div>` : "";
       const cta = `<div class="panel cta-card" onclick="VApp.feedback('New mode idea','idea')">
         <div class="eyebrow">Your turn</div>
         <h3 style="margin:.3rem 0">＋ Pitch a game mode</h3>
@@ -440,10 +404,64 @@ window.VApp = (function () {
       const cards = ideas.map(C.modeCard).join("");
       return `<div class="wrap section">
         ${C.sectionHeader("The Lab","Game ideas, votes & experiments")}
-        <p class="mute" style="max-width:62ch;margin-top:1rem">Playable prototypes up top — jump in and race the leaderboard. Every other concept is below: vote, react, and pitch your own.</p>
+        <p class="mute" style="max-width:62ch;margin-top:1rem">This is the idea board: every concept for how Veilrun could play. Vote the ones you want, react, and pitch your own.</p>
         ${playSection}
-        <div class="dash-head" style="margin-top:2rem"><h2 style="margin:0">Ideas &amp; experiments</h2></div>
+        <div class="dash-head" style="margin-top:2rem"><h2 style="margin:0">Ideas &amp; experiments</h2><span class="mute" style="font-size:.85rem">${ideas.length} concepts</span></div>
         <div class="grid cols-3" style="margin-top:1rem">${cta}${cards}</div>
+      </div>`;
+    },
+
+    /* ---- Games index: high-level browse of everything playable (VR-94) ---- */
+    games() {
+      const cards = (D.games || []).map(g => {
+        const levels = g.versions.reduce((m, v) => m + v.combos.reduce((k, c) => k + c.levels.length, 0), 0);
+        const combos = g.versions[0].combos.length;
+        const vers = g.versions.length;
+        const bits = [`${combos} ${combos === 1 ? "line-up" : "line-ups"}`, `${levels} ${levels === 1 ? "level" : "levels"}`];
+        if (vers > 1) bits.push(`${vers} versions`);
+        return `<div class="panel modecard" style="cursor:pointer" onclick="location.hash='#games/${C.esc(g.id)}'">
+          ${g.art ? `<img class="card-img" src="${C.esc(g.art)}" alt="${C.esc(g.name)}" loading="lazy" style="border-radius:10px;margin-bottom:.8rem" />` : ""}
+          <div class="modecard-top">${C.statusPill(g.status)}</div>
+          <h3 style="margin:.5rem 0 .35rem">${C.esc(g.name)}</h3>
+          <p class="mute">${C.esc(g.short || g.text)}</p>
+          <p class="mute" style="font-size:.8rem;margin-top:.6rem">${C.esc(bits.join(" · "))} · ${C.esc(g.chars)}</p>
+          <div style="margin-top:.9rem"><span class="btn" style="width:100%;text-align:center;padding:12px">Open ${C.esc(g.name.split(" (")[0])} →</span></div>
+        </div>`;
+      }).join("");
+      return `<div class="wrap section">
+        ${C.sectionHeader("Playable","Games")}
+        <p class="mute" style="max-width:62ch;margin-top:1rem">Everything you can actually play right now. Open one for its versions, levels, controls, leaderboard and changelog. Ideas that aren't built yet live in <a href="#lab">the Lab</a>.</p>
+        <div class="grid cols-3" style="margin-top:1.5rem">${cards}</div>
+      </div>`;
+    },
+
+    /* ---- One game: choose a run + board up top, then art, rules, controls, log ---- */
+    game(id) {
+      const g = gameOf(id);
+      if (!g) return stub("Games", "That game isn't in the manifest.");
+      const changelog = (D.updates || []).filter(u => (u.games || []).indexOf(g.id) > -1);
+      const logRows = changelog.map(u => { const p = updParts(u); return `<div class="kit-row"><span class="mute" style="font-size:.8rem">${C.esc(u.date)}</span><div><strong style="color:var(--white)">${C.esc(p.title)}</strong>${p.body ? `<br><span class="mute">${C.esc(p.body)}</span>` : ""}</div></div>`; }).join("");
+      const how = (g.howToPlay || []).map(t => `<li style="margin-bottom:.55rem">${C.esc(t)}</li>`).join("");
+      return `<div class="wrap section">
+        <p class="eyebrow"><a href="#games" style="color:inherit">← Games</a></p>
+        <h1 class="display">${C.esc(g.name)}</h1>
+        <p class="mute" style="max-width:64ch;margin-top:1rem">${C.esc(g.text)}</p>
+        ${playCard(g)}
+        <div class="grid cols-2" style="margin-top:2rem;align-items:start">
+          <div class="panel">
+            <div class="eyebrow">How to play</div>
+            <ol class="mute" style="margin:.8rem 0 0;padding-left:1.1rem">${how || "<li>Coming soon.</li>"}</ol>
+          </div>
+          <div class="panel">
+            <div class="eyebrow">Controls</div>
+            <div id="gbcontrols-${C.esc(g.id)}" style="margin-top:.6rem">${controlsRows(g, g.versions[0])}</div>
+          </div>
+        </div>
+        ${g.art ? `<div class="panel" style="margin-top:1.5rem;padding:0;overflow:hidden">
+          <img src="${C.esc(g.art)}" alt="${C.esc(g.name)} key art" loading="lazy" style="display:block;width:100%;height:auto" />
+        </div>` : ""}
+        <div class="dash-head" style="margin-top:2rem"><h2 style="margin:0">Changelog</h2><span class="mute" style="font-size:.85rem">${changelog.length} update${changelog.length === 1 ? "" : "s"}</span></div>
+        <div class="panel" style="margin-top:1rem">${logRows || `<p class="mute" style="font-size:.85rem;margin:0">Nothing logged for this one yet.</p>`}</div>
       </div>`;
     },
 
@@ -870,20 +888,20 @@ window.VApp = (function () {
     return "time";
   }
   // Load one leaderboard (best run per person) for a game_id into a container.
-  // modeId is optional: when present we also fill that card's "where you stand" line,
+  // gameId (the manifest id) is optional: when present we also fill that card's "where you stand" line,
   // which is the whole point of the level picker — knowing if this is one worth re-running.
-  async function loadBoardInto(containerId, gameId, modeId) {
+  async function loadBoardInto(containerId, levelId, gameId) {
     if (!window.VBackend || !window.VBackend.loadGameScores) return;
     const el = document.getElementById(containerId); if (!el) return;
-    const kind = scoreKindOf(gameId);
-    const rows = await window.VBackend.loadGameScores(gameId);
+    const kind = scoreKindOf(levelId);
+    const rows = await window.VBackend.loadGameScores(levelId);
     const better = (a, b) => kind === "points" ? a > b : a < b; // keep the "better" value per person
     const best = {}; (rows || []).forEach(r => { if (best[r.who] == null || better(r.time_ms, best[r.who])) best[r.who] = r.time_ms; });
     const board = Object.entries(best).map(([who, ms]) => ({ who, ms })).sort((a, b) => kind === "points" ? b.ms - a.ms : a.ms - b.ms);
     const me = myWho();
     const fmt = v => kind === "points" ? `${Math.round(v)} pts` : fmtTime(v);
-    if (modeId) {
-      const you = document.getElementById("gbyou-" + modeId);
+    if (gameId) {
+      const you = document.getElementById("gbyou-" + gameId);
       if (you) {
         const rank = board.findIndex(s => s.who === me);
         if (!board.length) you.innerHTML = `<span class="pc-you-lab">Where you stand</span><span class="pc-you-v new">Nobody has run this yet</span>`;
@@ -926,23 +944,23 @@ window.VApp = (function () {
   function gbIdx(id) { const el = document.getElementById(id); return el ? el.selectedIndex : 0; }
   // The card's current (version, combo, level) selection — the one source of truth
   // that the board, the "where you stand" line, and the Play button all read from.
-  function gbSelection(modeId) {
-    const tree = boardTreeOf(modeId); if (!tree) return null;
-    const v = tree[gbIdx("gbver-" + modeId)]; if (!v) return null;
-    const c = v.combos[gbIdx("gbcombo-" + modeId)]; if (!c) return null;
-    const ls = document.getElementById("gblvl-" + modeId);
+  function gbSelection(gameId) {
+    const tree = boardTreeOf(gameId); if (!tree) return null;
+    const v = tree[gbIdx("gbver-" + gameId)]; if (!v) return null;
+    const c = v.combos[gbIdx("gbcombo-" + gameId)]; if (!c) return null;
+    const ls = document.getElementById("gblvl-" + gameId);
     const lvlId = ls && ls.value ? ls.value : (c.levels[0] && c.levels[0].id);
     const l = c.levels.find(x => x.id === lvlId) || c.levels[0];
     return { ver: v, combo: c, level: l };
   }
   // Point the Play button + its caption at whatever is currently selected, so the card
   // never claims one thing and launches another (visibility of system status).
-  function syncPlay(modeId) {
-    const sel = gbSelection(modeId); if (!sel) return;
-    const btn = document.getElementById("gbplay-" + modeId);
-    const cap = document.getElementById("gblaunch-" + modeId);
-    const scope = document.getElementById("gbscope-" + modeId);
-    const tree = boardTreeOf(modeId) || [];
+  function syncPlay(gameId) {
+    const sel = gbSelection(gameId); if (!sel) return;
+    const btn = document.getElementById("gbplay-" + gameId);
+    const cap = document.getElementById("gblaunch-" + gameId);
+    const scope = document.getElementById("gbscope-" + gameId);
+    const tree = boardTreeOf(gameId) || [];
     const href = playHref(sel.ver, sel.combo, sel.combo.levels.length > 1 ? sel.level : null);
     if (btn) {
       if (href) { btn.setAttribute("href", href); btn.classList.remove("disabled"); btn.removeAttribute("aria-disabled"); }
@@ -957,27 +975,27 @@ window.VApp = (function () {
     }
     if (scope) scope.textContent = sel.level ? sel.level.label : "";
   }
-  function fillLevelSel(modeId) {
-    const tree = boardTreeOf(modeId); if (!tree) return;
-    const v = tree[gbIdx("gbver-" + modeId)]; if (!v) return;
-    const c = v.combos[gbIdx("gbcombo-" + modeId)]; if (!c) return;
-    const ls = document.getElementById("gblvl-" + modeId);
+  function fillLevelSel(gameId) {
+    const tree = boardTreeOf(gameId); if (!tree) return;
+    const v = tree[gbIdx("gbver-" + gameId)]; if (!v) return;
+    const c = v.combos[gbIdx("gbcombo-" + gameId)]; if (!c) return;
+    const ls = document.getElementById("gblvl-" + gameId);
     if (ls) {
       ls.innerHTML = c.levels.map(l => `<option value="${C.esc(l.id)}">${C.esc(l.label)}</option>`).join("");
       const f = ls.closest(".pc-field"); if (f) f.classList.toggle("solo", c.levels.length < 2);
     }
-    syncPlay(modeId);
-    loadBoardInto("gboard-" + modeId, c.levels[0].id, modeId);
+    syncPlay(gameId);
+    loadBoardInto("gboard-" + gameId, c.levels[0].id, gameId);
   }
-  function fillComboSel(modeId) {
-    const tree = boardTreeOf(modeId); if (!tree) return;
-    const v = tree[gbIdx("gbver-" + modeId)]; if (!v) return;
-    const cs = document.getElementById("gbcombo-" + modeId);
+  function fillComboSel(gameId) {
+    const tree = boardTreeOf(gameId); if (!tree) return;
+    const v = tree[gbIdx("gbver-" + gameId)]; if (!v) return;
+    const cs = document.getElementById("gbcombo-" + gameId);
     if (cs) {
       cs.innerHTML = v.combos.map((c, i) => `<option value="${i}">${C.esc(c.label)}</option>`).join("");
       const f = cs.closest(".pc-field"); if (f) f.classList.toggle("solo", v.combos.length < 2);
     }
-    fillLevelSel(modeId);
+    fillLevelSel(gameId);
   }
   function gameBoardVer(gameId) { fillComboSel(gameId); syncControls(gameId); } // version → rebuild combo + level + controls
   function gameBoardCombo(gameId) { fillLevelSel(gameId); }      // combo changed → rebuild level
@@ -991,6 +1009,57 @@ window.VApp = (function () {
   }
   const controlsRows = (g, ver) => controlsFor(g, ver).map(([keys, does]) =>
     `<div class="kit-row"><span class="name" style="min-width:11rem;display:inline-block">${C.esc(keys)}</span><div class="mute">${C.esc(does)}</div></div>`).join("");
+
+  /* Full-width play card. One card = one game. The three selects at the top of the
+     config rail are its single control surface: changing any of them re-scopes BOTH
+     the leaderboard and the Play button, so the card can never claim one thing and
+     launch another. Play sits bottom-right, after the board — the last thing you
+     read is the thing you press. Lifted out of the Lab in VR-94 so the game page
+     and the Lab share one implementation rather than two that drift. */
+  function playCard(g) {
+    const tree = g.versions || [];
+    const v0 = tree[0], c0 = v0 && v0.combos[0];
+    const verOpts = tree.map((v, i) => `<option value="${i}">${C.esc(v.label)}</option>`).join("");
+    const comboOpts = v0 ? v0.combos.map((c, i) => `<option value="${i}">${C.esc(c.label)}</option>`).join("") : "";
+    const lvlOpts = c0 ? c0.levels.map(l => `<option value="${C.esc(l.id)}">${C.esc(l.label)}</option>`).join("") : "";
+    const multiVer = tree.length > 1, multiCombo = v0 && v0.combos.length > 1, multiLvl = c0 && c0.levels.length > 1;
+    const id = C.esc(g.id);
+    return `
+      <div class="panel play-full" id="playcard-${id}" style="margin-top:1.5rem">
+        <div class="pc-head">
+          <div class="pc-title">
+            <div class="eyebrow">Choose your run</div>
+            <h3>${C.esc(g.name)}</h3>
+            <p class="mute pc-desc">${C.esc(g.short || g.text)}</p>
+          </div>
+          <div class="pc-head-act">${C.feedbackButton("Game: " + g.name)}</div>
+        </div>
+        <div class="pc-body">
+          <div class="pc-config">
+            <div class="pc-rail-lab">Pick a run</div>
+            ${tree.length ? `
+              <label class="pc-field${multiVer ? "" : " solo"}"><span>Version</span>
+                <select class="gb-sel" id="gbver-${id}" onchange="VApp.gameBoardVer('${id}')">${verOpts}</select></label>
+              <label class="pc-field${multiCombo ? "" : " solo"}"><span>Characters</span>
+                <select class="gb-sel" id="gbcombo-${id}" onchange="VApp.gameBoardCombo('${id}')">${comboOpts}</select></label>
+              <label class="pc-field${multiLvl ? "" : " solo"}"><span>Level</span>
+                <select class="gb-sel" id="gblvl-${id}" onchange="VApp.gameBoardLevel('${id}', this.value)">${lvlOpts}</select></label>` : ""}
+            <div class="pc-you" id="gbyou-${id}"></div>
+          </div>
+          <div class="pc-board">
+            <div class="play-board-head">
+              <div class="eyebrow" style="margin:0">${g.scoreKind === "points" ? "Best scores · the crew" : "Best times · the crew"}</div>
+              <span class="pc-scope mute" id="gbscope-${id}"></span>
+            </div>
+            <div id="gboard-${id}" class="pc-rows"><p class="mute" style="font-size:.85rem">Loading…</p></div>
+          </div>
+        </div>
+        <div class="pc-foot">
+          <p class="mute pc-launch" id="gblaunch-${id}"></p>
+          <a class="btn pc-play" id="gbplay-${id}" href="#">▶ Play</a>
+        </div>
+      </div>`;
+  }
   // Fill a playable game's default board + Play target once its card is in the DOM.
   async function renderGameBoards(only) {
     const list = only ? [gameOf(only)].filter(Boolean) : (D.games || []);
@@ -1399,8 +1468,11 @@ window.VApp = (function () {
     if (!context) {
       const r = (location.hash || "#hub").slice(1).split("/")[0];
       const map = { world: "The World", crew: "The Crew", threats: "Threats", synergy: "Synergy",
-        gallery: "Gallery", lab: "The Lab", updates: "Updates", feedback: "Feedback page", board: "Board / priorities", design: "Design system" };
-      context = map[r] || "";
+        gallery: "Gallery", lab: "The Lab", games: "Games", updates: "Updates", feedback: "Feedback page", board: "Board / priorities", design: "Design system" };
+      // On a game page, tag the feedback with which game you were looking at.
+      const gid = (location.hash || "").slice(1).split("/")[1];
+      const g = r === "games" && gid && gameOf(gid);
+      context = g ? "Game: " + g.name : (map[r] || "");
     }
     fbCtx = { context: context || "", type: type || "idea" };
     const el = document.getElementById("fbmodal"); if (!el) return;
@@ -1474,6 +1546,7 @@ window.VApp = (function () {
     if (window.VLanding) VLanding.teardown(); // clean any landing listeners before leaving/re-render
     let html;
     if (name === "crew" && arg) html = views.character(arg);
+    else if (name === "games" && arg) html = views.game(arg);
     else if (name === "threats" && arg) html = views.threat(arg, sub);
     else if (name === "landing" && window.VLanding) {
       registerSet("silhouettes", (D.crew || []).map(c => ({ src: "assets/landing/silhouettes/" + c.id + ".webp", name: c.name })));
@@ -1483,7 +1556,8 @@ window.VApp = (function () {
     else html = views.hub();
     view().innerHTML = html;
     if (name === "gallery") setupGalleryLazy();
-    if (name === "lab") { refreshVotes(); renderGameBoards(); }
+    if (name === "lab") refreshVotes();
+    if (name === "games" && arg) renderGameBoards(arg);
     if (name === "threats") refreshVotes();
     if (name === "leaderboard") loadLeaderboard();
     if (name === "threats" && arg) {
@@ -1505,6 +1579,8 @@ window.VApp = (function () {
     if (cdrop) cdrop.classList.toggle("active", ["characters", "crew", "threats", "synergy"].includes(name));
     const hdrop = document.getElementById("navdrop-hub");
     if (hdrop) hdrop.classList.toggle("active", ["hub", "leaderboard", "updates"].includes(name));
+    const ldrop = document.getElementById("navdrop-lab");
+    if (ldrop) ldrop.classList.toggle("active", ["lab", "games"].includes(name));
     document.querySelectorAll(".navdrop.open").forEach(d => d.classList.remove("open"));
     closeMenu();
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });

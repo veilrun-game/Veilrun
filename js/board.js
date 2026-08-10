@@ -1,10 +1,11 @@
 /* VEILRUN — Board / action tracker for the site (mirrors the Kanban doc; kept in sync). */
 window.VEILRUN = window.VEILRUN || {};
 VEILRUN.board = {
-  updated: "2026-08-08",
+  updated: "2026-08-09",
   columns: [
     { name: "In progress", cards: [
-      { id: "VR-79", t: "3D wave arena — Proving Ground v0 (Vesper slice); Anvil + Citrine next", who: "Claude", pri: "P1" },
+      { id: "VR-94", t: "Split the playable games out of the Lab — games index + a page per game, one manifest", who: "Claude", pri: "P2" },
+      { id: "VR-79", t: "Proving Ground v0 shipped (Vesper); Anvil + Citrine wait on Jordan's feel check", who: "Both", pri: "P1" },
       { id: "VR-64", t: "Babel / Manafest — build the 10th character (lore + kit + synergy)", who: "Both", pri: "P2" },
       { id: "VR-65", t: "Balance the 9 landing silhouettes (crop/scale to match) — Photoshop/Figma", who: "Jordan", pri: "P3" }
     ]},
@@ -15,7 +16,7 @@ VEILRUN.board = {
       { id: "MJ", t: "Prompts ready to copy/paste — see the Sunday Render Set doc", who: "Jordan", pri: "" }
     ]},
     { name: "Up next", cards: [
-      { id: "VR-21", t: "Manafest — pick codename + squad kits (feeds Babel build)", who: "Jordan", pri: "P2" },
+      { id: "VR-83", t: "Contribution scoring v2 — points from standing, not one-off events", who: "Claude", pri: "P2" },
       { id: "VR-61", t: "Identity → account-email attribution (waiting on the full email list)", who: "Jordan", pri: "P3" },
       { id: "VR-59", t: "Threats/lore batch — parked until the crew votes on the Threats pages", who: "Both", pri: "P2" },
       { id: "VR-46", t: "Expand the design system (document all patterns)", who: "Claude", pri: "P3" },
@@ -28,7 +29,8 @@ VEILRUN.board = {
       { id: "VR-34", t: "Art pipeline: AI-assisted → toward original", who: "Both", pri: "P2" }
     ]},
     { name: "Done (recent)", cards: [
-      { id: "★", t: "Veilrun's first 3D game — Proving Ground wave arena, playable in the Lab", who: "Claude", pri: "" },
+      { id: "★", t: "Games split out of the Lab — a games index, a page per game, one manifest", who: "Claude", pri: "" },
+      { id: "★", t: "Veilrun's first 3D game — Proving Ground wave arena", who: "Claude", pri: "" },
       { id: "★", t: "Crew silhouette row live on the landing + tap-to-gallery", who: "Both", pri: "" },
       { id: "★", t: "All art → WebP (971MB → 104MB, ~89% lighter)", who: "Claude", pri: "" },
       { id: "★", t: "Enemy concept art live; galleries sort by group likes", who: "Both", pri: "" },

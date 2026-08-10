@@ -68,7 +68,7 @@
     <canvas id="c" width="960" height="560"></canvas>
     <div id="hud">
       <div id="hud-left">
-        <a class="pill" id="backBtn" href="/app.html#lab">← Lab</a>
+        <a class="pill" id="backBtn" href="/app.html#games/pair-levels">← Back</a>
         <div class="pill" id="who">Controlling: <span class="a">Anvil</span></div>
         <div class="pill" id="world">The Overcity</div>
         <div class="pill" id="status">Exposed</div>
@@ -90,7 +90,7 @@
       <div class="keys">
         <b>Move</b> ← → · <b>Jump</b> ↑ · <b>Abilities</b> Q W E · <b>Interact</b> A · <b>Switch</b> S / Tab · <b>Reset</b> R
       </div>
-      <a href="/app.html#lab" class="backlab" style="margin-top:16px">← Back to the Lab</a>
+      <a href="/app.html#games/pair-levels" class="backlab" style="margin-top:16px">← Back to 2D Pair Levels</a>
       <div id="verpick" data-cur="v2" style="margin-top:12px"></div>
     </div>
   </div>
@@ -417,7 +417,7 @@
       +'<div id="board" style="width:100%;max-width:340px;margin:.5em 0"><p style="color:#8f89a8;font-size:12px">Loading crew times…</p></div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center">'
       +'<button class="play ghost" id="againBtn">↻ Replay</button></div>'
-      +'<a href="/app.html#lab" class="backlab">← Back to the Lab</a>';
+      +'<a href="/app.html#games/pair-levels" class="backlab">← Back to 2D Pair Levels</a>';
     document.getElementById("againBtn").addEventListener("click",function(){ startGame(curLevel); });
     var board=await net.loadBoard(), el=document.getElementById("board"); if(!el) return;
     if(!board||!board.length){ el.innerHTML='<p style="color:#8f89a8;font-size:12px">The crew leaderboard fills in as people post times.</p>'; return; }

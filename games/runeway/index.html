@@ -79,7 +79,7 @@
     <canvas id="c" width="960" height="560"></canvas>
     <div id="hud">
       <div id="hud-left">
-        <a class="pill" id="backBtn" href="/app.html#lab">← Lab</a>
+        <a class="pill" id="backBtn" href="/app.html#games/pair-levels">← Back</a>
         <div class="pill" id="who">Controlling: <span class="m">Magpie</span></div>
         <div class="pill" id="status">Under fire</div>
       </div>
@@ -96,7 +96,7 @@
       <div class="keys">
         <b>Move</b> ← →  ·  <b>Jump</b> ↑ / Space  ·  <b>Switch</b> Tab  ·  <b>Ability</b> E  ·  <b>Reset</b> R
       </div>
-      <a href="/app.html#lab" class="backlab" style="margin-top:16px">← Back to the Lab</a>
+      <a href="/app.html#games/pair-levels" class="backlab" style="margin-top:16px">← Back to 2D Pair Levels</a>
       <div id="verpick" data-cur="v1" style="margin-top:12px"></div>
     </div>
   </div>
@@ -470,7 +470,7 @@
       +(hasNext?'<button class="play" id="nextBtn">Next level →</button>'
                :'<a class="play" href="/games/runeway-v2/index.html">Cross to v2 · new controller →</a>')
       +'</div>'
-      +'<a href="/app.html#lab" class="backlab">← Back to the Lab</a>';
+      +'<a href="/app.html#games/pair-levels" class="backlab">← Back to 2D Pair Levels</a>';
     document.getElementById("againBtn").addEventListener("click",()=>startGame(curLevel));
     if(hasNext) document.getElementById("nextBtn").addEventListener("click",()=>startGame(curLevel+1));
     const board=await loadBoard(), el=document.getElementById("board"); if(!el) return;

@@ -61,7 +61,7 @@
     <canvas id="c" width="960" height="560"></canvas>
     <div id="hud">
       <div id="hud-left">
-        <a class="pill" id="backBtn" href="/app.html#lab">← Lab</a>
+        <a class="pill" id="backBtn" href="/app.html#games/pair-levels">← Back</a>
         <div class="pill" id="who">Controlling: <span class="a">Anvil</span></div>
       </div>
       <div id="hud-right">
@@ -77,7 +77,7 @@
       <div class="keys">
         <b>Move</b> ← →  ·  <b>Jump</b> ↑ / Space  ·  <b>Switch character</b> Tab  ·  <b>Ability</b> E  ·  <b>Reset</b> R
       </div>
-      <a href="/app.html#lab" style="margin-top:16px;display:inline-block;padding:11px 20px;border:1px solid #3a3556;border-radius:10px;color:#e8e4f5;font-size:14px;text-decoration:none;min-height:44px">← Back to the Lab</a>
+      <a href="/app.html#games/pair-levels" style="margin-top:16px;display:inline-block;padding:11px 20px;border:1px solid #3a3556;border-radius:10px;color:#e8e4f5;font-size:14px;text-decoration:none;min-height:44px">← Back to 2D Pair Levels</a>
       <div id="verpick" data-cur="v0" style="margin-top:12px"></div>
     </div>
   </div>
@@ -364,7 +364,7 @@
       +'<p style="margin:.15em 0 .1em">Your best: <b style="color:var(--gold)">'+fmt(localBest())+'</b></p>'
       +'<div id="board" style="width:100%;max-width:340px;margin:.5em 0"><p style="color:#8f89a8;font-size:12px">Loading crew times…</p></div>'
       +'<button class="play" id="againBtn">Play again</button>'
-      +'<a href="/app.html#lab" style="margin-top:14px;color:#8f89a8;font-size:12px;text-decoration:underline">← Back to the Lab</a>';
+      +'<a href="/app.html#games/pair-levels" style="margin-top:14px;color:#8f89a8;font-size:12px;text-decoration:underline">← Back to 2D Pair Levels</a>';
     document.getElementById("againBtn").addEventListener("click",startGame);
     await saveScore(elapsed);
     const board=await loadBoard(), el=document.getElementById("board"); if(!el) return;

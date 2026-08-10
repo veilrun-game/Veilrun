@@ -159,7 +159,7 @@
 <div class="wrap">
   <div class="topbar">
     <div class="brand"><b>VEILRUN</b> · Story Chapters</div>
-    <a class="pill" href="/app.html#lab">← Lab</a>
+    <a class="pill" href="/app.html#games/story-cyoa">← Back</a>
   </div>
   <div id="app"></div>
 </div>
@@ -361,7 +361,7 @@
       +'<div class="prose">'+toParas(text)+'</div>'
       +'<div class="choices">'+btns+'</div>'
       +'</div>'
-      +'<a class="backlab" href="/app.html#lab">← Give up and leave the Lab</a>';
+      +'<a class="backlab" href="/app.html#games/story-cyoa">← Give up and leave</a>';
     // one-shot fx are consumed by the render above; clear so they don't replay
     pendingFx=[]; fxPips=0; fxClock=false;
     window.scrollTo(0,0);
@@ -415,7 +415,7 @@
         +'<button class="btn ghost" onclick="RS.chars()">Characters</button>'
       +'</div>'
       +'<p class="sr-note">Every distinct ending you reach is worth points on the crew leaderboard, so it pays to run it again with a different crew and different calls. Six endings in all.</p>'
-      +'<a class="backlab" href="/app.html#lab">← Back to the Lab</a>'
+      +'<a class="backlab" href="/app.html#games/story-cyoa">← Back to Story Chapters</a>'
       +'</div>';
     window.scrollTo(0,0);
   }
@@ -435,7 +435,29 @@
     if(node&&node._active){ var n=parseInt(ev.key,10); if(n>=1&&n<=node._active.length){ choose(n-1); } }
   });
 
-  screenCharacters();
+  /* ---- Boot: selection comes from the site, or from our own picker (VR-94) --------
+     The game page at /app.html#games/story-cyoa owns the choice and passes it in:
+       ?char=rook            → skip the character grid, open on the crew screen
+       &crew=vesper,magpie   → pre-tick those companions (max 2, unknown ids dropped)
+     With no params — or a character that isn't playable yet — we fall through to the
+     internal picker exactly as before, so a direct link to this file still works and
+     the other games can migrate one at a time. The "← Characters" button always
+     brings the full grid back, so nothing is taken away. */
+  function bootFromParams(){
+    var q;
+    try { q = new URLSearchParams(location.search); } catch(e){ return false; }
+    var char = (q.get("char")||"").toLowerCase();
+    if(!char) return false;
+    var live = CREW.filter(function(c){ return c.id===char && c.live; })[0];
+    if(!live) return false;                       // not playable yet → internal picker
+    var crew = (q.get("crew")||"").split(",").map(function(s){ return s.trim().toLowerCase(); })
+      .filter(function(id){ return id && S.COMPANIONS.some(function(c){ return c.id===id; }); });
+    picked = crew.slice(0,2);                     // same cap the toggle enforces
+    screenCompanions();
+    return true;
+  }
+
+  if(!bootFromParams()) screenCharacters();
 })();
 </script>
 </body>
