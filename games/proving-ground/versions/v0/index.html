@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Proving Ground v1 — Veilrun</title>
+<title>Proving Ground — Veilrun</title>
 <style>
 :root{
   --ink:#0B0818; --ink-2:#121224; --line:#3C345C;
@@ -174,8 +174,8 @@ canvas{display:block}
   <div class="panel" style="padding:1.5rem 2rem">
     <div class="eyebrow">Paused</div>
     <h1 style="font-size:clamp(1.3rem,3.4vw,1.9rem)">The Weave holds still</h1>
-    <div class="sub" id="pausesub" style="margin-bottom:.8rem">The arena is frozen.</div>
-    <button class="btn" id="btn-unpause">Resume</button>
+    <div class="sub" style="margin-bottom:.8rem">Your cursor is free. The arena is frozen.</div>
+    <button class="btn" id="btn-resume">Resume</button>
   </div>
 </div>
 
@@ -389,47 +389,9 @@ var AU = (function () {
 
 /* ============================ renderer / scene ========================== */
 var stage = $("stage");
-/* ---- YAW CONVENTION (VR-91) ------------------------------------------------
-   ONE convention, everywhere: a yaw of Y means the thing is FACING
-   (-sin Y, -cos Y). Movement, strike arcs, Execute and sprite facing all read it.
-   Every mesh in this file is modelled facing +z, so a mesh's rotation.y is
-   yaw + MESH_PI. Getting this wrong is invisible in third person, because the
-   camera sits behind the character and you assume you're looking at its back —
-   which is exactly how Vesper shipped in v0 running backwards, and how husks
-   ended up lunging away from the player while their telegraph pointed at them. */
-var MESH_PI = Math.PI;
-
-/* ---- pixel render target (VR-91) ------------------------------------------
-   The reference isn't made of pixel-art ASSETS — it renders the whole frame to
-   one low-resolution grid and scales it up with hard edges. Do that here and the
-   arena, the lighting, the particles, the seam and the sprites all land on the
-   same grid for free, which is what makes a composite read as one picture
-   instead of art pasted onto 3D.
-   PIXEL = css pixels per rendered pixel. 1 = off. Cycle live with [.
-   Antialiasing is OFF while it's on: smoothing at low res is exactly the thing
-   that stops it looking like pixel art. -------------------------------------- */
-var PIXEL = 4;
-var PIXEL_STEPS = [1, 2, 3, 4, 6, 8];
-var renderer = new THREE.WebGLRenderer({ antialias: PIXEL <= 1, powerPreference: "high-performance" });
-function applyPixelScale() {
-  var w = window.innerWidth, h = window.innerHeight;
-  if (PIXEL > 1) {
-    renderer.setPixelRatio(1);
-    renderer.setSize(Math.max(1, Math.floor(w / PIXEL)), Math.max(1, Math.floor(h / PIXEL)), false);
-    renderer.domElement.style.width = "100%";
-    renderer.domElement.style.height = "100%";
-    renderer.domElement.style.imageRendering = "pixelated";
-  } else {
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(w, h, false);
-    renderer.domElement.style.width = "100%";
-    renderer.domElement.style.height = "100%";
-    renderer.domElement.style.imageRendering = "auto";
-  }
-  camera.aspect = w / h;
-  camera.updateProjectionMatrix();
-  if (typeof SPR !== "undefined" && SPR.refilter) SPR.refilter();
-}
+var renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputEncoding = THREE.sRGBEncoding;
@@ -453,7 +415,6 @@ scene.fog = new THREE.FogExp2(0x0B0818, 0.030);
 
 var camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.08, 200);
 scene.add(camera);
-applyPixelScale();
 
 // Lighting: one key with shadows, low ambient, a violet fill on the player.
 // A flat-lit scene reads as a tech demo instantly — this is where the look comes from.
@@ -753,7 +714,7 @@ var GHOSTS = [];
 var ghostIdx = 0;
 function ghost(x, z, yaw) {
   var G = GHOSTS[ghostIdx]; ghostIdx = (ghostIdx + 1) % GHOSTS.length;
-  G.g.position.set(x, 0, z); G.g.rotation.y = yaw + MESH_PI; G.g.visible = true;
+  G.g.position.set(x, 0, z); G.g.rotation.y = yaw; G.g.visible = true;
   G.mat.opacity = 0.5; G.life = 0.36;
 }
 function updateGhosts(dt) {
@@ -846,7 +807,7 @@ function updateTears(dt) {
 
 /* ================================ input ================================= */
 var keys = Object.create(null);
-var mouse = { yaw: 0, pitch: -0.12, locked: false, l: false, r: false };
+var mouse = { yaw: 0, pitch: -0.30, locked: false, l: false, r: false };
 var pressed = { strike: false, exec: false, step: false };
 
 window.addEventListener("keydown", function (e) {
@@ -858,9 +819,7 @@ window.addEventListener("keydown", function (e) {
   if (k === "q") pressed.exec = true;
   if (k === "v") toggleCam();
   if (k === "h") toggleHelp();
-  if (k === "escape") { if (helpOpen()) { closeHelp(); return; }
-    if (cam.mode === "arcade") { if (game.running && !game.over) setPaused(!game.paused); return; }
-    if (mouse.locked) document.exitPointerLock(); }
+  if (k === "escape") { if (helpOpen()) { closeHelp(); return; } if (mouse.locked) document.exitPointerLock(); }
 });
 
 /* ---- controls overlay: the legend from the start screen, reachable mid-run ---- */
@@ -874,13 +833,13 @@ function openHelp() {
 function closeHelp() {
   if (!helpOpen()) return;
   $("s-help").classList.remove("on");
-  if (game.running && !game.over && cam.mode !== "arcade") renderer.domElement.requestPointerLock();
+  if (game.running && !game.over) renderer.domElement.requestPointerLock();
 }
 function toggleHelp() { helpOpen() ? closeHelp() : openHelp(); }
 window.addEventListener("keyup", function (e) { keys[e.key.toLowerCase()] = false; });
 renderer.domElement.addEventListener("contextmenu", function (e) { e.preventDefault(); });
 renderer.domElement.addEventListener("mousedown", function (e) {
-  if (!mouse.locked && cam.mode !== "arcade") { renderer.domElement.requestPointerLock(); return; }
+  if (!mouse.locked) { renderer.domElement.requestPointerLock(); return; }
   if (e.button === 0) { mouse.l = true; pressed.strike = true; }
   if (e.button === 2) { mouse.r = true; pressed.exec = true; }
 });
@@ -890,10 +849,8 @@ window.addEventListener("mouseup", function (e) {
 });
 document.addEventListener("pointerlockchange", function () {
   mouse.locked = document.pointerLockElement === renderer.domElement;
-  $("pausehint").classList.toggle("on", (mouse.locked || cam.mode === "arcade") && game.running);
-  // Arcade has no pointer lock by design, so losing the lock must not pause it —
-  // otherwise the run starts paused and there is no way back in.
-  if (game.running && !game.over && cam.mode !== "arcade") setPaused(!mouse.locked);
+  $("pausehint").classList.toggle("on", mouse.locked && game.running);
+  if (game.running && !game.over) setPaused(!mouse.locked);
 });
 // If the browser refuses pointer lock, don't strand the player in a paused run.
 document.addEventListener("pointerlockerror", function () { if (game.running) setPaused(false); });
@@ -901,17 +858,12 @@ document.addEventListener("mousemove", function (e) {
   if (!mouse.locked) return;
   var s = 0.0022;
   mouse.yaw -= e.movementX * s;
-  mouse.pitch = clamp(mouse.pitch - e.movementY * s, -0.55, 0.45);
+  mouse.pitch = clamp(mouse.pitch - e.movementY * s, -0.95, 0.62);
 });
-window.addEventListener("resize", applyPixelScale);
-// [ cycles the pixel grid live so the look can be dialled in without a rebuild
-window.addEventListener("keydown", function (e) {
-  if (e.key !== "[") return;
-  var i = PIXEL_STEPS.indexOf(PIXEL);
-  PIXEL = PIXEL_STEPS[(i + 1) % PIXEL_STEPS.length];
-  applyPixelScale();
-  var t = $("camtag");
-  if (t) t.textContent = "pixel grid 1:" + PIXEL + (PIXEL === 1 ? " (off)" : "");
+window.addEventListener("resize", function () {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
 /* =============================== camera ================================= */
@@ -924,41 +876,17 @@ var cam = {
   fov: 62, fovTarget: 62,
   lx: 0, ly: 1.3, lz: 0        // smoothed look target
 };
-/* v1: shallower than v0. A billboard viewed from 34 degrees above is a flat card
-   seen from the top; ~15 degrees keeps the figure reading as a figure. */
-var TP_OFF = { x: 0.95, y: 0.30, z: 6.4 };
-
-/* ---- arcade camera (VR-91) -------------------------------------------------
-   Every reference for this build — Brokeass, TMNT, X-Men, Simpsons — has a
-   FIXED camera, and that is exactly why billboards work in them: the viewing
-   angle barely changes, so a character needs a handful of facings instead of a
-   full turnaround. Free mouse-look is what forced 8 facings and pointer-lock
-   (and pointer-lock is what made v0 desktop-only). Locking the camera drops the
-   art order and makes the arena playable on a phone.
-   ARC_YAW is the world direction the camera looks along; the player's WASD is
-   resolved against it, so "up" is always away from the viewer. -------------- */
-var ARC = { yaw: 0, pitch: 0.62, dist: 13.5, height: 0.95, lam: 7.5, fov: 44 };
-var CAM_MODES = ["arcade", "third", "first"];
-var CAM_LABEL = { arcade: "arcade (fixed)", third: "third person", first: "first person (experimental)" };
-function resumeFromPause() {
-  if (cam.mode === "arcade") { setPaused(false); return; }
-  renderer.domElement.requestPointerLock();
-}
+var TP_OFF = { x: 0.95, y: 1.6, z: 6.4 };
 function toggleCam() {
-  cam.mode = CAM_MODES[(CAM_MODES.indexOf(cam.mode) + 1) % CAM_MODES.length];
-  var first = cam.mode === "first";
-  player.g.visible = !first && !(playerSpriteReady());
-  vmBlade.visible = first;
-  $("camtag").textContent = "V — " + CAM_LABEL[cam.mode];
-  cam.fovTarget = cam.mode === "arcade" ? ARC.fov : (first ? 76 : 62);
-  // pointer lock is a free-look affordance; the arcade camera doesn't want it
-  if (cam.mode === "arcade" && document.pointerLockElement) document.exitPointerLock();
-}
-function playerSpriteReady() {
-  return typeof playerSprite !== "undefined" && playerSprite && !!playerSprite.mat.map;
+  cam.mode = cam.mode === "third" ? "first" : "third";
+  var third = cam.mode === "third";
+  player.g.visible = third;
+  vmBlade.visible = !third;
+  $("camtag").textContent = "V — " + (third ? "third person" : "first person (experimental)");
+  cam.fovTarget = third ? 62 : 76;
 }
 function shake(mag) { cam.shake = Math.max(cam.shake, 0.22); cam.shakeMag = Math.max(cam.shakeMag, mag); }
-function fovKick(v) { cam.fovTarget = (cam.mode === "arcade" ? ARC.fov : (cam.mode === "third" ? 62 : 76)) + v; }
+function fovKick(v) { cam.fovTarget = (cam.mode === "third" ? 62 : 76) + v; }
 
 var _cd = new THREE.Vector3();
 function updateCamera(dt) {
@@ -968,19 +896,7 @@ function updateCamera(dt) {
   // forward vector from yaw/pitch
   var fx = -sy * cp, fy = sp, fz = -cy * cp;
 
-  if (cam.mode === "arcade") {
-    // fixed angle, fixed distance — the camera only ever slides to follow
-    var ay = ARC.yaw, ap = ARC.pitch;
-    var ox = Math.sin(ay) * Math.cos(ap) * ARC.dist;
-    var oz = Math.cos(ay) * Math.cos(ap) * ARC.dist;
-    var oy = Math.sin(ap) * ARC.dist;
-    cam.px = damp(cam.px, player.x + ox, ARC.lam, dt);
-    cam.py = damp(cam.py, oy, ARC.lam, dt);
-    cam.pz = damp(cam.pz, player.z + oz, ARC.lam, dt);
-    cam.lx = damp(cam.lx, player.x, ARC.lam, dt);
-    cam.ly = damp(cam.ly, ARC.height, ARC.lam, dt);
-    cam.lz = damp(cam.lz, player.z, ARC.lam, dt);
-  } else if (cam.mode === "third") {
+  if (cam.mode === "third") {
     // shoulder offset, then pull back along -forward
     var rx = cy, rz = -sy;                         // right vector
     var tx = player.x + rx * TP_OFF.x - fx * TP_OFF.z;
@@ -1012,7 +928,7 @@ function updateCamera(dt) {
   _cd.set(cam.lx, cam.ly, cam.lz);
   camera.lookAt(_cd);
 
-  cam.fovTarget = damp(cam.fovTarget, cam.mode === "arcade" ? ARC.fov : (cam.mode === "third" ? 62 : 76), 6, dt);
+  cam.fovTarget = damp(cam.fovTarget, cam.mode === "third" ? 62 : 76, 6, dt);
   cam.fov = damp(cam.fov, cam.fovTarget, 14, dt);
   if (Math.abs(camera.fov - cam.fov) > 0.01) { camera.fov = cam.fov; camera.updateProjectionMatrix(); }
 
@@ -1059,10 +975,6 @@ function hitStop(ms) { game.hitStop = Math.max(game.hitStop, ms / 1000); }
 function setPaused(p) {
   game.paused = !!p;
   $("s-paused").classList.toggle("on", game.paused);
-  var ps = $("pausesub");
-  if (ps) ps.textContent = (cam.mode === "arcade")
-    ? "The arena is frozen. Esc or Resume to carry on."
-    : "Your cursor is free. The arena is frozen.";
   if (game.paused) { keys = Object.create(null); mouse.l = mouse.r = false; }
 }
 
@@ -1298,8 +1210,7 @@ function updatePlayer(dt) {
   var mx = 0, mz = 0;
   if (keys.w) mz -= 1; if (keys.s) mz += 1;
   if (keys.a) mx -= 1; if (keys.d) mx += 1;
-  var basis = (cam.mode === "arcade") ? ARC.yaw : mouse.yaw;
-  var cy = Math.cos(basis), sy = Math.sin(basis);
+  var cy = Math.cos(mouse.yaw), sy = Math.sin(mouse.yaw);
   var tvx = 0, tvz = 0;
   if (mx || mz) {
     var fx = -sy, fz = -cy, rx = cy, rz = -sy;
@@ -1308,11 +1219,6 @@ function updatePlayer(dt) {
     var spd = C.moveSpeed * (player.atkStage >= 0 ? 0.32 : 1) * (player.execLunge > 0 ? 0.2 : 1);
     tvx = tvx / l * spd; tvz = tvz / l * spd;
   }
-  // Arcade: you face where you move. Everything downstream (strike arc, Veilstep,
-  // Execute) already reads mouse.yaw, so pointing it at the travel direction
-  // converts the whole kit to a fixed-camera beat-em-up without touching the kit.
-  if (cam.mode === "arcade" && (mx || mz)) mouse.yaw = Math.atan2(-tvx, -tvz);
-
   var ax = tvx - player.vx, az = tvz - player.vz;
   var rate = (mx || mz) ? C.accel : C.friction;
   var al = Math.hypot(ax, az);
@@ -1332,7 +1238,7 @@ function updatePlayer(dt) {
 /* animation pose for Vesper — no skeletons, just readable limb motion */
 function poseVesper(dt, t) {
   player.g.position.set(player.x, 0, player.z);
-  player.g.rotation.y = player.yaw + MESH_PI;
+  player.g.rotation.y = player.yaw;
   var speed = Math.hypot(player.vx, player.vz);
   var bob = Math.sin(t * 11) * 0.045 * clamp(speed / C.moveSpeed, 0, 1);
   player.g.position.y = bob;
@@ -1430,7 +1336,7 @@ function spawnEnemy(spec) {
   e.speed = C.enemySpeed * spec.spdMult;
   e.lunge = !!(spec.milestone && spec.milestone.lunge);
   e.state = "spawn"; e.t = 0; e.stagger = 0; e.kx = e.kz = 0; e.flash = 0; e.dissolve = 0;
-  e.yaw = Math.atan2(-(player.x - x), -(player.z - z));
+  e.yaw = Math.atan2(player.x - x, player.z - z);
   e.wander = 0; e.seekX = player.x; e.seekZ = player.z;
   e.mat.color.setHex(HUSK_COL); e.mat.transparent = false; e.mat.opacity = 1;
   e.eyeMat.color.setHex(0xD65CDC);
@@ -1474,7 +1380,7 @@ function updateEnemies(dt) {
       e.t += dt;
       var s = clamp(e.t / C.spawnRise, 0, 1);
       e.g.position.set(e.x, lerp(-1.6, 0, s * s), e.z);
-      e.g.rotation.y = e.yaw + MESH_PI;
+      e.g.rotation.y = e.yaw;
       if (e.t >= C.spawnRise) { e.state = "seek"; e.t = 0; }
       continue;
     }
@@ -1511,14 +1417,14 @@ function updateEnemies(dt) {
       var mvx = sx / sd + px * 0.55, mvz = sz / sd + pz * 0.55;
       var ml = Math.hypot(mvx, mvz) || 1;
       e.x += mvx / ml * spd * dt; e.z += mvz / ml * spd * dt;
-      e.yaw = damp(e.yaw, Math.atan2(-sx, -sz), 9, dt);
+      e.yaw = damp(e.yaw, Math.atan2(sx, sz), 9, dt);
       if (pAlive && canSee && dist < C.enemyReach && e.stagger <= 0) { e.state = "wind"; e.t = 0; }
     } else if (e.state === "wind") {
       e.t += dt;
-      e.yaw = damp(e.yaw, Math.atan2(-dx, -dz), 14, dt);
+      e.yaw = damp(e.yaw, Math.atan2(dx, dz), 14, dt);
       var wf = clamp(e.t / C.enemyWind, 0, 1);
       tele.visible = true;
-      tele.position.set(e.x - Math.sin(e.yaw) * 0.9, 0.02, e.z - Math.cos(e.yaw) * 0.9);
+      tele.position.set(e.x - Math.sin(e.yaw) * -0.9, 0.02, e.z - Math.cos(e.yaw) * -0.9);
       tele.scale.setScalar(lerp(1.5, 0.85, wf) * (C.enemyReach / 1.6));
       tele.material.opacity = 0.25 + wf * 0.6;
       e.armR.rotation.x = lerp(0, -2.3, wf);
@@ -1541,7 +1447,7 @@ function updateEnemies(dt) {
     clampToArena(e);
     pushOutOfPillars(e, 0.42);
     e.g.position.set(e.x, 0, e.z);
-    e.g.rotation.y = e.yaw + MESH_PI;
+    e.g.rotation.y = e.yaw;
     if (e.state === "seek") {
       var wob = Math.sin(gameTime * 9 + i) * 0.35;
       e.armL.rotation.x = wob; e.armR.rotation.x = -wob;
@@ -1660,8 +1566,8 @@ function resetRun() {
   player.stepCharges = C.stepCharges; player.stepTimer = 0; player.stepLock = 0;
   player.execCd = 0; player.execLunge = 0;
   player.still = 0; player.shroud = 0; player.veiled = false;
-  player.g.visible = cam.mode !== "first" && !playerSpriteReady();
-  mouse.yaw = 0; mouse.pitch = -0.12;
+  player.g.visible = cam.mode === "third";
+  mouse.yaw = 0; mouse.pitch = -0.30;
   for (var i = 0; i < ENEMIES.length; i++) { ENEMIES[i].live = false; ENEMIES[i].g.visible = false; TELE[i].visible = false; }
   for (var t = 0; t < THIN.length; t++) { THIN[t].life = 0; THIN[t].mesh.visible = false; }
   for (var p = 0; p < PMAX; p++) { parts[p].life = 0; parts[p].m.visible = false; }
@@ -1680,7 +1586,7 @@ function startRun() {
   $("s-help").classList.remove("on");
   $("helpfab").classList.add("on");
   $("camtag").classList.add("on");
-  if (cam.mode !== "arcade") renderer.domElement.requestPointerLock();
+  renderer.domElement.requestPointerLock();
   var tries = +(localStorage.getItem(LS + "tries") || 0) + 1;
   localStorage.setItem(LS + "tries", tries);
   if (tries === 1) awardPoints("try", 1, GAME_ID);
@@ -1722,12 +1628,8 @@ function endRun() {
   }
 }
 
-/* NOTE: the help overlay and the pause panel used to share one element id.
-   getElementById returns the first match, so the PAUSE panel's button never had
-   a listener at all and Resume did nothing. They have separate ids now. */
-$("btn-unpause").addEventListener("click", function () {
-  if (cam.mode !== "arcade") renderer.domElement.requestPointerLock();
-  setPaused(false);
+$("btn-resume").addEventListener("click", function () {
+  renderer.domElement.requestPointerLock();
   setTimeout(function () { if (!mouse.locked) setPaused(false); }, 400);  // lock refused — play on anyway
 });
 $("btn-start").addEventListener("click", startRun);
@@ -1737,233 +1639,6 @@ $("btn-back").addEventListener("click", function () { window.location.href = "..
 $("help-keys").innerHTML = document.querySelector("#s-start .keys").innerHTML;
 $("helpfab").addEventListener("click", openHelp);
 $("btn-resume").addEventListener("click", closeHelp);
-
-
-/* ======================= sprite billboard layer (VR-91) ==================
-   Swaps the primitive rigs for camera-facing alpha-cut quads so Midjourney
-   output drops straight in. Nothing here changes the simulation — it reads
-   x/z/yaw/state off the same objects the primitives used, so `_sim.js` is
-   untouched and the balance block stays authoritative.
-
-   Contract: 'Art & Assets/VEILRUN — Proving Ground Sprite Asset Contract (VR-91).md'
-     1024 canvas · floor line y=960 · standing height 864 · 8 facings, 45 deg apart
-     packed 4x2 per state sheet · binary alpha, rendered with alphaTest (never
-     blended) so 26 husks can overlap without sort-fighting.
-   ------------------------------------------------------------------------- */
-var SPR = (function () {
-  var PXC = 1024, FLOOR_PX = 960, STAND_PX = 864;   // straight from the contract
-  /* 4 facings, not 8. The arcade camera never leaves its fixed angle, so a
-     character is only ever seen from four meaningful directions — which cuts the
-     art order from 152 images to 64 and removes the hardest consistency problem
-     (a character drifting across eight near-identical three-quarter views). */
-  var COLS = 4, ROWS = 1, FACINGS = 4;
-  var DU = 1 / COLS, DV = 1 / ROWS;
-  var FACING_DIR = -1;     // proven by _billboard.js; flip if a delivered set turns the other way
-  var BASE = "../../assets/sprites/proving-ground/";
-  var TIER = (window.devicePixelRatio || 1) >= 1.5 ? "@2" : "@1";
-
-  // worldHeight per the contract. Anvil is bigger on purpose (canon: Mass).
-  var DEF = {
-    vesper:  { h: 1.80, states: ["idle", "move", "attack", "hurt", "down"] },
-    anvil:   { h: 2.20, states: ["idle", "move", "attack", "hurt", "down"] },
-    citrine: { h: 1.76, states: ["idle", "move", "attack", "hurt", "down"] },
-    husk:    { h: 1.78, states: ["move", "attack", "hurt", "down"] }
-  };
-
-  var loader = new THREE.TextureLoader();
-  var tex = {};            // "char/state" -> THREE.Texture
-  var ready = {};          // char -> true once every state resolved
-  var pending = {};
-
-  function load(name, done) {
-    if (ready[name] || pending[name]) return;
-    var def = DEF[name]; if (!def) return;
-    pending[name] = true;
-    var left = def.states.length, failed = false;
-    def.states.forEach(function (st) {
-      var url = BASE + name + "/" + st + TIER + ".webp";
-      loader.load(url, function (t) {
-        // No mipmaps: an atlas cell would bleed into its neighbour at low mips,
-        // and a bled edge survives alphaTest as a fringe of the wrong facing.
-        t.generateMipmaps = false;
-        var nf = (typeof PIXEL !== "undefined" && PIXEL > 1) ? THREE.NearestFilter : THREE.LinearFilter;
-        t.minFilter = nf; t.magFilter = nf;
-        t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
-        t.anisotropy = 1;
-        tex[name + "/" + st] = t;
-        if (--left === 0 && !failed) { ready[name] = true; pending[name] = false; if (done) done(name); }
-      }, undefined, function () {
-        // Missing art is not fatal — the primitive rig stays visible.
-        failed = true; pending[name] = false;
-        console.warn("[VR-91] no sprite sheet at " + url + " — keeping primitives for " + name);
-      });
-    });
-  }
-
-  function planeFor(name) {
-    var h = DEF[name].h, size = h * PXC / STAND_PX;
-    return { size: size, centreY: h * (PXC / 2 - (PXC - FLOOR_PX)) / STAND_PX };
-  }
-
-  // Each sprite owns its geometry so the facing can be selected by rewriting UVs,
-  // which keeps ONE texture per state shared across every husk on screen.
-  function make(name) {
-    var p = planeFor(name);
-    var geo = new THREE.PlaneGeometry(p.size, p.size);
-    var mat = new THREE.MeshBasicMaterial({
-      transparent: false, alphaTest: 0.5, depthWrite: true,
-      side: THREE.FrontSide, color: 0xffffff, fog: true
-    });
-    var m = new THREE.Mesh(geo, mat);
-    m.rotation.order = "YXZ";     // yaw first, then the capped pitch lean
-    m.visible = false;
-    scene.add(m);
-    return { m: m, geo: geo, mat: mat, centreY: p.centreY, size: p.size,
-             name: name, state: "", facing: -1 };
-  }
-
-  function setCell(s, fi) {
-    if (s.facing === fi) return;
-    s.facing = fi;
-    var col = fi % COLS, row = (fi / COLS) | 0;
-    var u0 = col * DU, v0 = 1 - (row + 1) * DV;
-    var uv = s.geo.attributes.uv;
-    uv.setXY(0, u0,      v0 + DV);
-    uv.setXY(1, u0 + DU, v0 + DV);
-    uv.setXY(2, u0,      v0);
-    uv.setXY(3, u0 + DU, v0);
-    uv.needsUpdate = true;
-  }
-
-  function setState(s, st) {
-    if (s.state === st) return;
-    var t = tex[s.name + "/" + st];
-    if (!t) return;
-    s.state = st; s.mat.map = t; s.mat.needsUpdate = true;
-  }
-
-  // Which of the 8 the camera can see: the character's own yaw vs. the
-  // direction back to the camera. Equal => f0, the front view.
-  var TAU = Math.PI * 2, STEP8 = TAU / FACINGS;
-  function facingFor(x, z, yaw) {
-    var toCam = Math.atan2(-(camera.position.x - x), -(camera.position.z - z));
-    var rel = (toCam - yaw) * FACING_DIR;
-    rel = ((rel % TAU) + TAU) % TAU;
-    return Math.round(rel / STEP8) % FACINGS;
-  }
-
-  // Upright quad, yawed to face the camera. A capped lean stops the card
-  // flattening into the floor when the player looks steeply down.
-  var LEAN_MAX = 0.30, LEAN_MIX = 0.35;
-  function place(s, x, y, z, yaw, scale) {
-    var dx = camera.position.x - x, dz = camera.position.z - z;
-    s.m.rotation.y = Math.atan2(dx, dz);
-    var dy = camera.position.y - (y + s.centreY * scale);
-    var flat = Math.sqrt(dx * dx + dz * dz) || 1e-4;
-    s.m.rotation.x = clamp(Math.atan2(dy, flat) * LEAN_MIX, -LEAN_MAX, LEAN_MAX);
-    s.m.position.set(x, y + s.centreY * scale, z);
-    s.m.scale.setScalar(scale);
-    setCell(s, facingFor(x, z, yaw));
-  }
-
-  function refilter() {
-    var nf = (PIXEL > 1) ? THREE.NearestFilter : THREE.LinearFilter;
-    for (var k in tex) { tex[k].minFilter = nf; tex[k].magFilter = nf; tex[k].needsUpdate = true; }
-  }
-  return { DEF: DEF, load: load, make: make, setState: setState, place: place, refilter: refilter,
-           isReady: function (n) { return !!ready[n]; }, tier: TIER };
-})();
-
-/* --- contact shadows: billboards can't cast a useful shadow map, so every
-       sprite gets a soft decal that keeps it glued to the floor. --- */
-var SHADOWS = (function () {
-  var geo = new THREE.CircleGeometry(1, 18), pool = [];
-  for (var i = 0; i < ENEMIES.length + 4; i++) {
-    var m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-      color: 0x05040c, transparent: true, opacity: 0.34, depthWrite: false }));
-    m.rotation.x = -Math.PI / 2; m.position.y = 0.018; m.visible = false;
-    scene.add(m); pool.push(m);
-  }
-  var n = 0;
-  return {
-    begin: function () { n = 0; },
-    drop: function (x, z, r, o) {
-      if (n >= pool.length) return;
-      var m = pool[n++];
-      m.visible = true; m.position.set(x, 0.018, z);
-      m.scale.setScalar(r); m.material.opacity = 0.34 * o;
-    },
-    end: function () { for (var i = n; i < pool.length; i++) pool[i].visible = false; }
-  };
-})();
-
-var playerSprite = null, huskSprites = [];
-var SPR_CHAR = "vesper";                 // the crew member this run
-
-function initSprites() {
-  SPR.load(SPR_CHAR, function () {
-    playerSprite = SPR.make(SPR_CHAR);
-    player.g.visible = false;            // primitives stay in the file, just hidden
-  });
-  SPR.load("husk", function () {
-    for (var i = 0; i < ENEMIES.length; i++) huskSprites[i] = SPR.make("husk");
-  });
-}
-
-function playerSpriteState() {
-  if (!player.alive) return "down";
-  if (player.atkStage >= 0 && player.atkPhase) return "attack";
-  if (player.iframe > C.iframeOnHit - 0.22) return "hurt";
-  return (Math.hypot(player.vx, player.vz) > 0.6) ? "move" : "idle";
-}
-
-function huskSpriteState(e) {
-  if (e.state === "die") return "down";
-  if (e.state === "wind" || e.state === "strike") return "attack";
-  if (e.stagger > 0) return "hurt";
-  return "move";
-}
-
-function updateSprites() {
-  SHADOWS.begin();
-
-  if (playerSprite && SPR.isReady(SPR_CHAR)) {
-    var s = playerSprite;
-    SPR.setState(s, playerSpriteState());
-    s.m.visible = !!s.mat.map;
-    SPR.place(s, player.x, player.g.position.y, player.z, player.yaw, 1);
-    // the Shroud reads as a dim, cool ghost rather than a fade — alphaTest
-    // would throw a blended fade away, so tint instead of going transparent
-    var v = player.veiled ? 0.42 : 1;
-    s.mat.color.setRGB(v, v, Math.min(1, v * 1.35));
-    if (player.alive) SHADOWS.drop(player.x, player.z, 0.5, player.veiled ? 0.4 : 1);
-  }
-
-  if (SPR.isReady("husk")) {
-    for (var i = 0; i < ENEMIES.length; i++) {
-      var e = ENEMIES[i], hs = huskSprites[i];
-      if (!hs) continue;
-      if (!e.live) { hs.m.visible = false; continue; }
-      e.g.visible = false;
-      SPR.setState(hs, huskSpriteState(e));
-      hs.m.visible = !!hs.mat.map;
-      var sc = e.g.scale.y || 1;
-      SPR.place(hs, e.x, e.g.position.y, e.z, e.yaw, sc);
-      // dying husks fade; alphaTest is relaxed for the handful that are mid-dissolve
-      if (e.state === "die") {
-        var f = clamp(e.dissolve / 0.5, 0, 1);
-        hs.mat.transparent = true; hs.mat.opacity = 1 - f; hs.mat.alphaTest = 0.1;
-      } else if (hs.mat.transparent) {
-        hs.mat.transparent = false; hs.mat.opacity = 1; hs.mat.alphaTest = 0.5;
-      }
-      var flash = e.flash > 0 ? 1 + e.flash * 2.2 : 1;
-      hs.mat.color.setRGB(flash, flash * 0.86, flash * 0.95);
-      if (e.state !== "die") SHADOWS.drop(e.x, e.z, 0.46 * sc, 1);
-    }
-  }
-
-  SHADOWS.end();
-}
 
 /* =============================== main loop ============================== */
 /* Fixed timestep for the sim, render decoupled — feel stays frame-rate
@@ -2003,7 +1678,6 @@ function frame(now) {
   updateGhosts(raw);
   updateTears(raw);
   updateCamera(raw);
-  updateSprites();
   if (game.running || game.over) updateHUD();
 
   // idle-attract: slow orbit before the first run
@@ -2020,9 +1694,7 @@ function frame(now) {
   fpsN++; fpsT += raw;
   if (fpsT >= 0.5) { fpsEl.textContent = Math.round(fpsN / fpsT) + " fps"; fpsN = 0; fpsT = 0; }
 }
-initSprites();
-cam.mode = "first"; toggleCam(); // -> arcade, the v1 default
-setPaused(false);
+toggleCam(); toggleCam(); // initialise the camera tag + visibility for third person
 requestAnimationFrame(frame);
 
 })();
