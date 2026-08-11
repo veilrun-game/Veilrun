@@ -198,7 +198,9 @@ VEILRUN.crew = [
                  {name:"Hearth (aura)", text:"With Magpie (stepmom): her ward raises Wren's strain ceiling."} ]
   },
   {
-    id: "anvil", name: "Anvil", player: "Michael", alias: "Maddog", aliases: ["Mike"], accent: "var(--c-anvil)",
+    // "Maddogg" (two g's) is how Michael actually signed up — found 8/10 in votes, logins and game_scores.
+    // Without it, every one of his rows fell out of identityFor() and off the contribution leaderboard.
+    id: "anvil", name: "Anvil", player: "Michael", alias: "Maddog", aliases: ["Mike", "Maddogg"], accent: "var(--c-anvil)",
     gamingName: "Maddog", actualName: "Mike", nickname: null, // Jordan flagged unsure (7/20) — ask Mike
     img: "assets/img/anvil.webp",
     role: "Juggernaut", tagline: "The immovable wall — the loud option, and the sleeper.",
@@ -243,7 +245,9 @@ VEILRUN.crew = [
                  {name:"Second Sight", text:"With Magpie: Drift-reading + Sixth Sense — the crew sees the next 10 seconds."} ]
   },
   {
-    id: "babel", name: "Babel", player: "Manafest", alias: "Manafest", accent: "var(--c-babel)",
+    // "GloriousGlanz" is Manafest's sign-up name — confirmed by Jordan 8/10. Same class of bug as
+    // Anvil's "Maddogg": without it his 6 sessions fell out of identityFor() and he read as dormant.
+    id: "babel", name: "Babel", player: "Manafest", alias: "Manafest", aliases: ["GloriousGlanz"], accent: "var(--c-babel)",
     gamingName: "ManafestDread", actualName: "Manafest", nickname: "Manafest", // real name is Jordan — omitted to avoid colliding with Latch's Jordan in identity matching (VR-64)
     img: "assets/img/babel.webp",
     role: "The Interpreter — linguist · commander · diplomat", tagline: "Fluent in every tongue of both halves; talks the world back together.",
@@ -455,9 +459,24 @@ VEILRUN.games = [
           ["H", "Controls and abilities \u2014 the run clock pauses while it is open"]
         ],
         combos: [
-          { id: "vesper", label: "Vesper \u00b7 Phantom assassin", sub: "3D wave survival \u00b7 blink, strike, execute", play: "games/proving-ground/index.html",
+          { id: "vesper", label: "Vesper \u00b7 Phantom assassin", sub: "3D wave survival \u00b7 blink, strike, execute", play: "games/proving-ground/versions/v0/index.html",
             char: "vesper",
             levels: [ { id: "proving-ground", label: "Endless \u2014 run score" } ] }
+        ] },
+      { id: "v1", label: "v1 \u00b7 sprite arena (preview)",
+        controls: [
+          ["WASD", "Move"],
+          ["Mouse", "Look and aim"],
+          ["Left click", "Strike \u2014 chains into a three-hit combo"],
+          ["Right click", "Execute \u2014 finishes the wounded, refunds a Veilstep"],
+          ["Shift / Space", "Veilstep \u2014 blink through anything, two charges"],
+          ["V", "Swap third / first person (experimental)"],
+          ["H", "Controls and abilities \u2014 the run clock pauses while it is open"]
+        ],
+        combos: [
+          { id: "vesper", label: "Vesper \u00b7 Phantom assassin", sub: "Art pass \u2014 billboarded sprites (placeholder art)", play: "games/proving-ground/index.html",
+            char: "vesper",
+            levels: [ { id: "proving-ground-v1", label: "Endless \u2014 run score" } ] }
         ] }
     ] }
 ];
