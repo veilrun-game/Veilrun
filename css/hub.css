@@ -1,0 +1,138 @@
+/* VEILRUN — Hub (VR-86)
+   The personalised home base. Reads only tokens from tokens.css.
+
+   LAYOUT NOTE — masonry columns, and why it isn't a grid.
+   Zone visibility changes per user type (crew / extension / brand-new), so on every
+   single view at least one zone is hidden. In a single CSS grid, two cards sharing a
+   row are height-coupled: the row grows to the tallest and every shorter card inherits
+   dead space beneath it. Spans and `grid-auto-flow: dense` don't help — they choose
+   which CELL a card lands in, not the row height it inherits. Three grid variants were
+   tried and all gapped.
+   So the two columns are their own flex stacks: no shared rows exist, and a card can
+   only stack against the card directly above it. Mobile dissolves the wrappers with
+   `display: contents`, keeping ONE source order = priority order. One block of markup,
+   one breakpoint, no JS branching.
+   (Native CSS masonry — `grid-template-rows: masonry` / Grid Lanes — is the eventual
+   answer but shipped only in Safari 26 as of Aug 2026, so it's a later @supports win.) */
+
+.hub2 { display: grid; grid-template-columns: 1fr; gap: var(--s-5); }
+.hub2 .hcol { display: contents; }
+
+@media (min-width: 900px) {
+  .hub2 { grid-template-columns: minmax(0, 1.58fr) minmax(0, 1fr); align-items: start; gap: var(--s-5) var(--s-6); }
+  .hub2 .hcol { display: flex; flex-direction: column; gap: var(--s-5); }
+  .hub2 .z-jump { grid-column: 1 / -1; }
+}
+
+.hub2 .hcard {
+  background: var(--panel-glass); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: var(--s-5); box-shadow: var(--shadow);
+}
+.hub2 h3.zone { font-size: 1.05rem; margin-bottom: var(--s-3); }
+
+/* ---- Hero. Carries art: latest.img || D.cover (the hub hero follows the newest update). ---- */
+.hub2 .z-hero {
+  border-color: var(--magenta);
+  background: radial-gradient(120% 140% at 0% 0%, rgba(214, 92, 220, .17), transparent 62%), var(--panel-glass);
+  display: grid; gap: var(--s-5);
+}
+.hub2 .z-hero h2 { font-size: 1.55rem; margin: var(--s-2) 0; }
+.hub2 .hero-sub { color: var(--mute); margin-bottom: var(--s-4); }
+.hub2 .hero-art {
+  border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--line);
+  aspect-ratio: 16 / 10; background: linear-gradient(150deg, var(--violet), var(--magenta) 60%, var(--steel));
+}
+.hub2 .hero-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hub2 .hero-btns { display: flex; gap: var(--s-3); flex-wrap: wrap; }
+@media (min-width: 900px) {
+  .hub2 .z-hero { grid-template-columns: 1.05fr .95fr; align-items: center; padding: var(--s-6); }
+  .hub2 .z-hero h2 { font-size: 2rem; }
+}
+
+/* ---- Since you last signed in ---- */
+.hub2 .band-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3); flex-wrap: wrap; margin-bottom: var(--s-3); }
+.hub2 .band-n { font-family: var(--font-display); font-size: 2.4rem; line-height: 1; color: var(--magenta); }
+.hub2 ul.hfeed { list-style: none; display: grid; gap: var(--s-1); }
+.hub2 ul.hfeed li {
+  display: grid; grid-template-columns: auto 1fr auto; gap: var(--s-3);
+  align-items: start; padding: var(--s-3) 0; border-top: 1px solid rgba(60, 52, 92, .55);
+}
+.hub2 ul.hfeed li:first-child { border-top: 0; }
+.hub2 .hdot { width: 8px; height: 8px; border-radius: 50%; background: var(--magenta); margin-top: .55rem; box-shadow: 0 0 8px var(--magenta); }
+.hub2 .f-title { font-weight: 500; color: var(--white); }
+.hub2 .f-meta { font-size: .76rem; color: var(--muted-dark); text-transform: uppercase; letter-spacing: .1em; }
+.hub2 .f-jump { white-space: nowrap; font-size: .85rem; }
+.hub2 .hmore { margin-top: var(--s-3); font-size: .9rem; }
+.hub2 .caught { display: flex; gap: var(--s-3); align-items: center; color: var(--mute); }
+.hub2 .caught .tick { color: var(--cyan); font-size: 1.4rem; }
+
+/* ---- Action lists (waiting on you / get started) ---- */
+.hub2 ul.htodo { list-style: none; display: grid; gap: var(--s-2); }
+.hub2 ul.htodo li {
+  display: flex; gap: var(--s-3); align-items: center; justify-content: space-between; flex-wrap: wrap;
+  padding: var(--s-3); border: 1px solid var(--line); border-radius: var(--radius-sm); background: rgba(11, 8, 24, .5);
+}
+.hub2 .htag { font-size: .66rem; text-transform: uppercase; letter-spacing: .12em; padding: .15rem .5rem; border-radius: 999px; border: 1px solid var(--line); color: var(--mute); }
+.hub2 .htag.vote { border-color: var(--violet); color: var(--violet-lt); }
+.hub2 .htag.play { border-color: var(--steel); color: var(--steel-lt); }
+.hub2 .htag.note { border-color: var(--amber); color: var(--amber); }
+/* Campaign grouping — waiting-on-you is bursty (one vote campaign at a time, plus a
+   trickle of notifications), so items group under a heading rather than sit in a flat list. */
+.hub2 .campaign + .campaign { margin-top: var(--s-4); }
+.hub2 .campaign > .eyebrow { margin-bottom: var(--s-2); }
+
+/* ---- Orientation (first visit only) ---- */
+.hub2 .statstrip { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s-3); margin: var(--s-4) 0; }
+.hub2 .hstat { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: var(--s-3); background: rgba(11, 8, 24, .5); }
+.hub2 .hstat b { display: block; font-family: var(--font-display); font-size: 1.75rem; line-height: 1; color: var(--violet-lt); }
+.hub2 .hstat span { font-size: .7rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted-dark); }
+.hub2 .orient-p { color: var(--mute); max-width: 66ch; }
+.hub2 .orient-p + .orient-p { margin-top: var(--s-3); }
+@media (min-width: 900px) { .hub2 .statstrip { grid-template-columns: repeat(4, 1fr); } }
+
+/* Numbered path — CTA drops to its own row on mobile rather than squeezing the text */
+.hub2 ol.hpath { list-style: none; counter-reset: p; display: grid; gap: var(--s-3); margin-top: var(--s-5); }
+.hub2 ol.hpath li {
+  counter-increment: p; display: grid; grid-template-columns: auto 1fr; gap: var(--s-2) var(--s-4);
+  align-items: center; padding: var(--s-4); border: 1px solid var(--line); border-radius: var(--radius-sm); background: rgba(11, 8, 24, .5);
+}
+.hub2 ol.hpath li::before {
+  content: counter(p); font-family: var(--font-display); font-size: 1.15rem; color: var(--magenta);
+  width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--magenta); border-radius: 50%;
+}
+.hub2 ol.hpath .why { display: block; font-size: .82rem; color: var(--muted-dark); line-height: 1.45; }
+.hub2 ol.hpath .go { grid-column: 2; justify-self: start; font-size: .9rem; }
+@media (min-width: 900px) {
+  .hub2 ol.hpath li { grid-template-columns: auto 1fr auto; }
+  .hub2 ol.hpath .go { grid-column: 3; justify-self: end; }
+}
+
+/* ---- Gallery tile (first visit only) — sorted by the existing image_likes table ---- */
+.hub2 .galgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s-2); }
+.hub2 .galgrid figure {
+  position: relative; aspect-ratio: 2 / 3; border-radius: var(--radius-sm); overflow: hidden;
+  border: 1px solid var(--line); background: linear-gradient(160deg, var(--violet), var(--magenta)); min-height: 0;
+}
+.hub2 .galgrid img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hub2 .galgrid figcaption {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: .3rem .45rem; font-size: .65rem;
+  text-transform: uppercase; letter-spacing: .1em; background: linear-gradient(transparent, rgba(11, 8, 24, .92)); color: var(--white);
+}
+
+/* ---- Crew strip ---- */
+.hub2 .crewline { display: grid; gap: var(--s-2); }
+.hub2 .who-row { display: flex; align-items: center; gap: var(--s-3); font-size: .9rem; }
+.hub2 .pip { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: .75rem; font-weight: 700; color: var(--ink); flex: none; }
+.hub2 .roster { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-3); }
+.hub2 .roster .pip { width: 34px; height: 34px; }
+
+/* ---- Jump ---- */
+.hub2 .jumpgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s-2); }
+.hub2 .jumpgrid a { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: var(--s-3); color: var(--white); font-size: .9rem; }
+.hub2 .jumpgrid a span { display: block; font-size: .72rem; color: var(--muted-dark); }
+.hub2 .jumpgrid a:hover { border-color: var(--magenta); }
+@media (min-width: 900px) { .hub2 .jumpgrid { grid-template-columns: repeat(6, 1fr); } }
+
+/* Loading shimmer while the first fetch is in flight (stale-while-revalidate: we render
+   cached values immediately, so this only ever shows on a genuinely cold first load). */
+.hub2 .hloading { opacity: .55; }

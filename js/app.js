@@ -23,7 +23,196 @@ window.VApp = (function () {
   function setCrewView(v) { localStorage.setItem("vr_crewview", v); views_render_crew(); }
 
   const views = {
+    /* The personalised hub (VR-86). Renders three user states from hubData; see the
+       HUB block above for how that's derived. Falls back to hubV0() — the original
+       one-size-fits-all hub, kept rather than deleted — via ?v0 or #hub/v0. */
     hub() {
+      if (location.hash.indexOf("/v0") > -1 || localStorage.getItem("vr_hub_v0") === "1") return views.hubV0();
+
+      const h = hubData || { type: hubUserType(), lastSeen: null, unseen: null, waiting: [] };
+      const isNew = h.type === "new", isCrew = h.type === "crew";
+      const unseen = isNew ? null : (h.unseen || []);
+      const caughtUp = unseen !== null && unseen.length === 0;
+      const latest = D.updates[0];
+      const cover = D.cover || "assets/img/cover.webp";
+      const heroImg = isNew ? cover : ((latest && latest.img) || cover);
+      const top = (h.waiting && h.waiting[0]) || null;
+      const fmtD = s => { const [y, m, d] = String(s).split("-").map(Number);
+        return new Date(y, (m || 1) - 1, d || 1).toLocaleDateString(undefined, { month: "short", day: "numeric" }); };
+
+      /* ---- hero ---------------------------------------------------------------- */
+      let eyebrow, title, sub, ctaL, ctaH, altL, altH;
+      if (isNew) {
+        eyebrow = "First time here";
+        title = "Ten friends are building a game. This is where it's up to.";
+        sub = "Nothing here needs an account and nothing is finished. Have a look around, play one thing, and tell us what didn't make sense — that's genuinely the job.";
+        ctaL = "Show me around ↓"; ctaH = "#hub"; altL = "Just let me play"; altH = "#games";
+      } else if (isCrew && top) {
+        eyebrow = "Waiting on you";
+        title = top.campaign + " — " + top.note;
+        sub = caughtUp ? "You're all caught up on updates — but this still needs you."
+          : unseen.length + " thing" + (unseen.length > 1 ? "s" : "") + " landed while you were away, below.";
+        ctaL = "Take a look →"; ctaH = top.href; altL = "Not now"; altH = "#updates";
+      } else if (caughtUp) {
+        eyebrow = "You're all caught up";
+        title = "Nothing new since you were last here.";
+        sub = latest ? "The last thing that landed was “" + updParts(latest).title + "” on " + fmtD(latest.date) + "." : "";
+        ctaL = "Vote on a lieutenant →"; ctaH = "#threats"; altL = "Play a level"; altH = "#games";
+      } else {
+        eyebrow = "What's new";
+        title = latest ? updParts(latest).title : "Welcome back";
+        sub = latest ? fmtD(latest.date) + " · " + unseen.length + " update" + (unseen.length > 1 ? "s" : "") + " since you were last here." : "";
+        ctaL = (latest && latest.cta && latest.cta.label) || "Read it →";
+        ctaH = (latest && latest.cta && latest.cta.href) || "#updates";
+        altL = "See everything"; altH = "#updates";
+      }
+      const heroZone = `
+        <section class="hcard z-hero">
+          <div>
+            <p class="eyebrow">${C.esc(eyebrow)}</p>
+            <h2>${C.esc(title)}</h2>
+            <p class="hero-sub">${C.esc(sub)}</p>
+            <div class="hero-btns">
+              <a class="btn" href="${C.esc(ctaH)}">${C.esc(ctaL)}</a>
+              <a class="btn ghost" href="${C.esc(altH)}">${C.esc(altL)}</a>
+            </div>
+          </div>
+          <div class="hero-art"><img src="${C.esc(heroImg)}" alt="" loading="lazy" /></div>
+        </section>`;
+
+      /* ---- since you last signed in (never rendered on a first visit) ----------- */
+      let bandZone = "";
+      if (!isNew) {
+        if (caughtUp) {
+          bandZone = `
+            <section class="hcard z-band">
+              <div class="band-head"><div>
+                <p class="eyebrow">Since you last signed in</p>
+                <h3 class="zone caught"><span class="tick">✓</span> You're all caught up</h3>
+              </div></div>
+              <p class="hmore mute">${isCrew && top ? "Nothing new landed — so here's what still needs you, above."
+                : "Last update was “" + C.esc(updParts(latest).title) + "”, " + C.esc(fmtD(latest.date)) + "."}</p>
+            </section>`;
+        } else {
+          const rows = unseen.slice(0, HUB_CAP).map(u => {
+            const p = updParts(u), g = (u.games || [])[0];
+            return `<li><span class="hdot"></span>
+              <span><span class="f-title">${C.esc(p.title)}</span><br>
+              <span class="f-meta">${C.esc(fmtD(u.date))}${g ? " · " + C.esc(g) : ""}</span></span>
+              <a class="f-jump" href="${g ? "#games/" + C.esc(g) : "#updates"}">Jump →</a></li>`;
+          }).join("");
+          bandZone = `
+            <section class="hcard z-band">
+              <div class="band-head">
+                <div><p class="eyebrow">Since you last signed in</p>
+                <h3 class="zone">You missed ${unseen.length} thing${unseen.length > 1 ? "s" : ""}${unseen.length > HUB_CAP ? " — here's the shape of it" : ""}</h3></div>
+                <div class="band-n">${unseen.length}</div>
+              </div>
+              <ul class="hfeed">${rows}</ul>
+              <p class="hmore mute">${unseen.length > HUB_CAP
+                ? `<a href="#updates">See all ${unseen.length} →</a> · capped at ${HUB_CAP} so the page stays readable`
+                : "That's everything."}</p>
+            </section>`;
+        }
+      }
+
+      /* ---- waiting on you (crew only), grouped by campaign ---------------------- */
+      let waitZone = "";
+      if (isCrew && h.waiting && h.waiting.length > 1) {
+        waitZone = `<section class="hcard z-wait"><h3 class="zone">Also waiting on you</h3>
+          ${h.waiting.slice(1).map(c => `<div class="campaign">
+            <p class="eyebrow">${C.esc(c.campaign)}</p>
+            <ul class="htodo">${c.items.map(i =>
+              `<li><span>${C.esc(i.label)} <span class="htag ${C.esc(c.tag)}">${C.esc(c.tag)}</span></span><a href="${C.esc(i.href)}">Open →</a></li>`).join("")}</ul>
+          </div>`).join("")}</section>`;
+      }
+
+      /* ---- get started (extensions only) --------------------------------------- */
+      const startZone = (!isCrew && !isNew) ? `
+        <section class="hcard z-start">
+          <p class="eyebrow">One thing you could do</p>
+          <h3 class="zone">Pick something small</h3>
+          <ul class="htodo">
+            <li><span>React to the newest art <span class="htag">30 sec</span></span><a href="#gallery">Open →</a></li>
+            <li><span>Vote on a lieutenant <span class="htag vote">1 min</span></span><a href="#threats">Vote →</a></li>
+            <li><span>Play one level <span class="htag play">3 min</span></span><a href="#games">Play →</a></li>
+          </ul>
+          <p class="hmore mute">No pressure and nothing to keep up with — dip in whenever.</p>
+        </section>` : "";
+
+      /* ---- orientation + gallery (first visit only) ----------------------------- */
+      let orientZone = "", galZone = "";
+      if (isNew) {
+        const nLevels = (() => { let n = 0; const walk = x => { if (Array.isArray(x)) return x.forEach(walk);
+          if (!x || typeof x !== "object") return; if (Array.isArray(x.levels)) n += x.levels.length; Object.values(x).forEach(walk); };
+          walk(D.games || []); return n; })();
+        orientZone = `
+          <section class="hcard z-orient">
+            <p class="eyebrow">Where the project is right now</p>
+            <h3 class="zone">There's already a lot to look at</h3>
+            <div class="statstrip">
+              <div class="hstat"><b>${(D.crew || []).length}</b><span>crew, one each</span></div>
+              <div class="hstat"><b>${(D.games || []).length}</b><span>kinds of game</span></div>
+              <div class="hstat"><b>${nLevels}</b><span>levels playable</span></div>
+              <div class="hstat"><b>${(D.updates || []).length}</b><span>updates shipped</span></div>
+            </div>
+            <p class="orient-p">Veilrun is a game Jordan and nine friends are building in the open. Everyone has a character based on them — their kit, their look, their name in the lore.</p>
+            <p class="orient-p">They're a crew, and they fight like one. The rule the whole thing is built on is that <strong>nobody is dead weight</strong>: every character can carry a situation on their own, so teaming up is a choice rather than a crutch. Put the right two together and you get something neither of them has alone — and it costs you, because the bigger the combination, the more it drains the world around it.</p>
+            <p class="orient-p">Three sorts of game exist so far — <strong>2D pair levels</strong> built around those combinations, a branching <strong>story chapter</strong>, and a <strong>3D wave arena</strong>. All of it is prototype-grade and all of it is meant to be argued with.</p>
+            <ol class="hpath">
+              <li><span>Meet the crew<span class="why">Ten characters, ten people. Start with whoever you know.</span></span><a class="go" href="#crew">Open →</a></li>
+              <li><span>Play one level<span class="why">Three minutes, and it shows you how the pairing works immediately.</span></span><a class="go" href="#games">Play →</a></li>
+              <li><span>Tell us what didn't make sense<span class="why">Genuinely the most useful thing you can do — whole releases have come from notes like that.</span></span><a class="go" href="#feedback">Leave a note →</a></li>
+            </ol>
+          </section>`;
+        const art = hubTopArt(4);
+        galZone = `
+          <section class="hcard z-gallery">
+            <p class="eyebrow">The art so far</p>
+            <h3 class="zone">Most-liked right now</h3>
+            <div class="galgrid">${art.map(a =>
+              `<figure><img loading="lazy" src="${C.esc(a.src)}" alt="${C.esc(a.who)}" /><figcaption>${C.esc(a.who)}</figcaption></figure>`).join("")}</div>
+            <p class="hmore mute">Hundreds more across the ten galleries — every image is likeable.</p>
+          </section>`;
+      }
+
+      /* ---- crew ---------------------------------------------------------------- */
+      const crewZone = isNew
+        ? `<section class="hcard z-crew"><h3 class="zone">Who you're looking at</h3>
+             <p class="mute" style="font-size:.9rem">Every character is one of the ten. Tap any of them to meet the person behind it.</p>
+             <div class="roster">${(D.crew || []).map(c =>
+               `<a class="pip" style="background:${C.esc(c.accent || "var(--violet)")}" href="#crew/${C.esc(c.id)}" title="${C.esc(c.name)}">${C.esc(c.name[0])}</a>`).join("")}</div>
+           </section>`
+        : `<section class="hcard z-crew"><h3 class="zone">The crew</h3>
+             <p class="mute" style="font-size:.9rem">Ten characters, ten of us. See where everyone stands.</p>
+             <div class="roster">${(D.crew || []).map(c =>
+               `<a class="pip" style="background:${C.esc(c.accent || "var(--violet)")}" href="#crew/${C.esc(c.id)}" title="${C.esc(c.name)}">${C.esc(c.name[0])}</a>`).join("")}</div>
+             <p class="hmore"><a href="#leaderboard">Open the leaderboard →</a></p>
+           </section>`;
+
+      const jumpSet = isNew
+        ? [["#crew", "Start with the crew", "Who everyone is"], ["#games", "Play something", "No sign-up needed"],
+           ["#gallery", "Browse the art", "Hundreds of pieces"], ["#world", "Read the world", "What the Veil is"],
+           ["#updates", "See what's shipped", "The build log"], ["#feedback", "Ask a question", "We answer"]]
+        : [["#crew", "Crew", "10 characters"], ["#world", "World", "Overcity & Underweft"], ["#games", "Games", "3 to play"],
+           ["#lab", "Lab", "Ideas & votes"], ["#updates", "Updates", (D.updates || []).length + " shipped"], ["#board", "The Board", "What's next"]];
+      const jumpZone = `<section class="hcard z-jump"><h3 class="zone">Jump</h3>
+        <div class="jumpgrid">${jumpSet.map(([h2, k, d2]) =>
+          `<a href="${h2}">${C.esc(k)}<span>${C.esc(d2)}</span></a>`).join("")}</div></section>`;
+
+      /* Column split. Mobile dissolves these wrappers (display:contents) so source order
+         stays the priority order; desktop makes each an independent flex stack. */
+      return `<div class="wrap section">
+        ${C.sectionHeader("Home base", isNew ? "Welcome to Veilrun" : "Welcome back")}
+        <div class="hub2" style="margin-top:1.5rem">
+          <div class="hcol">${heroZone}${orientZone}${bandZone}</div>
+          <div class="hcol">${galZone}${waitZone}${startZone}${crewZone}</div>
+          ${jumpZone}
+        </div>
+      </div>`;
+    },
+
+    hubV0() {
       const jumps = [
         ["#world","The World","The two layers, the Sundering, the factions."],
         ["#crew","The Last Fluent","The nine fluent in both. Kits, codenames, synergies."],
@@ -834,6 +1023,149 @@ window.VApp = (function () {
   // .png paths. Normalize on load so historical group data still maps onto the live images.
   const toWebp = (s) => String(s || "").replace(/\.png$/i, ".webp");
   const myWho = () => localStorage.getItem("vr_account") || localStorage.getItem("vr_who") || "anon";
+
+  /* ==================================================================================
+     HUB (VR-86) — the personalised home base.
+     ----------------------------------------------------------------------------------
+     Three user states, and the difference between the last two is the whole feature:
+       "new"  — no previous session. There is NOTHING to diff, so the "since you last
+                signed in" band does not render at all. unseen is NULL, not 0 —
+                collapsing them prints "You're all caught up" on a first ever visit.
+       "ext"  — signed in but not crew (close friends/family). No waiting-on-you list
+                will ever be meaningful for them, so "get started" is their permanent
+                primary experience, not a fallback.
+       "crew" — signed in and resolves to a crew member.
+
+     Last-seen comes from the EXISTING `logins` table — no migration, no new column.
+     The trap: logLogin() inserts this session's row during init, so a naive
+     max(created_at) returns *now* and the band is permanently empty. We therefore take
+     the newest row older than a settling window, which is race-free (no dependence on
+     whether the insert has landed) and stays device-independent.
+
+     Measured 8/10 against live data: waiting-on-you is BURSTY, not steady — it is one
+     finite vote campaign at a time plus a trickle of resolved-feedback notifications.
+     So items group by campaign and the zone must look right at ten items and at zero.
+     ================================================================================== */
+  const HUB_SETTLE_MS = 5 * 60 * 1000;   // rows newer than this count as "this visit"
+  const HUB_CAP = 5;                     // items shown in the band before "see all"
+  const HUB_CACHE = "vr_hub_cache_v1";
+  let hubData = readHubCache();
+
+  function readHubCache() {
+    // Stale-while-revalidate: render from the last known values instantly, refresh behind.
+    try {
+      const raw = localStorage.getItem(HUB_CACHE);
+      if (!raw) return null;
+      const c = JSON.parse(raw);
+      return c && c.who === myWho() ? c : null;
+    } catch (e) { return null; }
+  }
+
+  const HUB_ANON_SEEN = "vr_hub_anon_seen";   // device-level last-seen for signed-out visitors
+
+  function hubUserType() {
+    // Signed out: we have no logins row, so fall back to a device marker. Without this a
+    // returning signed-out visitor would be greeted with "First time here" on every visit,
+    // which is the same null-vs-zero mistake in a different disguise.
+    if (!localStorage.getItem("vr_account")) return localStorage.getItem(HUB_ANON_SEEN) ? "ext" : "new";
+    return identityFor(myWho()).charName ? "crew" : "ext";
+  }
+
+  async function hydrateHub() {
+    const me = myWho(), meId = identityFor(me).key, type = hubUserType();
+    const cutoff = Date.now() - HUB_SETTLE_MS;
+    const parseDate = s => { const [y, m, d] = String(s).split("-").map(Number); return new Date(y, (m || 1) - 1, d || 1).getTime(); };
+
+    // Signed-out path: no account means no logins row to diff against, so use the device
+    // marker. Runs with no backend at all, which also keeps the hub working offline.
+    if (!localStorage.getItem("vr_account")) {
+      const prev = Number(localStorage.getItem(HUB_ANON_SEEN)) || null;
+      const unseenAnon = prev == null ? null : (D.updates || []).filter(u => parseDate(u.date) > prev);
+      hubData = { who: me, type, lastSeen: prev, unseen: unseenAnon, waiting: [], at: Date.now() };
+      try {
+        localStorage.setItem(HUB_ANON_SEEN, String(Date.now()));
+        localStorage.setItem(HUB_CACHE, JSON.stringify(hubData));
+      } catch (e) {}
+      return;
+    }
+    if (!window.VBackend) return;
+
+    const logins = window.VBackend.loadLogins ? await window.VBackend.loadLogins() : [];
+    const mineEarlier = logins
+      .filter(r => identityFor(r.who).key === meId && new Date(r.created_at).getTime() < cutoff)
+      .map(r => new Date(r.created_at).getTime())
+      .sort((a, b) => b - a);
+    // null (never been here) is deliberately distinct from a date with nothing after it.
+    const lastSeen = mineEarlier.length ? mineEarlier[0] : null;
+
+    const unseen = lastSeen == null ? null : (D.updates || []).filter(u => parseDate(u.date) > lastSeen);
+
+    let waiting = [];
+    if (type === "crew") {
+      const [votes, doneFb] = await Promise.all([
+        window.VBackend.loadVotes ? window.VBackend.loadVotes() : [],
+        window.VBackend.loadResolvedFeedback ? window.VBackend.loadResolvedFeedback(200) : []
+      ]);
+      const mineVotes = new Set(votes.filter(v => identityFor(v.who).key === meId).map(v => v.poll));
+      // A "campaign" is one decision per crew member's counter group — you either voted
+      // in that group or you didn't. Measured: this column is 10 or 0, never in between.
+      const openGroups = ((D.counters && D.counters.slots) || [])
+        .filter(s => s.crew && Array.isArray(s.opts))
+        .filter(s => !s.opts.some(o => mineVotes.has("ctr_" + s.crew + "_" + o.k)));
+      if (openGroups.length) waiting.push({
+        campaign: "Lieutenant counters",
+        tag: "vote", href: "#threats",
+        note: openGroups.length + " still need your vote",
+        items: openGroups.slice(0, 3).map(s => ({ label: "Who really counters " + s.hero + "?", href: "#threats" }))
+      });
+      const mineResolved = doneFb.filter(f => identityFor(f.who).key === meId);
+      if (mineResolved.length) waiting.push({
+        campaign: "You asked, we fixed",
+        tag: "note", href: "#feedback",
+        note: mineResolved.length + " of your notes " + (mineResolved.length === 1 ? "has" : "have") + " shipped",
+        items: mineResolved.slice(0, 3).map(f => ({ label: f.context || "Your feedback", href: "#feedback" }))
+      });
+    }
+
+    hubData = { who: me, type, lastSeen, unseen, waiting, at: Date.now() };
+    try { localStorage.setItem(HUB_CACHE, JSON.stringify(hubData)); } catch (e) {}
+  }
+
+  /* Most-liked art for the first-visit gallery tile. Sorts the EXISTING image_likes
+     counts — no new table, no new query (hydrateLikes already ran). Spreads across
+     characters so the tile doesn't show four near-identical variants of one person,
+     and falls back to each gallery's opening image before any likes exist. */
+  function hubTopArt(n) {
+    const galleries = D.galleries || {};
+    const nameOf = src => {
+      const m = String(src).match(/assets\/gallery\/([a-z]+)\//) || String(src).match(/assets\/img\/([a-z]+)\./);
+      const c = m && (D.crew || []).find(x => x.id === m[1]);
+      return c ? c.name : "Veilrun";
+    };
+    const liked = Object.keys(likeCounts || {})
+      .filter(s => likeCounts[s] > 0)
+      .sort((a, b) => likeCounts[b] - likeCounts[a]);
+    const out = [], seen = new Set();
+    for (const src of liked) {                      // one per character first, for variety
+      const who = nameOf(src);
+      if (seen.has(who)) continue;
+      seen.add(who); out.push({ src, who });
+      if (out.length >= n) return out;
+    }
+    for (const src of liked) {                      // then backfill with the rest
+      if (out.some(o => o.src === src)) continue;
+      out.push({ src, who: nameOf(src) });
+      if (out.length >= n) return out;
+    }
+    for (const id of Object.keys(galleries)) {      // cold start: no likes yet
+      const first = (galleries[id] || [])[1] || (galleries[id] || [])[0];
+      if (!first || out.some(o => o.src === first)) continue;
+      out.push({ src: first, who: nameOf(first) });
+      if (out.length >= n) break;
+    }
+    return out;
+  }
+
   const likeKey = (src) => "vr_like:" + src;
   const isLiked = (src) => likeMine.has(src) || localStorage.getItem(likeKey(src)) === "1";
   const isGroupFav = (src) => likeAll.has(src) || isLiked(src);
@@ -1946,10 +2278,15 @@ window.VApp = (function () {
     }
     route();
     // Load group likes + lab votes, then re-render so hearts/favorites/vote counts show.
-    Promise.all([hydrateLikes(), hydrateVotes(), hydrateImageOrder()]).then(() => route());
+    // Hub is stale-while-revalidate: it renders from cache above, then refreshes here.
+    Promise.all([hydrateLikes(), hydrateVotes(), hydrateImageOrder(), hydrateHub()]).then(() => route());
   }
 
   const galMore = galLoadMore;
-  return { init, route, toggleMenu, toggleDrop, signOut, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter, counterVote, gameBoardVer, gameBoardCombo, gameBoardLevel };
+  // Test seam for _hubcheck.js — lets the harness render every hub user state headlessly
+  // without a network or a signed-in account. Not used by the site itself.
+  const __renderHub = (state) => { hubData = state; return views.hub(); };
+  const __hubType = () => hubUserType();
+  return { init, route, toggleMenu, toggleDrop, signOut, __renderHub, __hubType, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter, counterVote, gameBoardVer, gameBoardCombo, gameBoardLevel };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);
