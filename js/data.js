@@ -550,7 +550,50 @@ VEILRUN.counters = {
   ]
 };
 
+/* VEILRUN.weekly — the Updates page hero (VR-97).
+
+   ONE flat object, deliberately. The Friday digest task REGENERATES IT WHOLE and
+   overwrites this literal — never merge into it, never split a field out somewhere
+   else in this file, or the task can't rewrite it safely.
+
+   Required, or the hero silently doesn't render: weekEnding · headline · blurb.
+   Optional and individually skippable: weekStart · metrics[] · image · highlights[].
+
+   THE FALLBACK IS THE POINT. If this object goes missing, loses a required field, or
+   `weekEnding` falls more than 14 days behind today, the Updates page drops back to
+   exactly the plain log it showed before this existed — no error, no stub, no empty
+   frame. This WILL stop being updated at some point and a stale summary is worse than
+   none. Logic + the ageing rule live in weeklyHero() in js/app.js; states are proven
+   headlessly by _updatescheck.js.
+
+   Voice: same register as updates[] below — plain, specific, comfortable saying a week
+   was quiet. Metrics are only worth a slot if they moved or they're surprising; don't
+   ship the same four every week out of habit. Never invent one. */
+VEILRUN.weekly = {
+  weekStart: "2026-08-05",
+  weekEnding: "2026-08-11",
+  headline: "Two new kinds of game — and somewhere to put them",
+  blurb: "For months Veilrun meant pair levels and a wall of ideas. This week it became three kinds of game: the pair levels, a branching story chapter you play as Rook, and a 3D arena where you hold off waves as Vesper. Both new ones are prototypes and look it — Proving Ground has no art in it at all, just lighting and shapes. The games also moved out of the Lab into their own section, and the Hub now opens on what you missed instead of the same page for everyone.",
+  metrics: [
+    { label: "new kinds of game", value: "2" },
+    { label: "updates shipped", value: "8" },
+    { label: "of your notes, fixed", value: "4" },
+    { label: "ways through Rook Signal", value: "4,992" }
+  ],
+  image: {
+    src: "assets/world/gameplay-views/04.webp",
+    alt: "A lone hooded figure in a glowing Underweft street",
+    why: "Both new games put one character on their own — Rook reaching in alone, Vesper alone in the pit. This is already Proving Ground's key art."
+  },
+  highlights: [
+    { label: "Play Rook Signal", href: "#games/story-cyoa" },
+    { label: "Play Proving Ground", href: "#games/arena-3d" },
+    { label: "See all the games", href: "#games" }
+  ]
+};
+
 VEILRUN.updates = [
+  { date: "2026-08-11", title: "The Updates page opens with the week, not the log", text: "There are 108 entries on the Updates page and they've always been in one flat list, newest first. That's a fine record and a terrible way to catch up — if you've been away a fortnight you're expected to read backwards until things look familiar, and nobody does that. **So the page now opens with the week itself:** a headline, a few lines on what it amounted to, the numbers that actually moved, and links straight to the things worth opening. The full log is still underneath, unchanged, and on a phone there's a **skip to the full log** button so the summary can't get in your way. **It's written to be honest about a quiet week.** If not much shipped it will say not much shipped — padding three small fixes into a milestone would waste your time, and you'd stop reading it, which defeats the point. **And it knows to get out of the way.** The summary is refreshed by hand each week for now, and one week that will be forgotten — so if it ever goes more than a fortnight without an update, it removes itself and the page goes back to exactly the log you're used to. A stale summary claiming to be \"this week\" is worse than no summary at all.", cta: { label: "Read this week", href: "#updates" } },
   { date: "2026-08-11", title: "The Hub knows who you are now — and tells you what you missed", text: "The Hub has shown everyone the same page since the day it went up: same cover image, same list, whether you'd been here yesterday or never. **Now it works out where you left off and starts there.** If things have shipped since you last signed in, it says so — how many, what they were, and a jump straight to each one, capped at five so it stays readable rather than becoming another wall. If nothing has changed, it says that too, plainly, and points you at whatever still needs you instead of pretending there's news. **It knows the difference between \"nothing new\" and \"never been here.\"** That sounds obvious and it wasn't — telling someone on their first ever visit that they're \"all caught up\" is nonsense, so first-timers get something else entirely: what the project actually is, where it's got to in numbers, the art, and three things worth doing in order. **And if something genuinely needs you** — a vote that's still open, a note of yours we've since fixed — that leads the page instead of the news. **Nothing new to sign up for and nothing to keep up with.** It reads your existing sign-ins to work out when you were last here, so it worked from the moment it went live. If you'd rather have the old one, add /v0 to the address. Tell us if it gets it wrong — particularly if it claims you missed something you didn't.", cta: { label: "Open the Hub", href: "#hub" } },
   { date: "2026-08-10", games: ["arena-3d"], title: "Proving Ground has a second version in the dropdown — and it looks deliberately unfinished", text: "Everything in Proving Ground so far has been built out of cylinders and spheres, because modelling real characters is the kind of job that eats a month and produces nothing playable. **So we're skipping models entirely.** The new **v1 · sprite arena** preview swaps those shapes for flat images that always turn to face the camera — a trick old games used constantly, and it means art can come straight out of Midjourney and drop into the game with no rigging at all. **Fair warning: the art in it right now is placeholder.** Grey boxes with a number on them. That is on purpose — the point of this build is to prove the plumbing works before we spend a Sunday generating 152 images, not to look good. The camera has been pulled much lower to suit it, because a flat image viewed from above just reads as a card lying on the floor. **v0 is still what Play opens** — nothing about your runs or the board changes. If you want to see where this is heading, pick **v1 · sprite arena (preview)** from the Version dropdown on the game's page, and tell us whether the lower camera feels better or worse to fight with. That's the actual question.", cta: { label: "▶ Open Proving Ground", href: "#games/arena-3d" } },
   { date: "2026-08-09", games: ["pair-levels", "story-cyoa", "arena-3d"], title: "The games have their own home now — and their own pages", text: "The Lab was doing two jobs badly. It opened as an idea board, then three playable games moved in on top of it, and the fifteen concepts everyone actually votes on got pushed to the bottom of a very long page. So we split them. **There's a Games section now** — find it under Lab in the menu. It lists everything you can actually play, and each game has its own page. **Each game page has the lot in one place:** pick your version, characters and level up top, hit Play, and right there underneath is that game's leaderboard, how it works, the full control list, and its own changelog — every update we've ever shipped for that game, and nothing about the others. The controls even change when you switch to a v2 preview, because v2 rebound everything and telling you the v1 keys would just be wrong. **The Lab is the idea board again** — concepts, votes, and a button through to the games. Nothing moved out of reach: every game plays exactly as it did, v1 is still what Play opens, and your leaderboard times are untouched. **And Rook Signal now knows who you picked.** Choose your character on its game page and the game skips its own character screen and takes you straight to choosing who you bring. That's the first of three — the pair levels and Proving Ground still ask you themselves for now.", cta: { label: "▶ View playable games", href: "#games" } },

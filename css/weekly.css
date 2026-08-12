@@ -1,0 +1,107 @@
+/* VEILRUN — Weekly digest hero, Updates page (VR-97).
+   Reads only tokens from tokens.css. No colour is written here that isn't a var().
+
+   LAYOUT NOTE — flex rows, not a grid, and the reason is the one hub.css records.
+   In a CSS grid, two cells sharing a row are height-coupled: the row grows to the
+   tallest and the shorter one inherits dead space it can't shed. hub.css hit that with
+   cards and had to dissolve into per-column flex stacks. Here the same trap is set by
+   the art: the blurb is regenerated weekly, so the text column's height is unknowable
+   at author time, and any fixed image height is wrong for half the weeks of the year.
+   So `.wk-main` is a flex row with the default `align-items: stretch`, and the image is
+   `height:100%; object-fit:cover` — the art takes whatever height the text ends up
+   being, and neither side can strand a gap under itself. Nothing needs measuring.
+
+   MOBILE FIRST, and the constraint that shapes it: this hero sits on top of 107 log
+   entries, so on a phone it must not become the page. Hence the banner-crop art
+   (clamped, never taller than ~1/3 of a small viewport), the 2x2 metric grid, and a
+   real "skip to the log" control at the bottom — the list stays one tap away. */
+
+.wk {
+  margin-top: var(--s-6);
+  border: 1px solid var(--magenta);
+  border-radius: var(--radius);
+  /* color-mix rather than hub.css's literal rgba(214,92,220,…): the seam glow stays tied
+     to --magenta, so a re-skin in tokens.css carries here instead of stranding one hex. */
+  background:
+    radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--magenta) 15%, transparent), transparent 62%),
+    var(--panel-glass);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+/* ---- Art + text. Column on a phone, side-by-side once there's room. ---- */
+.wk-main { display: flex; flex-direction: column; }
+
+.wk-art { margin: 0; flex: none; }
+.wk-art img {
+  display: block; width: 100%;
+  height: clamp(104px, 30vw, 168px);
+  object-fit: cover;
+  border-bottom: 1px solid var(--line);
+}
+
+.wk-txt { padding: var(--s-5); }
+.wk-txt .eyebrow { margin-bottom: var(--s-2); }
+
+.wk-head {
+  font-size: clamp(1.3rem, 4.6vw, 1.9rem);
+  line-height: 1.15;
+  margin: 0 0 var(--s-3);
+  color: var(--white);
+}
+
+.wk-blurb {
+  color: var(--mute);
+  margin: 0;
+  max-width: 62ch;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+/* Controls — sentence case in the markup, no transform here (Design System: Casing). */
+.wk-links { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-4); }
+.wk-links .wk-link { font-size: 0.85rem; padding: 8px 14px; }
+
+/* ---- Metrics. 2-up on a phone so four never becomes a column of four.
+   `auto-fit` rather than a fixed column count on purpose: the count varies week to week
+   (the digest brief says only show a number if it moved), and a fixed `repeat(4, 1fr)`
+   leaves empty tracks that render as bare slabs of --line whenever a week ships three. ---- */
+.wk-metrics {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 1px;
+  list-style: none; margin: 0; padding: 0;
+  background: var(--line);          /* the gap itself draws the hairlines */
+  border-top: 1px solid var(--line);
+}
+.wk-metric {
+  display: flex; flex-direction: column; gap: var(--s-1);
+  padding: var(--s-4) var(--s-5);
+  background: var(--ink-2);
+}
+.wk-metric .wk-n {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 5.5vw, 2.1rem);
+  line-height: 1;
+  color: var(--magenta);
+}
+.wk-metric .mute { font-size: 0.78rem; line-height: 1.3; }
+
+/* ---- Escape hatch to the log. Phone-only: on desktop the list is already visible. ---- */
+.wk-skip {
+  display: block; width: 100%;
+  font-family: var(--font-body); font-size: 0.82rem;
+  color: var(--mute); background: transparent;
+  border: none; border-top: 1px solid var(--line);
+  padding: var(--s-3); cursor: pointer;
+}
+.wk-skip:hover, .wk-skip:focus-visible { color: var(--white); }
+
+@media (min-width: 720px) {
+  .wk-main { flex-direction: row-reverse; align-items: stretch; }
+  .wk-art { flex: 0 0 34%; max-width: 340px; }
+  .wk-art img {
+    height: 100%; min-height: 100%;
+    border-bottom: none; border-left: 1px solid var(--line);
+  }
+  .wk-txt { flex: 1 1 auto; padding: var(--s-6); min-width: 0; }
+  .wk-skip { display: none; }
+}

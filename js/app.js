@@ -22,6 +22,89 @@ window.VApp = (function () {
   const getCrewView = () => localStorage.getItem("vr_crewview") || "tiles";
   function setCrewView(v) { localStorage.setItem("vr_crewview", v); views_render_crew(); }
 
+  /* ---------------------------------------------------------------- weekly digest hero
+     VR-97. Renders VEILRUN.weekly at the top of the Updates page — 107 entries in
+     reverse-chronological order is a log, not a summary, and nobody catching up reads it.
+
+     THE WHOLE DESIGN IS THE FALLBACK. A Friday task overwrites VEILRUN.weekly and one
+     week it will quietly stop doing that. So this returns "" — not a stub, not an empty
+     frame, not "no summary this week" — whenever the object is absent, missing anything
+     required, or gone stale, and views.updates() then renders exactly the page it
+     rendered before this feature existed. A stale summary is worse than none: it tells
+     the crew a confident, wrong story about where the project is.
+     Optional fields degrade one at a time rather than sinking the hero with them, and
+     every one is filtered on truthiness before it reaches the markup, so a half-written
+     object can't leak `undefined` into the page.
+     Every state is proven headlessly in _updatescheck.js. */
+  const WEEKLY_MAX_AGE_DAYS = 14;
+  // Local-midnight parse of a YYYY-MM-DD string; null if it isn't one. Matches the date
+  // handling already used for updates[] — never `new Date(str)`, which reads as UTC and
+  // can shift the day either side of the staleness cliff depending on the reader's zone.
+  function weeklyDate(s) {
+    if (typeof s !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+    const [y, m, d] = s.split("-").map(Number);
+    const dt = new Date(y, m - 1, d);
+    return (dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d) ? dt : null;
+  }
+  const weeklyStr = (v) => (typeof v === "string" && v.trim()) ? v.trim() : "";
+
+  function weeklyAgeDays(w, now) {
+    const end = weeklyDate(w && w.weekEnding);
+    if (!end) return null;
+    const today = new Date((now || new Date()).getFullYear(), (now || new Date()).getMonth(), (now || new Date()).getDate());
+    return Math.round((today - end) / 864e5);
+  }
+
+  function weeklyHero(now) {
+    const w = D.weekly;
+    if (!w || typeof w !== "object" || Array.isArray(w)) return "";
+    const headline = weeklyStr(w.headline), blurb = weeklyStr(w.blurb);
+    if (!headline || !blurb) return "";
+    const age = weeklyAgeDays(w, now);
+    if (age === null) return "";
+    if (age > WEEKLY_MAX_AGE_DAYS) return "";
+    // A weekEnding well in the future means the generator wrote a bad date, not that we
+    // are early. Small skew is tolerated so a timezone can't blank the hero on a Friday.
+    if (age < -7) return "";
+
+    const start = weeklyDate(w.weekStart), end = weeklyDate(w.weekEnding);
+    const dm = { month: "short", day: "numeric" };
+    const range = (start && start < end)
+      ? start.toLocaleDateString(undefined, dm) + " – " + end.toLocaleDateString(undefined, dm)
+      : "Week to " + end.toLocaleDateString(undefined, dm);
+
+    const metrics = (Array.isArray(w.metrics) ? w.metrics : [])
+      .filter(m => m && weeklyStr(m.label) && (weeklyStr(m.value) || typeof m.value === "number"))
+      .slice(0, 4)
+      .map(m => `<li class="wk-metric"><span class="wk-n">${C.esc(String(m.value))}</span><span class="mute">${C.esc(m.label)}</span></li>`)
+      .join("");
+
+    const links = (Array.isArray(w.highlights) ? w.highlights : [])
+      .filter(h => h && weeklyStr(h.label) && weeklyStr(h.href))
+      .slice(0, 4)
+      .map(h => `<a class="btn ghost wk-link" href="${C.esc(h.href.trim())}">${C.esc(h.label.trim())}</a>`)
+      .join("");
+
+    const imgSrc = w.image && weeklyStr(w.image.src);
+    const art = imgSrc
+      ? `<figure class="wk-art"><img src="${C.esc(imgSrc)}" alt="${C.esc((w.image && weeklyStr(w.image.alt)) || headline)}" loading="lazy" /></figure>`
+      : "";
+
+    return `<section class="wk" aria-labelledby="wk-h">
+          <div class="wk-main">
+            ${art}
+            <div class="wk-txt">
+              <p class="eyebrow">This week · ${C.esc(range)}</p>
+              <h2 class="wk-head" id="wk-h">${C.esc(headline)}</h2>
+              <p class="wk-blurb">${C.esc(blurb)}</p>
+              ${links ? `<div class="wk-links">${links}</div>` : ""}
+            </div>
+          </div>
+          ${metrics ? `<ul class="wk-metrics">${metrics}</ul>` : ""}
+          <button type="button" class="wk-skip" onclick="VApp.wkSkip()">Skip to the full log ↓</button>
+        </section>`;
+  }
+
   const views = {
     /* The personalised hub (VR-86). Renders three user states from hubData; see the
        HUB block above for how that's derived. Falls back to hubV0() — the original
@@ -657,6 +740,7 @@ window.VApp = (function () {
 
     updates() {
       const total = D.updates.length;
+      const hero = weeklyHero();
       const dayCounts = {};
       D.updates.forEach(u => {
         const [y, m, d] = String(u.date).split("-").map(Number);
@@ -666,7 +750,7 @@ window.VApp = (function () {
       const busiest = Object.entries(dayCounts).sort((a, b) => b[1] - a[1])[0];
       const list = D.updates.map(u => { const p = updParts(u); return `<div class="kit-row"><span class="mute" style="font-size:.8rem">${C.esc(u.date)}</span><div><strong style="color:var(--white)">${C.esc(p.title)}</strong>${p.body ? `<br><span class="mute">${C.esc(p.body)}</span>` : ""}</div></div>`; }).join("");
       return `<div class="wrap section">
-        ${C.sectionHeader("Log","Updates")}
+        ${C.sectionHeader("Log","Updates")}${hero}
         <div class="dash-stats cols-3" style="margin-top:1.5rem">
           <div class="dash-stat"><div class="dash-n">${total}</div><div class="mute">updates shipped so far</div></div>
           <div class="dash-stat"><div class="dash-n" style="font-size:1.7rem">${busiest ? C.esc(busiest[0]) : "—"}</div><div class="mute">${busiest ? busiest[1] + " updates — the busiest day of the week" : "not enough data yet"}</div></div>
@@ -682,7 +766,7 @@ window.VApp = (function () {
           </div>
           <div id="resolved-list" class="idea-list" style="margin-top:.8rem"><p class="mute" style="font-size:.85rem;margin:.5rem 0 0">Loading…</p></div>
         </div>
-        <div class="panel" style="margin-top:1.5rem">${list}</div>
+        <div class="panel"${hero ? ` id="upd-log"` : ""} style="margin-top:1.5rem">${list}</div>
       </div>`;
     },
 
@@ -2287,6 +2371,21 @@ window.VApp = (function () {
   // without a network or a signed-in account. Not used by the site itself.
   const __renderHub = (state) => { hubData = state; return views.hub(); };
   const __hubType = () => hubUserType();
-  return { init, route, toggleMenu, toggleDrop, signOut, __renderHub, __hubType, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter, counterVote, gameBoardVer, gameBoardCombo, gameBoardLevel };
+  // Test seam for _updatescheck.js. The harness mutates VEILRUN.weekly in place (D holds
+  // the same object reference) and re-renders; `now` lets it age the summary past the
+  // 14-day cliff without touching the clock.
+  const __renderUpdates = () => views.updates();
+  const __weeklyHero = (now) => weeklyHero(now);
+
+  // Scroll past the weekly hero to the log itself. The hero sits above 107 entries on a
+  // phone, so there has to be one tap out of it — and it can't be an href, because every
+  // hash on this site is a route and "#upd-log" would navigate instead of scrolling.
+  function wkSkip() {
+    const el = document.getElementById("upd-log");
+    if (!el || !el.scrollIntoView) return;
+    const still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
+  }
+  return { init, route, toggleMenu, toggleDrop, signOut, __renderHub, __hubType, __renderUpdates, __weeklyHero, wkSkip, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter, counterVote, gameBoardVer, gameBoardCombo, gameBoardLevel };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);
