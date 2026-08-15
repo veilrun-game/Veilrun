@@ -26,10 +26,14 @@
 /* ---- Card ---- */
 .gr-card { display: flex; gap: var(--s-4); padding: 0; overflow: hidden; }
 .gr-art { width: 200px; flex: 0 0 200px; object-fit: cover; align-self: stretch; background: var(--ink); }
-.gr-art-fallback { display: flex; align-items: center; justify-content: center; padding: 1rem;
-  background: linear-gradient(135deg, var(--ink-2), var(--ink)); border-right: 1px solid var(--line); }
+/* The tile is always present; real art layers on top and removes itself if it 404s.
+   So a missing cover reads as a designed typographic card, never a broken frame. */
+.gr-art-fallback { position: relative; display: flex; align-items: center; justify-content: center;
+  padding: 1rem; background: linear-gradient(135deg, var(--ink-2), var(--ink));
+  border-right: 1px solid var(--line); overflow: hidden; }
 .gr-art-fallback span { font-family: var(--font-display); text-transform: uppercase;
   letter-spacing: .04em; font-size: 1.1rem; color: var(--mute); text-align: center; line-height: 1.15; }
+.gr-art-fallback img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .gr-body { flex: 1 1 auto; min-width: 0; padding: var(--s-4); }
 .gr-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .6rem; justify-content: space-between; }
 .gr-head h3 { margin: 0; }

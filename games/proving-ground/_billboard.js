@@ -157,6 +157,26 @@ ok("settings can be copied out", /Copy settings to clipboard/.test(html) && /VEI
 ok("panel never touches BALANCE", !/TUNE[\s\S]{0,4000}?BAL\.C\./.test(html),
    "feel is tunable, balance is sim-proven");
 
+console.log("\n[hud layout]");
+/* Fixed/absolute UI anchored to the same corner silently stacks. The ? button
+   sat on top of the score since v0 and nobody noticed until a third element
+   joined them. Cheap to assert, so assert it. */
+{
+  const style = (html.match(/<style>([\s\S]*?)<\/style>/) || [])[1] || "";
+  const anchors = {};
+  const re = /([#.][\w-]+)\{[^}]*position:\s*(fixed|absolute)[^}]*?top:\s*(-?[\d.]+)px[^}]*?right:\s*(-?[\d.]+)px/g;
+  let m, clashes = [];
+  while ((m = re.exec(style))) {
+    const key = m[3] + "," + m[4];
+    if (anchors[key]) clashes.push(anchors[key] + " / " + m[1] + " both at top:" + m[3] + " right:" + m[4]);
+    else anchors[key] = m[1];
+  }
+  ok("no two top-right elements share an anchor", clashes.length === 0,
+     clashes.length ? clashes.join("; ") : Object.keys(anchors).length + " distinct top/right anchors");
+}
+ok("the gear sits clear of the score", /#tunefab\{position:fixed;top:14px;right:16px/.test(html) &&
+   /\.hud-tr\{position:absolute;top:58px/.test(html));
+
 console.log("\n[dom sanity]");
 {
   const ids = [...html.matchAll(/<[^>]*\sid="([^"]+)"/g)].map(m => m[1]);

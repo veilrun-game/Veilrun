@@ -1916,9 +1916,20 @@ window.VApp = (function () {
   const grefTags = () => (D.gameRefTags || { love: [], gripe: [] });
 
   // Slug is the join key to BOTH tables. Renaming one orphans every take on it.
+  const grefBare = (name) => String(name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
   function grefSlug(name) {
-    const raw = String(name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const raw = grefBare(name);
     return (D.gameRefAliases || {})[raw] || raw;
+  }
+  // A game's DISPLAY NAME doesn't have to normalise to its key — "Marvel's Spider-Man 2"
+  // bares to `marvelsspiderman2` while the key is `spiderman2`, and "Orcs Must Die! (series)"
+  // carries a suffix the key doesn't. Since the catalogue is the autocomplete source, a crew
+  // member picks the display name verbatim — so without this index, choosing a game from the
+  // list would file the take under a brand-new slug and silently create a duplicate card.
+  function grefNameIndex(known) {
+    const idx = {};
+    Object.keys(known).forEach(s => { const b = grefBare(known[s]); if (b && !idx[b]) idx[b] = s; });
+    return idx;
   }
   // Levenshtein, capped — only ever run against a list of ~50, so the naive version is fine.
   function grefDist(a, b) {
@@ -1949,6 +1960,9 @@ window.VApp = (function () {
     if (!slug) return { kind: "empty" };
     const known = grefKnown(refs);
     if (known[slug]) return { kind: "exact", slug, name: known[slug] };
+    // Typed the display name rather than the key — still an exact hit.
+    const byName = grefNameIndex(known)[grefBare(typed)];
+    if (byName) return { kind: "exact", slug: byName, name: known[byName] };
     const near = Object.keys(known)
       .map(s => ({ slug: s, name: known[s], d: grefDist(slug, s) }))
       .filter(o => o.d <= 2 || (o.slug.length > 3 && slug.length > 3 && (o.slug.indexOf(slug) === 0 || slug.indexOf(o.slug) === 0)))
@@ -2009,9 +2023,13 @@ window.VApp = (function () {
     const meta = [g.dimension, (g.platforms || []).join(" · ")].filter(Boolean)
       .map(m => `<span class="gr-chip">${C.esc(m)}</span>`).join("");
     const gone = g.status === "gone" ? `<span class="gr-gone">⚠ no longer running</span>` : "";
-    const art = g.art
-      ? `<img class="gr-art" src="${C.esc(g.art)}" alt="${C.esc(g.name)}" loading="lazy" onerror="this.remove()" />`
-      : `<div class="gr-art gr-art-fallback"><span>${C.esc(g.name)}</span></div>`;
+    // Art is LAYERED over the typographic tile, never swapped with it. The tile always
+    // renders; the image sits on top and removes itself if it 404s. That means the path is
+    // derived from the slug and every card lights up the moment a file is dropped into
+    // assets/gameref/ — no data.js edit, and a missing file is a designed state, not a gap.
+    const artSrc = g.art || (g.pending ? "" : "assets/gameref/" + slug + ".webp");
+    const art = `<div class="gr-art gr-art-fallback"><span>${C.esc(g.name)}</span>${
+      artSrc ? `<img src="${C.esc(artSrc)}" alt="${C.esc(g.name)}" loading="lazy" onerror="this.remove()" />` : ""}</div>`;
     const blurb = g.pending
       ? `<p class="gr-blurb gr-pending">Context coming — nobody's written this one up yet.</p>`
       : `<p class="gr-blurb">${C.esc(g.blurb || "")}</p>`;

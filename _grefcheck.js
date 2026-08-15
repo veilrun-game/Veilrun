@@ -115,12 +115,52 @@ ok(M("HD2", fixtureRefs).kind === "exact", "alias -> exact match (merges silentl
 var near = M("Helldivrs 2", fixtureRefs);
 ok(near.kind === "near", "typo -> NEAR, not exact");
 ok(near.slug === "helldivers2", "near match points at the right game");
-ok(M("Rocket League", fixtureRefs).kind === "new", "unrelated name -> new game");
+// Must be a name that is neither seeded nor near anything seeded — `grefKnown` merges the
+// real catalogue in, so a real game title here would (correctly) come back as `exact`.
+ok(M("Zzyzx Quantum Bowling", fixtureRefs).kind === "new", "unrelated name -> new game");
 ok(M("", fixtureRefs).kind === "empty", "empty input -> empty, never a bogus slug");
 // The load-bearing assertion: a near miss must NEVER come back as exact, because the
 // caller merges an exact hit without asking.
 ["Helldivrs 2", "Sea of Thiefs", "helldiver 2"].forEach(function (t) {
   ok(M(t, fixtureRefs).kind !== "exact", "near miss is never silently merged: " + t);
+});
+
+/* ---- 3b. the seeded catalogue resolves cleanly --------------------------
+   The seed is the autocomplete source, so a crew member picks a name from it verbatim.
+   Every one of those names MUST come back `exact` and point at its own slug — if a title
+   resolves to a neighbour instead, picking it from the list files the take on the wrong
+   card, silently. `eldenring` vs `eldenringnightreign` is a live prefix collision, so
+   this is not hypothetical. */
+var seeded = Object.keys(refs);
+ok(seeded.length > 0, "the catalogue is seeded (autocomplete has something to offer)");
+seeded.forEach(function (slug) {
+  var m = M(refs[slug].name, []);
+  ok(m.kind === "exact", "seed resolves exactly: " + refs[slug].name);
+  ok(m.slug === slug, "seed resolves to ITSELF, not a neighbour: " + refs[slug].name + " -> " + m.slug);
+});
+// Alias targets should be real catalogue entries, otherwise the shorthand resolves to a
+// slug no card will ever match.
+Object.keys(aliases).forEach(function (a) {
+  ok(!!refs[aliases[a]], "alias '" + a + "' points at a seeded game (" + aliases[a] + ")");
+});
+// A seeded name must never be reachable as an alias key too — the alias would shadow it.
+Object.keys(aliases).forEach(function (a) {
+  ok(!refs[a], "alias key '" + a + "' does not shadow a real catalogue slug");
+});
+// Two games whose display names normalise identically are unresolvable by definition: the
+// name index can only point one way, so picking one from autocomplete lands on the other.
+// Nothing in the data model prevents this, so it has to be asserted.
+var byBare = {};
+seeded.forEach(function (slug) {
+  var bare = String(refs[slug].name).toLowerCase().replace(/[^a-z0-9]/g, "");
+  ok(!byBare[bare], "no two games share a normalised display name (" + refs[slug].name +
+     (byBare[bare] ? " collides with " + refs[byBare[bare]].name : "") + ")");
+  byBare[bare] = slug;
+});
+// And an alias must not collide with a display name either, since the alias wins first.
+Object.keys(aliases).forEach(function (a) {
+  ok(!byBare[a] || byBare[a] === aliases[a],
+     "alias '" + a + "' does not hijack the display name of a different game (" + (byBare[a] || "") + ")");
 });
 
 /* ---- 4. card rendering at 1, 3 and 10 takes ----------------------------- */

@@ -37,7 +37,7 @@ canvas{display:block}
 .waveline{margin-top:10px;display:flex;align-items:baseline;gap:8px}
 #waveno{font-family:var(--font-display);font-size:1.5rem;line-height:1;letter-spacing:.06em}
 #wavesub{font-size:.74rem;color:var(--mute)}
-.hud-tr{position:absolute;top:18px;right:18px;text-align:right}
+.hud-tr{position:absolute;top:58px;right:18px;text-align:right}
 #score{font-family:var(--font-display);font-size:1.9rem;line-height:1;letter-spacing:.04em}
 #kills{font-size:.74rem;color:var(--mute);margin-top:3px}
 .hud-b{position:absolute;bottom:26px;left:50%;transform:translateX(-50%);display:flex;gap:16px;align-items:flex-end}
@@ -88,7 +88,7 @@ canvas{display:block}
   margin:0 auto 1.3rem;max-width:400px;color:var(--mute)}
 .keys b{font-family:var(--font-display);color:var(--white);letter-spacing:.06em;font-weight:400}
 .keys .hint{grid-column:1/-1;color:var(--violet-lt);font-size:.78rem;padding-top:.35rem;border-top:1px solid rgba(60,52,92,.5);margin-top:.35rem}
-.helpfab{position:fixed;top:14px;right:16px;z-index:15;width:30px;height:30px;border-radius:50%;cursor:pointer;padding:0;
+.helpfab{position:fixed;top:14px;right:58px;z-index:15;width:30px;height:30px;border-radius:50%;cursor:pointer;padding:0;
   border:1px solid var(--line);background:rgba(14,12,28,.8);color:var(--mute);font-family:var(--font-display);font-size:.9rem;line-height:1;
   opacity:0;pointer-events:none;transition:opacity .3s,border-color .15s,color .15s}
 .helpfab.on{opacity:.8;pointer-events:auto}
@@ -127,7 +127,7 @@ canvas{display:block}
 .tval{width:40px;text-align:right;color:var(--violet-lt);font-variant-numeric:tabular-nums}
 .tnote{color:var(--mute);font-size:.68rem;margin:-2px 0 8px;line-height:1.35}
 #tune .btn{width:100%;margin-top:8px;padding:.5rem;font-size:.78rem}
-#tunefab{position:absolute;top:18px;right:18px;width:34px;height:34px;border-radius:9px;
+#tunefab{position:fixed;top:14px;right:16px;z-index:41;width:34px;height:34px;border-radius:9px;
   border:1px solid var(--line);background:rgba(8,6,16,.7);color:var(--mute);cursor:pointer;
   pointer-events:auto;font-size:1rem;line-height:1}
 #tunefab:hover{color:var(--white);border-color:var(--accent)}
@@ -139,7 +139,6 @@ canvas{display:block}
 <div id="stage"></div>
 
 <div id="hud">
-  <button id="tunefab" title="Settings (\\)">\u2699</button>
   <div class="hud-tl">
     <div class="hplbl"><span class="eyebrow">Vesper</span><span id="hpnum">100</span></div>
     <div class="hpwrap"><div id="hpghost"></div><div id="hpfill"></div></div>
@@ -153,6 +152,32 @@ canvas{display:block}
   </div>
   <div id="crosshair"></div>
   
+
+<div id="shroudv"></div>
+  <div id="shroudlbl">Shrouded — next strike executes</div>
+  <div id="vignette"></div>
+  <div id="dmgnum"></div>
+  <div id="banner"><div class="b1"></div><div class="b2"></div></div>
+</div>
+
+<div id="pausehint">Esc — release cursor</div>
+<div id="camtag">V — third person</div>
+<div id="fps"></div>
+<button class="helpfab" id="helpfab" aria-label="Controls and abilities" title="Controls and abilities (H)">?</button>
+
+<div class="screen" id="s-help">
+  <div class="panel">
+    <div class="eyebrow">Veilrun · Proving Ground</div>
+    <h1 style="font-size:clamp(1.5rem,4vw,2.2rem)">Controls</h1>
+    <div class="who"><span class="nm">Vesper</span><span class="rl">Phantom assassin · Ramon</span></div>
+    <!-- filled at boot from the start screen, so there is only one copy of this list to maintain -->
+    <div class="keys" id="help-keys"></div>
+    <button class="btn" id="btn-resume">Back to the fight</button>
+    <div class="foot">H — open this any time · Esc — release the cursor</div>
+  </div>
+</div>
+
+<button id="tunefab" title="Settings  (\ key)">⚙</button>
 <div id="tune">
   <h3>Arena</h3>
   <div class="trow"><label>Map</label><select id="t-map"></select></div>
@@ -185,30 +210,6 @@ canvas{display:block}
   <div id="tunecopy">Paste these to Claude and they become the new defaults.</div>
   <button class="btn ghost" id="t-reset">Reset to defaults</button>
 </div>
-<div id="shroudv"></div>
-  <div id="shroudlbl">Shrouded — next strike executes</div>
-  <div id="vignette"></div>
-  <div id="dmgnum"></div>
-  <div id="banner"><div class="b1"></div><div class="b2"></div></div>
-</div>
-
-<div id="pausehint">Esc — release cursor</div>
-<div id="camtag">V — third person</div>
-<div id="fps"></div>
-<button class="helpfab" id="helpfab" aria-label="Controls and abilities" title="Controls and abilities (H)">?</button>
-
-<div class="screen" id="s-help">
-  <div class="panel">
-    <div class="eyebrow">Veilrun · Proving Ground</div>
-    <h1 style="font-size:clamp(1.5rem,4vw,2.2rem)">Controls</h1>
-    <div class="who"><span class="nm">Vesper</span><span class="rl">Phantom assassin · Ramon</span></div>
-    <!-- filled at boot from the start screen, so there is only one copy of this list to maintain -->
-    <div class="keys" id="help-keys"></div>
-    <button class="btn" id="btn-resume">Back to the fight</button>
-    <div class="foot">H — open this any time · Esc — release the cursor</div>
-  </div>
-</div>
-
 <div class="screen on" id="s-start">
   <div class="panel">
     <div class="eyebrow">Veilrun · the Underweft</div>
@@ -1041,7 +1042,10 @@ var TP_OFF = { x: 0.95, y: 0.30, z: 6.4 };
    art order and makes the arena playable on a phone.
    ARC_YAW is the world direction the camera looks along; the player's WASD is
    resolved against it, so "up" is always away from the viewer. -------------- */
-var ARC = { yaw: 0, pitch: 0.62, dist: 13.5, height: 0.95, lam: 7.5, fov: 44 };
+/* fov 24 is a deliberate telephoto, tuned in-game 8/15: it flattens perspective
+   so the arena reads closer to isometric, which is what the arcade references
+   (TMNT, X-Men, Brokeass) actually look like. A wide lens fought that. */
+var ARC = { yaw: 0, pitch: 0.6283, dist: 13.5, height: 0.95, lam: 7.5, fov: 24 };
 var CAM_MODES = ["arcade", "third", "first"];
 var CAM_LABEL = { arcade: "arcade (fixed)", third: "third person", first: "first person (experimental)" };
 function resumeFromPause() {
@@ -2131,10 +2135,14 @@ function updateSprites() {
    VEIL_GLASS     colour of the settled glass shell
    VEIL_GLASS_LIFT how hard the rim lights where the surface turns away (was 1.7,
                   which read as a neon outline rather than glass) */
-var VEIL_BURN  = 0x9B6FE0;       // the eaten edges as he comes apart
-var VEIL_GLASS = 0x3A2A6E;       // DEEP violet body — dark, so he reads as mass
-var VEIL_RIM   = 0xC463D8;       // a kiss of the seam's pink, only where he turns away
-var VEIL_GLASS_LIFT = 1.15;
+/* Tuned in-game by Jordan, 8/15, via the settings panel. The rim being a COLD
+   BLUE against a saturated violet body is the thing that sells it as glass:
+   real glass carries its tint through the body and catches a different, colder
+   light at the edge. A pink rim on a purple body just read as "more purple". */
+var VEIL_BURN  = 0x981AFF;       // the eaten edges as he comes apart
+var VEIL_GLASS = 0x63289F;       // violet body — saturated, so he reads as mass
+var VEIL_RIM   = 0x2785DD;       // cold blue where he turns away
+var VEIL_GLASS_LIFT = 1.10;
 var VEIL_A_MIN = 0.16;           // face-on: faint but PRESENT, not a rumour
 var VEIL_A_MAX = 0.66;           // at the silhouette edge
 
@@ -2566,5 +2574,6 @@ requestAnimationFrame(frame);
 
 })();
 </script>
+
 </body>
 </html>
