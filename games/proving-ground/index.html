@@ -200,6 +200,7 @@ canvas{display:block}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 /* =========================================================================
    VEILRUN — Proving Ground (3D wave-survival arena, v0)
@@ -1965,6 +1966,117 @@ function updateSprites() {
   SHADOWS.end();
 }
 
+
+/* ===================== player model — real-time 3D (VR-91) ===============
+   Vesper is a real mesh; the husks stay billboarded sprites. That mix works
+   ONLY because of the pixel grid: at 4:1 everything quantises to the same grid,
+   so a 3D player and 2D enemies read as one picture instead of two techniques.
+   Without the filter this would look like a bug.
+
+   Falls back to the primitive rig if the model is missing, exactly like the
+   sprite layer — a failed asset must never mean a broken game.
+
+   FACING: the model is exported from Blender facing -Y, which becomes -Z in
+   glTF, which is the game's forward vector. So unlike every primitive in this
+   file it does NOT get MESH_PI. That asymmetry is deliberate and load-bearing.
+   ------------------------------------------------------------------------ */
+var MODEL = (function () {
+  var URL = "../../assets/models/vesper.glb";
+  var root = null, mixer = null, actions = {}, current = "", ready = false;
+
+  // Mixamo exports clips named "mixamo.com"; anything hand-authored could be
+  // named anything. Match on keywords, then fall back to file order.
+  var WANT = [
+    ["idle",   ["idle", "breath", "stand"]],
+    ["move",   ["walk", "run", "jog", "move"]],
+    ["attack", ["slash", "attack", "punch", "strike", "sword"]],
+    ["hurt",   ["hit", "impact", "hurt", "damage", "react"]],
+    ["down",   ["death", "dying", "die", "fall", "down"]]
+  ];
+
+  function bind(gltf) {
+    root = gltf.scene;
+    root.traverse(function (o) {
+      if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; o.frustumCulled = false; }
+    });
+    player.g.add(root);            // inherits position + yaw from the existing rig
+    root.position.set(0, 0, 0);
+    root.rotation.y = -MESH_PI;    // cancel the primitive offset: the model already faces -Z
+
+    var clips = gltf.animations || [];
+    if (clips.length) {
+      mixer = new THREE.AnimationMixer(root);
+      var used = {};
+      WANT.forEach(function (w) {
+        var name = w[0], keys = w[1], found = null;
+        for (var i = 0; i < clips.length; i++) {
+          var n = (clips[i].name || "").toLowerCase();
+          if (used[i]) continue;
+          for (var k = 0; k < keys.length; k++) {
+            if (n.indexOf(keys[k]) >= 0) { found = i; break; }
+          }
+          if (found !== null) break;
+        }
+        if (found !== null) { used[found] = 1; actions[name] = mixer.clipAction(clips[found]); }
+      });
+      // anything unmatched falls back to file order, so a set of unnamed clips still works
+      var spare = [];
+      for (var i = 0; i < clips.length; i++) if (!used[i]) spare.push(i);
+      WANT.forEach(function (w) {
+        if (!actions[w[0]] && spare.length) actions[w[0]] = mixer.clipAction(clips[spare.shift()]);
+      });
+      for (var k in actions) {
+        actions[k].clampWhenFinished = true;
+        if (k === "attack" || k === "hurt" || k === "down") {
+          actions[k].setLoop(THREE.LoopOnce, 1);
+        }
+      }
+      console.log("[VR-91] model clips:", clips.map(function (c) { return c.name; }).join(", "));
+    } else {
+      console.warn("[VR-91] model has no animation clips — it will slide without moving. " +
+                   "Auto-rig it in Mixamo and re-export with idle/walk/slash/hit/death.");
+    }
+
+    // primitives step aside, but stay in the file
+    if (typeof pCloak !== "undefined") player.g.traverse(function (o) {
+      if (o !== root && o.isMesh && !root.getObjectById(o.id)) o.visible = false;
+    });
+    ready = true;
+  }
+
+  function load() {
+    if (typeof THREE.GLTFLoader !== "function") {
+      console.warn("[VR-91] GLTFLoader not present — keeping the primitive rig.");
+      return;
+    }
+    new THREE.GLTFLoader().load(URL, bind, undefined, function () {
+      console.warn("[VR-91] no model at " + URL + " — keeping the primitive rig. " +
+                   "Run _tools/blender/veilrun_prep_model.py, then Mixamo, then drop vesper.glb there.");
+    });
+  }
+
+  function play(name, dt) {
+    if (!mixer) return;
+    var a = actions[name];
+    if (a && current !== name) {
+      var prev = actions[current];
+      a.reset().fadeIn(0.12).play();
+      if (prev && prev !== a) prev.fadeOut(0.12);
+      current = name;
+    }
+    mixer.update(dt);
+  }
+
+  return { load: load, play: play,
+           isReady: function () { return ready; },
+           hasClips: function () { return !!mixer; } };
+})();
+
+function updatePlayerModel(dt) {
+  if (!MODEL.isReady()) return;
+  MODEL.play(playerSpriteState(), dt);   // same state machine the sprites use
+}
+
 /* =============================== main loop ============================== */
 /* Fixed timestep for the sim, render decoupled — feel stays frame-rate
    independent, and hit-stop freezes the sim without freezing the camera. */
@@ -2004,6 +2116,7 @@ function frame(now) {
   updateTears(raw);
   updateCamera(raw);
   updateSprites();
+  updatePlayerModel(raw);
   if (game.running || game.over) updateHUD();
 
   // idle-attract: slow orbit before the first run
@@ -2021,6 +2134,7 @@ function frame(now) {
   if (fpsT >= 0.5) { fpsEl.textContent = Math.round(fpsN / fpsT) + " fps"; fpsN = 0; fpsT = 0; }
 }
 initSprites();
+MODEL.load();
 cam.mode = "first"; toggleCam(); // -> arcade, the v1 default
 setPaused(false);
 requestAnimationFrame(frame);

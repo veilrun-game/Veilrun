@@ -72,6 +72,11 @@ Run them from inside the game's folder. Both must be green before hand-off.
 - **3D track (`games/proving-ground/`) deliberately does NOT use the 2D engine.** Three.js
   **r128** from the Cloudflare CDN. r128 has **no `CapsuleGeometry`** — build bodies from
   cylinders/spheres/cones.
+- **cdnjs hosts r128's core but NOT its `examples/` loaders.** `GLTFLoader` therefore comes from
+  jsDelivr (`cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js`) — the same
+  CDN the site already uses for Supabase. Deliberate, not an oversight.
+- **Every asset load falls back.** A missing sprite sheet keeps the primitive rigs; a missing
+  player model keeps the primitive rig. A failed asset must never mean a broken game.
 - Supabase: shared `game_scores` + `game_points` tables — **no new SQL per game**. The anon
   key is browser-safe and lives in `js/config.js` on purpose; the **`service_role` key must
   never be committed**, in any form.

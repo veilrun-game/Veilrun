@@ -102,6 +102,17 @@ ok("so the lunge goes TOWARD you", /var lx = -Math\.sin\(e\.yaw\), lz = -Math\.c
    "telegraph and lunge finally agree");
 ok("telegraph ring sits in front", /tele\.position\.set\(e\.x - Math\.sin\(e\.yaw\) \* 0\.9/.test(html));
 
+console.log("\n[player model]");
+ok("GLTFLoader is loaded", /examples\/js\/loaders\/GLTFLoader\.js/.test(html),
+   "cdnjs hosts r128's core but not its loaders");
+ok("model falls back to primitives", /keeping the primitive rig/.test(html),
+   "a missing asset must never break the game");
+ok("model cancels MESH_PI", /root\.rotation\.y = -MESH_PI/.test(html),
+   "exported facing -Y, so it already faces the game's forward");
+ok("model shares the sprite state machine", /MODEL\.play\(playerSpriteState\(\), dt\)/.test(html),
+   "one source of truth for what the character is doing");
+ok("mixer is ticked on the render clock", /updatePlayerModel\(raw\)/.test(html));
+
 console.log("\n[dom sanity]");
 {
   const ids = [...html.matchAll(/<[^>]*\sid="([^"]+)"/g)].map(m => m[1]);
