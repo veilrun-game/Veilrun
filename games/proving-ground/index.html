@@ -108,12 +108,38 @@ canvas{display:block}
 #camtag{position:fixed;bottom:14px;right:18px;font-size:.68rem;color:var(--mute);opacity:0;transition:opacity .3s;z-index:15}
 #camtag.on{opacity:.75}
 #fps{position:fixed;top:4px;left:50%;transform:translateX(-50%);font-size:.62rem;color:var(--mute);opacity:.45;z-index:15;font-variant-numeric:tabular-nums}
+/* ---------- tuning panel (VR-91) ---------- */
+#tune{position:fixed;top:0;right:0;bottom:0;width:290px;background:rgba(8,6,16,.94);
+  border-left:1px solid var(--line);z-index:40;overflow-y:auto;padding:14px 14px 40px;
+  transform:translateX(100%);transition:transform .22s ease;font-size:.78rem;
+  backdrop-filter:blur(3px)}
+#tune.on{transform:translateX(0)}
+#tune h3{font-family:var(--font-display);letter-spacing:.14em;text-transform:uppercase;
+  font-size:.68rem;color:var(--mute);margin:16px 0 7px;border-bottom:1px solid var(--line);padding-bottom:5px}
+#tune h3:first-child{margin-top:0}
+.trow{display:flex;align-items:center;gap:8px;margin:6px 0}
+.trow label{flex:1;color:var(--white);opacity:.86}
+.trow input[type=range]{flex:1.1;accent-color:var(--violet)}
+.trow input[type=color]{width:34px;height:22px;padding:0;border:1px solid var(--line);
+  background:none;border-radius:4px;cursor:pointer}
+.trow select{flex:1.1;background:var(--ink-2);color:var(--white);border:1px solid var(--line);
+  border-radius:5px;padding:3px 5px;font-size:.76rem}
+.tval{width:40px;text-align:right;color:var(--violet-lt);font-variant-numeric:tabular-nums}
+.tnote{color:var(--mute);font-size:.68rem;margin:-2px 0 8px;line-height:1.35}
+#tune .btn{width:100%;margin-top:8px;padding:.5rem;font-size:.78rem}
+#tunefab{position:absolute;top:18px;right:18px;width:34px;height:34px;border-radius:9px;
+  border:1px solid var(--line);background:rgba(8,6,16,.7);color:var(--mute);cursor:pointer;
+  pointer-events:auto;font-size:1rem;line-height:1}
+#tunefab:hover{color:var(--white);border-color:var(--accent)}
+#tunecopy{font-size:.66rem;color:var(--mute);margin-top:6px;line-height:1.4}
+
 </style>
 </head>
 <body>
 <div id="stage"></div>
 
 <div id="hud">
+  <button id="tunefab" title="Settings (\\)">\u2699</button>
   <div class="hud-tl">
     <div class="hplbl"><span class="eyebrow">Vesper</span><span id="hpnum">100</span></div>
     <div class="hpwrap"><div id="hpghost"></div><div id="hpfill"></div></div>
@@ -126,7 +152,40 @@ canvas{display:block}
     <div class="pip" id="pip-exec"><div class="pipbox"><div class="pipfill" id="fill-exec"></div><span class="pipkey">RMB</span></div><div class="piplbl">Execute</div></div>
   </div>
   <div id="crosshair"></div>
-  <div id="shroudv"></div>
+  
+<div id="tune">
+  <h3>Arena</h3>
+  <div class="trow"><label>Map</label><select id="t-map"></select></div>
+  <div class="tnote" id="t-mapnote"></div>
+
+  <h3>Camera</h3>
+  <div class="trow"><label>View</label><select id="t-cam">
+    <option value="arcade">Arcade (fixed)</option><option value="third">Third person</option>
+    <option value="first">First person</option></select></div>
+  <div class="trow"><label>Angle</label><input type="range" id="t-pitch" min="10" max="70" step="1"><span class="tval" id="t-pitchv"></span></div>
+  <div class="trow"><label>Distance</label><input type="range" id="t-dist" min="6" max="24" step="0.5"><span class="tval" id="t-distv"></span></div>
+  <div class="trow"><label>Zoom (FOV)</label><input type="range" id="t-fov" min="24" max="80" step="1"><span class="tval" id="t-fovv"></span></div>
+
+  <h3>Render</h3>
+  <div class="trow"><label>Pixel grid</label><select id="t-pixel">
+    <option value="1">Off</option><option value="2">2:1</option><option value="3">3:1</option>
+    <option value="4">4:1</option><option value="6">6:1</option><option value="8">8:1</option></select></div>
+  <div class="trow"><label>Fog</label><input type="range" id="t-fog" min="0" max="0.08" step="0.002"><span class="tval" id="t-fogv"></span></div>
+
+  <h3>Shroud</h3>
+  <div class="trow"><label>Glass body</label><input type="color" id="t-glass"></div>
+  <div class="trow"><label>Rim</label><input type="color" id="t-rim"></div>
+  <div class="trow"><label>Burn edge</label><input type="color" id="t-burn"></div>
+  <div class="trow"><label>Visible face-on</label><input type="range" id="t-amin" min="0" max="0.9" step="0.01"><span class="tval" id="t-aminv"></span></div>
+  <div class="trow"><label>Visible at edge</label><input type="range" id="t-amax" min="0" max="1" step="0.01"><span class="tval" id="t-amaxv"></span></div>
+  <div class="trow"><label>Rim strength</label><input type="range" id="t-lift" min="0" max="3" step="0.05"><span class="tval" id="t-liftv"></span></div>
+
+  <h3>Report back</h3>
+  <button class="btn ghost" id="t-copy">Copy settings to clipboard</button>
+  <div id="tunecopy">Paste these to Claude and they become the new defaults.</div>
+  <button class="btn ghost" id="t-reset">Reset to defaults</button>
+</div>
+<div id="shroudv"></div>
   <div id="shroudlbl">Shrouded — next strike executes</div>
   <div id="vignette"></div>
   <div id="dmgnum"></div>
@@ -246,6 +305,12 @@ var BAL = (function () {
     // --- Shroud (no button: emerges from standing still) ---
     shroudDelay: 1.15,       // sec of stillness before the veil takes you
     shroudBreakSpeed: 0.6,
+    // STALK (hold Ctrl): a crouched creep that stays UNDER shroudBreakSpeed, so
+    // the veil survives it. This is what makes Shroud a tool instead of a trap —
+    // standing still in a room filling with husks is a good way to die, and an
+    // assassin should be able to move while unseen. The price is that you crawl:
+    // 0.5 against a run of 7.8 is a 14x slowdown, so it costs you the exit.
+    stalkSpeed: 0.5,
 
     // --- thinned ground ---
     thinSpeedBonus: 1.18,    // enemies move faster over thinned floor
@@ -532,23 +597,61 @@ var seamGroup = new THREE.Group(); scene.add(seamGroup);
 })();
 
 // Cover pillars — break line of sight, and something to blink past.
-var PILLARS = [
-  { x: -4.6, z: -3.4, r: 0.85, h: 3.6 }, { x: 4.9, z: -4.6, r: 0.7, h: 4.4 },
-  { x: -5.6, z: 4.9, r: 0.75, h: 3.0 },  { x: 3.6, z: 4.2, r: 0.95, h: 3.9 },
-  { x: 0.4, z: -7.2, r: 0.6, h: 2.6 },   { x: -0.9, z: 7.0, r: 0.65, h: 3.2 }
+/* Arena layouts. Cover changes the whole game: pillars decide where you can
+   break line of sight, where the Shroud is worth using, and whether husks
+   funnel or swarm. Switchable at runtime from the settings panel so the shape
+   of a fight can be judged by playing it rather than argued about. */
+var MAPS = [
+  { id: "pit", name: "The Pit", note: "scattered cover — the original",
+    pillars: [
+      { x: -4.6, z: -3.4, r: 0.85, h: 3.6 }, { x: 4.9, z: -4.6, r: 0.7, h: 4.4 },
+      { x: -5.6, z: 4.9, r: 0.75, h: 3.0 },  { x: 3.6, z: 4.2, r: 0.95, h: 3.9 },
+      { x: 0.4, z: -7.2, r: 0.6, h: 2.6 },   { x: -0.9, z: 7.0, r: 0.65, h: 3.2 }
+    ] },
+  { id: "colonnade", name: "Colonnade", note: "two rows — funnels them into a lane",
+    pillars: [
+      { x: -3.2, z: -6.5, r: 0.8, h: 4.2 }, { x: 3.2, z: -6.5, r: 0.8, h: 4.2 },
+      { x: -3.2, z: -2.2, r: 0.8, h: 4.2 }, { x: 3.2, z: -2.2, r: 0.8, h: 4.2 },
+      { x: -3.2, z: 2.2, r: 0.8, h: 4.2 },  { x: 3.2, z: 2.2, r: 0.8, h: 4.2 },
+      { x: -3.2, z: 6.5, r: 0.8, h: 4.2 },  { x: 3.2, z: 6.5, r: 0.8, h: 4.2 }
+    ] },
+  { id: "open", name: "Open Ground", note: "almost no cover — nowhere to hide",
+    pillars: [
+      { x: -6.8, z: -6.8, r: 0.7, h: 3.2 }, { x: 6.8, z: 6.8, r: 0.7, h: 3.2 }
+    ] },
+  { id: "keep", name: "The Keep", note: "a ring of cover around a centre stone",
+    pillars: [
+      { x: 0, z: 0, r: 1.3, h: 5.0 },
+      { x: -6.2, z: 0, r: 0.7, h: 3.4 },  { x: 6.2, z: 0, r: 0.7, h: 3.4 },
+      { x: 0, z: -6.2, r: 0.7, h: 3.4 },  { x: 0, z: 6.2, r: 0.7, h: 3.4 },
+      { x: -4.4, z: -4.4, r: 0.6, h: 2.8 }, { x: 4.4, z: 4.4, r: 0.6, h: 2.8 }
+    ] }
 ];
-(function () {
+var PILLARS = [];        // the LIVE layout — collision and line-of-sight read this
+var pillarGroup = new THREE.Group(); scene.add(pillarGroup);
+function buildMap(id) {
+  var m = null;
+  for (var i = 0; i < MAPS.length; i++) if (MAPS[i].id === id) m = MAPS[i];
+  if (!m) m = MAPS[0];
+  while (pillarGroup.children.length) {
+    var c = pillarGroup.children.pop();
+    if (c.geometry) c.geometry.dispose();
+    pillarGroup.remove(c);
+  }
+  PILLARS.length = 0;
+  m.pillars.forEach(function (p) { PILLARS.push(p); });   // keep the array identity
   var stone = new THREE.MeshStandardMaterial({ color: 0x1c1930, roughness: 0.8, metalness: 0.22 });
   var runeMat = new THREE.MeshBasicMaterial({ color: 0x965AE6, transparent: true, opacity: 0.75 });
   PILLARS.forEach(function (p) {
     var m = new THREE.Mesh(new THREE.CylinderGeometry(p.r * 0.82, p.r, p.h, 8), stone);
-    m.position.set(p.x, p.h / 2, p.z); m.castShadow = true; m.receiveShadow = true; scene.add(m);
+    m.position.set(p.x, p.h / 2, p.z); m.castShadow = true; m.receiveShadow = true; pillarGroup.add(m);
     var band = new THREE.Mesh(new THREE.TorusGeometry(p.r * 0.92, 0.045, 6, 20), runeMat);
-    band.rotation.x = Math.PI / 2; band.position.set(p.x, p.h * 0.62, p.z); scene.add(band);
+    band.rotation.x = Math.PI / 2; band.position.set(p.x, p.h * 0.62, p.z); pillarGroup.add(band);
     var cap = new THREE.Mesh(new THREE.IcosahedronGeometry(p.r * 0.5, 0), stone);
-    cap.position.set(p.x, p.h + p.r * 0.32, p.z); cap.castShadow = true; scene.add(cap);
+    cap.position.set(p.x, p.h + p.r * 0.32, p.z); cap.castShadow = true; pillarGroup.add(cap);
   });
-})();
+  return m;
+}
 
 /* --------------------- thinned-ground decals (power has a price) --------- */
 var THIN = [];
@@ -682,7 +785,7 @@ var player = {
   // execute
   execCd: 0, execLunge: 0,
   // shroud
-  still: 0, shroud: 0, veiled: false
+  still: 0, shroud: 0, veiled: false, stalking: false
 };
 var pBodyMat = new THREE.MeshStandardMaterial({ color: 0x201a35, roughness: 0.62, metalness: 0.28, transparent: true });
 var pCloakMat = new THREE.MeshStandardMaterial({ color: 0x4a2a8c, roughness: 0.88, metalness: 0.04, side: THREE.DoubleSide, transparent: true });
@@ -955,7 +1058,15 @@ function toggleCam() {
   // pointer lock is a free-look affordance; the arcade camera doesn't want it
   if (cam.mode === "arcade" && document.pointerLockElement) document.exitPointerLock();
 }
+/* Render precedence for the PLAYER, in order: MODEL > SPRITE > PRIMITIVES.
+   Without this the layers fight: the sprite layer hides player.g when a sheet
+   loads, and the model is a CHILD of player.g, so it inherits that invisibility
+   and the placeholder blob wins. Husks are unaffected — they stay sprites. */
+function modelReady() {
+  return typeof MODEL !== "undefined" && MODEL.isReady();
+}
 function playerSpriteReady() {
+  if (modelReady()) return false;          // the model owns the player
   return typeof playerSprite !== "undefined" && playerSprite && !!playerSprite.mat.map;
 }
 function shake(mag) { cam.shake = Math.max(cam.shake, 0.22); cam.shakeMag = Math.max(cam.shakeMag, mag); }
@@ -1254,6 +1365,8 @@ function breakShroud(spent) {
 }
 
 function updateShroud(dt) {
+  // A stalk is deliberately below shroudBreakSpeed, so this comparison alone
+  // keeps the veil — no special case needed. _sim.js asserts the relationship.
   var moving = Math.hypot(player.vx, player.vz) > C.shroudBreakSpeed;
   var acting = player.atkStage >= 0 || player.execLunge > 0;
   if (moving || acting || !player.alive) {
@@ -1296,6 +1409,7 @@ function updatePlayer(dt) {
   }
 
   // movement — camera-relative, with weight
+  player.stalking = !!(keys.control || keys.c);
   var mx = 0, mz = 0;
   if (keys.w) mz -= 1; if (keys.s) mz += 1;
   if (keys.a) mx -= 1; if (keys.d) mx += 1;
@@ -1306,7 +1420,8 @@ function updatePlayer(dt) {
     var fx = -sy, fz = -cy, rx = cy, rz = -sy;
     tvx = fx * -mz + rx * mx; tvz = fz * -mz + rz * mx;
     var l = Math.hypot(tvx, tvz) || 1;
-    var spd = C.moveSpeed * (player.atkStage >= 0 ? 0.32 : 1) * (player.execLunge > 0 ? 0.2 : 1);
+    var base = player.stalking ? C.stalkSpeed : C.moveSpeed;
+    var spd = base * (player.atkStage >= 0 ? 0.32 : 1) * (player.execLunge > 0 ? 0.2 : 1);
     tvx = tvx / l * spd; tvz = tvz / l * spd;
   }
   // Arcade: you face where you move. Everything downstream (strike arc, Veilstep,
@@ -1674,7 +1789,10 @@ function startRun() {
   AU.boot();
   resetRun();
   game.running = true;
-  setPaused(true);   // held until the pointer lock lands, so nothing hits you before you have control
+  // Held until the pointer lock lands, so nothing hits you before you have
+  // control — but ARCADE never asks for a lock, so it would wait forever and
+  // the run would open straight onto the pause panel with no way in.
+  setPaused(cam.mode !== "arcade");
   HUD.root.classList.add("on");
   $("s-start").classList.remove("on");
   $("s-over").classList.remove("on");
@@ -1913,11 +2031,32 @@ function initSprites() {
 
 function playerSpriteState() {
   if (!player.alive) return "down";
+  if (player.execLunge > 0) return "execute";
   if (player.atkStage >= 0 && player.atkPhase) return "attack";
   if (player.iframe > C.iframeOnHit - 0.22) return "hurt";
-  return (Math.hypot(player.vx, player.vz) > 0.6) ? "move" : "idle";
+  var sp = Math.hypot(player.vx, player.vz);
+  if (player.stalking && sp > 0.06) return "stalk";
+  return (sp > 0.6) ? "move" : "idle";
 }
 
+/* moveSpeed is 7.8 u/s — that is sprinting, not walking, so a walk clip can
+   never look right at full tilt however we scale it. If a run clip exists we
+   swap to it above RUN_AT and let each drive its own playback rate; if it
+   doesn't, everything falls back to "move" and nothing breaks. */
+var RUN_AT = 4.2;
+function playerModelState(speed) {
+  var st = playerSpriteState();
+  if (st === "execute" && !MODEL.hasClip("execute")) return "attack";
+  if (st === "stalk" && !MODEL.hasClip("stalk")) return "move";   // no crouch clip yet
+  if (st === "move" && speed > RUN_AT && MODEL.hasClip("run")) return "run";
+  return st;
+}
+
+function spriteStateOf(st) {
+  if (st === "stalk" || st === "run") return "move";
+  if (st === "execute") return "attack";        // sprites only have the five
+  return st;
+}
 function huskSpriteState(e) {
   if (e.state === "die") return "down";
   if (e.state === "wind" || e.state === "strike") return "attack";
@@ -1928,9 +2067,12 @@ function huskSpriteState(e) {
 function updateSprites() {
   SHADOWS.begin();
 
-  if (playerSprite && SPR.isReady(SPR_CHAR)) {
+  if (playerSprite && modelReady()) {
+    playerSprite.m.visible = false;                       // model owns the player
+    if (player.alive) SHADOWS.drop(player.x, player.z, 0.5, player.veiled ? 0.4 : 1);
+  } else if (playerSprite && SPR.isReady(SPR_CHAR)) {
     var s = playerSprite;
-    SPR.setState(s, playerSpriteState());
+    SPR.setState(s, spriteStateOf(playerSpriteState()));
     s.m.visible = !!s.mat.map;
     SPR.place(s, player.x, player.g.position.y, player.z, player.yaw, 1);
     // the Shroud reads as a dim, cool ghost rather than a fade — alphaTest
@@ -1976,10 +2118,26 @@ function updateSprites() {
    Falls back to the primitive rig if the model is missing, exactly like the
    sprite layer — a failed asset must never mean a broken game.
 
-   FACING: the model is exported from Blender facing -Y, which becomes -Z in
-   glTF, which is the game's forward vector. So unlike every primitive in this
-   file it does NOT get MESH_PI. That asymmetry is deliberate and load-bearing.
+   FACING — the bit that is easy to get backwards, and I did:
+   Blender's forward is -Y and glTF's is -Z, so it LOOKS like they agree. They
+   don't. The exporter maps Blender (x, y, z) -> glTF (x, z, -y), so Blender's
+   -Y forward arrives as glTF **+Z** — the same way every primitive in this file
+   faces. The model therefore needs MESH_PI exactly like everything else, and
+   gets it for free by being a child of player.g. Cancelling it turned him a
+   full 180 and he moonwalked.
    ------------------------------------------------------------------------ */
+/* --- Shroud look, all in one place so it can be tuned without hunting ---
+   VEIL_BURN      colour of the eaten edges while he comes apart
+   VEIL_GLASS     colour of the settled glass shell
+   VEIL_GLASS_LIFT how hard the rim lights where the surface turns away (was 1.7,
+                  which read as a neon outline rather than glass) */
+var VEIL_BURN  = 0x9B6FE0;       // the eaten edges as he comes apart
+var VEIL_GLASS = 0x3A2A6E;       // DEEP violet body — dark, so he reads as mass
+var VEIL_RIM   = 0xC463D8;       // a kiss of the seam's pink, only where he turns away
+var VEIL_GLASS_LIFT = 1.15;
+var VEIL_A_MIN = 0.16;           // face-on: faint but PRESENT, not a rumour
+var VEIL_A_MAX = 0.66;           // at the silhouette edge
+
 var MODEL = (function () {
   var URL = "../../assets/models/vesper.glb";
   var root = null, mixer = null, actions = {}, current = "", ready = false;
@@ -1988,20 +2146,93 @@ var MODEL = (function () {
   // named anything. Match on keywords, then fall back to file order.
   var WANT = [
     ["idle",   ["idle", "breath", "stand"]],
-    ["move",   ["walk", "run", "jog", "move"]],
+    ["move",   ["walk", "move"]],
+    ["run",    ["run", "jog", "sprint"]],
+    ["stalk",  ["crouch", "sneak", "stalk", "creep"]],
+    ["execute",["assassin", "execute", "finisher"]],
     ["attack", ["slash", "attack", "punch", "strike", "sword"]],
     ["hurt",   ["hit", "impact", "hurt", "damage", "react"]],
     ["down",   ["death", "dying", "die", "fall", "down"]]
   ];
 
+  /* Shroud as a DISSOLVE, not a fade. Jordan's canon art has Vesper coming
+     apart into particles, and a uniform alpha fade reads as "turned the opacity
+     down" rather than "stepping out of the world". This punches holes through
+     the surface with procedural noise and lights the eaten edges, so he erodes
+     away. Discard-based, so there is no transparency sorting to go wrong.
+     Capped below 1 on purpose — a fully invisible player is unplayable. */
+  var DISSOLVE_HEAD = [
+    "uniform float uDissolve;",
+    "uniform float uGhost;",
+    "uniform vec3  uEdge;",
+    "uniform vec3  uGlass;",
+    "uniform vec3  uRim;",
+    "uniform float uGlassLift;",
+    "uniform float uAMin;",
+    "uniform float uAMax;",
+    "float vr_hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }",
+    "float vr_noise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);",
+    "  return mix(mix(vr_hash(i),vr_hash(i+vec2(1.,0.)),f.x),",
+    "             mix(vr_hash(i+vec2(0.,1.)),vr_hash(i+vec2(1.,1.)),f.x), f.y); }"
+  ].join("\n");
+  var DISSOLVE_BODY = [
+    // 1. coming apart — noise eats holes through him, eaten edges lit
+    "float vrN = vr_noise(vUv * 26.0) * 0.65 + vr_noise(vUv * 7.0) * 0.35;",
+    "if (uDissolve > 0.001) {",
+    "  if (vrN < uDissolve) discard;",
+    "  gl_FragColor.rgb = mix(gl_FragColor.rgb, uEdge, smoothstep(uDissolve + 0.10, uDissolve, vrN));",
+    "}",
+    // 2. reformed as glass — a fresnel shell: near-invisible face-on, a bright
+    //    rim where the surface turns away. That is what makes it read as a
+    //    figure-shaped absence rather than a faded texture.
+    "if (uGhost > 0.001) {",
+    "  vec3 vrV = normalize(vViewPosition);",
+    "  float vrF = pow(1.0 - abs(dot(normalize(normal), vrV)), 2.2);",
+    // deep violet through the body, warming toward the seam's pink at the rim —
+    // that gradient is what stops it reading as flat tinted glass
+    "  vec3 vrT = mix(uGlass, uRim, vrF * vrF);",
+    "  gl_FragColor.rgb = mix(gl_FragColor.rgb, vrT * (0.55 + vrF * uGlassLift), uGhost * 0.94);",
+    "  gl_FragColor.a   = mix(gl_FragColor.a, mix(uAMin, uAMax, vrF), uGhost);",
+    "}"
+  ].join("\n");
+  var dissolveUniforms = [], dissolveMats = [];
+
+  function makeDissolvable(mat) {
+    mat.onBeforeCompile = function (shader) {
+      shader.uniforms.uDissolve = { value: 0 };
+      shader.uniforms.uGhost = { value: 0 };
+      /* Tunable. The seam's magenta belongs to the WORLD tearing, not to Vesper —
+         he's indigo. So the burn edge stays hot while he's coming apart, and the
+         glass he settles into is cold and dim: an absence, not a light source. */
+      shader.uniforms.uEdge = { value: new THREE.Color(VEIL_BURN) };
+      shader.uniforms.uGlass = { value: new THREE.Color(VEIL_GLASS) };
+      shader.uniforms.uRim = { value: new THREE.Color(VEIL_RIM) };
+      shader.uniforms.uGlassLift = { value: VEIL_GLASS_LIFT };
+      shader.uniforms.uAMin = { value: VEIL_A_MIN };
+      shader.uniforms.uAMax = { value: VEIL_A_MAX };
+      shader.fragmentShader = DISSOLVE_HEAD + "\n" + shader.fragmentShader.replace(
+        "#include <dithering_fragment>", DISSOLVE_BODY + "\n#include <dithering_fragment>");
+      dissolveUniforms.push(shader.uniforms);
+    };
+    // glass needs alpha; opacity 1 the rest of the time costs only sorting,
+    // and there is exactly one of him
+    mat.transparent = true;
+    mat.needsUpdate = true;
+    dissolveMats.push(mat);
+  }
+
   function bind(gltf) {
     root = gltf.scene;
     root.traverse(function (o) {
-      if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; o.frustumCulled = false; }
+      if (o.isMesh) {
+        o.castShadow = true; o.receiveShadow = false; o.frustumCulled = false;
+        var mats = Array.isArray(o.material) ? o.material : [o.material];
+        for (var i = 0; i < mats.length; i++) if (mats[i]) makeDissolvable(mats[i]);
+      }
     });
     player.g.add(root);            // inherits position + yaw from the existing rig
     root.position.set(0, 0, 0);
-    root.rotation.y = -MESH_PI;    // cancel the primitive offset: the model already faces -Z
+    root.rotation.y = 0;           // inherit player.g's yaw + MESH_PI, same as the primitives
 
     var clips = gltf.animations || [];
     if (clips.length) {
@@ -2027,7 +2258,7 @@ var MODEL = (function () {
       });
       for (var k in actions) {
         actions[k].clampWhenFinished = true;
-        if (k === "attack" || k === "hurt" || k === "down") {
+        if (k === "attack" || k === "execute" || k === "hurt" || k === "down") {
           actions[k].setLoop(THREE.LoopOnce, 1);
         }
       }
@@ -2038,9 +2269,11 @@ var MODEL = (function () {
     }
 
     // primitives step aside, but stay in the file
-    if (typeof pCloak !== "undefined") player.g.traverse(function (o) {
-      if (o !== root && o.isMesh && !root.getObjectById(o.id)) o.visible = false;
+    player.g.traverse(function (o) {
+      if (o.isMesh && !root.getObjectById(o.id)) o.visible = false;
     });
+    root.visible = true;
+    player.g.visible = (cam.mode !== "first");   // the sprite layer had hidden it
     ready = true;
   }
 
@@ -2055,27 +2288,217 @@ var MODEL = (function () {
     });
   }
 
-  function play(name, dt) {
+  // Longer blends out of locomotion than into a swing: combat wants snap,
+  // walking wants weight.
+  function fadeFor(name) { return (name === "attack" || name === "execute" || name === "hurt") ? 0.08 : 0.18; }
+
+  function play(name, dt, speed) {
     if (!mixer) return;
     var a = actions[name];
     if (a && current !== name) {
       var prev = actions[current];
-      a.reset().fadeIn(0.12).play();
-      if (prev && prev !== a) prev.fadeOut(0.12);
+      a.reset().fadeIn(fadeFor(name)).play();
+      if (prev && prev !== a) prev.fadeOut(fadeFor(current));
       current = name;
     }
+    // Feet skate when the clip's stride rate doesn't match how fast the game
+    // actually moves you. Driving playback from velocity fixes most of it
+    // without touching the animation. WALK_REF is the speed the clip looks
+    // natural at; a real run clip is the proper fix at top speed.
+    if ((name === "move" || name === "run" || name === "stalk") && a) {
+      var REF = (name === "run") ? 6.0 : (name === "stalk" ? 0.55 : 2.6);  // natural speed per clip
+      a.setEffectiveTimeScale(clamp((speed || 0) / REF, 0.55, 1.9));
+    } else if (a) { a.setEffectiveTimeScale(1); }
     mixer.update(dt);
   }
 
-  return { load: load, play: play,
+  /* Two phases, because "dissolves and stays dissolved" reads as a rendering
+     bug and "fades out" reads as an opacity slider:
+       0.00 -> 0.70   he comes apart, holes widening, edges burning
+       0.70 -> 1.00   the holes knit back up and he settles as glass
+     So the destruction is the TRANSITION and the glass is the STATE. */
+  var GHOST_AT = 0.70;
+  function setVeilLook(o) {
+    for (var i = 0; i < dissolveUniforms.length; i++) {
+      var u = dissolveUniforms[i];
+      if (o.glass) u.uGlass.value.set(o.glass);
+      if (o.rim)   u.uRim.value.set(o.rim);
+      if (o.burn)  u.uEdge.value.set(o.burn);
+      if (o.aMin != null) u.uAMin.value = o.aMin;
+      if (o.aMax != null) u.uAMax.value = o.aMax;
+      if (o.lift != null) u.uGlassLift.value = o.lift;
+    }
+  }
+  function setVeil(t) {
+    t = clamp(t, 0, 1);
+    var holes, ghost;
+    if (t <= GHOST_AT) { holes = (t / GHOST_AT) * 0.82; ghost = 0; }
+    else {
+      var k = (t - GHOST_AT) / (1 - GHOST_AT);
+      holes = (1 - k) * 0.82;          // holes recede as the glass comes in
+      ghost = k;
+    }
+    for (var i = 0; i < dissolveUniforms.length; i++) {
+      dissolveUniforms[i].uDissolve.value = holes;
+      dissolveUniforms[i].uGhost.value = ghost;
+    }
+    for (var j = 0; j < dissolveMats.length; j++) {
+      dissolveMats[j].depthWrite = ghost < 0.5;   // let the far side show through the glass
+    }
+  }
+
+  return { load: load, play: play, setVeil: setVeil, setVeilLook: setVeilLook,
+           hasClip: function (n) { return !!actions[n]; },
            isReady: function () { return ready; },
            hasClips: function () { return !!mixer; } };
 })();
 
+var _veilEmit = 0;
 function updatePlayerModel(dt) {
   if (!MODEL.isReady()) return;
-  MODEL.play(playerSpriteState(), dt);   // same state machine the sprites use
+  var speed = Math.hypot(player.vx, player.vz);
+  MODEL.play(playerModelState(speed), dt, speed);   // same state machine the sprites use
+  MODEL.setVeil(player.shroud);
+
+  // motes coming off him while the veil takes hold — the dissolve is the shader,
+  // this is the dust it sheds
+  if (player.shroud > 0.15 && player.shroud < 0.92 && player.alive) {
+    _veilEmit -= dt;
+    if (_veilEmit <= 0) {
+      _veilEmit = 0.07;
+      burst(player.x + rand(-0.22, 0.22), rand(0.35, 1.55), player.z + rand(-0.22, 0.22),
+            2, 0xD65CDC, 0.85, { grav: -1.6, scale: 0.55, lifeScale: 1.5, upMin: 0.3 });
+    }
+  }
 }
+
+
+/* ====================== tuning panel (VR-91) ============================
+   Every look-and-feel number that we've been guessing at over chat, exposed
+   as a control. The point isn't convenience — it's that "is the glass too
+   bright" becomes something Jordan answers by dragging a slider instead of
+   describing, and "Copy settings" turns the answer into a paste-able block.
+   Persisted to localStorage so a reload doesn't undo an evening's tuning.
+   Nothing in here touches the BALANCE block: feel is tunable, balance is
+   sim-proven. ------------------------------------------------------------ */
+var TUNE = (function () {
+  var LSK = LS + "tune";
+  var DEF = {
+    map: MAPS[0].id, cam: "arcade",
+    pitch: Math.round(ARC.pitch * 180 / Math.PI), dist: ARC.dist, fov: ARC.fov,
+    pixel: PIXEL, fog: 0.030,
+    glass: "#" + VEIL_GLASS.toString(16).padStart(6, "0"),
+    rim:   "#" + VEIL_RIM.toString(16).padStart(6, "0"),
+    burn:  "#" + VEIL_BURN.toString(16).padStart(6, "0"),
+    amin: VEIL_A_MIN, amax: VEIL_A_MAX, lift: VEIL_GLASS_LIFT
+  };
+  var V = {};
+  for (var k in DEF) V[k] = DEF[k];
+  try {
+    var saved = JSON.parse(localStorage.getItem(LSK) || "{}");
+    for (var k2 in saved) if (k2 in V) V[k2] = saved[k2];
+  } catch (e) {}
+
+  function save() { try { localStorage.setItem(LSK, JSON.stringify(V)); } catch (e) {} }
+
+  function apply(what) {
+    if (!what || what === "map") {
+      var m = buildMap(V.map);
+      var n = $("t-mapnote"); if (n && m) n.textContent = m.note;
+    }
+    if (!what || what === "cam") {
+      while (cam.mode !== V.cam) toggleCam();
+    }
+    if (!what || what === "arc") {
+      ARC.pitch = V.pitch * Math.PI / 180; ARC.dist = +V.dist; ARC.fov = +V.fov;
+      if (cam.mode === "arcade") cam.fovTarget = ARC.fov;
+    }
+    if (!what || what === "pixel") { PIXEL = +V.pixel; applyPixelScale(); }
+    if (!what || what === "fog") { scene.fog.density = +V.fog; }
+    if (!what || what === "veil") {
+      if (MODEL.setVeilLook) MODEL.setVeilLook({
+        glass: V.glass, rim: V.rim, burn: V.burn,
+        aMin: +V.amin, aMax: +V.amax, lift: +V.lift });
+    }
+  }
+
+  function bindRange(id, key, group, fmt) {
+    var el = $(id), out = $(id + "v");
+    if (!el) return;
+    el.value = V[key];
+    if (out) out.textContent = fmt ? fmt(V[key]) : V[key];
+    el.addEventListener("input", function () {
+      V[key] = +el.value;
+      if (out) out.textContent = fmt ? fmt(V[key]) : V[key];
+      apply(group); save();
+    });
+  }
+  function bindPick(id, key, group) {
+    var el = $(id); if (!el) return;
+    el.value = V[key];
+    el.addEventListener("change", function () { V[key] = el.value; apply(group); save(); });
+  }
+
+  function build() {
+    var sel = $("t-map");
+    if (sel) {
+      sel.innerHTML = MAPS.map(function (m) {
+        return '<option value="' + m.id + '">' + m.name + "</option>"; }).join("");
+    }
+    bindPick("t-map", "map", "map");
+    bindPick("t-cam", "cam", "cam");
+    bindPick("t-pixel", "pixel", "pixel");
+    bindRange("t-pitch", "pitch", "arc", function (v) { return v + "°"; });
+    bindRange("t-dist", "dist", "arc", function (v) { return (+v).toFixed(1); });
+    bindRange("t-fov", "fov", "arc");
+    bindRange("t-fog", "fog", "fog", function (v) { return (+v).toFixed(3); });
+    bindRange("t-amin", "amin", "veil", function (v) { return (+v).toFixed(2); });
+    bindRange("t-amax", "amax", "veil", function (v) { return (+v).toFixed(2); });
+    bindRange("t-lift", "lift", "veil", function (v) { return (+v).toFixed(2); });
+    ["glass", "rim", "burn"].forEach(function (k) {
+      var el = $("t-" + k); if (!el) return;
+      el.value = V[k];
+      el.addEventListener("input", function () { V[k] = el.value; apply("veil"); save(); });
+    });
+
+    $("t-copy").addEventListener("click", function () {
+      var txt = [
+        "VEILRUN — Proving Ground settings",
+        "map            " + V.map,
+        "camera         " + V.cam + "   pitch " + V.pitch + "°  dist " + V.dist + "  fov " + V.fov,
+        "pixel grid     " + V.pixel + ":1",
+        "fog density    " + (+V.fog).toFixed(3),
+        "VEIL_GLASS     0x" + V.glass.slice(1),
+        "VEIL_RIM       0x" + V.rim.slice(1),
+        "VEIL_BURN      0x" + V.burn.slice(1),
+        "VEIL_A_MIN     " + (+V.amin).toFixed(2),
+        "VEIL_A_MAX     " + (+V.amax).toFixed(2),
+        "VEIL_GLASS_LIFT " + (+V.lift).toFixed(2)
+      ].join("\\n");
+      var done = function () { $("t-copy").textContent = "Copied ✓";
+        setTimeout(function () { $("t-copy").textContent = "Copy settings to clipboard"; }, 1400); };
+      if (navigator.clipboard) navigator.clipboard.writeText(txt).then(done, done);
+      else { console.log(txt); done(); }
+    });
+    $("t-reset").addEventListener("click", function () {
+      for (var k in DEF) V[k] = DEF[k];
+      save(); location.reload();
+    });
+    apply();
+  }
+
+  function toggle() {
+    var el = $("tune");
+    el.classList.toggle("on");
+    // the panel is a mouse surface; arcade doesn't hold pointer lock anyway
+    if (el.classList.contains("on") && document.pointerLockElement) document.exitPointerLock();
+  }
+  return { build: build, toggle: toggle, apply: apply };
+})();
+
+window.addEventListener("keydown", function (e) {
+  if (e.key === "\\\\") { TUNE.toggle(); }
+});
 
 /* =============================== main loop ============================== */
 /* Fixed timestep for the sim, render decoupled — feel stays frame-rate
@@ -2135,6 +2558,8 @@ function frame(now) {
 }
 initSprites();
 MODEL.load();
+TUNE.build();
+$("tunefab").addEventListener("click", function () { TUNE.toggle(); });
 cam.mode = "first"; toggleCam(); // -> arcade, the v1 default
 setPaused(false);
 requestAnimationFrame(frame);

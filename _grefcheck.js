@@ -1,0 +1,248 @@
+/* VEILRUN — game reference harness (VR-98).
+ *
+ * The reference page has three things that are cheap to get wrong and expensive to
+ * discover in production:
+ *   1. THE SLUG is the join key to both Supabase tables. A slug that normalises
+ *      differently on two paths orphans every take on that game, silently.
+ *   2. DEDUPE decides whether two submissions become one card. An exact hit must
+ *      merge; a near hit must ASK. Auto-merging a near hit loses data with no trace.
+ *   3. THE CARD has to survive 1 take and 10 takes, with either half empty.
+ *
+ * So this renders the real view functions headlessly — no network, no account, no
+ * browser — against fixture data, and asserts on the actual HTML.
+ *
+ * Run from the repo root:  node _grefcheck.js
+ */
+var fs = require("fs");
+var path = require("path");
+var vm = require("vm");
+
+var ROOT = __dirname;
+var pass = 0, fails = [];
+function ok(cond, msg) { if (cond) pass++; else fails.push(msg); }
+function has(hay, needle, msg) { ok(String(hay).indexOf(needle) !== -1, msg + "  [missing: " + needle + "]"); }
+function hasnt(hay, needle, msg) { ok(String(hay).indexOf(needle) === -1, msg + "  [unexpected: " + needle + "]"); }
+
+/* ---- headless DOM: just enough for app.js to load and render ------------- */
+var els = {};
+function stubEl() {
+  return {
+    innerHTML: "", textContent: "", value: "", style: {}, classList: {
+      add: function () {}, remove: function () {}, toggle: function () {}, contains: function () { return false; }
+    },
+    querySelector: function () { return stubEl(); }, querySelectorAll: function () { return []; },
+    addEventListener: function () {}, appendChild: function () {}, remove: function () {},
+    options: [], add: function () {}, focus: function () {}, dataset: {}
+  };
+}
+var ctx = vm.createContext({});
+ctx.window = ctx; ctx.globalThis = ctx;
+ctx.console = console;
+ctx.setTimeout = function () {}; ctx.clearTimeout = function () {};
+ctx.localStorage = { _d: {}, getItem: function (k) { return this._d[k] || null; },
+  setItem: function (k, v) { this._d[k] = String(v); }, removeItem: function (k) { delete this._d[k]; } };
+ctx.sessionStorage = ctx.localStorage;
+ctx.matchMedia = function () { return { matches: false, addEventListener: function () {} }; };
+ctx.location = { hash: "#reference" };
+ctx.document = {
+  getElementById: function (id) { return els[id] || (els[id] = stubEl()); },
+  querySelector: function () { return stubEl(); },
+  querySelectorAll: function () { return []; },
+  addEventListener: function () {}, createElement: function () { return stubEl(); },
+  body: stubEl()
+};
+ctx.VBackend = null;   // offline on purpose — the page must degrade, not throw
+
+function load(f) { vm.runInContext(fs.readFileSync(path.join(ROOT, f), "utf8"), ctx, { filename: f }); }
+load("js/data.js");
+load("js/galleries.js");
+load("js/media.js");
+load("js/board.js");
+load("js/components.js");
+load("js/app.js");
+
+var D = ctx.VEILRUN, A = ctx.VApp;
+ok(!!A && typeof A.__grefSlug === "function", "app.js exposes the game-reference test seams");
+
+/* ---- 1. data.js shape --------------------------------------------------- */
+var refs = D.gameRefs || {}, aliases = D.gameRefAliases || {}, tags = D.gameRefTags || {};
+Object.keys(refs).forEach(function (slug) {
+  ok(/^[a-z0-9]+$/.test(slug), "gameRefs key is a clean slug: " + slug);
+  var g = refs[slug];
+  ok(!!g.name, slug + ": has a name");
+  ok(!!g.blurb, slug + ": has a blurb — a seeded card must never render empty context");
+  ok(["2D", "2.5D", "3D", undefined].indexOf(g.dimension) !== -1, slug + ": dimension is 2D|2.5D|3D");
+  if (g.art) ok(fs.existsSync(path.join(ROOT, g.art)), slug + ": art file exists at " + g.art);
+});
+// An alias pointing at nothing is a silent dead end — the typo resolves to a slug
+// that no card and no Supabase row will ever match.
+Object.keys(aliases).forEach(function (a) {
+  ok(/^[a-z0-9]+$/.test(a), "alias key is a clean slug: " + a);
+  ok(/^[a-z0-9]+$/.test(aliases[a]), "alias target is a clean slug: " + a + " -> " + aliases[a]);
+  ok(a !== aliases[a], "alias does not point at itself: " + a);
+  ok(!aliases[aliases[a]], "alias target is not itself an alias (no chains): " + a);
+});
+ok((tags.love || []).length > 0 && (tags.gripe || []).length > 0, "both tag rows are populated");
+ok(new Set(tags.love).size === (tags.love || []).length, "no duplicate love tags");
+ok(new Set(tags.gripe).size === (tags.gripe || []).length, "no duplicate gripe tags");
+
+/* ---- 2. slug normalisation --------------------------------------------- */
+var S = A.__grefSlug;
+ok(S("Helldivers 2") === "helldivers2", "spaces stripped");
+ok(S("HELLDIVERS 2") === "helldivers2", "case folded");
+ok(S("Helldivers 2") === S("helldivers  2"), "repeat whitespace collapses to the same slug");
+ok(S("Baldur's Gate 3") === "baldursgate3", "apostrophes stripped");
+ok(S("Call of Duty: Zombies") === "callofdutyzombies", "punctuation stripped");
+ok(S("  Uno  ") === "uno", "surrounding whitespace ignored");
+ok(S("") === "", "empty stays empty");
+ok(S("COD") === "callofduty", "alias resolves (cod -> callofduty)");
+ok(S("cod") === S("COD"), "alias resolution is case-insensitive");
+ok(S("HD2") === "helldivers2", "alias resolves (hd2 -> helldivers2)");
+// The property that actually matters: normalising twice must not move.
+Object.keys(refs).concat(["Some New Game", "hd2", "Uno"]).forEach(function (n) {
+  ok(S(S(n)) === S(n) || !!aliases[S(n)], "slug is stable under re-normalisation: " + n);
+});
+
+/* ---- 3. dedupe: exact merges, near ASKS --------------------------------- */
+var M = A.__grefMatch;
+var fixtureRefs = [
+  { slug: "helldivers2", name: "Helldivers 2" },
+  { slug: "seaofthieves", name: "Sea of Thieves" }
+];
+ok(M("Helldivers 2", fixtureRefs).kind === "exact", "exact name -> exact match");
+ok(M("helldivers 2", fixtureRefs).kind === "exact", "case variation -> exact match");
+ok(M("HD2", fixtureRefs).kind === "exact", "alias -> exact match (merges silently, per the rule)");
+var near = M("Helldivrs 2", fixtureRefs);
+ok(near.kind === "near", "typo -> NEAR, not exact");
+ok(near.slug === "helldivers2", "near match points at the right game");
+ok(M("Rocket League", fixtureRefs).kind === "new", "unrelated name -> new game");
+ok(M("", fixtureRefs).kind === "empty", "empty input -> empty, never a bogus slug");
+// The load-bearing assertion: a near miss must NEVER come back as exact, because the
+// caller merges an exact hit without asking.
+["Helldivrs 2", "Sea of Thiefs", "helldiver 2"].forEach(function (t) {
+  ok(M(t, fixtureRefs).kind !== "exact", "near miss is never silently merged: " + t);
+});
+
+/* ---- 4. card rendering at 1, 3 and 10 takes ----------------------------- */
+var CARD = A.__grefCard;
+function note(who, loves, gripes, tags_, gtags, raw) {
+  return { slug: "helldivers2", who: who, loves: loves, gripes: gripes,
+    tags: tags_ || [], gripe_tags: gtags || [], raw_name: raw || "Helldivers 2",
+    created_at: "2026-08-15T10:00:00Z", updated_at: "2026-08-15T10:00:00Z" };
+}
+var one = [note("Todd", "the drop-in drop-out", "the grind between missions", ["multiplayer / playing with friends"], ["grindy"])];
+var html1 = CARD("helldivers2", one, fixtureRefs);
+// Attribution runs through the site's existing identity collapse, so a take is credited to
+// the same identity as its author's leaderboard row no matter which handle they typed.
+// "Todd" is Temper's player, so the card says Temper.
+has(html1, "Temper", "1 take: the author is named, collapsed to their crew identity");
+["Todd", "Toddlez", "BipolarCrayons"].forEach(function (handle) {
+  has(CARD("helldivers2", [note(handle, "x", "y")], fixtureRefs), "Temper",
+    "identity: '" + handle + "' attributes to the same person as every other handle");
+});
+has(CARD("helldivers2", [note("SomeGuest", "x", "y")], fixtureRefs), "SomeGuest",
+  "identity: a non-crew name is shown as typed rather than dropped");
+has(html1, "drop-in drop-out", "1 take: the love quote renders");
+has(html1, "grind between missions", "1 take: the gripe quote renders");
+hasnt(html1, "more</button>", "1 take: no disclosure button when there's nothing hidden");
+has(html1, "1 take", "1 take: singular, not '1 takes'");
+
+var three = [
+  note("Todd", "drop-in drop-out", "the grind", ["multiplayer / playing with friends"], ["grindy"]),
+  note("Jordan", "the friendly fire", "menus, so many menus", ["multiplayer / playing with friends"], ["grindy", "clunky menus & controls"]),
+  note("Ali", "you feel strong without being safe", "same three missions", ["multiplayer / playing with friends"], ["grindy"])
+];
+var html3 = CARD("helldivers2", three, fixtureRefs);
+has(html3, "+1 more", "3 takes: the third quote goes behind a disclosure");
+has(html3, "⟳ 3 of 3", "3 takes: convergence line fires at 3 agreeing");
+has(html3, "grindy", "3 takes: aggregated gripe tag renders");
+ok((html3.match(/gr-quotes/g) || []).length >= 3, "3 takes: both sides render quote lists plus the hidden one");
+
+var ten = [];
+for (var i = 0; i < 10; i++) ten.push(note("Person" + i, "love " + i, "gripe " + i, ["the movement"], ["repetitive"]));
+var html10 = CARD("helldivers2", ten, fixtureRefs);
+has(html10, "+8 more", "10 takes: 2 shown, 8 disclosed — the card cannot become a wall");
+has(html10, "10 of 10", "10 takes: convergence counts everyone");
+// The shown count and the hidden count are two slices of one list and must agree — if they
+// drift, the card either swallows a quote or advertises quotes that aren't there.
+[one, three, ten].forEach(function (fixture) {
+  var html = CARD("helldivers2", fixture, fixtureRefs);
+  var quoted = (html.match(/gr-quote">/g) || []).length;          // both halves, shown + hidden
+  var claimed = (html.match(/\+(\d+) more/g) || [])
+    .reduce(function (n, m) { return n + parseInt(m.slice(1), 10); }, 0);
+  var written = fixture.filter(function (t) { return (t.loves || "").trim(); }).length
+              + fixture.filter(function (t) { return (t.gripes || "").trim(); }).length;
+  ok(quoted === written, "every written take is rendered somewhere (" + fixture.length + " takes: " + quoted + " of " + written + ")");
+  var shownOnly = quoted - claimed;
+  ok(shownOnly <= 4 && shownOnly >= 0, "at most 2 quotes per side are shown up front (" + fixture.length + " takes)");
+});
+
+// Convergence is a FINDING, not a tally — it must not fire below three people agreeing,
+// or the card starts calling two people's coincidence a pattern.
+var twoAgree = [
+  note("Todd", "a", "b", ["the movement"], ["grindy"]),
+  note("Jordan", "c", "d", ["the movement"], ["grindy"]),
+  note("Ali", "e", "f", ["the music"], ["punishing"])
+];
+hasnt(CARD("helldivers2", twoAgree, fixtureRefs), "⟳", "convergence stays silent when only 2 of 3 agree");
+has(CARD("helldivers2", twoAgree, fixtureRefs), "3 takes", "…and falls back to a plain take count instead");
+
+/* ---- 5. the halves are independent (the edit rule, rendered) ------------- */
+var loveOnly = [note("Todd", "the drop-in drop-out", "")];
+var h = CARD("helldivers2", loveOnly, fixtureRefs);
+has(h, "drop-in drop-out", "loves-only take: the love still renders");
+has(h, "Nobody's said yet", "loves-only take: the empty gripe side says so rather than collapsing");
+var gripeOnly = [note("Todd", "", "the grind")];
+h = CARD("helldivers2", gripeOnly, fixtureRefs);
+has(h, "the grind", "gripes-only take: the gripe still renders");
+has(h, "Nobody's said yet", "gripes-only take: the empty love side says so");
+
+/* ---- 6. the merge log surfaces prior names ------------------------------ */
+var aliased = [note("Todd", "a", "b", [], [], "HD2"), note("Jordan", "c", "d", [], [], "helldiver 2")];
+h = CARD("helldivers2", aliased, fixtureRefs);
+has(h, "Also submitted as", "merge log: prior names are surfaced on the card");
+has(h, "HD2", "merge log: lists the raw name that was typed");
+var clean = [note("Todd", "a", "b", [], [], "Helldivers 2")];
+hasnt(CARD("helldivers2", clean, fixtureRefs), "Also submitted as", "merge log: hidden when every submission used the canonical name");
+
+/* ---- 7. an unseeded game degrades to the visible authoring queue -------- */
+h = CARD("somegamenobodywroteup", [note("Todd", "a", "b")], [{ slug: "somegamenobodywroteup", name: "Some Game" }]);
+has(h, "Context coming", "unseeded game: renders the 'context coming' stub");
+has(h, "Some Game", "unseeded game: still shows the submitted name");
+has(h, "a", "unseeded game: the take still renders — a missing blurb never hides a contribution");
+
+/* ---- 8. XSS: every field is crew-supplied free text --------------------- */
+var nasty = [note("<img src=x onerror=alert(1)>", "<script>alert(2)</script>", "\" onmouseover=\"alert(3)")];
+h = CARD("helldivers2", nasty, fixtureRefs);
+hasnt(h, "<script>", "escaping: a script tag in a take never reaches the DOM raw");
+hasnt(h, "<img src=x", "escaping: an img tag in a name never reaches the DOM raw");
+has(h, "&lt;script&gt;", "escaping: it's rendered as visible text instead");
+
+/* ---- 9. The Loom gate --------------------------------------------------- */
+var L = A.__loomPanel;
+has(L([]), "Nothing woven yet", "loom: empty state renders (it recruits, so it must not hide)");
+has(L([]), "8 takes from at least 3 people", "loom: the empty state names the exact gate");
+has(L([]), "currently 0 from 0", "loom: shows live progress toward the gate");
+ok(L(ten) === "", "loom: yields the slot once 8 takes from 3+ people exist (VR-99 fills it)");
+var sevenOneperson = [];
+for (var j = 0; j < 9; j++) sevenOneperson.push(note("Todd", "l" + j, "g" + j));
+has(L(sevenOneperson), "Nothing woven yet", "loom: 9 takes from ONE person does not open the gate");
+
+/* ---- 10. the page renders offline without throwing ---------------------- */
+var view = A.route ? null : null;
+ok(typeof A.grefOpen === "function", "grefOpen is exported for the card + CTA buttons");
+ok(typeof A.grefSubmit === "function", "grefSubmit is exported");
+ok(typeof A.grefNameChange === "function", "grefNameChange is exported for the name field");
+ok(typeof A.grefPick === "function", "grefPick is exported for the did-you-mean buttons");
+ok(typeof A.grefMore === "function", "grefMore is exported for the disclosure");
+ok(typeof A.grefSort === "function", "grefSort is exported for the sort select");
+
+/* ---- report ------------------------------------------------------------- */
+console.log("VEILRUN game-reference check");
+console.log("  " + pass + " checks passed");
+if (fails.length) {
+  console.log("\nFAILED (" + fails.length + "):");
+  fails.forEach(function (f) { console.log("  - " + f); });
+  process.exit(1);
+}
+console.log("\nPASS — slugs stable, near misses never auto-merge, cards survive 1–10 takes.");

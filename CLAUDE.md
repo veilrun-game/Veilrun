@@ -43,13 +43,16 @@ Cards are referenced as `VR-##`. Find one with:
 ## 3. Ship checklist — required on every commit that changes a game / level / mechanic
 
 Do these in the *same* changeset, then list which ones you touched in the hand-off
-(e.g. `updates feed +1 · boardTree v1 node · Kanban VR-91 · docs folded`). Say "n/a"
+(e.g. `updates feed +1 · manifest v1 node · Kanban VR-91 · docs folded`). Say "n/a"
 explicitly rather than omitting an item.
 
 1. **Updates feed** — new entry at the top of `VEILRUN.updates` in `js/data.js`, newest
    date, player-facing voice. Without it the release is invisible on the site.
-2. **Leaderboard wiring** — the level's `gameId` is in `boardTree` in `js/data.js` under the
-   right Version → Combo.
+2. **Leaderboard wiring** — the level's id is in the **`VEILRUN.games` manifest** in `js/data.js`
+   under the right Version → Combo → `levels[]`. *(There is no separate `boardTree` array —
+   VR-94 folded `combos` + `boardTree` + per-mode `play` links into one manifest on 8/9;
+   `js/app.js` keeps a `boardTreeOf()` helper that just reads `game.versions`.)* A level's
+   `id` IS the `game_id` in `game_scores` — never rename one without migrating the board.
 3. **Play access** — confirm the exact path a player takes (combo `play` link and/or the
    in-game Version dropdown), and that a preview build isn't silently the default.
 4. **Kanban** — log/close the card, bump `_Last updated_`.
@@ -82,13 +85,13 @@ Run them from inside the game's folder. Both must be green before hand-off.
   never be committed**, in any form.
 - Versioning convention: the current build is `games/<name>/index.html`; superseded builds
   are archived to `games/<name>/versions/v0/index.html` (see `games/pair-level/`) and stay
-  reachable via the in-game Version dropdown and their own `boardTree` node.
+  reachable via the in-game Version dropdown and their own node in the `VEILRUN.games` manifest.
 
 ## 6. Repo map
 
 ```
 index.html · app.html        the site (SPA-ish; app.html is the Lab/hub)
-js/data.js                   games, combos, boardTree, updates feed, crew data  ← most edits
+js/data.js                   VEILRUN.games manifest, modes, updates feed, weekly, crew  ← most edits
 js/galleries.js              per-character gallery image arrays
 css/                         site styles
 assets/                      webp art (gallery/, landing/, world/, img/)

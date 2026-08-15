@@ -74,6 +74,46 @@
         };
       } catch (e) { return { total: 0, resolved: 0, open: 0, avgDays: null }; }
     },
+    /* ---- Game reference (VR-98) ------------------------------------------
+       Every one of these fails quietly to an empty result if the tables aren't
+       there yet — same contract as image_order and logins, so the page renders
+       as "nothing submitted" rather than breaking the site. */
+    async loadGameRefs() {
+      try { const { data } = await sb.from("game_refs").select("slug,name,who,created_at"); return data || []; }
+      catch (e) { return []; }
+    },
+    async loadGameRefNotes() {
+      try {
+        const { data } = await sb.from("game_ref_notes")
+          .select("slug,who,loves,gripes,tags,gripe_tags,raw_name,match_kind,created_at,updated_at");
+        return data || [];
+      } catch (e) { return []; }
+    },
+    // First submission of a game. Ignores a duplicate-slug race — if two people add the
+    // same game at once, the loser's insert fails and their NOTE still lands, which is
+    // exactly the intended outcome.
+    async createGameRef(slug, name, who) {
+      try { await sb.from("game_refs").insert({ slug, name, who }); return true; }
+      catch (e) { console.warn(e); return false; }
+    },
+    // One take per person per game. `unique (slug, who)` in Postgres makes this an
+    // upsert rather than a decision: submitting again edits what you already said.
+    async upsertGameRefNote(note) {
+      try {
+        const { error } = await sb.from("game_ref_notes").upsert({
+          slug: note.slug, who: note.who,
+          loves: note.loves || null, gripes: note.gripes || null,
+          tags: note.tags || [], gripe_tags: note.gripeTags || [],
+          raw_name: note.rawName || null, match_kind: note.matchKind || null,
+          updated_at: new Date().toISOString()
+        }, { onConflict: "slug,who" });
+        if (error) throw error;
+        return { ok: true };
+      } catch (e) {
+        console.warn(e);
+        return { ok: false, message: (e && e.message) || "Couldn't save that — try again." };
+      }
+    },
     async signOut() { try { await sb.auth.signOut(); } catch (e) {} },
     // Persist a chosen display name to the account so it survives across devices/sessions.
     async updateDisplayName(name) { try { await sb.auth.updateUser({ data: { display_name: name } }); } catch (e) {} },

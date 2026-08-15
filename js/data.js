@@ -593,6 +593,7 @@ VEILRUN.weekly = {
 };
 
 VEILRUN.updates = [
+  { date: "2026-08-15", title: "New: tell us what you actually play — and what makes you stop", text: "There's a new page in the Lab: **Game Reference**. Add a game you actually play, say what you love about it, and say the thing that takes you out of it. **The second one is the bit we need.** Everyone can list games they like — that's easy and it tells us almost nothing. What's genuinely useful is the other half: the grind that made you stop, the menus that fought you, the mode that was great until hour ten. No game is perfect, and knowing precisely where a good one loses you is what turns taste into decisions about what we build. **Two boxes and your name, under two minutes.** We fill in the rest — what the game is, what it runs on, whether it's 2D or 3D — so you never have to type anything you'd have to look up. If someone's already added the game, yours joins theirs on the same card, and once three of you say the same thing the card says so out loud. **You can change your mind.** Come back any time and update your take — and after the first one you can add just a gripe, or just a love, without redoing both. **Takes count triple on the leaderboard**, same as feedback, once per game however often you edit it. Coming next: each week this reads everything you've all said and hands back three game ideas built out of it. That needs about eight takes from three people to be worth anything, so it's waiting on you.", cta: { label: "Add a game", href: "#reference" } },
   { date: "2026-08-11", title: "The Updates page opens with the week, not the log", text: "There are 108 entries on the Updates page and they've always been in one flat list, newest first. That's a fine record and a terrible way to catch up — if you've been away a fortnight you're expected to read backwards until things look familiar, and nobody does that. **So the page now opens with the week itself:** a headline, a few lines on what it amounted to, the numbers that actually moved, and links straight to the things worth opening. The full log is still underneath, unchanged, and on a phone there's a **skip to the full log** button so the summary can't get in your way. **It's written to be honest about a quiet week.** If not much shipped it will say not much shipped — padding three small fixes into a milestone would waste your time, and you'd stop reading it, which defeats the point. **And it knows to get out of the way.** The summary is refreshed by hand each week for now, and one week that will be forgotten — so if it ever goes more than a fortnight without an update, it removes itself and the page goes back to exactly the log you're used to. A stale summary claiming to be \"this week\" is worse than no summary at all.", cta: { label: "Read this week", href: "#updates" } },
   { date: "2026-08-11", title: "The Hub knows who you are now — and tells you what you missed", text: "The Hub has shown everyone the same page since the day it went up: same cover image, same list, whether you'd been here yesterday or never. **Now it works out where you left off and starts there.** If things have shipped since you last signed in, it says so — how many, what they were, and a jump straight to each one, capped at five so it stays readable rather than becoming another wall. If nothing has changed, it says that too, plainly, and points you at whatever still needs you instead of pretending there's news. **It knows the difference between \"nothing new\" and \"never been here.\"** That sounds obvious and it wasn't — telling someone on their first ever visit that they're \"all caught up\" is nonsense, so first-timers get something else entirely: what the project actually is, where it's got to in numbers, the art, and three things worth doing in order. **And if something genuinely needs you** — a vote that's still open, a note of yours we've since fixed — that leads the page instead of the news. **Nothing new to sign up for and nothing to keep up with.** It reads your existing sign-ins to work out when you were last here, so it worked from the moment it went live. If you'd rather have the old one, add /v0 to the address. Tell us if it gets it wrong — particularly if it claims you missed something you didn't.", cta: { label: "Open the Hub", href: "#hub" } },
   { date: "2026-08-10", games: ["arena-3d"], title: "Proving Ground has a second version in the dropdown — and it looks deliberately unfinished", text: "Everything in Proving Ground so far has been built out of cylinders and spheres, because modelling real characters is the kind of job that eats a month and produces nothing playable. **So we're skipping models entirely.** The new **v1 · sprite arena** preview swaps those shapes for flat images that always turn to face the camera — a trick old games used constantly, and it means art can come straight out of Midjourney and drop into the game with no rigging at all. **Fair warning: the art in it right now is placeholder.** Grey boxes with a number on them. That is on purpose — the point of this build is to prove the plumbing works before we spend a Sunday generating 152 images, not to look good. The camera has been pulled much lower to suit it, because a flat image viewed from above just reads as a card lying on the floor. **v0 is still what Play opens** — nothing about your runs or the board changes. If you want to see where this is heading, pick **v1 · sprite arena (preview)** from the Version dropdown on the game's page, and tell us whether the lower camera feels better or worse to fight with. That's the actual question.", cta: { label: "▶ Open Proving Ground", href: "#games/arena-3d" } },
@@ -702,3 +703,78 @@ VEILRUN.updates = [
   { date: "2026-07-12", text: "Both Midjourney batches sorted (824 files) into named asset folders." },
   { date: "2026-07-12", text: "Synergy matrix v2, game modes (incl. Party/Hub direction), and the website plan finalized." }
 ];
+
+/* ============================================================================
+   GAME REFERENCE (VR-98) — what the crew plays, and what makes them stop.
+   ----------------------------------------------------------------------------
+   Two halves, on purpose:
+     · Supabase  (game_refs + game_ref_notes) holds what the CREW supplied —
+       which games are on the list, and one editable take per person per game.
+     · This file holds what we KNOW about each game — blurb, platform, 2D/3D,
+       art. Editorial content belongs in a commit you can read, not in a table
+       row nobody can diff.
+
+   Cards below are built COMPLETE but stay HIDDEN until at least one person has
+   a take on the game. That way contributing never produces a placeholder — the
+   first take reveals a finished card, immediately. A game submitted that ISN'T
+   in here still works; it renders a "context coming" stub, which is the
+   authoring queue making itself visible.
+
+   Keys are slugs: lower-case, punctuation and spaces stripped. The slug is the
+   join key to both Supabase tables — renaming one orphans every take on it.
+   ========================================================================== */
+VEILRUN.gameRefs = {
+  /* Seeded ~50-game pass lands here as its own commit (VR-98 §8.5).
+     Shape, for that pass and for anyone adding one by hand:
+
+     helldivers2: {
+       name: "Helldivers 2",
+       blurb: "Co-op squad shooter. Four players drop into procedural missions, " +
+              "hold objectives against escalating waves, and extract. Friendly fire is always on.",
+       dimension: "3D",                        // "2D" | "2.5D" | "3D"
+       platforms: ["PC", "PS5"],
+       mechanics: ["co-op", "waves", "abilities"],
+       art: "assets/gameref/helldivers2.webp",  // optional — falls back to a typographic tile
+       status: null                             // "gone" renders the ⚠ no-longer-running flag
+     },
+  */
+};
+
+/* Typo and shorthand collisions, resolved before the slug is looked up. Left side
+   is what someone might type; right side must be a real key in gameRefs (or a slug
+   already in Supabase). _check.js asserts every target resolves. */
+VEILRUN.gameRefAliases = {
+  cod: "callofduty",
+  codzombies: "callofdutyzombies",
+  zombies: "callofdutyzombies",
+  hd2: "helldivers2",
+  omd: "orcsmustdie",
+  omd3: "orcsmustdie",
+  botw: "breathofthewild",
+  rdr: "reddeadredemption",
+  rdr2: "reddeadredemption",
+  lol: "leagueoflegends",
+  bg3: "baldursgate3",
+  nfs: "needforspeedheat",
+  gwf: "golfwithyourfriends",
+  cnc: "commandandconquer",
+  asb2: "allstarbrawl2",
+  thps: "tonyhawkproskater"
+};
+
+/* The tag vocabulary. Deliberately about FEEL, not genre — genre is on the context
+   card already, and nobody needs to be asked what genre Uno is.
+   The gripe row is the more useful of the two: it's the half nobody writes down. */
+VEILRUN.gameRefTags = {
+  love: [
+    "the movement", "the combat feel", "multiplayer / playing with friends",
+    "base building & defense", "abilities & builds", "progression",
+    "the look & style", "fashion & customisation", "the music",
+    "feels good to use", "story", "it respects my time"
+  ],
+  gripe: [
+    "grindy", "slow to get going", "punishing", "repetitive",
+    "no real multiplayer", "bad with friends", "clunky menus & controls",
+    "monetisation", "too complex", "technical problems"
+  ]
+};

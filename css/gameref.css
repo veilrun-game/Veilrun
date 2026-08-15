@@ -1,0 +1,101 @@
+/* VEILRUN — Game reference (VR-98).
+   Cards carry two opposed halves (loved / takes a hit) and have to stay readable at
+   one take and at ten. Rules that follow from that:
+     · two quotes per side, the rest behind a disclosure
+     · quotes always carry a name — an attributed quote gets read, an anonymous one skimmed
+     · the tag rolls are aggregated across takes, not per person
+   Tokens only — no raw hex. See css/tokens.css. */
+
+/* ---- Lab top band: two across on desktop, stacked on phones ---------------
+   FLEX, not grid. css/hub.css records that grid couples panel heights and cost
+   VR-86 three attempts; each card here must size itself independently. */
+.lab-band { display: flex; flex-wrap: wrap; gap: var(--s-4); margin-top: 1.5rem; }
+.lab-band-card { flex: 1 1 320px; border-color: var(--magenta); display: flex; flex-direction: column; }
+.lab-band-card .eyebrow { margin-bottom: .3rem; }
+.lab-band-card h3 { margin: .3rem 0 .4rem; }
+.lab-band-card p { font-size: .9rem; margin: 0 0 1rem; max-width: 52ch; }
+.lab-band-card .btn { margin-top: auto; align-self: flex-start; }
+
+/* ---- Page furniture ---- */
+.gr-stats { display: block; margin-top: .5rem; color: var(--white); font-size: .85rem; }
+.gr-list { display: flex; flex-direction: column; gap: var(--s-4); margin-top: 1.5rem; }
+.gr-empty { text-align: center; padding: 2.5rem 1.5rem; }
+.gr-empty h3 { margin: 0 0 .6rem; }
+.gr-empty p { max-width: 54ch; margin: 0 auto 1.2rem; }
+
+/* ---- Card ---- */
+.gr-card { display: flex; gap: var(--s-4); padding: 0; overflow: hidden; }
+.gr-art { width: 200px; flex: 0 0 200px; object-fit: cover; align-self: stretch; background: var(--ink); }
+.gr-art-fallback { display: flex; align-items: center; justify-content: center; padding: 1rem;
+  background: linear-gradient(135deg, var(--ink-2), var(--ink)); border-right: 1px solid var(--line); }
+.gr-art-fallback span { font-family: var(--font-display); text-transform: uppercase;
+  letter-spacing: .04em; font-size: 1.1rem; color: var(--mute); text-align: center; line-height: 1.15; }
+.gr-body { flex: 1 1 auto; min-width: 0; padding: var(--s-4); }
+.gr-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .6rem; justify-content: space-between; }
+.gr-head h3 { margin: 0; }
+.gr-meta { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
+.gr-chip { font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; color: var(--mute);
+  border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; }
+.gr-gone { font-size: .7rem; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--amber); border: 1px solid currentColor; border-radius: 999px; padding: 2px 8px; }
+.gr-blurb { color: var(--mute); font-size: .9rem; margin: .6rem 0 0; max-width: 62ch; }
+.gr-pending { font-style: italic; opacity: .8; }
+.gr-alias { font-size: .75rem; color: var(--mute); margin: .5rem 0 0; opacity: .8; }
+
+/* ---- The two halves ---- */
+.gr-split { display: flex; flex-wrap: wrap; gap: var(--s-4); margin-top: 1rem; }
+.gr-side { flex: 1 1 240px; min-width: 0; border-top: 1px solid var(--line); padding-top: .7rem; }
+.gr-side-head { display: flex; justify-content: space-between; align-items: center;
+  font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; margin-bottom: .5rem; }
+.gr-love .gr-side-head { color: var(--cyan); }
+.gr-gripe .gr-side-head { color: var(--magenta); }
+.gr-quotes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .55rem; }
+.gr-quotes li { display: flex; flex-direction: column; gap: 2px; }
+.gr-who { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: var(--mute); }
+.gr-quote { font-size: .88rem; line-height: 1.45; }
+.gr-quote::before { content: "\201C"; opacity: .5; }
+.gr-quote::after { content: "\201D"; opacity: .5; }
+.gr-none { font-size: .82rem; color: var(--mute); font-style: italic; margin: 0; }
+.gr-hidden { display: none; }
+.gr-more { margin-top: .5rem; background: none; border: none; padding: 0; cursor: pointer;
+  font-size: .78rem; color: var(--magenta); text-decoration: underline; }
+
+/* ---- Aggregated tag rolls ---- */
+.gr-tagroll { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .7rem; }
+.gr-tag { font-size: .7rem; color: var(--mute); border: 1px solid var(--line);
+  border-radius: 999px; padding: 2px 8px; }
+.gr-tag b { color: var(--white); font-weight: 600; }
+
+/* ---- Footer: the convergence line is the payload of the whole card ---- */
+.gr-foot { display: flex; flex-wrap: wrap; gap: .6rem; justify-content: space-between;
+  align-items: center; margin-top: 1rem; border-top: 1px solid var(--line); padding-top: .8rem; }
+.gr-conv { font-size: .8rem; color: var(--white); }
+.gr-conv.mute { color: var(--mute); }
+.gr-add { font-size: .82rem; padding: 7px 14px; }
+
+/* ---- The Loom (VR-99 fills this; the empty state ships now on purpose) ---- */
+.loom { margin-top: 1.5rem; border-color: var(--magenta); }
+.loom h3 { margin: .3rem 0 .5rem; }
+.loom p { max-width: 62ch; font-size: .9rem; }
+.loom-gate { margin-bottom: 0; }
+
+/* ---- Modal ---- */
+.gref-card-modal { width: min(560px, 94vw); max-height: 90vh; overflow-y: auto; }
+.gr-picks { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .5rem; }
+.gr-pick { font-size: .72rem; background: none; color: var(--mute); border: 1px solid var(--line);
+  border-radius: 999px; padding: 4px 10px; cursor: pointer; transition: background .12s, color .12s, border-color .12s; }
+.gr-pick:hover { border-color: var(--magenta); color: var(--white); }
+.gr-pick.on { background: rgba(214, 92, 220, 0.16); border-color: var(--magenta); color: var(--white); }
+.gr-didyou { font-size: .85rem; margin: .6rem 0; padding: .7rem; border: 1px dashed var(--magenta);
+  border-radius: var(--radius); display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.gr-didyou .btn { font-size: .75rem; padding: 5px 10px; }
+.gr-hint { font-size: .8rem; color: var(--mute); margin: .6rem 0; }
+.gr-err { color: var(--magenta); font-size: .82rem; min-height: 1.1em; margin: .6rem 0 0; }
+
+/* ---- Phones: the card goes vertical, art becomes a banner ---- */
+@media (max-width: 639px) {
+  .gr-card { flex-direction: column; }
+  .gr-art { width: 100%; flex: 0 0 auto; height: 140px; }
+  .gr-art-fallback { border-right: none; border-bottom: 1px solid var(--line); }
+  .gr-split { flex-direction: column; gap: .8rem; }
+}

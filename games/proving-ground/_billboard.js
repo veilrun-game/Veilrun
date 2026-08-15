@@ -107,11 +107,55 @@ ok("GLTFLoader is loaded", /examples\/js\/loaders\/GLTFLoader\.js/.test(html),
    "cdnjs hosts r128's core but not its loaders");
 ok("model falls back to primitives", /keeping the primitive rig/.test(html),
    "a missing asset must never break the game");
-ok("model cancels MESH_PI", /root\.rotation\.y = -MESH_PI/.test(html),
-   "exported facing -Y, so it already faces the game's forward");
-ok("model shares the sprite state machine", /MODEL\.play\(playerSpriteState\(\), dt\)/.test(html),
+ok("model does NOT cancel MESH_PI", /root\.rotation\.y = 0;/.test(html) &&
+   !/root\.rotation\.y = -MESH_PI/.test(html),
+   "Blender -Y exports to glTF +Z, so the model faces the same way as the primitives");
+ok("model shares the sprite state machine", /MODEL\.play\(playerModelState\(speed\), dt, speed\)/.test(html),
    "one source of truth for what the character is doing");
 ok("mixer is ticked on the render clock", /updatePlayerModel\(raw\)/.test(html));
+
+ok("render precedence is explicit", /MODEL > SPRITE > PRIMITIVES/.test(html) &&
+   /if \(modelReady\(\)\) return false;/.test(html),
+   "the model owns the player; the sprite layer stood down");
+ok("player.g re-shown for the model", /player\.g\.visible = \(cam\.mode !== "first"\)/.test(html),
+   "the model is a CHILD of player.g and inherits its visibility");
+
+console.log("\n[shroud + locomotion]");
+ok("shroud is a dissolve, not a fade", /uDissolve/.test(html) && /discard;/.test(html),
+   "discard-based, so no transparency sorting to go wrong");
+ok("dissolve resolves into a glass ghost", /uGhost/.test(html) && /vrF = pow\(1\.0 - abs\(dot/.test(html),
+   "fresnel shell: near-invisible face-on, bright where the surface turns away");
+ok("destruction is the transition, glass is the state", /GHOST_AT = 0\.70/.test(html) &&
+   /holes = \(1 - k\) \* 0\.82/.test(html), "holes recede as the glass comes in");
+ok("glass lets the far side through", /depthWrite = ghost < 0\.5/.test(html));
+ok("veil colours are tunable in one place", /VEIL_BURN/.test(html) && /VEIL_A_MIN/.test(html));
+ok("glass has a rim gradient", /vrT = mix\(uGlass, uRim, vrF \* vrF\)/.test(html),
+   "deep violet through the body, pink only where he turns away");
+ok("execute has its own clip with a fallback", /\["execute","\[|\["execute",\s*\["assassin"/.test(html) &&
+   /st === "execute" && !MODEL\.hasClip\("execute"\)/.test(html));
+ok("glass is not the seam's magenta", !/uGlass = \{ value: new THREE\.Color\(0xD65CDC\)/.test(html),
+   "magenta belongs to the world tearing, not to Vesper");
+ok("eaten edges are lit", /uEdge/.test(html) && /smoothstep\(uDissolve/.test(html));
+ok("locomotion is speed-matched", /setEffectiveTimeScale\(clamp\(\(speed \|\| 0\) \/ REF/.test(html),
+   "feet skate when stride rate doesn't match actual velocity");
+ok("run blends in by speed when it exists", /MODEL\.hasClip\("run"\)/.test(html) &&
+   /var RUN_AT = 4\.2/.test(html), "and falls back to walk when it doesn't");
+ok("blend times differ by intent", /fadeFor/.test(html), "combat snaps, locomotion carries weight");
+ok("motes belong to the coming-apart phase", /player\.shroud < 0\.92/.test(html),
+   "glass does not shed dust");
+
+console.log("\n[tuning panel + maps]");
+ok("maps are data, not baked geometry", /var MAPS = \[/.test(html) && /function buildMap\(id\)/.test(html));
+ok("there are several layouts", (html.match(/id: "(pit|colonnade|open|keep)"/g) || []).length >= 4);
+ok("PILLARS keeps its identity on a map swap", /PILLARS\.length = 0;/.test(html) &&
+   /m\.pillars\.forEach\(function \(p\) \{ PILLARS\.push\(p\); \}\)/.test(html),
+   "collision and line-of-sight hold a reference to it");
+ok("old pillar meshes are disposed", /c\.geometry\.dispose\(\)/.test(html), "no leak on repeated swaps");
+ok("panel persists across reloads", /localStorage\.setItem\(LSK/.test(html));
+ok("settings can be copied out", /Copy settings to clipboard/.test(html) && /VEIL_GLASS_LIFT/.test(html),
+   "tuning becomes a paste-able answer instead of a description");
+ok("panel never touches BALANCE", !/TUNE[\s\S]{0,4000}?BAL\.C\./.test(html),
+   "feel is tunable, balance is sim-proven");
 
 console.log("\n[dom sanity]");
 {
@@ -121,6 +165,8 @@ console.log("\n[dom sanity]");
      dupes.length ? dupes.join(", ") + " — getElementById silently returns the first, so the second element's listeners never attach" : ids.length + " ids, all unique");
 }
 ok("pause has its own button", /id="btn-unpause"/.test(html) && /\$\("btn-unpause"\)\.addEventListener/.test(html));
+ok("arcade starts unpaused", /setPaused\(cam\.mode !== "arcade"\)/.test(html),
+   "it never requests a lock, so it must not wait for one");
 ok("arcade never pauses on lost pointer lock", /cam\.mode !== "arcade"\) setPaused\(!mouse\.locked\)/.test(html),
    "this is what left the run stuck on the pause screen");
 

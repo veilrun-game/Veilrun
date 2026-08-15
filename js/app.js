@@ -657,17 +657,24 @@ window.VApp = (function () {
       const nPlay = (D.games || []).length;
       const nLevels = (D.games || []).reduce((n, g) =>
         n + g.versions.reduce((m, v) => m + v.combos.reduce((k, c) => k + c.levels.length, 0), 0), 0);
-      const playSection = nPlay ? `
-        <div class="panel" style="margin-top:1.5rem;border-color:var(--magenta)">
-          <div class="dash-head" style="margin-top:0">
-            <div>
-              <div class="eyebrow">Playable now</div>
-              <h3 style="margin:.3rem 0 .4rem">${nPlay} game${nPlay === 1 ? "" : "s"}, ${nLevels} levels, live leaderboards</h3>
-              <p class="mute" style="font-size:.9rem;margin:0;max-width:58ch">The prototypes have their own home now — pick a game to get its versions, levels, controls and board in one place.</p>
-            </div>
+      /* VR-98: the top band is two panels side by side on desktop, stacked on mobile.
+         Flex, not grid — css/hub.css records that grid couples panel heights and cost
+         VR-86 three attempts. Each panel sizes itself. */
+      const playSection = `
+        <div class="lab-band">
+          ${nPlay ? `<div class="panel lab-band-card">
+            <div class="eyebrow">Playable now</div>
+            <h3>${nPlay} game${nPlay === 1 ? "" : "s"}, ${nLevels} levels, live leaderboards</h3>
+            <p class="mute">The prototypes have their own home — pick a game to get its versions, levels, controls and board in one place.</p>
             <a class="btn" href="#games">View playable games →</a>
+          </div>` : ""}
+          <div class="panel lab-band-card">
+            <div class="eyebrow">Game reference</div>
+            <h3>What we play, and what makes us stop</h3>
+            <p class="mute">The games the crew actually plays — what we love about them, and the thing that makes us put them down. The second half is the one that shapes what we build.</p>
+            <a class="btn" href="#reference">Open the reference →</a>
           </div>
-        </div>` : "";
+        </div>`;
       const cta = `<div class="panel cta-card" onclick="VApp.feedback('New mode idea','idea')">
         <div class="eyebrow">Your turn</div>
         <h3 style="margin:.3rem 0">＋ Pitch a game mode</h3>
@@ -680,6 +687,27 @@ window.VApp = (function () {
         ${playSection}
         <div class="dash-head" style="margin-top:2rem"><h2 style="margin:0">Ideas &amp; experiments</h2><span class="mute" style="font-size:.85rem">${ideas.length} concepts</span></div>
         <div class="grid cols-3" style="margin-top:1rem">${cta}${cards}</div>
+      </div>`;
+    },
+
+    /* ---- Game reference: what the crew plays, and what stops them (VR-98) ---- */
+    reference() {
+      const sorts = [["takes", "Most takes"], ["new", "Newest"], ["gripes", "Most gripes"]];
+      return `<div class="wrap section">
+        ${C.sectionHeader("The Lab", "Game reference")}
+        <p class="mute" style="max-width:64ch;margin-top:1rem">The games we actually play — and, more usefully, the things that take us out of them. No game is perfect; naming what makes a good one take a hit is what turns taste into design decisions. <span id="gref-stats" class="gr-stats"></span></p>
+        <div id="gref-loom"></div>
+        <div class="panel cta-card" onclick="VApp.grefOpen()" style="margin-top:1.5rem">
+          <div class="eyebrow">Your turn</div>
+          <h3 style="margin:.3rem 0">＋ Add a game</h3>
+          <p class="mute">One you actually play. What you love, and what makes you put it down.</p>
+        </div>
+        <div class="filters" style="margin-top:1.5rem">
+          <select class="gb-sel" onchange="VApp.grefSort(this.value)" aria-label="Sort games">
+            ${sorts.map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}
+          </select>
+        </div>
+        <div id="gref-list" class="gr-list"><p class="mute">Loading…</p></div>
       </div>`;
     },
 
@@ -789,7 +817,7 @@ window.VApp = (function () {
     leaderboard() {
       return `<div class="wrap section">
         ${C.sectionHeader("The crew","Leaderboard")}
-        <p class="mute" style="max-width:62ch;margin-top:1rem">Who's shaping Veilrun the most. Points for contributing — <strong>feedback counts triple</strong>, plus likes, votes, and <strong>playing the prototypes</strong>: you earn points the first time you try a level, the first time you clear it, the first time you beat your own best on it, and any time you take #1 on a game's board. Each of those is a one-time award per level, so the board measures what you've contributed rather than how many times you've replayed. Crew-only for now.</p>
+        <p class="mute" style="max-width:62ch;margin-top:1rem">Who's shaping Veilrun the most. Points for contributing — <strong>feedback and <a href="#reference">game-reference takes</a> both count triple</strong>, plus likes, votes, and <strong>playing the prototypes</strong>: you earn points the first time you try a level, the first time you clear it, the first time you beat your own best on it, and any time you take #1 on a game's board. Each of those is a one-time award per level, and a reference take counts once per game however often you edit it — so the board measures what you've contributed rather than how many times you've replayed. Crew-only for now.</p>
         <div id="lb-board" style="margin-top:1.5rem"><p class="mute">Loading…</p></div>
       </div>`;
     },
@@ -1594,15 +1622,16 @@ window.VApp = (function () {
   // Leaderboard and the Profile page's own-stats panel, so the numbers always agree.
   async function computeContributions() {
     if (!window.VBackend) return null;
-    const [fb, likes, votes, gpts] = await Promise.all([
+    const [fb, likes, votes, gpts, refNotes] = await Promise.all([
       window.VBackend.loadFeedback ? window.VBackend.loadFeedback() : [],
       window.VBackend.loadLikes(),
       window.VBackend.loadVotes(),
-      window.VBackend.loadGamePoints ? window.VBackend.loadGamePoints() : []
+      window.VBackend.loadGamePoints ? window.VBackend.loadGamePoints() : [],
+      window.VBackend.loadGameRefNotes ? window.VBackend.loadGameRefNotes() : []
     ]);
     const weekAgo = Date.now() - 7 * 864e5;
     const P = {};
-    const ensure = (key) => (P[key] = P[key] || { key, charName: null, gamingName: null, lastWho: null, lastAt: 0, fb: 0, likes: 0, votes: 0, game: 0, week: 0 });
+    const ensure = (key) => (P[key] = P[key] || { key, charName: null, gamingName: null, lastWho: null, lastAt: 0, fb: 0, likes: 0, votes: 0, game: 0, refs: 0, week: 0 });
     const bump = (r, field) => {
       const c = findCrewByWho(r.who);
       const key = c ? c.id : (String(r.who || "").toLowerCase() || "anon");
@@ -1616,6 +1645,9 @@ window.VApp = (function () {
     fb.forEach(r => { const o = bump(r, "fb"); if (r.created_at && new Date(r.created_at).getTime() >= weekAgo) o.week++; });
     likes.forEach(r => bump(r, "likes"));
     votes.forEach(r => bump(r, "votes"));
+    // Game-reference takes (VR-98). Counting ROWS, and `unique (slug, who)` means one row
+    // per person per game — so editing your take can't farm points. Nothing to store.
+    refNotes.forEach(r => { const o = bump(r, "refs"); if (r.created_at && new Date(r.created_at).getTime() >= weekAgo) o.week++; });
     // Game points add their `points` value (not a +1 count) to the same person.
     gpts.forEach(r => {
       const c = findCrewByWho(r.who);
@@ -1627,7 +1659,9 @@ window.VApp = (function () {
       if (r.created_at && t >= weekAgo) o.week++;
     });
     const rows = Object.values(P);
-    rows.forEach(o => { o.points = o.fb * 3 + o.likes + o.votes + o.game; o.displayName = o.gamingName || o.lastWho || o.key; });
+    // A reference take is a written contribution with two paragraphs of thought in it —
+    // the same class of act as feedback, so it carries the same weight.
+    rows.forEach(o => { o.points = o.fb * 3 + o.refs * 3 + o.likes + o.votes + o.game; o.displayName = o.gamingName || o.lastWho || o.key; });
     return rows;
   }
   async function loadLeaderboard() {
@@ -1871,6 +1905,370 @@ window.VApp = (function () {
   function lbClose() { const el = document.getElementById("lightbox"); if (el) el.classList.remove("open"); }
   function lbIsOpen() { const el = document.getElementById("lightbox"); return el && el.classList.contains("open"); }
 
+  /* ======================================================================
+     GAME REFERENCE (VR-98)
+     ----------------------------------------------------------------------
+     Supabase holds what the crew supplied; VEILRUN.gameRefs holds what we know
+     about each game. A game present in both renders a complete card; a game in
+     Supabase only renders a "context coming" stub, which IS the authoring queue.
+     ==================================================================== */
+  let grefCache = null;               // { refs, notes } — cleared on submit
+  const grefTags = () => (D.gameRefTags || { love: [], gripe: [] });
+
+  // Slug is the join key to BOTH tables. Renaming one orphans every take on it.
+  function grefSlug(name) {
+    const raw = String(name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    return (D.gameRefAliases || {})[raw] || raw;
+  }
+  // Levenshtein, capped — only ever run against a list of ~50, so the naive version is fine.
+  function grefDist(a, b) {
+    if (a === b) return 0;
+    if (Math.abs(a.length - b.length) > 2) return 9;
+    const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+      let last = prev[0]; prev[0] = i;
+      for (let j = 1; j <= b.length; j++) {
+        const tmp = prev[j];
+        prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, last + (a[i - 1] === b[j - 1] ? 0 : 1));
+        last = tmp;
+      }
+    }
+    return prev[b.length];
+  }
+  // Every slug we know about: the seeded catalogue plus anything already submitted.
+  function grefKnown(refs) {
+    const out = {};
+    Object.keys(D.gameRefs || {}).forEach(s => { out[s] = (D.gameRefs[s] || {}).name || s; });
+    (refs || []).forEach(r => { if (r.slug && !out[r.slug]) out[r.slug] = r.name || r.slug; });
+    return out;
+  }
+  // Exact slug hit merges silently (Jordan's rule). A NEAR hit never auto-merges — it asks,
+  // because silently folding two different games together is the one failure that loses data.
+  function grefMatch(typed, refs) {
+    const slug = grefSlug(typed);
+    if (!slug) return { kind: "empty" };
+    const known = grefKnown(refs);
+    if (known[slug]) return { kind: "exact", slug, name: known[slug] };
+    const near = Object.keys(known)
+      .map(s => ({ slug: s, name: known[s], d: grefDist(slug, s) }))
+      .filter(o => o.d <= 2 || (o.slug.length > 3 && slug.length > 3 && (o.slug.indexOf(slug) === 0 || slug.indexOf(o.slug) === 0)))
+      .sort((a, b) => a.d - b.d)[0];
+    if (near) return { kind: "near", slug: near.slug, name: near.name };
+    return { kind: "new", slug, name: String(typed).trim() };
+  }
+
+  // A game's card data: seeded context if we have it, otherwise a stub that says so.
+  function grefCard(slug, refs) {
+    const ctx = (D.gameRefs || {})[slug];
+    if (ctx) return Object.assign({ slug, pending: false }, ctx);
+    const r = (refs || []).find(x => x.slug === slug);
+    return { slug, pending: true, name: (r && r.name) || slug, blurb: "", platforms: [], mechanics: [] };
+  }
+
+  // Aggregate the tag chips across every take, ordered by how many people picked each.
+  function grefTagRoll(notes, field) {
+    const n = {};
+    notes.forEach(t => (t[field] || []).forEach(x => { n[x] = (n[x] || 0) + 1; }));
+    return Object.keys(n).sort((a, b) => n[b] - n[a] || a.localeCompare(b)).map(t => ({ tag: t, n: n[t] }));
+  }
+
+  // Quotes for one side of a card. Two shown, the rest behind a disclosure — a card has to
+  // survive ten takes without becoming a wall.
+  function grefQuotes(notes, field, slug, side) {
+    const rows = notes.filter(t => (t[field] || "").trim());
+    if (!rows.length) return `<p class="gr-none">Nobody's said yet.</p>`;
+    const one = t => `<li><span class="gr-who">${C.esc(canonicalWho(t.who))}</span><span class="gr-quote">${C.esc(t[field].trim())}</span></li>`;
+    // One constant, used twice — these two slices MUST agree or the card either hides a
+    // quote with no disclosure or claims more are hidden than there are.
+    const SHOWN = 2;
+    const head = rows.slice(0, SHOWN).map(one).join("");
+    const rest = rows.slice(SHOWN);
+    if (!rest.length) return `<ul class="gr-quotes">${head}</ul>`;
+    const id = "grmore-" + slug + "-" + side;
+    return `<ul class="gr-quotes">${head}</ul>
+      <ul class="gr-quotes gr-hidden" id="${id}">${rest.map(one).join("")}</ul>
+      <button class="gr-more" onclick="VApp.grefMore('${C.esc(id)}',this)">+${rest.length} more</button>`;
+  }
+
+  function grefCardHtml(slug, notes, refs) {
+    const g = grefCard(slug, refs);
+    const loveTags = grefTagRoll(notes, "tags"), gripeTags = grefTagRoll(notes, "gripe_tags");
+    const nLove = notes.filter(t => (t.loves || "").trim()).length;
+    const nGripe = notes.filter(t => (t.gripes || "").trim()).length;
+
+    // "Also submitted as" — derived from raw_name, so the merge log costs no extra table.
+    const aliases = [...new Set((notes || []).map(t => (t.raw_name || "").trim())
+      .filter(v => v && v.toLowerCase() !== String(g.name).toLowerCase()))];
+
+    // The convergence line is the payload: it's what turns opinions into a finding.
+    const conv = [...loveTags, ...gripeTags].filter(t => t.n >= 3).sort((a, b) => b.n - a.n)[0];
+    const convLine = conv
+      ? `<span class="gr-conv">⟳ ${conv.n} of ${notes.length} say <strong>${C.esc(conv.tag)}</strong></span>`
+      : `<span class="gr-conv mute">${notes.length} take${notes.length === 1 ? "" : "s"}</span>`;
+
+    const meta = [g.dimension, (g.platforms || []).join(" · ")].filter(Boolean)
+      .map(m => `<span class="gr-chip">${C.esc(m)}</span>`).join("");
+    const gone = g.status === "gone" ? `<span class="gr-gone">⚠ no longer running</span>` : "";
+    const art = g.art
+      ? `<img class="gr-art" src="${C.esc(g.art)}" alt="${C.esc(g.name)}" loading="lazy" onerror="this.remove()" />`
+      : `<div class="gr-art gr-art-fallback"><span>${C.esc(g.name)}</span></div>`;
+    const blurb = g.pending
+      ? `<p class="gr-blurb gr-pending">Context coming — nobody's written this one up yet.</p>`
+      : `<p class="gr-blurb">${C.esc(g.blurb || "")}</p>`;
+    const chips = arr => arr.length
+      ? `<div class="gr-tagroll">${arr.map(t => `<span class="gr-tag">${C.esc(t.tag)}${t.n > 1 ? ` <b>${t.n}</b>` : ""}</span>`).join("")}</div>` : "";
+
+    const mine = grefMyNote(slug, notes);
+    return `<article class="panel gr-card">
+      ${art}
+      <div class="gr-body">
+        <div class="gr-head"><h3>${C.esc(g.name)}</h3><div class="gr-meta">${meta}${gone}</div></div>
+        ${blurb}
+        ${aliases.length ? `<p class="gr-alias">Also submitted as: ${C.esc(aliases.join(", "))}</p>` : ""}
+        <div class="gr-split">
+          <section class="gr-side gr-love">
+            <div class="gr-side-head"><span>♥ Loved</span><span class="mute">${nLove}</span></div>
+            ${grefQuotes(notes, "loves", slug, "love")}
+            ${chips(loveTags)}
+          </section>
+          <section class="gr-side gr-gripe">
+            <div class="gr-side-head"><span>⚑ Takes a hit</span><span class="mute">${nGripe}</span></div>
+            ${grefQuotes(notes, "gripes", slug, "gripe")}
+            ${chips(gripeTags)}
+          </section>
+        </div>
+        <div class="gr-foot">
+          ${convLine}
+          <button class="btn ghost gr-add" onclick="VApp.grefOpen('${C.esc(g.name)}')">${mine ? "Update your take" : "+ Add your take"}</button>
+        </div>
+      </div>
+    </article>`;
+  }
+
+  // Who the current visitor is, for the "have I already said something?" check.
+  function grefMe() { return localStorage.getItem("vr_account") || localStorage.getItem("vr_who") || ""; }
+  function grefMyNote(slug, notes) {
+    const me = grefMe().toLowerCase();
+    if (!me) return null;
+    return (notes || []).find(t => String(t.who || "").toLowerCase() === me) || null;
+  }
+
+  function grefMore(id, btn) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove("gr-hidden");
+    if (btn) btn.remove();
+  }
+  function grefSort(v) { grefState.sort = v; renderReference(); }
+  let grefState = { sort: "takes" };
+
+  // The Loom (VR-99) isn't built yet. Its empty state ships now on purpose: it's the one
+  // panel here allowed to render before it has data, because it explains a feature that
+  // doesn't exist and names the exact thing that switches it on. That's a recruitment
+  // surface on a page whose whole job is getting dormant crew to contribute once.
+  function loomPanel(notes) {
+    const takes = (notes || []).length;
+    const people = new Set((notes || []).map(t => String(t.who || "").toLowerCase()).filter(Boolean)).size;
+    if (takes >= 8 && people >= 3) return "";   // VR-99 fills this slot
+    return `<div class="panel loom loom-empty">
+      <div class="eyebrow">The Loom</div>
+      <h3>Nothing woven yet</h3>
+      <p class="mute">Each week, The Loom reads everything the crew has said about the games they play and hands back <strong>three game ideas for the Veilrun world</strong> — built from what you love, designed around what you told us takes you out of a game.</p>
+      <p class="loom-gate">It needs a bit more to work with first: <strong>8 takes from at least 3 people</strong>. <span class="mute">(currently ${takes} from ${people})</span></p>
+    </div>`;
+  }
+
+  function renderReference() {
+    const el = document.getElementById("gref-list");
+    if (!el || !grefCache) return;
+    const { refs, notes } = grefCache;
+    const bySlug = {};
+    notes.forEach(t => { (bySlug[t.slug] = bySlug[t.slug] || []).push(t); });
+    let slugs = Object.keys(bySlug);           // only games somebody has actually spoken about
+    const s = grefState.sort;
+    slugs.sort((a, b) => {
+      if (s === "gripes") return bySlug[b].filter(t => (t.gripes || "").trim()).length - bySlug[a].filter(t => (t.gripes || "").trim()).length;
+      if (s === "new") {
+        const at = x => Math.max(...bySlug[x].map(t => new Date(t.updated_at || t.created_at || 0).getTime()));
+        return at(b) - at(a);
+      }
+      return bySlug[b].length - bySlug[a].length || grefCard(a, refs).name.localeCompare(grefCard(b, refs).name);
+    });
+    const loom = document.getElementById("gref-loom");
+    if (loom) loom.innerHTML = loomPanel(notes);
+    const stats = document.getElementById("gref-stats");
+    if (stats) {
+      const nGripes = notes.filter(t => (t.gripes || "").trim()).length;
+      stats.textContent = slugs.length
+        ? `${slugs.length} game${slugs.length === 1 ? "" : "s"} · ${notes.length} take${notes.length === 1 ? "" : "s"} · ${nGripes} gripe${nGripes === 1 ? "" : "s"} worth reading`
+        : "";
+    }
+    el.innerHTML = slugs.length
+      ? slugs.map(sl => grefCardHtml(sl, bySlug[sl], refs)).join("")
+      : `<div class="panel gr-empty">
+           <h3>Nothing here yet — this page is blank on purpose.</h3>
+           <p class="mute">Add a game you actually play. Not one you think we should copy — one you open on a Tuesday. Tell us the thing you love about it, and the thing that makes you put it down. <strong>The second one is the one we need.</strong></p>
+           <button class="btn" onclick="VApp.grefOpen()">+ Add the first game</button>
+         </div>`;
+  }
+
+  async function loadReference() {
+    const el = document.getElementById("gref-list");
+    if (!el) return;
+    if (!window.VBackend) {
+      el.innerHTML = `<div class="panel"><p class="mute">The game reference needs the backend connected. It's live once the site is talking to the database.</p></div>`;
+      return;
+    }
+    if (!grefCache) {
+      const [refs, notes] = await Promise.all([
+        window.VBackend.loadGameRefs ? window.VBackend.loadGameRefs() : [],
+        window.VBackend.loadGameRefNotes ? window.VBackend.loadGameRefNotes() : []
+      ]);
+      grefCache = { refs, notes };
+    }
+    renderReference();
+  }
+
+  /* ---- Submit / update modal ---- */
+  let grefCtx = { slug: null, rawName: "", matchKind: "new", editing: false };
+
+  function grefOpen(prefill) {
+    const el = document.getElementById("grefmodal");
+    if (!el) return;
+    grefCtx = { slug: null, rawName: "", matchKind: "new", editing: false };
+    const nameIn = el.querySelector("#gref-name");
+    nameIn.value = prefill || "";
+    nameIn.disabled = !!prefill;
+    el.querySelector("#gref-loves").value = "";
+    el.querySelector("#gref-gripes").value = "";
+    el.querySelector("#gref-suggest").innerHTML = "";
+    el.querySelector("#gref-err").textContent = "";
+    grefRenderTags(el);
+
+    const sel = el.querySelector("#gref-who");
+    const acct = localStorage.getItem("vr_account");
+    if (acct) {
+      if (![...sel.options].some(o => o.value === acct)) sel.add(new Option(acct, acct), 1);
+      sel.value = acct; sel.disabled = true;
+    } else {
+      sel.disabled = false;
+      sel.value = localStorage.getItem("vr_who") || "";
+    }
+    if (prefill) grefNameChange();           // resolves the slug + pre-fills an existing take
+    el.classList.add("open");
+    setTimeout(() => (prefill ? el.querySelector("#gref-loves") : nameIn).focus(), 50);
+  }
+
+  function grefRenderTags(el, love, gripe) {
+    const T = grefTags();
+    const row = (list, on, kind) => list.map(t =>
+      `<button type="button" class="gr-pick${(on || []).includes(t) ? " on" : ""}" data-kind="${kind}" data-tag="${C.esc(t)}" onclick="this.classList.toggle('on')">${C.esc(t)}</button>`).join("");
+    el.querySelector("#gref-love-tags").innerHTML = row(T.love, love, "love");
+    el.querySelector("#gref-gripe-tags").innerHTML = row(T.gripe, gripe, "gripe");
+  }
+
+  // Runs on blur/change of the game name. Resolves the slug, asks about a near match,
+  // and — if you already have a take on this game — turns the whole modal into an edit.
+  function grefNameChange() {
+    const el = document.getElementById("grefmodal");
+    if (!el) return;
+    const typed = el.querySelector("#gref-name").value.trim();
+    const box = el.querySelector("#gref-suggest");
+    const refs = (grefCache && grefCache.refs) || [];
+    if (!typed) { box.innerHTML = ""; return; }
+    const m = grefMatch(typed, refs);
+    grefCtx.rawName = typed;
+    if (m.kind === "near") {
+      // Never auto-merge a near hit — ask.
+      box.innerHTML = `<div class="gr-didyou">Did you mean <strong>${C.esc(m.name)}</strong>?
+        <button type="button" class="btn ghost" onclick="VApp.grefPick('${C.esc(m.slug)}','${C.esc(m.name)}')">Yes, that's it</button>
+        <button type="button" class="btn ghost" onclick="VApp.grefPick('','')">No, different game</button></div>`;
+      return;
+    }
+    grefPick(m.slug, m.name, m.kind);
+  }
+
+  function grefPick(slug, name, kind) {
+    const el = document.getElementById("grefmodal");
+    if (!el) return;
+    const box = el.querySelector("#gref-suggest");
+    if (!slug) {                                  // "No, different game" — take them at their word
+      const typed = el.querySelector("#gref-name").value.trim();
+      grefCtx.slug = grefSlug(typed); grefCtx.matchKind = "new"; grefCtx.editing = false;
+      box.innerHTML = `<p class="gr-hint">Adding <strong>${C.esc(typed)}</strong> as a new game.</p>`;
+      return;
+    }
+    grefCtx.slug = slug;
+    grefCtx.matchKind = kind || "confirmed";
+    const notes = ((grefCache && grefCache.notes) || []).filter(t => t.slug === slug);
+    const mine = grefMyNote(slug, notes);
+    grefCtx.editing = !!mine;
+    if (mine) {
+      // Editing: pre-fill, and the required-both rule relaxes to at-least-one.
+      el.querySelector("#gref-loves").value = mine.loves || "";
+      el.querySelector("#gref-gripes").value = mine.gripes || "";
+      grefRenderTags(el, mine.tags || [], mine.gripe_tags || []);
+      el.querySelector("#gref-title").textContent = "Update your take";
+      box.innerHTML = `<p class="gr-hint">You've already got a take on <strong>${C.esc(name)}</strong> — this updates it. Change one side or both; leave at least one.</p>`;
+    } else {
+      el.querySelector("#gref-title").textContent = "Add your take";
+      const typed = el.querySelector("#gref-name").value.trim();
+      const merged = typed && typed.toLowerCase() !== String(name).toLowerCase();
+      box.innerHTML = merged
+        ? `<p class="gr-hint">Added to <strong>${C.esc(name)}</strong> — you typed "${C.esc(typed)}".</p>`
+        : `<p class="gr-hint">${C.esc(name)} — tell us both sides.</p>`;
+    }
+  }
+
+  async function grefSubmit() {
+    const el = document.getElementById("grefmodal");
+    const errEl = el.querySelector("#gref-err");
+    errEl.textContent = "";
+    let who = el.querySelector("#gref-who").value;
+    if (who === "__other__") who = (el.querySelector("#gref-who-other").value || "").trim();
+    if (!who) { errEl.textContent = "Pick your name first."; return; }
+    const typed = el.querySelector("#gref-name").value.trim();
+    if (!typed) { errEl.textContent = "Which game?"; return; }
+    if (!grefCtx.slug) grefNameChange();
+    if (!grefCtx.slug) { errEl.textContent = "Pick whether that's an existing game or a new one."; return; }
+
+    const loves = el.querySelector("#gref-loves").value.trim();
+    const gripes = el.querySelector("#gref-gripes").value.trim();
+    // Both required on a FIRST take — optional gripes means no gripes, and the gripes are
+    // the reason this page exists. Relaxes to at-least-one once you already have a take.
+    if (grefCtx.editing) {
+      if (!loves && !gripes) { errEl.textContent = "Leave at least one — a love or a gripe."; return; }
+    } else if (!loves || !gripes) {
+      errEl.textContent = "First time on a game, we need both — what you love and what takes you out of it.";
+      return;
+    }
+    const picked = kind => [...el.querySelectorAll(`.gr-pick.on[data-kind="${kind}"]`)].map(b => b.dataset.tag);
+
+    localStorage.setItem("vr_who", who);
+    const btn = el.querySelector("#gref-send");
+    btn.disabled = true; btn.textContent = "Saving…";
+
+    const known = grefKnown((grefCache && grefCache.refs) || []);
+    if (!known[grefCtx.slug]) await window.VBackend.createGameRef(grefCtx.slug, typed, who);
+    const res = await window.VBackend.upsertGameRefNote({
+      slug: grefCtx.slug, who, loves, gripes,
+      tags: picked("love"), gripeTags: picked("gripe"),
+      rawName: typed, matchKind: grefCtx.matchKind
+    });
+    btn.disabled = false; btn.textContent = "Save";
+    if (!res.ok) { errEl.textContent = res.message; return; }
+    grefCache = null;
+    grefClose();
+    toast(grefCtx.editing ? "Updated — thanks." : "Added. Thanks — that's the useful half.");
+    loadReference();
+  }
+  function grefClose() { const el = document.getElementById("grefmodal"); if (el) el.classList.remove("open"); }
+  function grefWhoChange() {
+    const el = document.getElementById("grefmodal");
+    const other = el.querySelector("#gref-who").value === "__other__";
+    el.querySelector("#gref-who-other").style.display = other ? "block" : "none";
+  }
+
   // ---- Feedback modal ----
   let fbCtx = { context: "", type: "idea" };
   function feedback(context, type) {
@@ -1979,6 +2377,7 @@ window.VApp = (function () {
         else loadIdeas("Enemy idea: " + t.name, "ideas-" + arg);
       }
     }
+    if (name === "reference") loadReference();
     if (name === "updates") { loadResolved("resolved-list", 5); loadUpdatesResolvedStat(); }
     if (name === "feedback") loadFeedbackPage();
     if (name === "profile") loadProfileStats("pf-stats");
@@ -1990,7 +2389,7 @@ window.VApp = (function () {
     const hdrop = document.getElementById("navdrop-hub");
     if (hdrop) hdrop.classList.toggle("active", ["hub", "leaderboard", "updates"].includes(name));
     const ldrop = document.getElementById("navdrop-lab");
-    if (ldrop) ldrop.classList.toggle("active", ["lab", "games"].includes(name));
+    if (ldrop) ldrop.classList.toggle("active", ["lab", "games", "reference"].includes(name));
     document.querySelectorAll(".navdrop.open").forEach(d => d.classList.remove("open"));
     closeMenu();
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
@@ -2330,6 +2729,15 @@ window.VApp = (function () {
     if (sel) sel.innerHTML = '<option value="">— pick your name —</option>'
       + D.crew.map(c => `<option value="${C.esc(c.name)}">${C.esc(c.name)} (${C.esc(c.player)})</option>`).join("")
       + '<option value="__other__">Someone else…</option>';
+    const gsel = document.getElementById("gref-who");
+    if (gsel) gsel.innerHTML = '<option value="">— pick your name —</option>'
+      + D.crew.map(c => `<option value="${C.esc(c.name)}">${C.esc(c.name)} (${C.esc(c.player)})</option>`).join("")
+      + '<option value="__other__">Someone else…</option>';
+    // The seeded catalogue is the autocomplete source — recognition beats recall, and it
+    // means almost nobody types a raw name, so dedupe is near-perfect from day one.
+    const cat = document.getElementById("gref-catalogue");
+    if (cat) cat.innerHTML = Object.keys(D.gameRefs || {})
+      .map(s => `<option value="${C.esc((D.gameRefs[s] || {}).name || s)}"></option>`).join("");
     window.addEventListener("hashchange", route); initLightboxGestures();
     window.addEventListener("beforeunload", e => { if (pfDirty) { e.preventDefault(); e.returnValue = ""; } });
     document.addEventListener("click", e => {
@@ -2386,6 +2794,15 @@ window.VApp = (function () {
     const still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     el.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
   }
-  return { init, route, toggleMenu, toggleDrop, signOut, __renderHub, __hubType, __renderUpdates, __weeklyHero, wkSkip, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter, counterVote, gameBoardVer, gameBoardCombo, gameBoardLevel };
+  // Test seams for _grefcheck.js — let the harness drive slug resolution, matching and card
+  // rendering headlessly, with no network and no signed-in account.
+  const __grefSlug = grefSlug;
+  const __grefMatch = grefMatch;
+  const __grefCard = (slug, notes, refs) => grefCardHtml(slug, notes, refs || []);
+  const __loomPanel = loomPanel;
+
+  return { init, route, toggleMenu, toggleDrop, signOut, __renderHub, __hubType, __renderUpdates, __weeklyHero, wkSkip,
+    __grefSlug, __grefMatch, __grefCard, __loomPanel,
+    grefOpen, grefClose, grefSubmit, grefWhoChange, grefNameChange, grefPick, grefMore, grefSort, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter, counterVote, gameBoardVer, gameBoardCombo, gameBoardLevel };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);

@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="css/landing.css" />
   <link rel="stylesheet" href="css/hub.css" />
   <link rel="stylesheet" href="css/weekly.css" />
+  <link rel="stylesheet" href="css/gameref.css" />
 </head>
 <body>
   <div class="seam-v"></div>
@@ -44,6 +45,7 @@
         <div class="navdrop-menu">
           <a data-route href="#lab">The Lab</a>
           <a data-route href="#games">Games</a>
+          <a data-route href="#reference">Game Reference</a>
         </div>
       </div>
     </div>
@@ -95,6 +97,36 @@
       <div class="modal-actions">
         <button class="btn ghost" onclick="VApp.fbClose()">Cancel</button>
         <button class="btn" onclick="VApp.fbSubmit()">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game reference: add or update your take (VR-98) -->
+  <div class="modal" id="grefmodal" onclick="if(event.target===this)VApp.grefClose()">
+    <div class="modal-card gref-card-modal">
+      <button class="modal-x" onclick="VApp.grefClose()" aria-label="Close">×</button>
+      <h3 id="gref-title">Add your take</h3>
+      <label class="fld">You are
+        <select id="gref-who" onchange="VApp.grefWhoChange()"></select>
+      </label>
+      <input id="gref-who-other" class="fld-in" placeholder="Your name" style="display:none" />
+      <label class="fld">Game
+        <input id="gref-name" class="fld-in" list="gref-catalogue" placeholder="Start typing…" onchange="VApp.grefNameChange()" onblur="VApp.grefNameChange()" />
+      </label>
+      <datalist id="gref-catalogue"></datalist>
+      <div id="gref-suggest"></div>
+      <label class="fld">What you love about it
+        <textarea id="gref-loves" class="fld-in" rows="3" placeholder="The specific thing, not the genre."></textarea>
+      </label>
+      <div class="gr-picks" id="gref-love-tags"></div>
+      <label class="fld">What takes you out of it
+        <textarea id="gref-gripes" class="fld-in" rows="3" placeholder="The thing that makes you put it down."></textarea>
+      </label>
+      <div class="gr-picks" id="gref-gripe-tags"></div>
+      <p id="gref-err" class="gr-err"></p>
+      <div class="modal-actions">
+        <button class="btn ghost" onclick="VApp.grefClose()">Cancel</button>
+        <button class="btn" id="gref-send" onclick="VApp.grefSubmit()">Save</button>
       </div>
     </div>
   </div>

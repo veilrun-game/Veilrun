@@ -47,6 +47,24 @@ ok("count saturates rather than exploding", BAL.waveSpec(60).count <= 34, "wave 
 ok("enemy HP is capped — no bullet sponges", BAL.waveSpec(200).hpMult <= C.enemyHpCap + 1e-9,
    "caps at " + C.enemyHpCap + "x (" + Math.round(C.enemyHp * C.enemyHpCap) + " hp)");
 
+/* ------------------------------- stalk --------------------------------- */
+/* The whole point of the stalk is that the veil survives it. If stalkSpeed ever
+   creeps above shroudBreakSpeed the mechanic silently stops working — you would
+   crouch, move, and be seen, with nothing in the UI to explain why. */
+console.log("\n[stalk]");
+ok("stalk stays under the shroud break speed", C.stalkSpeed < C.shroudBreakSpeed,
+   C.stalkSpeed + " < " + C.shroudBreakSpeed);
+ok("stalk has real margin, not a rounding error",
+   C.shroudBreakSpeed - C.stalkSpeed >= 0.05,
+   "margin " + (C.shroudBreakSpeed - C.stalkSpeed).toFixed(2));
+ok("stalking costs you the exit", C.moveSpeed / C.stalkSpeed >= 8,
+   Math.round(C.moveSpeed / C.stalkSpeed) + "x slower than a run — power has a price");
+ok("but it is still movement, not standing still", C.stalkSpeed > 0.2);
+/* crossing the arena while veiled should be a real commitment, not a free reposition */
+ok("crossing the arena stalked takes a meaningful chunk of a wave",
+   (C.arena * 2) / C.stalkSpeed > 20,
+   Math.round((C.arena * 2) / C.stalkSpeed) + "s to cross the full arena");
+
 /* ---------------------------- milestones ------------------------------- */
 console.log("\n[milestones]");
 const mile = [];
