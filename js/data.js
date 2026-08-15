@@ -570,25 +570,25 @@ VEILRUN.counters = {
    was quiet. Metrics are only worth a slot if they moved or they're surprising; don't
    ship the same four every week out of habit. Never invent one. */
 VEILRUN.weekly = {
-  weekStart: "2026-08-05",
-  weekEnding: "2026-08-11",
-  headline: "Two new kinds of game — and somewhere to put them",
-  blurb: "For months Veilrun meant pair levels and a wall of ideas. This week it became three kinds of game: the pair levels, a branching story chapter you play as Rook, and a 3D arena where you hold off waves as Vesper. Both new ones are prototypes and look it — Proving Ground has no art in it at all, just lighting and shapes. The games also moved out of the Lab into their own section, and the Hub now opens on what you missed instead of the same page for everyone.",
+  weekStart: "2026-08-07",
+  weekEnding: "2026-08-14",
+  headline: "One kind of game became three — then the week went quiet",
+  blurb: "Nothing new has appeared here since Tuesday. Before that, a busy stretch: a branching chapter you play as Rook, a 3D arena where you hold off waves as Vesper, both moved out of the Lab into a games section of their own, and a Hub that opens on what you missed rather than the same page for everyone. The two new games are prototypes and look it. The quiet since is the next piece — getting real characters into the arena instead of shapes — and none of it is visible yet.",
   metrics: [
-    { label: "new kinds of game", value: "2" },
-    { label: "updates shipped", value: "8" },
-    { label: "of your notes, fixed", value: "4" },
-    { label: "ways through Rook Signal", value: "4,992" }
+    { label: "kinds of game, up from one", value: 3 },
+    { label: "levels you can play", value: 25 },
+    { label: "frames of art the arena is waiting on", value: "152" },
+    { label: "endings in Rook Signal", value: 6 }
   ],
   image: {
-    src: "assets/world/gameplay-views/04.webp",
-    alt: "A lone hooded figure in a glowing Underweft street",
-    why: "Both new games put one character on their own — Rook reaching in alone, Vesper alone in the pit. This is already Proving Ground's key art."
+    src: "assets/world/gameplay-views/01.webp",
+    alt: "A lone figure walking a rain-slick Overcity street toward a magenta light",
+    why: "Both new games put one character on their own, and the week ends on a pause — one figure, an empty street, still walking. Deliberately not last week's picture (04.webp)."
   },
   highlights: [
     { label: "Play Rook Signal", href: "#games/story-cyoa" },
     { label: "Play Proving Ground", href: "#games/arena-3d" },
-    { label: "See all the games", href: "#games" }
+    { label: "Open the Hub", href: "#hub" }
   ]
 };
 

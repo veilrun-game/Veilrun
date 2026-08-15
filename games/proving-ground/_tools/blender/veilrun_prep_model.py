@@ -19,6 +19,9 @@
 #      the other way is how v0 shipped with Vesper running backwards.
 #   5. A LOW-POLY DERIVATION, optional. Decimate + bake normals, so the browser
 #      build wears the high-poly's face at a fraction of the cost.
+#   6. AN FBX ALONGSIDE IT. Mixamo's auto-rigger accepts FBX / OBJ / DAE and
+#      CANNOT read GLB or glTF — which is why a good mesh gets rejected at upload.
+#      Upload vesper_low.fbx; the GLB is for the game.
 
 import bpy, os, math
 
@@ -134,6 +137,25 @@ def export(ob, path):
                               use_selection=True, export_apply=True)
     log("exported %s  (%.1f MB)" % (os.path.basename(path), os.path.getsize(path)/1048576))
 
+def export_fbx(ob, path):
+    """Mixamo's auto-rigger accepts FBX / OBJ / DAE and CANNOT read GLB or glTF.
+       That is the only reason a perfectly good mesh gets rejected on upload."""
+    bpy.ops.object.select_all(action="DESELECT")
+    ob.select_set(True); bpy.context.view_layer.objects.active = ob
+    kw = dict(filepath=path, use_selection=True, object_types={"MESH"},
+              path_mode="COPY", embed_textures=True,
+              apply_scale_options="FBX_SCALE_ALL", bake_space_transform=False,
+              add_leaf_bones=False, mesh_smooth_type="FACE")
+    try:
+        bpy.ops.export_scene.fbx(**kw)
+    except TypeError:
+        # older/newer Blender drops the odd keyword — fall back to the essentials
+        bpy.ops.export_scene.fbx(filepath=path, use_selection=True,
+                                 object_types={"MESH"}, path_mode="COPY",
+                                 embed_textures=True)
+    log("exported %s  (%.1f MB)  <- upload THIS to Mixamo"
+        % (os.path.basename(path), os.path.getsize(path)/1048576))
+
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     clear()
@@ -156,6 +178,7 @@ def main():
         # high-poly must already be exported at full resolution.
         shrink_textures(LOWPOLY_TEX)
         export(low, os.path.join(OUT_DIR, "vesper_low.glb"))
+        export_fbx(low, os.path.join(OUT_DIR, "vesper_low.fbx"))
         low.hide_set(True)
     blend = os.path.join(OUT_DIR, "vesper.blend")
     bpy.ops.wm.save_as_mainfile(filepath=blend)
