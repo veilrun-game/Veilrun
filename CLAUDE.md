@@ -64,8 +64,18 @@ explicitly rather than omitting an item.
 and there's no cheese → 3. `node --check` the extracted `<script>` → 4. wire into `js/data.js`
 → 5. verify.
 
-Per-game harnesses live beside the game: `games/<name>/_sim.js` and `games/<name>/_check.js`.
-Run them from inside the game's folder. Both must be green before hand-off.
+Per-game harnesses live beside the game, and **they are not all `_sim.js`** — check what's actually
+in the folder before assuming:
+
+- **2D pair track** — `games/<name>-v2/_sim.py` (Python physics sim).
+- **3D** — `games/proving-ground/_sim.js` (asserts against the marked `BALANCE` block extracted from
+  the HTML), plus `_billboard.js` and `_check.js`.
+- **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
+  all six endings reachable), plus `_check.js`.
+
+**Site-level, four at the repo root, all dependency-free and mutation-tested:** `_check.js` (the
+`VEILRUN.games` manifest), `_hubcheck.js` (Hub states), `_updatescheck.js` (weekly-hero states),
+`_grefcheck.js` (Game Reference catalogue + matcher). Everything relevant must be green before hand-off.
 
 ## 5. Tech guardrails
 
@@ -84,8 +94,13 @@ Run them from inside the game's folder. Both must be green before hand-off.
   key is browser-safe and lives in `js/config.js` on purpose; the **`service_role` key must
   never be committed**, in any form.
 - Versioning convention: the current build is `games/<name>/index.html`; superseded builds
-  are archived to `games/<name>/versions/v0/index.html` (see `games/pair-level/`) and stay
-  reachable via the in-game Version dropdown and their own node in the `VEILRUN.games` manifest.
+  are archived to `games/<name>/versions/v0/index.html` (see `games/pair-level/` and
+  `games/proving-ground/`) and stay reachable via the in-game Version dropdown and their own
+  node in the `VEILRUN.games` manifest.
+- **Promoting a preview to default** (worked example: Proving Ground, `f3777be`, 8/15) — reorder
+  `versions[]` so the new build is `versions[0]`, which is what `js/app.js` opens; relabel the
+  superseded node as an archive; **leave every level `id` alone** so no board migrates; and write
+  the updates-feed entry. `_check.js` enforces that no preview/legacy label sits in `versions[0]`.
 
 ## 6. Repo map
 
