@@ -2004,6 +2004,32 @@ window.VApp = (function () {
       <button class="gr-more" onclick="VApp.grefMore('${C.esc(id)}',this)">+${rest.length} more</button>`;
   }
 
+  /* Cover art, three tiers, every one of which is allowed to fail (VR-107):
+       1. `assets/gameref/<slug>.webp` — a local file ALWAYS wins, so the VR-98 rule
+          "drop a file in the folder and the card picks it up, no data.js edit" survives.
+       2. Steam's capsule for a game carrying `steam: <appid>` — derived, so it costs no
+          download, no API key and no bytes in the repo. 460×215, which is the size the
+          folder README already asks local covers to be, so the two tiers crop identically.
+       3. The typographic tile underneath, which is always rendered and never removed.
+     Tier 1 is tried first even when we have no reason to think the file is there: one
+     conditional request per card is cheaper than an `art: true` flag in data.js, which is
+     exactly the edit the derived-path convention exists to avoid. A miss falls through
+     silently — CLAUDE.md's every-asset-falls-back rule, applied twice in a row. */
+  const STEAM_CAPSULE = "https://cdn.cloudflare.steamstatic.com/steam/apps/";
+  function grefArtChain(slug, g) {
+    const local = g.art || (g.pending ? "" : "assets/gameref/" + slug + ".webp");
+    const remote = g.steam ? STEAM_CAPSULE + g.steam + "/header.jpg" : "";
+    return { src: local || remote, next: local && remote ? remote : "" };
+  }
+  // Called by the <img>'s onerror. Steps to the next tier once, then gets out of the way
+  // and lets the tile show through.
+  function grefArtFail(img) {
+    if (!img) return;
+    const next = img.getAttribute && img.getAttribute("data-next");
+    if (next) { img.removeAttribute("data-next"); img.src = next; return; }
+    img.remove();
+  }
+
   function grefCardHtml(slug, notes, refs) {
     const g = grefCard(slug, refs);
     const loveTags = grefTagRoll(notes, "tags"), gripeTags = grefTagRoll(notes, "gripe_tags");
@@ -2024,12 +2050,13 @@ window.VApp = (function () {
       .map(m => `<span class="gr-chip">${C.esc(m)}</span>`).join("");
     const gone = g.status === "gone" ? `<span class="gr-gone">⚠ no longer running</span>` : "";
     // Art is LAYERED over the typographic tile, never swapped with it. The tile always
-    // renders; the image sits on top and removes itself if it 404s. That means the path is
-    // derived from the slug and every card lights up the moment a file is dropped into
-    // assets/gameref/ — no data.js edit, and a missing file is a designed state, not a gap.
-    const artSrc = g.art || (g.pending ? "" : "assets/gameref/" + slug + ".webp");
-    const art = `<div class="gr-art gr-art-fallback"><span>${C.esc(g.name)}</span>${
-      artSrc ? `<img src="${C.esc(artSrc)}" alt="${C.esc(g.name)}" loading="lazy" onerror="this.remove()" />` : ""}</div>`;
+    // renders; the image sits on top and steps down the fallback chain if it 404s. So the
+    // path is derived, every card lights up the moment a file lands in assets/gameref/ —
+    // no data.js edit — and a missing cover is a designed state, not a gap.
+    const chain = grefArtChain(slug, g);
+    const art = `<span class="gr-art gr-art-fallback"><span class="gr-art-word">${C.esc(g.name)}</span>${
+      chain.src ? `<img src="${C.esc(chain.src)}" alt="" loading="lazy" decoding="async"${
+        chain.next ? ` data-next="${C.esc(chain.next)}"` : ""} onerror="VApp.grefArtFail(this)" />` : ""}</span>`;
     const blurb = g.pending
       ? `<p class="gr-blurb gr-pending">Context coming — nobody's written this one up yet.</p>`
       : `<p class="gr-blurb">${C.esc(g.blurb || "")}</p>`;
@@ -2037,27 +2064,53 @@ window.VApp = (function () {
       ? `<div class="gr-tagroll">${arr.map(t => `<span class="gr-tag">${C.esc(t.tag)}${t.n > 1 ? ` <b>${t.n}</b>` : ""}</span>`).join("")}</div>` : "";
 
     const mine = grefMyNote(slug, notes);
-    return `<article class="panel gr-card">
-      ${art}
-      <div class="gr-body">
-        <div class="gr-head"><h3>${C.esc(g.name)}</h3><div class="gr-meta">${meta}${gone}</div></div>
-        ${blurb}
-        ${aliases.length ? `<p class="gr-alias">Also submitted as: ${C.esc(aliases.join(", "))}</p>` : ""}
-        <div class="gr-split">
-          <section class="gr-side gr-love">
-            <div class="gr-side-head"><span>♥ Loved</span><span class="mute">${nLove}</span></div>
-            ${grefQuotes(notes, "loves", slug, "love")}
-            ${chips(loveTags)}
-          </section>
-          <section class="gr-side gr-gripe">
-            <div class="gr-side-head"><span>⚑ Takes a hit</span><span class="mute">${nGripe}</span></div>
-            ${grefQuotes(notes, "gripes", slug, "gripe")}
-            ${chips(gripeTags)}
-          </section>
-        </div>
-        <div class="gr-foot">
-          ${convLine}
-          <button class="btn ghost gr-add" onclick="VApp.grefOpen('${C.esc(g.name)}')">${mine ? "Update your take" : "+ Add your take"}</button>
+    // COLLAPSED, a card is a summary row and nothing else: cover, name, and the convergence
+    // line — the finding, which is the only part worth interrupting a scan for. Context,
+    // both halves, every quote and the tag rolls live in the detail and are not in the
+    // layout until asked for.
+    //
+    // This is a reversal of the VR-98 card and the reason is that the page got USED. At one
+    // take per game the always-open card was right; at fifteen it is several screens of prose
+    // before you reach the second game, and the page's whole job is getting ten people to read
+    // each other. `grefQuotes`'s two-shown disclosure still applies INSIDE the detail — it caps
+    // one card, this caps the list, and both are needed.
+    //
+    // Multiple cards may be open at once (not a one-at-a-time accordion): comparing two games'
+    // gripes is the reason someone is on this page, and auto-closing would fight that.
+    const open = grefState.open.has(slug);
+    const detailId = "grdetail-" + slug;
+    return `<article class="panel gr-card${open ? " open" : ""}" id="grcard-${C.esc(slug)}">
+      <h3 class="gr-h">
+        <button type="button" class="gr-summary" aria-expanded="${open}" aria-controls="${detailId}"
+                onclick="VApp.grefToggle('${C.esc(slug)}')">
+          ${art}
+          <span class="gr-sum">
+            <span class="gr-sum-name">${C.esc(g.name)}</span>
+            <span class="gr-sum-line">${convLine}${gone}</span>
+          </span>
+          <span class="gr-caret" aria-hidden="true"></span>
+        </button>
+      </h3>
+      <div class="gr-detail" id="${detailId}"${open ? "" : " hidden"}>
+        <div class="gr-body">
+          <div class="gr-meta">${meta}</div>
+          ${blurb}
+          ${aliases.length ? `<p class="gr-alias">Also submitted as: ${C.esc(aliases.join(", "))}</p>` : ""}
+          <div class="gr-split">
+            <section class="gr-side gr-love">
+              <div class="gr-side-head"><span>♥ Loved</span><span class="mute">${nLove}</span></div>
+              ${grefQuotes(notes, "loves", slug, "love")}
+              ${chips(loveTags)}
+            </section>
+            <section class="gr-side gr-gripe">
+              <div class="gr-side-head"><span>⚑ Takes a hit</span><span class="mute">${nGripe}</span></div>
+              ${grefQuotes(notes, "gripes", slug, "gripe")}
+              ${chips(gripeTags)}
+            </section>
+          </div>
+          <div class="gr-foot">
+            <button class="btn ghost gr-add" onclick="VApp.grefOpen('${C.esc(g.name)}')">${mine ? "Update your take" : "+ Add your take"}</button>
+          </div>
         </div>
       </div>
     </article>`;
@@ -2078,7 +2131,24 @@ window.VApp = (function () {
     if (btn) btn.remove();
   }
   function grefSort(v) { grefState.sort = v; renderReference(); }
-  let grefState = { sort: "takes" };
+  // `open` is held here rather than read off the DOM because renderReference() rebuilds the
+  // whole list with innerHTML — re-sorting would otherwise slam every open card shut, which
+  // is exactly when someone is comparing two of them.
+  let grefState = { sort: "takes", open: new Set() };
+
+  function grefToggle(slug) {
+    const card = document.getElementById("grcard-" + slug);
+    const detail = document.getElementById("grdetail-" + slug);
+    if (!card || !detail) return;
+    const open = !grefState.open.has(slug);
+    if (open) grefState.open.add(slug); else grefState.open.delete(slug);
+    // Toggle the DOM in place instead of re-rendering: a re-render would drop any "+n more"
+    // disclosures the reader has already opened inside this card.
+    detail.hidden = !open;
+    if (card.classList) card.classList.toggle("open", open);
+    const btn = card.querySelector ? card.querySelector(".gr-summary") : null;
+    if (btn && btn.setAttribute) btn.setAttribute("aria-expanded", String(open));
+  }
 
   // The Loom (VR-99) isn't built yet. Its empty state ships now on purpose: it's the one
   // panel here allowed to render before it has data, because it explains a feature that
@@ -2821,6 +2891,6 @@ window.VApp = (function () {
 
   return { init, route, toggleMenu, toggleDrop, signOut, __renderHub, __hubType, __renderUpdates, __weeklyHero, wkSkip,
     __grefSlug, __grefMatch, __grefCard, __loomPanel,
-    grefOpen, grefClose, grefSubmit, grefWhoChange, grefNameChange, grefPick, grefMore, grefSort, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter, counterVote, gameBoardVer, gameBoardCombo, gameBoardLevel };
+    grefOpen, grefClose, grefSubmit, grefWhoChange, grefNameChange, grefPick, grefMore, grefSort, grefToggle, grefArtFail, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter, counterVote, gameBoardVer, gameBoardCombo, gameBoardLevel };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);

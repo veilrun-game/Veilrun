@@ -23,9 +23,31 @@ assets/gameref/eldenringnightreign.webp
 
 ## How the fallback works
 
-Every card renders a **typographic tile** — the game's name in Oswald on the panel gradient —
-and then layers the image on top of it. If the file isn't there, the `<img>` removes itself
-and the tile shows through.
+Since VR-107 there are **three tiers**, and each one is allowed to fail:
+
+1. **`assets/gameref/<slug>.webp`** — a local file always wins. Drop one in and it takes over
+   immediately, no code edit. This is why the card requests it even when the folder is empty.
+2. **Steam's capsule**, for any catalogue entry carrying a verified `steam: <appid>` in
+   `js/data.js`. Derived from the id, so it costs no download and no bytes in the repo.
+3. The **typographic tile** — the game's name in Oswald on the panel gradient. It is always
+   rendered underneath and is never removed.
+
+The `<img>` sits on top of the tile and steps down the chain on `onerror`. If everything
+fails, the tile shows through.
+
+### On the `steam` ids
+
+**Only ever add one you have checked against the store.** A missing cover renders as the
+tile and reads as designed; a *wrong* cover reads as a bug. During the 8/16 pass, six appids
+recalled from memory turned out to point at a different game entirely — `orcsmustdie` landed
+on Shredder's Revenge and `tonyhawkproskater` on an adult visual novel. `_grefcheck.js`
+asserts the id is a bare integer and that no two games share one, but it cannot tell you the
+id is for the *right* game. Nothing can except looking.
+
+`node _grefart.js` reports which entries still have no cover and resolves the rest by name
+against Steam's own search — exact matches only, anything ambiguous is printed for a human.
+`--write` applies them; `--download` fetches the capsules and converts them to local WebP,
+which promotes everything to tier 1 and removes the hotlink entirely.
 
 That means a missing cover is a **designed state, not a gap**. There is no broken-image frame
 and no empty box, so the catalogue can be filled in one game at a time, in any order, whenever

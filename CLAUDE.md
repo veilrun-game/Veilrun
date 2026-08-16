@@ -77,6 +77,9 @@ in the folder before assuming:
 `VEILRUN.games` manifest), `_hubcheck.js` (Hub states), `_updatescheck.js` (weekly-hero states),
 `_grefcheck.js` (Game Reference catalogue + matcher). Everything relevant must be green before hand-off.
 
+`_grefart.js` is a **tool, not a harness** — it resolves Steam appids for game-reference covers and
+is run by hand, never as part of the green-before-hand-off set. Report-only unless given `--write`.
+
 ## 5. Tech guardrails
 
 - Games are **standalone single-file** `games/<name>/index.html`, inline IIFE, no build step.

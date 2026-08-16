@@ -32,7 +32,13 @@ function stubEl() {
     },
     querySelector: function () { return stubEl(); }, querySelectorAll: function () { return []; },
     addEventListener: function () {}, appendChild: function () {}, remove: function () {},
-    options: [], add: function () {}, focus: function () {}, dataset: {}
+    options: [], add: function () {}, focus: function () {}, dataset: {},
+    // The accordion (VR-109) toggles the DOM in place rather than re-rendering, so the
+    // stub needs `hidden` and the attribute setters it drives.
+    hidden: false, attrs: {},
+    setAttribute: function (k, v) { this.attrs[k] = String(v); },
+    getAttribute: function (k) { return Object.prototype.hasOwnProperty.call(this.attrs, k) ? this.attrs[k] : null; },
+    removeAttribute: function (k) { delete this.attrs[k]; }
   };
 }
 var ctx = vm.createContext({});
@@ -73,6 +79,22 @@ Object.keys(refs).forEach(function (slug) {
   ok(!!g.blurb, slug + ": has a blurb — a seeded card must never render empty context");
   ok(["2D", "2.5D", "3D", undefined].indexOf(g.dimension) !== -1, slug + ": dimension is 2D|2.5D|3D");
   if (g.art) ok(fs.existsSync(path.join(ROOT, g.art)), slug + ": art file exists at " + g.art);
+  // A Steam appid is interpolated straight into a CDN URL, so it must be a bare positive
+  // integer — a string here would still "work" and would quietly permit a path fragment.
+  if (g.steam !== undefined) {
+    ok(typeof g.steam === "number" && Number.isInteger(g.steam) && g.steam > 0,
+      slug + ": steam appid is a positive integer, not a string (" + g.steam + ")");
+  }
+});
+// Two games sharing an appid means one of them borrowed the other's cover — the exact
+// failure that made hand-guessed ids unsafe, caught structurally instead of by eye.
+var bySteam = {};
+Object.keys(refs).forEach(function (slug) {
+  var id = refs[slug].steam;
+  if (!id) return;
+  ok(!bySteam[id], "no two games share a Steam appid (" + slug +
+     (bySteam[id] ? " collides with " + bySteam[id] : "") + ")");
+  bySteam[id] = slug;
 });
 // An alias pointing at nothing is a silent dead end — the typo resolves to a slug
 // that no card and no Supabase row will ever match.
@@ -268,6 +290,61 @@ var sevenOneperson = [];
 for (var j = 0; j < 9; j++) sevenOneperson.push(note("Todd", "l" + j, "g" + j));
 has(L(sevenOneperson), "Nothing woven yet", "loom: 9 takes from ONE person does not open the gate");
 
+/* ---- 9b. the card is COLLAPSED by default (VR-109) -----------------------
+   The whole point of the change is that a fresh page render is a list of summary rows.
+   If a card ever ships expanded by default the compression is gone, and it would go
+   unnoticed for exactly as long as nobody scrolled. */
+var fresh = CARD("helldivers2", three, fixtureRefs);
+has(fresh, 'aria-expanded="false"', "collapsed by default: the summary reports itself closed");
+has(fresh, "gr-detail", "collapsed by default: the detail panel is still in the DOM (findable, printable)");
+ok(/<div class="gr-detail" id="grdetail-helldivers2" hidden>/.test(fresh),
+  "collapsed by default: the detail carries the `hidden` attribute");
+hasnt(fresh, 'class="panel gr-card open"', "collapsed by default: no card renders pre-opened");
+// The summary must carry the finding and the name. Everything else may hide; these may not,
+// because they are the only things a scanner sees.
+has(fresh, "gr-sum-name", "summary: the game name is on the collapsed face");
+has(fresh, "⟳ 3 of 3", "summary: the convergence line survives compression");
+has(fresh, 'aria-controls="grdetail-helldivers2"', "summary: button is wired to the panel it opens");
+// The quotes must be RENDERED inside the hidden panel rather than deferred — otherwise
+// browser find-in-page and screen readers lose them entirely.
+has(fresh, "drop-in drop-out", "collapsed: quotes exist in the DOM, just not in the layout");
+
+// A `gone` game has to stay legible while collapsed — it's the most useful card on the
+// page (liked by the crew, dead anyway) and burying the warning defeats it.
+var goneCard = A.__grefCard("spellbreak", [note("Todd", "the gauntlets", "no players")], []);
+if (refs.spellbreak) has(goneCard, "no longer running", "a `gone` game flags itself on the collapsed summary");
+
+/* ---- 9c. cover art: three tiers, each allowed to fail -------------------- */
+var withSteam = null;
+Object.keys(refs).forEach(function (s) { if (!withSteam && refs[s].steam) withSteam = s; });
+ok(!!withSteam, "at least one catalogue entry carries a verified Steam appid");
+if (withSteam) {
+  var artCard = A.__grefCard(withSteam, [note("Todd", "a", "b")], []);
+  has(artCard, "assets/gameref/" + withSteam + ".webp", "art: the LOCAL webp is tier one, so dropping a file still wins");
+  has(artCard, "steam/apps/" + refs[withSteam].steam + "/header.jpg", "art: the Steam capsule is carried as the next tier");
+  has(artCard, "VApp.grefArtFail", "art: failure steps down the chain rather than leaving a broken frame");
+  has(artCard, "gr-art-word", "art: the typographic tile renders underneath regardless");
+}
+// A pending (unseeded) game has no derived path at all — it must not request a cover for a
+// slug that was invented by a crew member thirty seconds ago.
+var pendingCard = CARD("somegamenobodywroteup", [note("Todd", "a", "b")], [{ slug: "somegamenobodywroteup", name: "Some Game" }]);
+hasnt(pendingCard, "assets/gameref/somegamenobodywroteup", "art: a pending game requests no cover");
+has(pendingCard, "gr-art-word", "art: …but still gets the typographic tile");
+
+/* ---- 9d. toggling opens exactly one card and leaves the rest alone ------- */
+els = {};                                   // fresh stub DOM
+A.grefToggle("helldivers2");
+var reopened = CARD("helldivers2", three, fixtureRefs);
+has(reopened, 'aria-expanded="true"', "toggle: the opened slug renders expanded on the next render");
+ok(/<div class="gr-detail" id="grdetail-helldivers2">/.test(reopened), "toggle: …and its panel loses `hidden`");
+has(reopened, "gr-card open", "toggle: the card carries the open class for the caret");
+// Open state must survive a re-sort — renderReference() rebuilds the list with innerHTML,
+// and slamming an open card shut mid-comparison is the bug this state exists to prevent.
+var other = CARD("seaofthieves", [note("Todd", "a", "b")], fixtureRefs);
+has(other, 'aria-expanded="false"', "toggle: opening one card does not open its neighbours");
+A.grefToggle("helldivers2");
+has(CARD("helldivers2", three, fixtureRefs), 'aria-expanded="false"', "toggle: toggling again closes it");
+
 /* ---- 10. the page renders offline without throwing ---------------------- */
 var view = A.route ? null : null;
 ok(typeof A.grefOpen === "function", "grefOpen is exported for the card + CTA buttons");
@@ -276,6 +353,8 @@ ok(typeof A.grefNameChange === "function", "grefNameChange is exported for the n
 ok(typeof A.grefPick === "function", "grefPick is exported for the did-you-mean buttons");
 ok(typeof A.grefMore === "function", "grefMore is exported for the disclosure");
 ok(typeof A.grefSort === "function", "grefSort is exported for the sort select");
+ok(typeof A.grefToggle === "function", "grefToggle is exported for the summary buttons");
+ok(typeof A.grefArtFail === "function", "grefArtFail is exported for the <img> onerror chain");
 
 /* ---- report ------------------------------------------------------------- */
 console.log("VEILRUN game-reference check");

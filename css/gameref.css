@@ -23,26 +23,57 @@
 .gr-empty h3 { margin: 0 0 .6rem; }
 .gr-empty p { max-width: 54ch; margin: 0 auto 1.2rem; }
 
-/* ---- Card ---- */
-.gr-card { display: flex; gap: var(--s-4); padding: 0; overflow: hidden; }
-.gr-art { width: 200px; flex: 0 0 200px; object-fit: cover; align-self: stretch; background: var(--ink); }
-/* The tile is always present; real art layers on top and removes itself if it 404s.
-   So a missing cover reads as a designed typographic card, never a broken frame. */
+/* ---- Card: a summary row that opens (VR-109) ------------------------------
+   Collapsed, a card is one row — cover, name, convergence line. Everything else is in
+   `.gr-detail`, which is `hidden` until asked for. The list has to stay scannable at
+   fifteen games, and the VR-98 always-open card was several screens of prose per game.
+   `.gr-detail[hidden]` is left as a plain display:none rather than a height transition:
+   the panel contains a variable number of quotes and disclosures, so there is no honest
+   height to animate to, and a wrong one janks. The caret rotates instead. */
+.gr-card { display: block; padding: 0; overflow: hidden; }
+.gr-h { margin: 0; font-size: inherit; font-weight: inherit; }
+.gr-summary { display: flex; width: 100%; align-items: stretch; gap: 0; padding: 0;
+  background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.gr-summary:hover .gr-sum-name { color: var(--magenta); }
+.gr-summary:focus-visible { outline: 2px solid var(--magenta); outline-offset: -2px; }
+
+/* The tile is always present; real art layers on top and steps down the fallback chain
+   (local webp → Steam capsule → nothing) if it 404s. So a missing cover reads as a
+   designed typographic card, never a broken frame. */
+.gr-art { width: 128px; flex: 0 0 128px; align-self: stretch; background: var(--ink); }
 .gr-art-fallback { position: relative; display: flex; align-items: center; justify-content: center;
-  padding: 1rem; background: linear-gradient(135deg, var(--ink-2), var(--ink));
+  padding: .5rem; background: linear-gradient(135deg, var(--ink-2), var(--ink));
   border-right: 1px solid var(--line); overflow: hidden; }
-.gr-art-fallback span { font-family: var(--font-display); text-transform: uppercase;
-  letter-spacing: .04em; font-size: 1.1rem; color: var(--mute); text-align: center; line-height: 1.15; }
+.gr-art-word { font-family: var(--font-display); text-transform: uppercase;
+  letter-spacing: .04em; font-size: .72rem; color: var(--mute); text-align: center; line-height: 1.12;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .gr-art-fallback img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.gr-body { flex: 1 1 auto; min-width: 0; padding: var(--s-4); }
-.gr-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .6rem; justify-content: space-between; }
-.gr-head h3 { margin: 0; }
+
+/* The summary text block. `min-width:0` is load-bearing — without it a long game name
+   refuses to ellipsis and pushes the caret off the card. */
+.gr-sum { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center;
+  gap: .25rem; padding: .75rem var(--s-4); }
+.gr-sum-name { font-family: var(--font-display); font-size: 1.05rem; text-transform: uppercase;
+  letter-spacing: .02em; color: var(--white); transition: color .12s;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gr-sum-line { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.gr-caret { flex: 0 0 auto; align-self: center; width: 34px; height: 34px; margin-right: .5rem;
+  position: relative; opacity: .6; transition: transform .16s, opacity .12s; }
+.gr-caret::after { content: ""; position: absolute; top: 40%; left: 50%; width: 8px; height: 8px;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: translate(-50%, -50%) rotate(45deg); }
+.gr-card.open .gr-caret { transform: rotate(180deg); opacity: 1; }
+.gr-summary:hover .gr-caret { opacity: 1; }
+
+.gr-detail { border-top: 1px solid var(--line); }
+.gr-body { min-width: 0; padding: var(--s-4); }
 .gr-meta { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
 .gr-chip { font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; color: var(--mute);
   border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; }
 .gr-gone { font-size: .7rem; text-transform: uppercase; letter-spacing: .05em;
   color: var(--amber); border: 1px solid currentColor; border-radius: 999px; padding: 2px 8px; }
 .gr-blurb { color: var(--mute); font-size: .9rem; margin: .6rem 0 0; max-width: 62ch; }
+.gr-meta:empty { display: none; }
 .gr-pending { font-style: italic; opacity: .8; }
 .gr-alias { font-size: .75rem; color: var(--mute); margin: .5rem 0 0; opacity: .8; }
 
@@ -70,8 +101,11 @@
   border-radius: 999px; padding: 2px 8px; }
 .gr-tag b { color: var(--white); font-weight: 600; }
 
-/* ---- Footer: the convergence line is the payload of the whole card ---- */
-.gr-foot { display: flex; flex-wrap: wrap; gap: .6rem; justify-content: space-between;
+/* ---- Footer + the convergence line -----------------------------------------
+   The convergence line moved OUT of the footer and onto the collapsed summary in VR-109:
+   it's the finding, so it's the one thing that has to survive compression. The footer
+   keeps only the call to action. */
+.gr-foot { display: flex; flex-wrap: wrap; gap: .6rem; justify-content: flex-end;
   align-items: center; margin-top: 1rem; border-top: 1px solid var(--line); padding-top: .8rem; }
 .gr-conv { font-size: .8rem; color: var(--white); }
 .gr-conv.mute { color: var(--mute); }
@@ -96,10 +130,21 @@
 .gr-hint { font-size: .8rem; color: var(--mute); margin: .6rem 0; }
 .gr-err { color: var(--magenta); font-size: .82rem; min-height: 1.1em; margin: .6rem 0 0; }
 
-/* ---- Phones: the card goes vertical, art becomes a banner ---- */
+/* ---- Phones ----------------------------------------------------------------
+   The summary row stays HORIZONTAL on phones. VR-98 stacked it into a 140px banner, which
+   was right for an always-open card and wrong for a list of collapsed ones — fifteen
+   banners is the wall this change exists to remove. The thumbnail shrinks instead. */
 @media (max-width: 639px) {
-  .gr-card { flex-direction: column; }
-  .gr-art { width: 100%; flex: 0 0 auto; height: 140px; }
-  .gr-art-fallback { border-right: none; border-bottom: 1px solid var(--line); }
+  .gr-art { width: 84px; flex: 0 0 84px; }
+  .gr-art-word { font-size: .62rem; -webkit-line-clamp: 2; }
+  .gr-sum { padding: .6rem .75rem; gap: .2rem; }
+  .gr-sum-name { font-size: .95rem; }
+  .gr-caret { width: 28px; height: 28px; margin-right: .25rem; }
   .gr-split { flex-direction: column; gap: .8rem; }
+}
+
+/* Someone who has asked for no motion still needs the caret to read as a state, so it
+   flips without the transition rather than not flipping. */
+@media (prefers-reduced-motion: reduce) {
+  .gr-caret { transition: none; }
 }
