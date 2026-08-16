@@ -445,38 +445,42 @@ VEILRUN.games = [
       "Desktop only for now \u2014 mouse and keyboard, pointer-locked. Click Enter the arena to start; the click is what grants the browser pointer lock, so it cannot be skipped.",
       "Waves are endless, with a named milestone wave every five. Your run score is waves survived, kills and executes together.",
       "Execute only finishes something already wounded \u2014 it refunds a Veilstep charge and thins the floor where it lands.",
-      "Stand perfectly still and the Shroud takes you: they lose track of you and your next strike kills outright. Standing still is also how you die."
+      "Stand perfectly still and the Shroud takes you: they lose track of you and your next strike kills outright. Standing still is also how you die — which is what Stalk is for.",
+      "Hold Ctrl to Stalk. You move slowly enough to keep the veil, so the Shroud stops being a thing you stand in and becomes a thing you carry. The price is the clock: stalking crosses the arena about sixteen times slower than running.",
+      "Press \\ for the tuning panel — swap between four arena layouts, change the camera, the pixel grid, the fog and the look of the veil. It cannot touch the balance numbers, so nothing in there can put you up the leaderboard."
     ],
     versions: [
-      { id: "v0", label: "v0 (current)",
+      { id: "v1", label: "v1 (current)",
         controls: [
           ["WASD", "Move"],
           ["Mouse", "Look and aim"],
           ["Left click", "Strike \u2014 chains into a three-hit combo"],
-          ["Right click", "Execute \u2014 finishes the wounded, refunds a Veilstep"],
+          ["Right click / Q", "Execute \u2014 finishes the wounded, refunds a Veilstep"],
           ["Shift / Space", "Veilstep \u2014 blink through anything, two charges"],
+          ["Ctrl / C", "Stalk \u2014 creep slowly enough to keep the Shroud while you move"],
           ["V", "Swap third / first person (experimental)"],
-          ["H", "Controls and abilities \u2014 the run clock pauses while it is open"]
+          ["H", "Controls and abilities \u2014 the run clock pauses while it is open"],
+          ["\\", "Tuning panel \u2014 map, camera, pixel grid, fog and the veil look"]
         ],
         combos: [
-          { id: "vesper", label: "Vesper \u00b7 Phantom assassin", sub: "3D wave survival \u00b7 blink, strike, execute", play: "games/proving-ground/versions/v0/index.html",
-            char: "vesper",
-            levels: [ { id: "proving-ground", label: "Endless \u2014 run score" } ] }
-        ] },
-      { id: "v1", label: "v1 \u00b7 sprite arena (preview)",
-        controls: [
-          ["WASD", "Move"],
-          ["Mouse", "Look and aim"],
-          ["Left click", "Strike \u2014 chains into a three-hit combo"],
-          ["Right click", "Execute \u2014 finishes the wounded, refunds a Veilstep"],
-          ["Shift / Space", "Veilstep \u2014 blink through anything, two charges"],
-          ["V", "Swap third / first person (experimental)"],
-          ["H", "Controls and abilities \u2014 the run clock pauses while it is open"]
-        ],
-        combos: [
-          { id: "vesper", label: "Vesper \u00b7 Phantom assassin", sub: "Art pass \u2014 billboarded sprites (placeholder art)", play: "games/proving-ground/index.html",
+          { id: "vesper", label: "Vesper \u00b7 Phantom assassin", sub: "3D wave survival \u00b7 rigged model, Shroud veil, four arenas", play: "games/proving-ground/index.html",
             char: "vesper",
             levels: [ { id: "proving-ground-v1", label: "Endless \u2014 run score" } ] }
+        ] },
+      { id: "v0", label: "v0 \u00b7 primitives (archive)",
+        controls: [
+          ["WASD", "Move"],
+          ["Mouse", "Look and aim"],
+          ["Left click", "Strike \u2014 chains into a three-hit combo"],
+          ["Right click / Q", "Execute \u2014 finishes the wounded, refunds a Veilstep"],
+          ["Shift / Space", "Veilstep \u2014 blink through anything, two charges"],
+          ["V", "Swap third / first person (experimental)"],
+          ["H", "Controls and abilities \u2014 the run clock pauses while it is open"]
+        ],
+        combos: [
+          { id: "vesper", label: "Vesper \u00b7 Phantom assassin", sub: "The original build \u2014 cylinders and spheres, no model", play: "games/proving-ground/versions/v0/index.html",
+            char: "vesper",
+            levels: [ { id: "proving-ground", label: "Endless \u2014 run score" } ] }
         ] }
     ] }
 ];
@@ -593,6 +597,7 @@ VEILRUN.weekly = {
 };
 
 VEILRUN.updates = [
+  { date: "2026-08-16", games: ["arena-3d"], title: "Vesper is a real character now — and the arena opens with him by default", text: "Last time we talked about Proving Ground, the honest summary was **grey boxes with a number on them**. That's over. **Vesper is a proper 3D model in there now** — built from the actual character art, rigged, and carrying eight animations: standing, walking, running, stalking, three attacks, taking a hit, and going down. He is no longer a cylinder with a sphere on top, and this is now what **Play** opens. The old primitives build hasn't gone anywhere — it's **v0 · primitives (archive)** in the Version dropdown, and its leaderboard times are untouched. **The Shroud looks like something now.** Standing still used to just make you translucent. Now the veil eats holes through him with lit edges and shedding motes, then knits back up and leaves him as dark violet glass with a kiss of seam-pink where he turns away. **And there's a fix in there for the thing that was wrong with it.** Shroud demanded you stand perfectly still in a room filling with husks, which is an excellent way to die — so the veil was a nice idea you could rarely use. **Hold Ctrl to Stalk:** you creep slowly enough that the veil survives, so you can carry it instead of standing in it. It costs you the clock — stalking across the arena takes about sixteen times as long as running it — so it's a real decision rather than a free upgrade. **There's a tuning panel on the `\\` key.** Four arena layouts to swap between mid-run — the Pit, a colonnade that funnels them into a lane, open ground with nowhere to hide, and a keep with a ring of cover — plus the camera, the pixel grid, the fog and every value in the veil. Fiddle with all of it; **it cannot touch the balance numbers**, so nothing in there can flatter your run score. **What we need from you:** which of the four arenas is the best fight, and whether Stalk is worth what it costs. Both are questions the numbers can't answer.", cta: { label: "▶ Play Proving Ground", href: "#games/arena-3d" } },
   { date: "2026-08-15", title: "47 games loaded — just start typing", text: "Following on from the Game Reference going up: **the box now knows about 47 games** — everything off the list we've played between us, from Helldivers and Sea of Thieves down to Uno, Stick Fight and the browser games from school. Start typing and it'll find the one you mean, so you're picking a name rather than spelling it. **You won't see them on the page yet, and that's deliberate.** A card only appears once somebody's actually said something about the game — a wall of 47 empty boxes would just be a list of games, which nobody needs. Say one thing about one of them and the full card appears, already filled in with what it is, what it runs on and whether it's 2D or 3D. **We've written that part so you don't have to.** You'll never be asked what platform something is on or what genre it counts as. Two boxes: what you love, and what takes you out of it. **Two of them are dead and still worth talking about** — Highguard lasted 45 days and Spellbreak's servers went off in 2023. Those might be the most useful cards on the page: we liked both, and something still went wrong. If you've got a game we've missed, add it and we'll write it up.", cta: { label: "Find your game", href: "#reference" } },
   { date: "2026-08-15", title: "New: tell us what you actually play — and what makes you stop", text: "There's a new page in the Lab: **Game Reference**. Add a game you actually play, say what you love about it, and say the thing that takes you out of it. **The second one is the bit we need.** Everyone can list games they like — that's easy and it tells us almost nothing. What's genuinely useful is the other half: the grind that made you stop, the menus that fought you, the mode that was great until hour ten. No game is perfect, and knowing precisely where a good one loses you is what turns taste into decisions about what we build. **Two boxes and your name, under two minutes.** We fill in the rest — what the game is, what it runs on, whether it's 2D or 3D — so you never have to type anything you'd have to look up. If someone's already added the game, yours joins theirs on the same card, and once three of you say the same thing the card says so out loud. **You can change your mind.** Come back any time and update your take — and after the first one you can add just a gripe, or just a love, without redoing both. **Takes count triple on the leaderboard**, same as feedback, once per game however often you edit it. Coming next: each week this reads everything you've all said and hands back three game ideas built out of it. That needs about eight takes from three people to be worth anything, so it's waiting on you.", cta: { label: "Add a game", href: "#reference" } },
   { date: "2026-08-11", title: "The Updates page opens with the week, not the log", text: "There are 108 entries on the Updates page and they've always been in one flat list, newest first. That's a fine record and a terrible way to catch up — if you've been away a fortnight you're expected to read backwards until things look familiar, and nobody does that. **So the page now opens with the week itself:** a headline, a few lines on what it amounted to, the numbers that actually moved, and links straight to the things worth opening. The full log is still underneath, unchanged, and on a phone there's a **skip to the full log** button so the summary can't get in your way. **It's written to be honest about a quiet week.** If not much shipped it will say not much shipped — padding three small fixes into a milestone would waste your time, and you'd stop reading it, which defeats the point. **And it knows to get out of the way.** The summary is refreshed by hand each week for now, and one week that will be forgotten — so if it ever goes more than a fortnight without an update, it removes itself and the page goes back to exactly the log you're used to. A stale summary claiming to be \"this week\" is worse than no summary at all.", cta: { label: "Read this week", href: "#updates" } },
