@@ -69,7 +69,13 @@ in the folder before assuming:
 
 - **2D pair track** — `games/<name>-v2/_sim.py` (Python physics sim).
 - **3D** — `games/proving-ground/_sim.js` (asserts against the marked `BALANCE` block extracted from
-  the HTML), plus `_billboard.js` and `_check.js`.
+  the HTML), plus `_billboard.js`, `_touch.js` and `_check.js`. `_touch.js` (added 8/16 with the
+  VR-79 mobile pass) extracts the marked `TOUCH` block the same way `_sim.js` extracts `BALANCE`
+  and **executes it against a hand-rolled DOM stub** — so the stick deadzone, the Stalk latch and
+  the inert-when-not-live rule are proven, not eyeballed on a phone. Its highest-value assertion is
+  that the `matchMedia` string in the script and the `@media` query in the stylesheet are
+  **character-identical**: CSS decides whether the pad is on screen, JS decides whether it's wired,
+  and a mismatch reads as "mobile is broken" rather than as a one-character typo.
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 

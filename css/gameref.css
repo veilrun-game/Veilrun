@@ -57,6 +57,22 @@
   letter-spacing: .02em; color: var(--white); transition: color .12s;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gr-sum-line { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+
+/* The stat pair (VR-110) — counts plus each side's most-agreed tag, on the collapsed face.
+   Colour does the labelling: cyan is loved, magenta takes a hit, the same pairing the open
+   card uses. The `sr-only` word inside each stat is not decoration — ♥ and ⚑ read as
+   nothing useful aloud, so without it the row is "4 4". */
+.gr-sum-stats { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.gr-stat { display: inline-flex; align-items: baseline; gap: .3rem; font-size: .78rem;
+  color: var(--mute); border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; }
+.gr-stat-i { font-size: .8rem; line-height: 1; }
+.gr-stat-love { color: var(--cyan); border-color: rgba(96, 214, 220, .35); }
+.gr-stat-gripe { color: var(--magenta); border-color: rgba(214, 92, 220, .35); }
+/* The tag rides inside the pill in body text, so the count stays the loud part. */
+.gr-stat-tag { color: var(--white); opacity: .85; max-width: 16ch;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .gr-caret { flex: 0 0 auto; align-self: center; width: 34px; height: 34px; margin-right: .5rem;
   position: relative; opacity: .6; transition: transform .16s, opacity .12s; }
 .gr-caret::after { content: ""; position: absolute; top: 40%; left: 50%; width: 8px; height: 8px;
@@ -80,10 +96,26 @@
 /* ---- The two halves ---- */
 .gr-split { display: flex; flex-wrap: wrap; gap: var(--s-4); margin-top: 1rem; }
 .gr-side { flex: 1 1 240px; min-width: 0; border-top: 1px solid var(--line); padding-top: .7rem; }
-.gr-side-head { display: flex; justify-content: space-between; align-items: center;
-  font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; margin-bottom: .5rem; }
+/* The half header is a BUTTON (VR-110) — each side opens on its own, so you can read the
+   gripes without also unfolding the loves. `.gr-side-flat` is the same row rendered as a
+   plain div when a side has nothing written on it: a disclosure over an empty panel is a
+   button that punishes you for pressing it. */
+.gr-side-head { display: flex; width: 100%; justify-content: flex-start; align-items: center; gap: .5rem;
+  font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; margin-bottom: .5rem;
+  background: none; border: 0; padding: 0; font-family: inherit; cursor: pointer; color: inherit; }
+.gr-side-flat { cursor: default; justify-content: space-between; }
+.gr-side-label { flex: 0 0 auto; }
+.gr-side-n { flex: 0 0 auto; color: var(--mute); }
+.gr-side-head .gr-caret-sm { margin-left: auto; margin-right: 0; width: 20px; height: 20px; }
+.gr-side.open .gr-caret-sm { transform: rotate(180deg); opacity: 1; }
+.gr-side-head:hover .gr-caret-sm { opacity: 1; }
+.gr-side-head:focus-visible { outline: 2px solid var(--magenta); outline-offset: 2px; }
 .gr-love .gr-side-head { color: var(--cyan); }
 .gr-gripe .gr-side-head { color: var(--magenta); }
+/* The tag roll sits ABOVE the quotes and stays visible while the half is closed — it's the
+   aggregate, it's one line, and it's what stops a closed half being a mystery box. */
+.gr-side .gr-tagroll { margin-top: 0; }
+.gr-quotewrap { margin-top: .7rem; }
 .gr-quotes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .55rem; }
 .gr-quotes li { display: flex; flex-direction: column; gap: 2px; }
 .gr-who { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: var(--mute); }
@@ -135,11 +167,19 @@
    was right for an always-open card and wrong for a list of collapsed ones — fifteen
    banners is the wall this change exists to remove. The thumbnail shrinks instead. */
 @media (max-width: 639px) {
-  .gr-art { width: 84px; flex: 0 0 84px; }
-  .gr-art-word { font-size: .62rem; -webkit-line-clamp: 2; }
-  .gr-sum { padding: .6rem .75rem; gap: .2rem; }
-  .gr-sum-name { font-size: .95rem; }
-  .gr-caret { width: 28px; height: 28px; margin-right: .25rem; }
+  /* Loosened in VR-110. The 84px thumbnail was legible and joyless — at phone width the
+     cover is the only thing that makes a row look like a game rather than a table entry.
+     The row grows to ~96px, the cover fills it edge to edge, and the name is allowed TWO
+     lines instead of being cut off, which matters because several titles in the catalogue
+     ("Nickelodeon All-Star Brawl 2") lose the part that identifies them to an ellipsis. */
+  .gr-art { width: 104px; flex: 0 0 104px; min-height: 96px; }
+  .gr-art-word { font-size: .66rem; -webkit-line-clamp: 3; }
+  .gr-sum { padding: .65rem .8rem; gap: .3rem; }
+  .gr-sum-name { font-size: 1rem; white-space: normal; line-height: 1.15;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .gr-stat { font-size: .74rem; padding: 2px 8px; }
+  .gr-stat-tag { max-width: 10ch; }
+  .gr-caret { width: 26px; height: 26px; margin-right: .15rem; }
   .gr-split { flex-direction: column; gap: .8rem; }
 }
 

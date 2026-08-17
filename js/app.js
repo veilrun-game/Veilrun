@@ -2004,6 +2004,47 @@ window.VApp = (function () {
       <button class="gr-more" onclick="VApp.grefMore('${C.esc(id)}',this)">+${rest.length} more</button>`;
   }
 
+  /* One half of an open card — its own disclosure (VR-110).
+     There are now THREE levels of hiding on this page and each caps a different thing:
+       · the card       caps the LIST      (fifteen games shouldn't be fifteen essays)
+       · the half       caps the CARD      (open a game, get its shape, not both arguments)
+       · "+n more"      caps the HALF      (ten people on one side isn't a column of ten)
+     Jordan's note is what added the middle one: compressing the list alone just moved the
+     wall from the page into the card. Opening a game now answers "what is this and roughly
+     what do people think", and reading either argument in full is a separate, opt-in act.
+
+     The TAG ROLL stays visible whenever the card is open, and that's the load-bearing
+     choice — it's the aggregate, it's one line, and it's what makes the closed half
+     informative rather than a mystery box. Hiding the tags too would make the half a
+     button with no reason to press it. */
+  function grefHalfHtml(slug, side, label, notes, field, tagField, tags) {
+    const rows = notes.filter(t => (t[field] || "").trim());
+    const roll = tags.length
+      ? `<div class="gr-tagroll">${tags.map(t => `<span class="gr-tag">${C.esc(t.tag)}${t.n > 1 ? ` <b>${t.n}</b>` : ""}</span>`).join("")}</div>` : "";
+    // Nothing written on this side: say so in place. A disclosure over an empty panel is a
+    // button that punishes you for pressing it.
+    if (!rows.length) {
+      return `<section class="gr-side gr-${side}">
+        <div class="gr-side-head gr-side-flat"><span>${label}</span><span class="mute">0</span></div>
+        ${roll}<p class="gr-none">Nobody's said yet.</p>
+      </section>`;
+    }
+    const open = grefState.halves.has(slug + "|" + side);
+    const panelId = "grhalf-" + slug + "-" + side;
+    return `<section class="gr-side gr-${side}${open ? " open" : ""}" id="grhalfsec-${C.esc(slug)}-${side}">
+      <button type="button" class="gr-side-head" aria-expanded="${open}" aria-controls="${panelId}"
+              onclick="VApp.grefHalf('${C.esc(slug)}','${side}')">
+        <span class="gr-side-label">${label}</span>
+        <span class="gr-side-n">${rows.length}</span>
+        <span class="gr-caret gr-caret-sm" aria-hidden="true"></span>
+      </button>
+      ${roll}
+      <div class="gr-quotewrap" id="${panelId}"${open ? "" : " hidden"}>
+        ${grefQuotes(notes, field, slug, side)}
+      </div>
+    </section>`;
+  }
+
   /* Cover art, three tiers, every one of which is allowed to fail (VR-107):
        1. `assets/gameref/<slug>.webp` — a local file ALWAYS wins, so the VR-98 rule
           "drop a file in the folder and the card picks it up, no data.js edit" survives.
@@ -2046,6 +2087,19 @@ window.VApp = (function () {
       ? `<span class="gr-conv">⟳ ${conv.n} of ${notes.length} say <strong>${C.esc(conv.tag)}</strong></span>`
       : `<span class="gr-conv mute">${notes.length} take${notes.length === 1 ? "" : "s"}</span>`;
 
+    /* The stat pair on the collapsed face (VR-110): how many spoke on each side, and the
+       tag that side agreed on most. Counts alone say how BUSY a card is; the tag says what
+       KIND of game it is to this crew, which is the thing worth scanning for.
+       The top tag is dropped when it's the same tag the convergence line is already
+       naming — otherwise the row reads "⚑ 4 grindy … 4 of 4 say grindy", and a face this
+       small can't afford to say anything twice. */
+    const statHtml = (side, icon, n, top) => {
+      const tag = top && (!conv || top.tag !== conv.tag) ? top.tag : "";
+      return `<span class="gr-stat gr-stat-${side}"><span class="gr-stat-i" aria-hidden="true">${icon}</span>${n}${
+        tag ? `<span class="gr-stat-tag">${C.esc(tag)}</span>` : ""}<span class="sr-only"> ${side === "love" ? "loved" : "gripes"}</span></span>`;
+    };
+    const stats = `${statHtml("love", "♥", nLove, loveTags[0])}${statHtml("gripe", "⚑", nGripe, gripeTags[0])}`;
+
     const meta = [g.dimension, (g.platforms || []).join(" · ")].filter(Boolean)
       .map(m => `<span class="gr-chip">${C.esc(m)}</span>`).join("");
     const gone = g.status === "gone" ? `<span class="gr-gone">⚠ no longer running</span>` : "";
@@ -2060,8 +2114,6 @@ window.VApp = (function () {
     const blurb = g.pending
       ? `<p class="gr-blurb gr-pending">Context coming — nobody's written this one up yet.</p>`
       : `<p class="gr-blurb">${C.esc(g.blurb || "")}</p>`;
-    const chips = arr => arr.length
-      ? `<div class="gr-tagroll">${arr.map(t => `<span class="gr-tag">${C.esc(t.tag)}${t.n > 1 ? ` <b>${t.n}</b>` : ""}</span>`).join("")}</div>` : "";
 
     const mine = grefMyNote(slug, notes);
     // COLLAPSED, a card is a summary row and nothing else: cover, name, and the convergence
@@ -2086,7 +2138,8 @@ window.VApp = (function () {
           ${art}
           <span class="gr-sum">
             <span class="gr-sum-name">${C.esc(g.name)}</span>
-            <span class="gr-sum-line">${convLine}${gone}</span>
+            <span class="gr-sum-stats">${stats}${gone}</span>
+            <span class="gr-sum-line">${convLine}</span>
           </span>
           <span class="gr-caret" aria-hidden="true"></span>
         </button>
@@ -2097,16 +2150,8 @@ window.VApp = (function () {
           ${blurb}
           ${aliases.length ? `<p class="gr-alias">Also submitted as: ${C.esc(aliases.join(", "))}</p>` : ""}
           <div class="gr-split">
-            <section class="gr-side gr-love">
-              <div class="gr-side-head"><span>♥ Loved</span><span class="mute">${nLove}</span></div>
-              ${grefQuotes(notes, "loves", slug, "love")}
-              ${chips(loveTags)}
-            </section>
-            <section class="gr-side gr-gripe">
-              <div class="gr-side-head"><span>⚑ Takes a hit</span><span class="mute">${nGripe}</span></div>
-              ${grefQuotes(notes, "gripes", slug, "gripe")}
-              ${chips(gripeTags)}
-            </section>
+            ${grefHalfHtml(slug, "love", "♥ Loved", notes, "loves", "tags", loveTags)}
+            ${grefHalfHtml(slug, "gripe", "⚑ Takes a hit", notes, "gripes", "gripe_tags", gripeTags)}
           </div>
           <div class="gr-foot">
             <button class="btn ghost gr-add" onclick="VApp.grefOpen('${C.esc(g.name)}')">${mine ? "Update your take" : "+ Add your take"}</button>
@@ -2134,7 +2179,26 @@ window.VApp = (function () {
   // `open` is held here rather than read off the DOM because renderReference() rebuilds the
   // whole list with innerHTML — re-sorting would otherwise slam every open card shut, which
   // is exactly when someone is comparing two of them.
-  let grefState = { sort: "takes", open: new Set() };
+  // `halves` is keyed "<slug>|love" / "<slug>|gripe" for the same reason `open` exists: a
+  // re-sort rebuilds the list, and someone who opened one game's gripes to read them should
+  // not lose them because they changed the sort.
+  let grefState = { sort: "takes", open: new Set(), halves: new Set() };
+
+  // Open or close one half of one card. Deliberately independent of every other half —
+  // reading a game's gripes should not also unfold its loves, and it should not touch the
+  // neighbouring card at all.
+  function grefHalf(slug, side) {
+    const key = slug + "|" + side;
+    const sec = document.getElementById("grhalfsec-" + slug + "-" + side);
+    const panel = document.getElementById("grhalf-" + slug + "-" + side);
+    if (!sec || !panel) return;
+    const open = !grefState.halves.has(key);
+    if (open) grefState.halves.add(key); else grefState.halves.delete(key);
+    panel.hidden = !open;
+    if (sec.classList) sec.classList.toggle("open", open);
+    const btn = sec.querySelector ? sec.querySelector(".gr-side-head") : null;
+    if (btn && btn.setAttribute) btn.setAttribute("aria-expanded", String(open));
+  }
 
   function grefToggle(slug) {
     const card = document.getElementById("grcard-" + slug);
@@ -2891,6 +2955,6 @@ window.VApp = (function () {
 
   return { init, route, toggleMenu, toggleDrop, signOut, __renderHub, __hubType, __renderUpdates, __weeklyHero, wkSkip,
     __grefSlug, __grefMatch, __grefCard, __loomPanel,
-    grefOpen, grefClose, grefSubmit, grefWhoChange, grefNameChange, grefPick, grefMore, grefSort, grefToggle, grefArtFail, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter, counterVote, gameBoardVer, gameBoardCombo, gameBoardLevel };
+    grefOpen, grefClose, grefSubmit, grefWhoChange, grefNameChange, grefPick, grefMore, grefSort, grefToggle, grefHalf, grefArtFail, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter, counterVote, gameBoardVer, gameBoardCombo, gameBoardLevel };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);

@@ -84,8 +84,25 @@ ok("every cell lies inside the sheet", inside);
 
 console.log("\n[arcade camera + pixel grid]");
 ok("arcade is a camera mode", /CAM_MODES\s*=\s*\["arcade"/.test(html), "and the v1 default");
-ok("arcade never grabs pointer lock", /cam\.mode !== "arcade"[\s\S]{0,80}requestPointerLock|requestPointerLock[\s\S]{0,40}cam\.mode !== "arcade"/.test(html),
-   "pointer lock is what made v0 desktop-only");
+/* VR-79 mobile pass: the four scattered `cam.mode !== "arcade"` pointer-lock
+   conditions became one wantsLock() predicate, so these checks now assert the
+   RULE rather than its old spelling — and assert the touch half too, which is
+   the same trap arriving from the other direction (a mode that never asks for a
+   lock vs. a device that can never grant one). */
+ok("pointer lock goes through one predicate", /function wantsLock\(\)\s*\{\s*return\s*!TOUCH\s*&&\s*cam\.mode !== "arcade";\s*\}/.test(html),
+   "arcade never grabs it, and neither does a touch device");
+{
+  /* Every call site must be gated by that predicate — checked by proximity, not
+     by matching one line, because resumeFromPause() guards with an early return
+     rather than an inline condition and a line-literal assertion would call that
+     a failure. 160 chars back covers an inline guard or the line above it. */
+  const sites = [...html.matchAll(/requestPointerLock\(\)/g)];
+  const ungated = sites.filter(m => !/wantsLock\(\)/.test(html.slice(Math.max(0, m.index - 160), m.index)));
+  ok("every lock request is gated by it", sites.length > 0 && ungated.length === 0,
+     ungated.length ? ungated.length + " ungated call site(s)" : sites.length + " call sites, all gated");
+  ok("no stale cam.mode guard survives", !/cam\.mode !== "arcade"[\s\S]{0,60}requestPointerLock/.test(html),
+     "a condition left behind here is a touch device asking for a lock it can't have");
+}
 ok("WASD resolves against the fixed camera", /basis = \(cam\.mode === "arcade"\) \? ARC\.yaw/.test(html));
 ok("you face where you move", /cam\.mode === "arcade" && \(mx \|\| mz\)\) mouse\.yaw = Math\.atan2/.test(html));
 ok("pixel grid on by default", /var PIXEL = 4;/.test(html));
@@ -160,11 +177,22 @@ ok("panel never touches BALANCE", !/TUNE[\s\S]{0,4000}?BAL\.C\./.test(html),
 console.log("\n[hud layout]");
 /* Fixed/absolute UI anchored to the same corner silently stacks. The ? button
    sat on top of the score since v0 and nobody noticed until a third element
-   joined them. Cheap to assert, so assert it. */
+   joined them. Cheap to assert, so assert it.
+
+   VR-79 narrowed the net, and the reason is worth keeping: this only ever meant
+   to catch elements anchored to the SCREEN corner, but it was matching any
+   absolutely-positioned rule anywhere — so the touch pad's per-button charge
+   dots (`#vpad .vbtn .chgs`) tripped it against the HUD's `.charges`, two
+   elements in different containers that cannot collide by construction. The
+   discriminator is the selector shape: a single-token rule is anchored to
+   whatever positioning context it lands in and is a genuine corner risk, while
+   a descendant selector is scoped to a stated parent. Matching now requires the
+   token to start the selector, which keeps every original catch — `.hud-tr` and
+   `.helpfab`, the pair this was written for, are both single-token. */
 {
   const style = (html.match(/<style>([\s\S]*?)<\/style>/) || [])[1] || "";
   const anchors = {};
-  const re = /([#.][\w-]+)\{[^}]*position:\s*(fixed|absolute)[^}]*?top:\s*(-?[\d.]+)px[^}]*?right:\s*(-?[\d.]+)px/g;
+  const re = /(?:^|[},])\s*([#.][\w-]+)\{[^}]*position:\s*(fixed|absolute)[^}]*?top:\s*(-?[\d.]+)px[^}]*?right:\s*(-?[\d.]+)px/gm;
   let m, clashes = [];
   while ((m = re.exec(style))) {
     const key = m[3] + "," + m[4];
@@ -185,9 +213,9 @@ console.log("\n[dom sanity]");
      dupes.length ? dupes.join(", ") + " — getElementById silently returns the first, so the second element's listeners never attach" : ids.length + " ids, all unique");
 }
 ok("pause has its own button", /id="btn-unpause"/.test(html) && /\$\("btn-unpause"\)\.addEventListener/.test(html));
-ok("arcade starts unpaused", /setPaused\(cam\.mode !== "arcade"\)/.test(html),
-   "it never requests a lock, so it must not wait for one");
-ok("arcade never pauses on lost pointer lock", /cam\.mode !== "arcade"\) setPaused\(!mouse\.locked\)/.test(html),
+ok("a run that can't lock starts unpaused", /setPaused\(wantsLock\(\)\)/.test(html),
+   "arcade and touch never request a lock, so neither must wait for one");
+ok("never pauses on a lock that was never asked for", /wantsLock\(\)\) setPaused\(!mouse\.locked\)/.test(html),
    "this is what left the run stuck on the pause screen");
 
 /* ---- the sim must not have been touched ---- */

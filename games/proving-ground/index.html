@@ -133,10 +133,112 @@ canvas{display:block}
 #tunefab:hover{color:var(--white);border-color:var(--accent)}
 #tunecopy{font-size:.66rem;color:var(--mute);margin-top:6px;line-height:1.4}
 
+/* ---------- touch layout + pad (VR-79 mobile pass) --------------------------
+   Deliberately shaped like the 2D track's controller (games/_engine/engine.js
+   VE.Controller) — same circle-in-circle stick on the left, same 3x2 grid on
+   the right — but written inline, because the 3D track does NOT load the 2D
+   engine and a single-file game can't import half of one. If the 2D pad's
+   ergonomics change, this is the file that has to be changed with it.
+
+   The layout is a split, not an overlay: the canvas gets the window ABOVE the
+   pad rather than living behind translucent buttons. Overlaid controls on a
+   phone put your thumbs on top of the thing you're aiming at, and this build
+   already has a bottom-centre pip row and floating damage numbers competing
+   for that space.
+
+   --padh is written from JS on every resize so #hud, which stays position:
+   fixed, can stop at the top of the pad instead of hiding its pips behind it.
+   -------------------------------------------------------------------------- */
+:root{--padh:0px}
+#vpad{display:none}
+.touchonly{display:none}
+
+@media (hover:none),(pointer:coarse){
+  html,body{overscroll-behavior:none}
+  body{display:flex;flex-direction:column}
+  /* stage stops being the whole viewport and becomes the gameplay window */
+  #stage{position:relative;inset:auto;flex:1 1 auto;min-height:0;width:100%;touch-action:none}
+  #hud{bottom:var(--padh)}
+  /* "Esc — release cursor" is meaningless with no cursor, and the pad has a
+     Pause button doing that job. The camera tag stays: it's the only thing
+     telling you which of the three views you're in. */
+  #pausehint{display:none}
+  #camtag{bottom:calc(var(--padh) + 8px);font-size:.6rem}
+  #fps{display:none}
+  #vpad{display:flex}
+  .touchonly{display:block}
+  #tune{width:min(320px,88vw)}
+  /* both fabs are thumb targets on touch, not cursor targets */
+  .helpfab{width:38px;height:38px;top:12px;right:60px;font-size:1rem}
+  #tunefab{width:38px;height:38px;top:12px;right:12px}
+  .panel{max-height:88vh;overflow-y:auto}
+}
+
+#vpad{flex:0 0 auto;width:100%;justify-content:space-between;align-items:center;gap:10px;
+  padding:8px 10px calc(8px + env(safe-area-inset-bottom));user-select:none;-webkit-user-select:none;
+  background:rgba(8,6,15,.55);border-top:1px solid var(--line);touch-action:none;box-sizing:border-box;
+  z-index:16}
+/* left analog stick — drag or tap a direction */
+#vpad .vstick{position:relative;flex:0 0 auto;width:clamp(92px,30vw,132px);aspect-ratio:1/1;border-radius:50%;
+  background:radial-gradient(circle at 50% 42%,rgba(42,36,66,.92),rgba(15,12,28,.92));
+  border:1px solid var(--line);touch-action:none}
+#vpad .vstick .varrow{position:absolute;color:#8f89a8;font-size:13px;line-height:1;pointer-events:none}
+#vpad .vstick .vup{top:7px;left:50%;transform:translateX(-50%)}
+#vpad .vstick .vdown{bottom:7px;left:50%;transform:translateX(-50%)}
+#vpad .vstick .vleft{left:8px;top:50%;transform:translateY(-50%)}
+#vpad .vstick .vright{right:8px;top:50%;transform:translateY(-50%)}
+#vpad .vstick .vknob{position:absolute;left:50%;top:50%;width:44%;height:44%;margin:-22% 0 0 -22%;border-radius:50%;
+  background:rgba(150,90,230,.26);border:1px solid rgba(183,156,237,.75);transition:transform .04s linear;pointer-events:none}
+#vpad .vstick.on{border-color:rgba(183,156,237,.7)}
+#vpad .vstick.on .vknob{background:rgba(150,90,230,.5)}
+/* right 3x2 grid */
+#vpad .vgrid{flex:1 1 auto;min-width:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+  grid-auto-rows:1fr;gap:6px;max-width:360px}
+#vpad .vbtn{position:relative;border-radius:12px;background:rgba(30,26,52,.85);border:1px solid var(--line);
+  color:var(--white);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  min-height:clamp(44px,10vw,58px);touch-action:none;text-align:center;line-height:1.05;
+  font-family:inherit;overflow:hidden;padding:0}
+#vpad .vbtn:active{background:rgba(150,90,230,.5)}
+#vpad .vbtn .ico{font-size:clamp(15px,4.4vw,19px);line-height:1}
+#vpad .vbtn .lbl{font-size:clamp(8px,2.6vw,10px);line-height:1.05;color:#cfc9e6;max-width:96%;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#vpad .vbtn.vsys{background:rgba(22,18,38,.92)}
+/* Stalk latches — a crouched creep you hold for seconds isn't a thumb you can spare */
+#vpad .vbtn.on{background:rgba(150,90,230,.42);border-color:var(--accent)}
+/* spent/charging states mirror the HUD pips so the pad isn't a second language */
+#vpad .vbtn.vdim{opacity:.42}
+#vpad .vbtn .chgs{position:absolute;top:4px;right:5px;display:flex;gap:3px}
+#vpad .vbtn .chgs i{width:5px;height:5px;border-radius:50%;background:var(--line)}
+#vpad .vbtn .chgs i.on{background:var(--violet-lt);box-shadow:0 0 6px var(--violet-lt)}
+
 </style>
 </head>
 <body>
 <div id="stage"></div>
+
+<!-- Touch pad (VR-79 mobile pass). Present in the DOM always, shown only by the
+     touch media query, so desktop pays nothing for it. Row 1 is Vesper's three
+     combat verbs; row 2 is Stalk plus the two system slots. Buttons are inert
+     until a run is live — the start/pause screens cover the pad anyway, but the
+     pad stays in layout so starting a run doesn't resize the canvas underneath. -->
+<div id="vpad" aria-label="Touch controls">
+  <div class="vstick" id="vstick">
+    <span class="varrow vup">▲</span>
+    <span class="varrow vright">▶</span>
+    <span class="varrow vdown">▼</span>
+    <span class="varrow vleft">◀</span>
+    <div class="vknob" id="vknob"></div>
+  </div>
+  <div class="vgrid">
+    <button class="vbtn" data-k="strike"><span class="ico">✦</span><span class="lbl">Strike</span></button>
+    <button class="vbtn" data-k="exec" id="vb-exec"><span class="ico">◈</span><span class="lbl">Execute</span></button>
+    <button class="vbtn" data-k="step" id="vb-step"><span class="ico">★</span><span class="lbl">Veilstep</span>
+      <span class="chgs"><i id="vchg0"></i><i id="vchg1"></i></span></button>
+    <button class="vbtn" data-k="stalk" id="vb-stalk"><span class="ico">⊹</span><span class="lbl">Stalk</span></button>
+    <button class="vbtn vsys" data-k="pause"><span class="ico">❚❚</span><span class="lbl">Pause</span></button>
+    <button class="vbtn vsys" data-k="tune"><span class="ico">⚙</span><span class="lbl">Settings</span></button>
+  </div>
+</div>
 
 <div id="hud">
   <div class="hud-tl">
@@ -190,6 +292,14 @@ canvas{display:block}
   <div class="trow"><label>Angle</label><input type="range" id="t-pitch" min="10" max="70" step="1"><span class="tval" id="t-pitchv"></span></div>
   <div class="trow"><label>Distance</label><input type="range" id="t-dist" min="6" max="24" step="0.5"><span class="tval" id="t-distv"></span></div>
   <div class="trow"><label>Zoom (FOV)</label><input type="range" id="t-fov" min="24" max="80" step="1"><span class="tval" id="t-fovv"></span></div>
+
+  <div class="touchonly">
+    <h3>Touch</h3>
+    <div class="trow"><label>Fit to screen</label><input type="range" id="t-fit" min="0" max="1" step="0.05"><span class="tval" id="t-fitv"></span></div>
+    <div class="tnote">A phone's window is nearly square, so the arena crops at the sides. 0 keeps the tuned telephoto and the biggest character; 1 widens the lens until you see as much arena as a desktop does.</div>
+    <div class="trow"><label>Look speed</label><input type="range" id="t-look" min="0.001" max="0.014" step="0.0005"><span class="tval" id="t-lookv"></span></div>
+    <div class="tnote">Drag the gameplay window to aim. Arcade ignores it — its camera is fixed on purpose.</div>
+  </div>
 
   <h3>Render</h3>
   <div class="trow"><label>Pixel grid</label><select id="t-pixel">
@@ -457,6 +567,27 @@ var AU = (function () {
 
 /* ============================ renderer / scene ========================== */
 var stage = $("stage");
+
+/* ---- TOUCH (VR-79 mobile pass) ---------------------------------------------
+   One source of truth for "is this a touch device", and it MUST stay identical
+   to the media query in the stylesheet — the CSS decides whether the pad is on
+   screen and this decides whether the pad is wired, and a mismatch means either
+   invisible controls or a phantom pad. Read once: a device does not grow a mouse
+   mid-run, and re-reading it per frame would let a hover-capable stylus flip the
+   whole input model underneath a live run.
+
+   Everything downstream of this flag is INPUT and LAYOUT only. It does not reach
+   the BALANCE block, and _billboard.js asserts that it can't. -------------- */
+var TOUCH = !!(window.matchMedia && window.matchMedia("(hover:none),(pointer:coarse)").matches);
+
+/* The canvas is no longer the whole window on touch — it's the stage, which is
+   the window ABOVE the pad. Every place that used to reach for window.innerWidth
+   goes through these instead: renderer size, camera aspect, and the projection
+   that places floating damage numbers. Miss one and the numbers drift off the
+   husk they belong to, which is the kind of bug that reads as "feels wrong". */
+function viewW() { return Math.max(1, stage.clientWidth || window.innerWidth); }
+function viewH() { return Math.max(1, stage.clientHeight || window.innerHeight); }
+
 /* ---- YAW CONVENTION (VR-91) ------------------------------------------------
    ONE convention, everywhere: a yaw of Y means the thing is FACING
    (-sin Y, -cos Y). Movement, strike arcs, Execute and sprite facing all read it.
@@ -480,7 +611,15 @@ var PIXEL = 4;
 var PIXEL_STEPS = [1, 2, 3, 4, 6, 8];
 var renderer = new THREE.WebGLRenderer({ antialias: PIXEL <= 1, powerPreference: "high-performance" });
 function applyPixelScale() {
-  var w = window.innerWidth, h = window.innerHeight;
+  // --padh first: the HUD stays position:fixed and needs to know where the pad
+  // starts, or the pip row and the Shroud label render behind the buttons. It's
+  // set before the stage is measured on purpose — everything it moves is out of
+  // flow, so it can't feed back into the stage's height.
+  var padEl = $("vpad");
+  var padH = (TOUCH && padEl) ? padEl.offsetHeight : 0;
+  document.documentElement.style.setProperty("--padh", padH + "px");
+
+  var w = viewW(), h = viewH();
   if (PIXEL > 1) {
     renderer.setPixelRatio(1);
     renderer.setSize(Math.max(1, Math.floor(w / PIXEL)), Math.max(1, Math.floor(h / PIXEL)), false);
@@ -519,8 +658,44 @@ scene.background = (function () {
 })();
 scene.fog = new THREE.FogExp2(0x0B0818, 0.030);
 
-var camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.08, 200);
+var camera = new THREE.PerspectiveCamera(62, viewW() / viewH(), 0.08, 200);
 scene.add(camera);
+
+/* ---- framing on a short window (VR-79 mobile pass) --------------------------
+   A phone's gameplay window is roughly square where a desktop viewport is 16:9,
+   and a perspective camera's VERTICAL fov is what's fixed — so a narrow window
+   silently crops the arena horizontally. At the arcade camera's tuned 24° that's
+   about half the horizontal view, which means husks arrive from off-screen.
+
+   The two honest fixes pull against each other and neither is free:
+     · widen the lens  → keeps the arena in frame, but 24° is a DELIBERATE
+       telephoto (VR-91) that flattens the scene toward isometric, and opening it
+       to ~45° throws that look away;
+     · pull the camera back → keeps the look, but Vesper shrinks on the smallest
+       screen he'll ever be viewed on, which is the opposite of what's wanted.
+   So this splits the difference and, more importantly, makes the split a NUMBER
+   Jordan can drag on the actual device ("Fit to screen" in the tuning panel)
+   rather than one guessed here. 0 = tightest framing, largest character;
+   1 = full horizontal compensation, same arena width as desktop.
+
+   Safe for the sprite layer: this changes fov and distance only, never the
+   arcade camera's ANGLE, so the 4-facing atlas assumption (_billboard.js) holds.
+   Desktop returns early and is therefore bit-identical to before this pass. */
+var DESIGN_ASPECT = 16 / 9;
+var FIT = { comp: 0.5 };
+/* Thumb-drag look sensitivity, coarser than the mouse's 0.0022 because a thumb
+   travels a fraction of the distance a mouse does. Lives out here rather than
+   inside the pad so the tuning panel can reach it — "the camera swings too fast"
+   is the single most likely note back from a phone, and it should be a slider
+   Jordan drags on the device, not a number guessed on a desktop. */
+var LOOK = { sens: 0.0055 };
+function framedFov(vfov, aspect) {
+  if (!TOUCH || !aspect || aspect >= DESIGN_ASPECT || FIT.comp <= 0) return vfov;
+  var D2R = Math.PI / 180;
+  var full = 2 * Math.atan(Math.tan(vfov * D2R / 2) * DESIGN_ASPECT / aspect) / D2R;
+  return vfov + (full - vfov) * FIT.comp;
+}
+
 applyPixelScale();
 
 // Lighting: one key with shadows, low ambient, a violet fill on the player.
@@ -955,6 +1130,19 @@ var keys = Object.create(null);
 var mouse = { yaw: 0, pitch: -0.12, locked: false, l: false, r: false };
 var pressed = { strike: false, exec: false, step: false };
 
+/* Pointer lock is a mouse affordance and a touch device has none. Asking for it
+   on a phone either rejects outright or never fires pointerlockchange — and the
+   pause logic below keys off precisely that event, so a touch player who chose
+   third person would land on the pause panel with no way back into the run.
+   This is the same trap VR-91 hit from the other side: there it was a camera
+   MODE that never asks for a lock, here it's a DEVICE that can never grant one,
+   so both now route through one predicate instead of two scattered conditions.
+
+   Jordan's call, 8/16: all three camera modes stay reachable on touch — this is
+   a foundation, not a cut-down build — so third and first person get drag-to-look
+   below rather than being hidden away. */
+function wantsLock() { return !TOUCH && cam.mode !== "arcade"; }
+
 window.addEventListener("keydown", function (e) {
   var k = e.key.toLowerCase();
   keys[k] = true;
@@ -980,13 +1168,17 @@ function openHelp() {
 function closeHelp() {
   if (!helpOpen()) return;
   $("s-help").classList.remove("on");
-  if (game.running && !game.over && cam.mode !== "arcade") renderer.domElement.requestPointerLock();
+  if (game.running && !game.over && wantsLock()) renderer.domElement.requestPointerLock();
 }
 function toggleHelp() { helpOpen() ? closeHelp() : openHelp(); }
 window.addEventListener("keyup", function (e) { keys[e.key.toLowerCase()] = false; });
 renderer.domElement.addEventListener("contextmenu", function (e) { e.preventDefault(); });
 renderer.domElement.addEventListener("mousedown", function (e) {
-  if (!mouse.locked && cam.mode !== "arcade") { renderer.domElement.requestPointerLock(); return; }
+  // Touch browsers synthesise a mousedown after a tap, which would make every
+  // drag-to-look on the canvas also throw a strike. Touch input is handled
+  // wholly by TPAD below; the canvas is inert to mouse events there.
+  if (TOUCH) return;
+  if (!mouse.locked && wantsLock()) { renderer.domElement.requestPointerLock(); return; }
   if (e.button === 0) { mouse.l = true; pressed.strike = true; }
   if (e.button === 2) { mouse.r = true; pressed.exec = true; }
 });
@@ -999,7 +1191,7 @@ document.addEventListener("pointerlockchange", function () {
   $("pausehint").classList.toggle("on", (mouse.locked || cam.mode === "arcade") && game.running);
   // Arcade has no pointer lock by design, so losing the lock must not pause it —
   // otherwise the run starts paused and there is no way back in.
-  if (game.running && !game.over && cam.mode !== "arcade") setPaused(!mouse.locked);
+  if (game.running && !game.over && wantsLock()) setPaused(!mouse.locked);
 });
 // If the browser refuses pointer lock, don't strand the player in a paused run.
 document.addEventListener("pointerlockerror", function () { if (game.running) setPaused(false); });
@@ -1010,6 +1202,169 @@ document.addEventListener("mousemove", function (e) {
   mouse.pitch = clamp(mouse.pitch - e.movementY * s, -0.55, 0.45);
 });
 window.addEventListener("resize", applyPixelScale);
+/* A phone rotating, or its URL bar sliding away, changes the stage height without
+   always firing a useful resize — and both leave the canvas the wrong size, which
+   on a pixel-scaled renderer reads as the whole game going blurry. The rAF defer
+   is because the pad's height isn't final until after the orientation reflow. */
+window.addEventListener("orientationchange", function () {
+  requestAnimationFrame(function () { requestAnimationFrame(applyPixelScale); });
+});
+if (window.visualViewport) window.visualViewport.addEventListener("resize", applyPixelScale);
+
+/* ==================== touch pad + drag-look (VR-79) ======================
+   TOUCH:BEGIN
+   Marked the way BALANCE is, and for the same reason: `_touch.js` extracts this
+   exact block and runs it against a DOM stub, so the stick's deadzone, the Stalk
+   latch and the inert-when-not-live rule are PROVEN rather than eyeballed on a
+   phone. The renderer can't be simmed; a d-pad can.
+
+   Shaped after the 2D track's VE.Controller — circle-in-circle stick on the
+   left, 3x2 grid on the right — so a player moving between a pair level and
+   the arena isn't relearning where their thumbs go. Written inline rather than
+   imported because the 3D track deliberately doesn't load the 2D engine.
+
+   The rule this module follows, and the reason it's short: it does not
+   implement movement or abilities. It writes into the SAME `keys` and `pressed`
+   objects the keyboard writes into, so touch and desktop share one input path
+   all the way down to the sim. A second movement code path is how touch and
+   desktop builds drift apart, and it would put a second thing in front of the
+   BALANCE block, which is meant to have exactly one.
+
+   No-ops entirely on desktop — every listener below is behind the TOUCH gate.
+   -------------------------------------------------------------------------- */
+var TPAD = (function () {
+  var stalk = false;
+  var api = {
+    stalking: function () { return stalk; },
+    refresh: function () {},
+    release: function () {}
+  };
+  if (!TOUCH) return api;
+
+  var pad = $("vpad"), stick = $("vstick"), knob = $("vknob");
+  if (!pad || !stick) return api;
+
+  /* Combat buttons are inert unless a run is actually live. The start and pause
+     screens cover the pad, but the ? overlay does not, and a strike thrown from
+     behind the help panel is a hit you never saw land. */
+  function live() { return game.running && !game.over && !game.paused && !helpOpen(); }
+
+  function clearMove() {
+    keys.w = keys.a = keys.s = keys.d = false;
+    knob.style.transform = "translate(0px,0px)";
+    stick.classList.remove("on");
+  }
+
+  /* ---- left stick: drag or tap a direction ------------------------------
+     Deadzone is 30% of the radius, matching the 2D pad. It matters more here
+     than it does there: Shroud is gated on standing still under
+     shroudBreakSpeed, so a thumb resting slightly off-centre would quietly
+     make the veil unreachable and look like a bug in the Shroud, not the pad. */
+  var moveId = null;
+  function applyStick(cx, cy) {
+    var r = stick.getBoundingClientRect(), R = r.width / 2;
+    var dx = cx - (r.left + R), dy = cy - (r.top + R), dead = R * 0.30;
+    keys.a = dx < -dead; keys.d = dx > dead;
+    keys.w = dy < -dead; keys.s = dy > dead;
+    var mag = Math.min(1, Math.hypot(dx, dy) / R), ang = Math.atan2(dy, dx);
+    knob.style.transform = "translate(" + (Math.cos(ang) * mag * R * 0.5) + "px," +
+                           (Math.sin(ang) * mag * R * 0.5) + "px)";
+  }
+  stick.addEventListener("pointerdown", function (e) {
+    e.preventDefault();
+    if (!live()) return;
+    moveId = e.pointerId;
+    try { stick.setPointerCapture(e.pointerId); } catch (_) {}
+    stick.classList.add("on");
+    applyStick(e.clientX, e.clientY);
+  });
+  stick.addEventListener("pointermove", function (e) {
+    if (e.pointerId !== moveId) return;
+    e.preventDefault();
+    applyStick(e.clientX, e.clientY);
+  });
+  function endMove(e) { if (e.pointerId !== moveId) return; moveId = null; clearMove(); }
+  stick.addEventListener("pointerup", endMove);
+  stick.addEventListener("pointercancel", endMove);
+  stick.addEventListener("lostpointercapture", function () {
+    if (moveId != null) { moveId = null; clearMove(); }
+  });
+
+  /* ---- right grid -------------------------------------------------------
+     Strike sets mouse.l as well as pressed.strike so a held button chains the
+     three-hit combo through the identical branch the desktop left button uses. */
+  var strikeId = null;
+  pad.querySelectorAll(".vgrid .vbtn").forEach(function (btn) {
+    var k = btn.getAttribute("data-k");
+    btn.addEventListener("pointerdown", function (e) {
+      e.preventDefault();
+      if (k === "tune") { TUNE.toggle(); return; }
+      if (k === "pause") {
+        if (game.running && !game.over) setPaused(!game.paused);
+        return;
+      }
+      if (!live()) return;
+      if (k === "strike") { strikeId = e.pointerId; mouse.l = true; pressed.strike = true; }
+      else if (k === "exec") { pressed.exec = true; }
+      else if (k === "step") { pressed.step = true; }
+      else if (k === "stalk") { stalk = !stalk; btn.classList.toggle("on", stalk); }
+    });
+    if (k === "strike") {
+      var up = function (e) {
+        if (strikeId !== null && e.pointerId !== strikeId) return;
+        strikeId = null; mouse.l = false;
+      };
+      btn.addEventListener("pointerup", up);
+      btn.addEventListener("pointercancel", up);
+      btn.addEventListener("pointerleave", up);
+    }
+  });
+
+  /* ---- drag-to-look on the gameplay window ------------------------------
+     Third and first person stay reachable on touch (Jordan, 8/16 — this is a
+     foundation, so no mode gets cut), and both need a way to aim. Dragging the
+     canvas moves mouse.yaw/pitch exactly as a mouse would.
+
+     ARCADE DELIBERATELY IGNORES IT. Its camera is fixed by design, and that
+     fixed angle is load-bearing: the sprite atlas ships 4 facings instead of 8
+     precisely because the view never rotates (_billboard.js asserts FACINGS=4).
+     Letting a stray thumb-drag rotate ARC.yaw would break the art contract for
+     no gain, since in arcade you already face wherever you move. */
+  var lookId = null, lx = 0, ly = 0;
+  var cv = renderer.domElement;
+  cv.addEventListener("pointerdown", function (e) {
+    if (cam.mode === "arcade" || !live()) return;
+    lookId = e.pointerId; lx = e.clientX; ly = e.clientY;
+    try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  cv.addEventListener("pointermove", function (e) {
+    if (e.pointerId !== lookId) return;
+    e.preventDefault();
+    mouse.yaw -= (e.clientX - lx) * LOOK.sens;
+    mouse.pitch = clamp(mouse.pitch - (e.clientY - ly) * LOOK.sens, -0.55, 0.45);
+    lx = e.clientX; ly = e.clientY;
+  });
+  function endLook(e) { if (e.pointerId === lookId) lookId = null; }
+  cv.addEventListener("pointerup", endLook);
+  cv.addEventListener("pointercancel", endLook);
+
+  /* ---- state the pad shows back ---------------------------------------- */
+  var bStep = $("vb-step"), bExec = $("vb-exec"), bStalk = $("vb-stalk");
+  var chg = [$("vchg0"), $("vchg1")];
+  api.refresh = function () {
+    for (var i = 0; i < 2; i++) chg[i].classList.toggle("on", player.stepCharges > i);
+    bStep.classList.toggle("vdim", player.stepCharges === 0);
+    bExec.classList.toggle("vdim", player.execCd > 0);
+  };
+  api.release = function () {
+    moveId = null; strikeId = null; lookId = null;
+    mouse.l = false;
+    stalk = false; bStalk.classList.remove("on");
+    clearMove();
+  };
+  return api;
+})();
+/* TOUCH:END */
 // [ cycles the pixel grid live so the look can be dialled in without a rebuild
 window.addEventListener("keydown", function (e) {
   if (e.key !== "[") return;
@@ -1050,7 +1405,7 @@ var ARC = { yaw: 0, pitch: 0.6283, dist: 13.5, height: 0.95, lam: 7.5, fov: 24 }
 var CAM_MODES = ["arcade", "third", "first"];
 var CAM_LABEL = { arcade: "arcade (fixed)", third: "third person", first: "first person (experimental)" };
 function resumeFromPause() {
-  if (cam.mode === "arcade") { setPaused(false); return; }
+  if (!wantsLock()) { setPaused(false); return; }
   renderer.domElement.requestPointerLock();
 }
 function toggleCam() {
@@ -1058,7 +1413,8 @@ function toggleCam() {
   var first = cam.mode === "first";
   player.g.visible = !first && !(playerSpriteReady());
   vmBlade.visible = first;
-  $("camtag").textContent = "V — " + CAM_LABEL[cam.mode];
+  // no V key on a phone — the camera is changed from the tuning panel there
+  $("camtag").textContent = (TOUCH ? "⚙ " : "V — ") + CAM_LABEL[cam.mode];
   cam.fovTarget = cam.mode === "arcade" ? ARC.fov : (first ? 76 : 62);
   // pointer lock is a free-look affordance; the arcade camera doesn't want it
   if (cam.mode === "arcade" && document.pointerLockElement) document.exitPointerLock();
@@ -1131,7 +1487,10 @@ function updateCamera(dt) {
 
   cam.fovTarget = damp(cam.fovTarget, cam.mode === "arcade" ? ARC.fov : (cam.mode === "third" ? 62 : 76), 6, dt);
   cam.fov = damp(cam.fov, cam.fovTarget, 14, dt);
-  if (Math.abs(camera.fov - cam.fov) > 0.01) { camera.fov = cam.fov; camera.updateProjectionMatrix(); }
+  // cam.fov stays the TUNED value; framedFov is the value actually shown, so a
+  // narrow window widens the lens without rewriting what Jordan dialled in.
+  var shownFov = framedFov(cam.fov, camera.aspect);
+  if (Math.abs(camera.fov - shownFov) > 0.01) { camera.fov = shownFov; camera.updateProjectionMatrix(); }
 
   playerFill.position.set(player.x, 2.0, player.z);
   key.target.position.set(player.x, 0, player.z);
@@ -1167,8 +1526,11 @@ function floatNumber(x, y, z, text, crit) {
   var el = document.createElement("div");
   el.className = "fnum" + (crit ? " crit" : "");
   el.textContent = text;
-  el.style.left = ((_v3.x * 0.5 + 0.5) * window.innerWidth) + "px";
-  el.style.top = ((-_v3.y * 0.5 + 0.5) * window.innerHeight) + "px";
+  // #dmgnum lives inside #hud, which is clipped to the stage on touch — so the
+  // projection has to be scaled to the stage, not the window, or every damage
+  // number lands low and to nobody in particular.
+  el.style.left = ((_v3.x * 0.5 + 0.5) * viewW()) + "px";
+  el.style.top = ((-_v3.y * 0.5 + 0.5) * viewH()) + "px";
   HUD.dmg.appendChild(el);
   setTimeout(function () { el.remove(); }, 720);
 }
@@ -1177,10 +1539,14 @@ function setPaused(p) {
   game.paused = !!p;
   $("s-paused").classList.toggle("on", game.paused);
   var ps = $("pausesub");
-  if (ps) ps.textContent = (cam.mode === "arcade")
-    ? "The arena is frozen. Esc or Resume to carry on."
-    : "Your cursor is free. The arena is frozen.";
-  if (game.paused) { keys = Object.create(null); mouse.l = mouse.r = false; }
+  if (ps) ps.textContent = TOUCH
+    ? "The arena is frozen. Resume to carry on."
+    : (cam.mode === "arcade")
+      ? "The arena is frozen. Esc or Resume to carry on."
+      : "Your cursor is free. The arena is frozen.";
+  // A pause must also drop anything the pad is holding, or a finger still on the
+  // stick when the panel opens leaves you walking into the arena on resume.
+  if (game.paused) { keys = Object.create(null); mouse.l = mouse.r = false; TPAD.release(); }
 }
 
 /* ============================ collision helpers ========================= */
@@ -1414,7 +1780,9 @@ function updatePlayer(dt) {
   }
 
   // movement — camera-relative, with weight
-  player.stalking = !!(keys.control || keys.c);
+  // Stalk LATCHES on touch rather than being held: it's a crouched creep you
+  // stay in for seconds at a time, and a phone has no thumb spare to hold it.
+  player.stalking = !!(keys.control || keys.c || TPAD.stalking());
   var mx = 0, mz = 0;
   if (keys.w) mz -= 1; if (keys.s) mz += 1;
   if (keys.a) mx -= 1; if (keys.d) mx += 1;
@@ -1737,6 +2105,10 @@ function updateHUD() {
   HUD.pipExec.classList.toggle("ready", player.execCd <= 0);
   HUD.pipExec.classList.toggle("dim", player.execCd > 0);
 
+  // the pad mirrors the pips rather than inventing a second vocabulary for the
+  // same two cooldowns — no-op on desktop
+  TPAD.refresh();
+
   // crosshair heats when an Execute would land
   var hot = false;
   if (player.execCd <= 0 && player.alive) {
@@ -1788,6 +2160,7 @@ function resetRun() {
   for (var p = 0; p < PMAX; p++) { parts[p].life = 0; parts[p].m.visible = false; }
   game.wave = 0; game.kills = 0; game.executes = 0; game.time = 0; game.score = 0;
   game.over = false; game.hitStop = 0; game.phase = "idle"; setPaused(false);
+  TPAD.release();   // a latched Stalk must not survive into the next run
   HUD.vig.style.opacity = "0";
 }
 function startRun() {
@@ -1797,14 +2170,14 @@ function startRun() {
   // Held until the pointer lock lands, so nothing hits you before you have
   // control — but ARCADE never asks for a lock, so it would wait forever and
   // the run would open straight onto the pause panel with no way in.
-  setPaused(cam.mode !== "arcade");
+  setPaused(wantsLock());
   HUD.root.classList.add("on");
   $("s-start").classList.remove("on");
   $("s-over").classList.remove("on");
   $("s-help").classList.remove("on");
   $("helpfab").classList.add("on");
   $("camtag").classList.add("on");
-  if (cam.mode !== "arcade") renderer.domElement.requestPointerLock();
+  if (wantsLock()) renderer.domElement.requestPointerLock();
   var tries = +(localStorage.getItem(LS + "tries") || 0) + 1;
   localStorage.setItem(LS + "tries", tries);
   if (tries === 1) awardPoints("try", 1, GAME_ID);
@@ -1850,13 +2223,33 @@ function endRun() {
    getElementById returns the first match, so the PAUSE panel's button never had
    a listener at all and Resume did nothing. They have separate ids now. */
 $("btn-unpause").addEventListener("click", function () {
-  if (cam.mode !== "arcade") renderer.domElement.requestPointerLock();
+  if (wantsLock()) renderer.domElement.requestPointerLock();
   setPaused(false);
   setTimeout(function () { if (!mouse.locked) setPaused(false); }, 400);  // lock refused — play on anyway
 });
 $("btn-start").addEventListener("click", startRun);
 $("btn-again").addEventListener("click", startRun);
 $("btn-back").addEventListener("click", function () { window.location.href = "../../app.html#games/arena-3d"; });
+/* On touch, rewrite the start screen's legend BEFORE it gets mirrored, so the
+   one-copy-of-the-list rule survives the mobile pass instead of becoming two
+   lists that drift. A touch player being told to press WASD is the same class of
+   error VR-91 shipped when the dropdown described v1 as worse than v0 — the
+   controls are right and the words in front of them are wrong. */
+if (TOUCH) {
+  document.querySelector("#s-start .keys").innerHTML =
+    '<b>Stick</b><span>Move</span>' +
+    '<b>✦ Strike</b><span>Chains into a three-hit combo — hold to keep the chain going</span>' +
+    '<b>◈ Execute</b><span>Finishes the wounded, refunds a Veilstep</span>' +
+    '<b>★ Veilstep</b><span>Blink through anything, two charges</span>' +
+    '<b>⊹ Stalk</b><span>A creep slow enough to keep the Shroud — tap on, tap off</span>' +
+    '<b>Drag</b><span>Look and aim, in third and first person</span>' +
+    '<b>⚙ Settings</b><span>Camera view, how much arena fits, look speed</span>' +
+    '<span class="hint">Stand perfectly still for a moment and the Shroud takes you — they lose you, and your next strike kills outright. Standing still is also how you die.</span>';
+  var foot = document.querySelector("#s-start .foot");
+  if (foot) foot.textContent = "Prototype v0 — one character, endless waves. Touch controls, all three camera views.";
+  var hfoot = document.querySelector("#s-help .foot");
+  if (hfoot) hfoot.textContent = "? — open this any time · Pause on the pad freezes the arena";
+}
 // Single source of truth for the legend: mirror the start screen's list into the help overlay.
 $("help-keys").innerHTML = document.querySelector("#s-start .keys").innerHTML;
 $("helpfab").addEventListener("click", openHelp);
@@ -2394,7 +2787,14 @@ var TUNE = (function () {
   var LSK = LS + "tune";
   var DEF = {
     map: MAPS[0].id, cam: "arcade",
-    pitch: Math.round(ARC.pitch * 180 / Math.PI), dist: ARC.dist, fov: ARC.fov,
+    pitch: Math.round(ARC.pitch * 180 / Math.PI),
+    /* Touch starts the arcade camera CLOSER (Jordan, 8/16 — "potentially start
+       closer"). On a phone the character is the thing you're reading, and 13.5
+       units of telephoto that frames beautifully on a monitor leaves Vesper a
+       smudge on a 6-inch screen. Because TUNE persists per device, a phone and a
+       desktop each keep their own tuned distance rather than fighting over one. */
+    dist: TOUCH ? 11 : ARC.dist,
+    fov: ARC.fov, fit: FIT.comp, look: LOOK.sens,
     pixel: PIXEL, fog: 0.030,
     glass: "#" + VEIL_GLASS.toString(16).padStart(6, "0"),
     rim:   "#" + VEIL_RIM.toString(16).padStart(6, "0"),
@@ -2421,6 +2821,12 @@ var TUNE = (function () {
     if (!what || what === "arc") {
       ARC.pitch = V.pitch * Math.PI / 180; ARC.dist = +V.dist; ARC.fov = +V.fov;
       if (cam.mode === "arcade") cam.fovTarget = ARC.fov;
+    }
+    if (!what || what === "touch") {
+      FIT.comp = +V.fit; LOOK.sens = +V.look;
+      // fov compensation is recomputed per frame off FIT.comp, but the aspect
+      // itself only changes on resize — nudge it so the slider reads live
+      camera.updateProjectionMatrix();
     }
     if (!what || what === "pixel") { PIXEL = +V.pixel; applyPixelScale(); }
     if (!what || what === "fog") { scene.fog.density = +V.fog; }
@@ -2460,6 +2866,8 @@ var TUNE = (function () {
     bindRange("t-pitch", "pitch", "arc", function (v) { return v + "°"; });
     bindRange("t-dist", "dist", "arc", function (v) { return (+v).toFixed(1); });
     bindRange("t-fov", "fov", "arc");
+    bindRange("t-fit", "fit", "touch", function (v) { return (+v).toFixed(2); });
+    bindRange("t-look", "look", "touch", function (v) { return (+v * 1000).toFixed(1); });
     bindRange("t-fog", "fog", "fog", function (v) { return (+v).toFixed(3); });
     bindRange("t-amin", "amin", "veil", function (v) { return (+v).toFixed(2); });
     bindRange("t-amax", "amax", "veil", function (v) { return (+v).toFixed(2); });
@@ -2475,6 +2883,11 @@ var TUNE = (function () {
         "VEILRUN — Proving Ground settings",
         "map            " + V.map,
         "camera         " + V.cam + "   pitch " + V.pitch + "°  dist " + V.dist + "  fov " + V.fov,
+        // the device is the whole point of these two — a fit value with no
+        // screen attached to it is unreadable when it comes back as a paste
+        "device         " + (TOUCH ? "touch" : "desktop") + "   stage " + viewW() + "x" + viewH(),
+        "fit to screen  " + (+V.fit).toFixed(2),
+        "look speed     " + (+V.look).toFixed(4),
         "pixel grid     " + V.pixel + ":1",
         "fog density    " + (+V.fog).toFixed(3),
         "VEIL_GLASS     0x" + V.glass.slice(1),
