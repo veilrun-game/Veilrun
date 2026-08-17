@@ -35,7 +35,15 @@ anything else — most cards are unworkable without it.
 Cards are referenced as `VR-##` — search that id in the Trello board. **A card's id is the
 contract:** ids are cited across `_Project Knowledge/`, commit messages and this file, and
 they did not change in the migration. **Never renumber one.** For pre-migration history,
-grep the archived file.
+grep the archived file. **A number cited in a commit subject is a claim on that number** —
+VR-110 shipped in `c8576a9` with no card and nearly collided with the next one opened.
+
+**Three waiting states, and the distinction is who owns the next step:** `⏸️ Parked` = a
+person (crew playtest, a vote, Jordan's call); `🚧 Blocked` = another card; `🔵 To do` =
+nothing in the way. A blocked card carries `⛔ BLOCKED BY: VR-## (reason)` on the first line
+of its description — **name the reason, not just the number**, so a later thread can tell a
+live block from one that quietly expired. Kickoff prompts for individual cards live in
+`Games/Veilrun/Planning/prompts/`.
 
 ---
 
