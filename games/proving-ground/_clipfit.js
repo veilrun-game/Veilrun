@@ -456,6 +456,15 @@ ok("rigged husks still get a contact shadow",
 ok("every clone is rebound to its own skeleton",
    /dm\.bind\(new THREE\.Skeleton\(bones, sm\.skeleton\.boneInverses\), sm\.bindMatrix\)/.test(html),
    "sharing one skeleton is 26 husks moving in lockstep");
+ok("a rig is SILENCED when it changes hands, not just marked stale",
+   /function silence\(rig\) \{\s*for \(var n in rig\.actions\) rig\.actions\[n\]\.stop\(\);/.test(html) &&
+   /rig\.e = e; e\.rig = rig;\s*silence\(rig\);/.test(html) &&
+   /rig\.e = null; silence\(rig\);/.test(html),
+   "clampWhenFinished keeps a finished one-shot fully weighted, so clearing " +
+   "rig.current alone strands a corpse pose under the next husk's run — measured at 47 degrees off vertical");
+ok("nothing clears rig.current without stopping the actions",
+   (html.match(/rig\.current = "";/g) || []).length === 1,
+   "the single occurrence must be the one inside silence()");
 ok("every action is pre-bound at rig construction",
    /for \(var pb in actions\) actions\[pb\]\.play\(\);/.test(html) &&
    /for \(var pb2 in actions\) actions\[pb2\]\.stop\(\);/.test(html),

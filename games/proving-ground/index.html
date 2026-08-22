@@ -3429,6 +3429,25 @@ var HUSKMODEL = (function () {
     return 0;   // run loops — velocity drives it instead
   }
 
+  /* Silence the rig completely before it changes hands.
+
+     A one-shot with `clampWhenFinished` stays ACTIVE and fully weighted after
+     it ends — that is the whole point of it, and it is what makes a corpse
+     hold its fallen pose. Clearing `rig.current` on its own therefore STRANDS
+     that action: the next `update()` looks up `rig.actions[""]`, finds no
+     `prev` to fade out, and blends the new clip on top of a body that is still
+     lying down. A husk that inherits a rig from a corpse then runs at you
+     roughly 47 degrees off vertical — measured — which is exactly how it was
+     reported: "one half of the enemies... angled slightly and look silly."
+
+     `isRunning()` returns TRUE for such an action, so a check written against
+     it sees nothing wrong. The pose is the ground truth, not the flag.
+     (VR-117, 8/22) */
+  function silence(rig) {
+    for (var n in rig.actions) rig.actions[n].stop();
+    rig.current = "";
+  }
+
   function attach(rig, e) {
     if (!e.prims) e.prims = e.g.children.slice();
     for (var i = 0; i < e.prims.length; i++) e.prims[i].visible = false;
@@ -3436,7 +3455,7 @@ var HUSKMODEL = (function () {
     rig.root.position.set(0, 0, 0);
     rig.root.rotation.set(0, 0, 0);
     rig.e = e; e.rig = rig;
-    rig.current = "";
+    silence(rig);
     // a fresh phase per attachment, so two husks that spawn together and pick
     // the same clip still do not breathe in step
     rig.phase = Math.random() * TAU;
@@ -3448,7 +3467,7 @@ var HUSKMODEL = (function () {
       if (e.prims) for (var i = 0; i < e.prims.length; i++) e.prims[i].visible = true;
       e.rig = null;
     }
-    rig.e = null; rig.current = "";
+    rig.e = null; silence(rig);
   }
 
   /* Budget. In "auto" the number of rigs only goes up when a HONEST p95 says
