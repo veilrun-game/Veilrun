@@ -127,8 +127,21 @@ ok("model falls back to primitives", /keeping the primitive rig/.test(html),
 ok("model does NOT cancel MESH_PI", /root\.rotation\.y = 0;/.test(html) &&
    !/root\.rotation\.y = -MESH_PI/.test(html),
    "Blender -Y exports to glTF +Z, so the model faces the same way as the primitives");
-ok("model shares the sprite state machine", /MODEL\.play\(playerModelState\(speed\), dt, speed\)/.test(html),
+/* VR-111 split the call so the strike stage can pick its own sub-clip, so this
+   can no longer pin the literal. The property that matters is unchanged and is
+   what's asserted: playerModelState() is still the ONLY thing that decides what
+   Vesper is doing, and combatClip() may only refine `attack` into a stage —
+   never invent a state of its own. */
+ok("model shares the sprite state machine",
+   /var st = playerModelState\(speed\);/.test(html) &&
+   /MODEL\.play\(combatClip\(st\), dt, speed, combatWindow\(st\)\)/.test(html),
    "one source of truth for what the character is doing");
+ok("combatClip only refines the attack state",
+   /function combatClip\(st\) \{\s*\n\s*if \(st !== "attack"\) return st;/.test(html),
+   "every other state passes through untouched");
+ok("combat animation speed is driven from BALANCE",
+   /function combatWindow\(st\)/.test(html) && /s\.wind \+ s\.active \+ s\.rec/.test(html),
+   "VR-111: the balance numbers decide how fast Vesper looks");
 ok("mixer is ticked on the render clock", /updatePlayerModel\(raw\)/.test(html));
 
 ok("render precedence is explicit", /MODEL > SPRITE > PRIMITIVES/.test(html) &&

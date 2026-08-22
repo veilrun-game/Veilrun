@@ -87,7 +87,14 @@ in the folder before assuming:
 
 - **2D pair track** — `games/<name>-v2/_sim.py` (Python physics sim).
 - **3D** — `games/proving-ground/_sim.js` (asserts against the marked `BALANCE` block extracted from
-  the HTML), plus `_billboard.js`, `_touch.js` and `_check.js`. `_touch.js` (added 8/16 with the
+  the HTML), plus `_billboard.js`, `_touch.js`, `_clipfit.js` and `_check.js`. **`_clipfit.js`
+  (added 8/22 with VR-111) is the only harness in the repo that reads a BINARY ASSET** — it parses
+  `assets/models/vesper.glb` for real clip durations and proves them against the marked `CLIPFIT`
+  block and the strike windows in `BALANCE`. It exists because VR-111 was invisible to everything
+  else we own: a 3s animation played inside a 0.36s strike, nothing threw, and no harness could
+  see it because the animation lives in a file nobody parsed. **Re-run it after ANY re-merge of
+  a character GLB** — a source clip that changes length silently moves the frame windows onto the
+  wrong motion, which is the failure it was built to catch. `_touch.js` (added 8/16 with the
   VR-79 mobile pass) extracts the marked `TOUCH` block the same way `_sim.js` extracts `BALANCE`
   and **executes it against a hand-rolled DOM stub** — so the stick deadzone, the Stalk latch and
   the inert-when-not-live rule are proven, not eyeballed on a phone. Its highest-value assertion is
