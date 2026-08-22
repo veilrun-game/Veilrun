@@ -764,13 +764,7 @@ var HUSKLOD = {
   raiseUnder: 15.5,   // ms, p95: under 64fps-equivalent there is headroom
   dropOver: 21.0,     // ms, p95: over this (~47fps) hand some back
   window: 1.5,        // sec between decisions
-  swapMargin: 1.2,    // units of hysteresis on the near/far swap, so it can't flicker
-  /* Rigs are BUILT a couple at a time, never in a batch. Constructing one
-     clones 65 bones, clones a material, and pre-binds four actions — cheap
-     once, brutal 26 times inside a single frame. The auto ramp only adds 2
-     rigs per 1.5s anyway, so this costs nothing in play and caps the worst
-     case when something pins the budget to max. (8/22) */
-  buildPerFrame: 2
+  swapMargin: 1.2     // units of hysteresis on the near/far swap, so it can't flicker
 };
 
 /* How long each one-shot combat clip is actually ON SCREEN. These are feel
@@ -3314,26 +3308,6 @@ var HUSKMODEL = (function () {
       if (name !== "run") a.setLoop(THREE.LoopOnce, 1);
       actions[name] = a;
     }
-    /* PRE-BIND EVERY ACTION NOW, at a moment we choose.
-
-       `clipAction()` does NOT allocate the machinery an action needs. three's
-       AnimationMixer builds a PropertyMixer per TRACK on an action's FIRST
-       activation — 195 tracks per clip here — and that cost lands on whatever
-       frame the husk first swings.
-
-       Which is the worst possible frame for it, because husks do not arrive
-       one at a time. They close on the player in a group and all switch from
-       `run` to `attack` within a frame or two of each other, so the binding
-       for every rig on screen happens at once. That is the 212ms frame in the
-       8/22 uncapped reading — one fifth of a second, against a 17ms steady
-       state, and COMPLETELY INVISIBLE to p50, p95 and p99. Only `worst` saw
-       it, and nothing was reading `worst`.
-
-       Measured: 26 rigs switching to `attack` on one frame costs 45ms bound
-       lazily and 7ms pre-bound, on a machine with no GPU at all. */
-    for (var pb in actions) actions[pb].play();
-    mixer.update(0);
-    for (var pb2 in actions) actions[pb2].stop();
 
     /* THE DYING EMBER. Canon palette for the Thinned is "desaturated grey +
        one dying ember", and §5 of the ybot doc turns that into a rule: what
@@ -3501,18 +3475,12 @@ var HUSKMODEL = (function () {
       var rg = pool[q];
       if (rg.e && keep.indexOf(rg.e) < 0) detach(rg);
     }
-    var built = 0;
     for (var m = 0; m < keep.length; m++) {
       var en = keep[m];
       if (en.rig) continue;
       var free = null;
       for (var f = 0; f < pool.length; f++) if (!pool[f].e) { free = pool[f]; break; }
-      if (!free && pool.length < HUSKLOD.max && built < HUSKLOD.buildPerFrame) {
-        free = makeRig(); built++;
-      }
-      // out of spare rigs and out of build budget: this husk keeps its card
-      // for another quarter-second rather than stalling the frame. It is a
-      // billboard either way until the rig exists.
+      if (!free && pool.length < HUSKLOD.max) free = makeRig();
       if (!free) break;
       attach(free, en);
     }
@@ -3586,19 +3554,8 @@ var HUSKMODEL = (function () {
     });
   }
 
-  /* Build the pool to `n` in one go. ONLY for the benchmark, which needs a
-     full pool before it starts sampling — otherwise the amortised build lands
-     inside the measured window and the report describes construction rather
-     than the steady state it claims to describe. Never call this in play. */
-  function prewarm(n) {
-    if (!ready) return 0;
-    n = clamp(n | 0, 0, HUSKLOD.max);
-    while (pool.length < n) makeRig();
-    return pool.length;
-  }
-
   return {
-    load: load, update: update, prewarm: prewarm,
+    load: load, update: update,
     isReady: function () { return ready; },
     rigged: function (e) { return !!(ready && e.rig); },
     budget: function () { return budget; },
@@ -3843,29 +3800,26 @@ var PERF = (function () {
     why: function () { return why; }
   };
 })();
+
 /* ======================= frame-rate benchmark (VR-117) ===================
    THE GATE ON THIS CARD, made into a thing you can run.
 
    "Measure frame rate before committing 26 skinned meshes" was the condition
    attached to turning the husks into models, and per State of Play the frame
-   rate had NEVER been honestly measured — every reading came from a browser
+   rate has NEVER been honestly measured — every reading came from a browser
    tab that wasn't in front, where rAF throttles to a few hertz and the number
-   is fiction. So this does four things a glance at the fps counter cannot:
+   is fiction. So this does three things a glance at the fps counter cannot:
 
      1. It runs a FIXED LOAD. 26 husks, the hard cap, spawned at deterministic
-        positions with the LOD budget pinned. Not "whatever wave 9 looked like".
+        positions with the LOD budget pinned to max. Not "whatever wave 9
+        happened to look like".
      2. It reports PERCENTILES. p95 is the number that decides whether a game
         feels smooth; a mean hides exactly the stutters you care about.
-     3. It runs the same load TWICE — once with 26 skinned rigs and once with
+     3. It runs the SAME LOAD TWICE — once with 26 skinned rigs and once with
         26 billboards — because the decision isn't "what is the frame rate", it
-        is "what did the models COST". A delta is actionable; an absolute
-        number invites arguing about the device.
-     4. **It renders an EMPTY arena as a third pass.** Added 8/22 after the
-        first real reading came back with both loaded passes pinned to the
-        same 33ms. Without a baseline you cannot tell "26 husks cost nothing"
-        from "this display is running at 30Hz and neither pass can see past
-        it" — and those two readings deserve opposite verdicts. An empty
-        arena that also renders at 33ms settles it in one line.
+        is "what did the models COST". A phone that holds 26 rigs at 55fps and
+        26 cards at 58fps has answered the card. One that goes 58 -> 24 has
+        answered it the other way, and the answer is LOD.
 
    And it refuses to produce a number it can't stand behind: if the tab is
    hidden or the window loses focus at any point during a pass, the result is
@@ -3873,16 +3827,7 @@ var PERF = (function () {
    reading, and a benchmark that can repeat it is worse than none.
    ------------------------------------------------------------------------ */
 var BENCH = (function () {
-  var WARM = 1.5, RUN = 6.0;
-  /* Order matters. The two passes being COMPARED run back to back, so thermal
-     drift and background work land on both roughly equally; the baseline is
-     context and goes last. Putting a slow warm-up between the compared passes
-     is how you manufacture a delta that isn't there. */
-  var PASSES = [
-    { key: "rigs",  label: "26 skinned husks", husks: 26, budget: "max" },
-    { key: "cards", label: "26 billboards",    husks: 26, budget: 0 },
-    { key: "base",  label: "empty arena",      husks: 0,  budget: 0 }
-  ];
+  var WARM = 2.0, RUN = 8.0;
   var on = false, phase = "", t = 0, pass = 0, saved = null;
   var results = [];
   var el = null, out = null;
@@ -3930,13 +3875,13 @@ var BENCH = (function () {
   }
 
   function startPass() {
-    var P = PASSES[pass];
-    HUSKLOD.mode = (P.budget === "max") ? HUSKLOD.max : P.budget;
+    HUSKLOD.mode = (pass === 0) ? HUSKLOD.max : 0;
     HUSKMODEL.setBudget(HUSKLOD.mode);
-    seed(P.husks);
+    seed(HUSKLOD.max);
     PERF.reset();
     phase = "warm"; t = WARM;
-    say(head() + "\npass " + (pass + 1) + " of " + PASSES.length + " — " + P.label +
+    say(head() + "\npass " + (pass + 1) + " of 2 — " +
+        (pass === 0 ? HUSKLOD.max + " skinned husks" : "26 billboards") +
         "\nwarming up…\n\nKeep this window in front. Looking away invalidates the run.");
   }
 
@@ -3944,12 +3889,12 @@ var BENCH = (function () {
     return "VEILRUN — Proving Ground frame rate (VR-117)\n" +
            "device      " + (TOUCH ? "touch" : "desktop") + "  " + viewW() + "x" + viewH() +
            "  dpr " + (window.devicePixelRatio || 1) + "\n" +
-           "pixel grid  " + PIXEL + ":1" + (PIXEL === 1 ? "   (off — the most expensive setting)" : "");
+           "pixel grid  " + PIXEL + ":1";
   }
 
-  function snapshot(P) {
+  function snapshot(label) {
     var info = renderer.info.render;
-    return { key: P.key, label: P.label,
+    return { label: label,
              p50: PERF.pct(0.50), p95: PERF.pct(0.95), p99: PERF.pct(0.99),
              worst: PERF.pct(1), n: PERF.count(),
              calls: info.calls, tris: info.triangles,
@@ -3958,7 +3903,7 @@ var BENCH = (function () {
   }
 
   function fmt(r) {
-    if (r.bad) return "  " + r.label + "\n    INVALID — " + r.why;
+    if (r.bad) return "  " + r.label.padEnd(12) + "INVALID — " + r.why;
     function row(k, ms) {
       return "  " + k.padEnd(12) + ms.toFixed(1).padStart(6) + " ms   " +
              (ms > 0 ? (1000 / ms).toFixed(0) : "—").padStart(3) + " fps";
@@ -3969,99 +3914,16 @@ var BENCH = (function () {
            "  draw calls  " + r.calls + "   triangles " + r.tris.toLocaleString();
   }
 
-  /* A frame-rate CAP and a frame-rate CEILING look nothing alike in the
-     spread. A device pegged by a vsync limit (or by iOS Low Power Mode, which
-     halves rAF to 30Hz) is a metronome: p50, p95 and p99 sit on top of each
-     other. A device that is genuinely working hard has a long tail. */
-  function tight(r) { return r.p50 > 0 && (r.p99 - r.p50) / r.p50 < 0.14; }
-  function near(a, b, tol) { return Math.abs(a - b) <= tol; }
-
-  /* THE TAIL GETS ITS OWN LINE, and it is never folded into the headline.
-     The 8/22 uncapped reading held 53fps at p95 with 26 rigs and still dropped
-     a single 212ms frame — a fifth of a second, plainly visible, and invisible
-     to every percentile this report prints. A benchmark that computes `worst`
-     and then never reasons about it is repeating the mistake that made the
-     first verdict wrong. */
-  function tailLine(rigs, cards) {
-    var hitch = rigs.worst - cards.worst;
-    if (rigs.worst >= 100 && hitch >= 60)
-      return "\ntail        HITCH — one frame at " + rigs.worst.toFixed(0) + " ms against " +
-             cards.worst.toFixed(0) + " ms for the cards." +
-             "\n            The steady state is fine; something is being BUILT mid-fight." +
-             "\n            No percentile can see this. Look at rig construction and" +
-             "\n            first-activation binding before you look at the frame budget.";
-    return "\ntail        clean — worst frame " + rigs.worst.toFixed(0) + " ms against " +
-           cards.worst.toFixed(0) + " ms for the cards.";
-  }
-
-  /* A locked frame rate and a nearly-locked one feel different, and the
-     difference hides inside "+2ms". If the cards sit exactly on the refresh
-     budget and the models push past it, some frames now miss a beat — worth
-     saying out loud rather than filing under FREE. */
-  function lockLine(rigs, cards) {
-    if (cards.p50 <= 0) return "";
-    var locked = cards.p95 <= cards.p50 * 1.05;
-    var broken = rigs.p95 > cards.p50 * 1.10;
-    if (!locked || !broken) return "";
-    return "\n            NOTE: the cards hold a locked " + (1000 / cards.p50).toFixed(0) +
-           "fps and the models push p95 past that" +
-           "\n            budget — comfortable, but no longer locked.";
-  }
-
-  function verdict(rigs, cards, base) {
-    if (rigs.bad || cards.bad || base.bad)
-      return "verdict     NO CALL — a pass was invalidated. Re-run with the window in front.";
-
-    var cost = rigs.p95 - cards.p95;
-    var costLine = "cost of the models   " + (cost >= 0 ? "+" : "") + cost.toFixed(1) +
-                   " ms at p95   (" + cards.p95.toFixed(1) + " -> " + rigs.p95.toFixed(1) + ")" +
-                   "\n                     " + cards.tris.toLocaleString() + " -> " +
-                   rigs.tris.toLocaleString() + " triangles, " +
-                   cards.calls + " -> " + rigs.calls + " draw calls";
-
-    /* THE CAP TEST COMES FIRST, and this is the fix for the 8/22 reading.
-       If an EMPTY arena renders at the same rate as 26 skinned husks, the
-       display is setting the pace and the benchmark simply cannot see how much
-       headroom is left. Reporting that as a verdict about the models — which
-       the first version of this function did, and got backwards — is worse
-       than saying "I can't tell", because it recommends throwing away
-       something that measured free. */
-    var capped = tight(rigs) && tight(cards) && tight(base) &&
-                 near(base.p95, rigs.p95, 2.0);
-    if (capped) {
-      var hz = Math.round(1000 / base.p50);
-      return costLine +
-        "\nverdict     CAPPED AT ~" + hz + "Hz — an empty arena renders at " +
-        base.p50.toFixed(1) + " ms, the same as 26 skinned husks. The display" +
-        "\n            (or Low Power Mode) is setting the pace, not the game." +
-        "\n            Inside that budget the models are FREE: " +
-        (cost >= 0 ? "+" : "") + cost.toFixed(1) + " ms for " +
-        Math.round(rigs.tris / Math.max(1, cards.tris)) + "x the triangles." +
-        "\n            SHIP THEM. What is NOT measured is how much room is left" +
-        "\n            under the cap — re-run with Low Power Mode off, or on a" +
-        "\n            device that will give you 60, to find the real ceiling." +
-        tailLine(rigs, cards);
-    }
-
-    /* Only once the cap is ruled out does the DELTA get to decide — and it
-       decides before any absolute threshold does. A device running at 40fps
-       where the models cost nothing is a device that should keep its models. */
+  function verdict(a, b) {
+    if (a.bad || b.bad) return "verdict     NO CALL — a pass was invalidated. Re-run with the window in front.";
+    var cost = a.p95 - b.p95;
+    var line = "cost of the models   +" + cost.toFixed(1) + " ms at p95   (" +
+               b.p95.toFixed(1) + " -> " + a.p95.toFixed(1) + ")";
     var call;
-    if (cost <= 2.0)
-      call = "FREE — the models cost " + (cost >= 0 ? "+" : "") + cost.toFixed(1) +
-             " ms at p95 for " + Math.round(rigs.tris / Math.max(1, cards.tris)) +
-             "x the triangles.\n            Ship them: HUSKLOD.mode 26." +
-             (rigs.p95 > 28 ? "\n            (The frame rate is low, but the husks are not why — look elsewhere.)" : "");
-    else if (rigs.p95 <= 20.0)
-      call = "HOLDS — 26 skinned husks stay above 50fps at p95, and cost " +
-             cost.toFixed(1) + " ms.\n            Ship them: HUSKLOD.mode 26.";
-    else if (rigs.p95 <= 28.0)
-      call = "LOD — 26 is too many but some is fine. Leave HUSKLOD.mode on \"auto\";" +
-             "\n            it will find the number on its own.";
-    else
-      call = "BILLBOARDS — the models cost " + cost.toFixed(1) +
-             " ms and push p95 past 28.\n            Set HUSKLOD.mode to 0 for touch and keep the cards.";
-    return costLine + "\nverdict     " + call + lockLine(rigs, cards) + tailLine(rigs, cards);
+    if (a.p95 <= 20.0) call = "HOLDS — 26 skinned husks stay above 50fps at p95. Ship them; set HUSKLOD.mode to 26.";
+    else if (a.p95 <= 28.0) call = "LOD — 26 is too many but some is fine. Leave HUSKLOD.mode on \"auto\"; it will find the number.";
+    else call = "BILLBOARDS — the models cost more than they are worth on this device. Set HUSKLOD.mode to 0 for touch and keep the cards.";
+    return line + "\nverdict     " + call;
   }
 
   function finish() {
@@ -4081,10 +3943,6 @@ var BENCH = (function () {
       return;
     }
     on = true; pass = 0; results = [];
-    /* Full pool before anything is sampled. Rig construction is amortised in
-       play on purpose, and a benchmark that measured the ramp instead of the
-       steady state would be describing the wrong thing. */
-    HUSKMODEL.prewarm(HUSKLOD.max);
     saved = { mode: HUSKLOD.mode };
     resetRun();
     game.running = false; game.over = false; game.phase = "idle";
@@ -4092,14 +3950,8 @@ var BENCH = (function () {
     startPass();
   }
 
-  /* Sampling happens in frame(), after the render, on the RAW frame time — the
-     same clock the player experiences, not the fixed sim step. NOTE: `frame()`
-     already calls PERF.push once per frame; this used to push a SECOND copy,
-     which doubled the reported frame count (480 frames in an 8s pass that only
-     rendered 240) and halved the ring buffer's real window. The percentiles
-     survived it — duplicating every sample preserves the distribution — but a
-     frame count that disagrees with the wall clock is exactly the kind of
-     detail that makes a reader distrust a number that was actually fine. */
+  /* Sampling happens in frame(), after the render, on the RAW frame time —
+     the same clock the player experiences, not the fixed sim step. */
   function tick(rawMs) {
     if (!on) return;
     player.iframe = 999;              // nothing may kill the subject mid-measurement
@@ -4107,22 +3959,20 @@ var BENCH = (function () {
     t -= dt;
     if (phase === "warm") {
       if (t <= 0) { PERF.reset(); phase = "run"; t = RUN;
-        say(head() + "\npass " + (pass + 1) + " of " + PASSES.length + " — " +
-            PASSES[pass].label + "\nmeasuring…"); }
+        say(head() + "\npass " + (pass + 1) + " of 2 — measuring…"); }
       return;
     }
     if (phase !== "run") return;
+    PERF.push(rawMs);
     if (t > 0) return;
 
-    results.push(snapshot(PASSES[pass]));
+    results.push(snapshot(pass === 0 ? HUSKLOD.max + " skinned husks" : "26 billboards"));
     pass++;
-    if (pass < PASSES.length) { startPass(); return; }
+    if (pass < 2) { startPass(); return; }
 
     phase = "done";
-    var by = {};
-    for (var i = 0; i < results.length; i++) by[results[i].key] = results[i];
-    say(head() + "\n\n" + results.map(fmt).join("\n\n") + "\n\n" +
-        verdict(by.rigs, by.cards, by.base) +
+    say(head() + "\n\n" + fmt(results[0]) + "\n\n" + fmt(results[1]) + "\n\n" +
+        verdict(results[0], results[1]) +
         "\n\nPaste this onto VR-117.");
   }
 

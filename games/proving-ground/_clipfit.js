@@ -115,6 +115,49 @@ function bindHeight(file) {
   }
   return h;
 }
+/* The biggest translation any animation channel asks for, in metres.
+
+   VR-117 shipped a husk whose `run` clip drove the hips between -10.6 and +1.6
+   on a 1.78m character: the body rendered eleven units under the floor while
+   its contact shadow stayed at its feet, so on screen an enemy was a shadow and
+   nothing else. Every check we owned passed. The BIND pose was correct (the
+   mesh measured 1.78m), the clips were all present, the frame windows all
+   pointed at real motion — because `bindHeight` reads the mesh and the clip
+   readers above read only keyframe TIMES. Nobody read a keyframe VALUE.
+
+   Cause: Blender's `transform_apply` bakes an object's scale into the bone REST
+   data and leaves the location F-curves in the actions untouched, so a merge
+   that applies a scale silently leaves the animation in the old unit system.
+
+   The check is deliberately blunt and unit-free: no joint may be asked to move
+   further than the character is tall. Real motion never comes close; a unit
+   mismatch misses by two orders of magnitude. */
+function maxTranslation(file) {
+  const buf = fs.readFileSync(file);
+  const jsonLen = buf.readUInt32LE(12);
+  const gltf = JSON.parse(buf.slice(20, 20 + jsonLen).toString("utf8"));
+  const binOff = 20 + jsonLen + 8;
+  const BIN = buf.slice(binOff, binOff + buf.readUInt32LE(20 + jsonLen));
+  let worst = 0, where = "";
+  for (const anim of gltf.animations || []) {
+    for (const ch of anim.channels) {
+      if (ch.target.path !== "translation") continue;
+      const a = gltf.accessors[anim.samplers[ch.sampler].output];
+      if (a.type !== "VEC3" || a.componentType !== 5126) continue;
+      const bv = gltf.bufferViews[a.bufferView];
+      const base = (bv.byteOffset || 0) + (a.byteOffset || 0);
+      const stride = bv.byteStride || 12;
+      for (let i = 0; i < a.count; i++) {
+        for (let c = 0; c < 3; c++) {
+          const v = Math.abs(BIN.readFloatLE(base + i * stride + c * 4));
+          if (v > worst) { worst = v; where = anim.name + "/" + (gltf.nodes[ch.target.node].name || "?"); }
+        }
+      }
+    }
+  }
+  return { worst, where };
+}
+
 function declaredHeight(name) {
   const m = html.match(new RegExp(name + "\\s*:\\s*\\{\\s*h:\\s*([0-9.]+)"));
   return m ? parseFloat(m[1]) : NaN;
@@ -371,8 +414,20 @@ for (const who of ["vesper", "husk"]) {
      Math.abs(actual - declared) / declared < 0.06,
      actual.toFixed(2) + "m in the file vs " + declared.toFixed(2) + "m in SPR.DEF");
 }
+for (const who of ["vesper", "husk"]) {
+  const declared = declaredHeight(who);
+  const t = maxTranslation(path.join(MODELS, who + ".glb"));
+  ok(who + ".glb's ANIMATION is in the same units as its mesh",
+     t.worst < declared * 2,
+     "largest joint translation " + t.worst.toFixed(2) + "m (" + t.where +
+     ") against a " + declared.toFixed(2) + "m character");
+}
+ok("the merge script scales the location f-curves when it scales the armature",
+   /_fc\.data_path\.endswith\("\.location"\)/.test(
+     fs.readFileSync(path.join(__dirname, "_tools", "blender", "veilrun_merge_anims.py"), "utf8")),
+   "transform_apply bakes the rest pose and leaves the actions in the old units");
 ok("the merge script multiplies the import scale instead of assigning it",
-   /base_arm\.scale = tuple\(v \* s for v in base_arm\.scale\)/.test(
+   /applied = tuple\(v \* s for v in base_arm\.scale\)/.test(
      fs.readFileSync(path.join(__dirname, "_tools", "blender", "veilrun_merge_anims.py"), "utf8")),
    "assigning threw away Mixamo's 0.01 and shipped a 112x character");
 
@@ -401,6 +456,16 @@ ok("rigged husks still get a contact shadow",
 ok("every clone is rebound to its own skeleton",
    /dm\.bind\(new THREE\.Skeleton\(bones, sm\.skeleton\.boneInverses\), sm\.bindMatrix\)/.test(html),
    "sharing one skeleton is 26 husks moving in lockstep");
+ok("every action is pre-bound at rig construction",
+   /for \(var pb in actions\) actions\[pb\]\.play\(\);/.test(html) &&
+   /for \(var pb2 in actions\) actions\[pb2\]\.stop\(\);/.test(html),
+   "three binds a PropertyMixer per track on FIRST activation — 26 husks all " +
+   "swinging on one frame is the 212ms hitch in the 8/22 uncapped reading");
+ok("rig construction is amortised across frames",
+   /built < HUSKLOD\.buildPerFrame/.test(html) && /buildPerFrame: 2/.test(html),
+   "26 rigs built inside one frame is a stall whoever asked for it");
+ok("the benchmark prewarms the pool instead of measuring the ramp",
+   /HUSKMODEL\.prewarm\(HUSKLOD\.max\);/.test(html));
 ok("r128 skinning is switched on explicitly",
    /mat\.skinning = true;/.test(html), "without it the mesh renders in its bind pose");
 
@@ -416,17 +481,112 @@ ok("auto-LOD refuses to decide on a tainted sample",
 ok("the benchmark samples the UNCLAMPED frame time",
    /var trueMs = now - last;/.test(html) && /PERF\.push\(trueMs\);/.test(html),
    "clamping first would record a 900ms hitch as 250ms");
-ok("the benchmark pins the budget to max for the measured pass",
-   /HUSKLOD\.mode = \(pass === 0\) \? HUSKLOD\.max : 0;/.test(html),
-   "and to zero for the billboard pass, so the delta IS the cost of the models");
+ok("the benchmark pins the budget per pass, and one pass is an EMPTY arena",
+   /HUSKLOD\.mode = \(P\.budget === "max"\) \? HUSKLOD\.max : P\.budget;/.test(html) &&
+   /key: "base",\s+label: "empty arena",\s+husks: 0/.test(html),
+   "without a baseline, a 30Hz display cap is indistinguishable from free models");
 ok("an invalidated pass reports NO CALL rather than a number",
    /NO CALL — a pass was invalidated/.test(html));
+
+/* Both of these are regressions that ALREADY HAPPENED, on the first real
+   reading off a phone (8/22). They are assertions rather than notes for
+   exactly that reason. */
+ok("the cap test runs BEFORE any verdict about the models",
+   /CAPPED AT ~/.test(html) &&
+   html.indexOf("var capped = tight(rigs)") > 0 &&
+   html.indexOf("var capped = tight(rigs)") < html.indexOf("if (cost <= 2.0)"),
+   "both loaded passes pinned to 33ms is a display cap, not a result");
+ok("the DELTA decides before any absolute threshold",
+   html.indexOf("if (cost <= 2.0)") > 0 &&
+   html.indexOf("if (cost <= 2.0)") < html.indexOf("rigs.p95 <= 20.0"),
+   "keying off p95 alone told us to bin models that measured free");
+ok("the frame time is sampled exactly ONCE per frame",
+   (html.match(/PERF\.push\(/g) || []).length === 1,
+   "a second push inside BENCH.tick doubled the reported frame count");
 
 function huskLodMax() {
   const m = html.match(/max:\s*(\d+),\s*\/\/ never above BAL\.C\.liveCap/);
   return m ? +m[1] : NaN;
 }
 function HFITmaxOK() { return huskLodMax() <= C.liveCap; }
+
+/* ---------------- the verdict itself, EXECUTED (VR-117, 8/22) ------------
+   Everything above proves the benchmark's source says the right things. None
+   of it proves the function DECIDES the right things — and on 8/22 it did not:
+   the first real reading off a phone came back with 26 skinned husks and 26
+   billboards both pinned at 34ms p95, a delta of exactly 0.0ms, and the
+   verdict said "BILLBOARDS — the models cost more than they are worth."
+   It had keyed off the absolute p95 and never looked at the delta it had just
+   printed one line above.
+
+   So the decision function is lifted out of index.html and run against real
+   readings, the same way `_touch.js` executes the TOUCH block instead of
+   describing it. The 8/22 numbers are in here verbatim as a regression case. */
+console.log("\n[the verdict decides correctly — run against real readings]");
+{
+  const a = html.indexOf("  function tight(r)");
+  const b = html.indexOf("  function finish()");
+  if (a < 0 || b < 0 || b <= a) die("could not extract the verdict from index.html");
+  const box = { Math, console };
+  vm.createContext(box);
+  new vm.Script(html.slice(a, b) + "\n;module_exports = verdict;",
+                { filename: "index.html#BENCH.verdict" }).runInContext(box);
+  const V = box.module_exports;
+
+  const R = (p50, p95, p99, tris, calls) =>
+    ({ p50, p95, p99, worst: p99 + 2, tris, calls, bad: false, why: "", rigs: 0, n: 300 });
+  // ...and one that sets the tail explicitly, because the tail is a finding
+  const T = (p50, p95, p99, worst, tris, calls) =>
+    ({ p50, p95, p99, worst, tris, calls, bad: false, why: "", rigs: 0, n: 300 });
+
+  // 8/22, Jordan's iPhone, pixel grid off. Both loaded passes pinned to 34ms.
+  const v1 = V(R(33, 34, 34, 1460556, 104), R(33, 34, 35, 21152, 42), R(33, 34, 34, 8000, 30));
+  ok("a display cap is reported as a cap, not as a verdict on the models",
+     /CAPPED AT ~30Hz/.test(v1) && /FREE/.test(v1) && !/BILLBOARDS/.test(v1),
+     "the 8/22 regression: same numbers used to return BILLBOARDS");
+  ok("the capped verdict still says to ship them", /SHIP THEM/.test(v1));
+  ok("the capped verdict admits what it did NOT measure",
+     /NOT measured/.test(v1), "headroom under the cap is unknown, and saying so is the point");
+
+  // same device, cap lifted: empty arena is fast, husks still cost nothing
+  const v2 = V(R(16, 17, 18, 1460556, 104), R(16, 17, 18, 21152, 42), R(8, 9, 10, 8000, 30));
+  ok("free models on an uncapped device are shipped, not budgeted",
+     /FREE/.test(v2) && /HUSKLOD\.mode 26/.test(v2) && !/CAPPED/.test(v2));
+
+  // a device where the models genuinely cost something
+  const v3 = V(R(30, 34, 40, 1460556, 104), R(15, 17, 20, 21152, 42), R(8, 9, 11, 8000, 30));
+  ok("models that genuinely cost the frame rate are sent back to billboards",
+     /BILLBOARDS/.test(v3), "cost 17.0ms and p95 past 28");
+
+  // costly but still comfortably playable -> the LOD, not a retreat
+  const v4 = V(R(20, 22, 25, 1460556, 104), R(14, 15, 17, 21152, 42), R(8, 9, 11, 8000, 30));
+  ok("a middling cost picks the LOD rather than either extreme",
+     /LOD —/.test(v4));
+
+  /* 8/22 again, Low Power Mode OFF — the reading that exposed the third bug.
+     p50/p95/p99 all look fine and the models measure nearly free, and the pass
+     still dropped a single 212ms frame. Every percentile in the report is blind
+     to it; only `worst` saw it, and nothing was reading `worst`. */
+  const v5 = V(T(17, 19, 25, 212, 1460188, 98),
+               T(17, 17, 17,  30,   21172, 44),
+               T( 9,  9, 10,  20,    8000, 30));
+  ok("a 212ms outlier is reported even when p95 says the models are free",
+     /FREE/.test(v5) && /HITCH/.test(v5),
+     "the steady state and the tail are two different findings");
+  ok("the hitch points at construction, not at the frame budget",
+     /being BUILT mid-fight/.test(v5));
+  ok("breaking a locked 60 is named rather than filed under FREE",
+     /no longer locked/.test(v5), "+2ms sounds free; losing vsync does not feel free");
+  ok("a clean tail is reported as clean",
+     /tail        clean/.test(V(T(17, 19, 25, 28, 1460188, 98),
+                                T(17, 17, 17, 26, 21172, 44),
+                                T(9, 9, 10, 20, 8000, 30))));
+
+  // a tainted pass must never produce a number
+  const bad = R(16, 17, 18, 100, 10); bad.bad = true; bad.why = "the tab was hidden";
+  ok("one invalidated pass invalidates the whole call",
+     /NO CALL/.test(V(bad, R(16, 17, 18, 100, 10), R(8, 9, 10, 100, 10))));
+}
 
 console.log("\n" + "=".repeat(58));
 console.log(fails ? "FAIL — " + fails + " of " + checks + " checks" : "PASS — " + checks + " checks");

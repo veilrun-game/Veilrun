@@ -292,7 +292,37 @@ def main():
         # 112x too big. It did not error and it did not look wrong in Blender;
         # it looked wrong in the game, as a grey wall. Vesper never caught this
         # because his wave happened to import at 1.0. (VR-117, 8/22)
-        base_arm.scale = tuple(v * s for v in base_arm.scale)
+        applied = tuple(v * s for v in base_arm.scale)
+        base_arm.scale = applied
+        # SCALE THE ANIMATION TOO. This is the trap the scale fix above opened.
+        #
+        # `transform_apply` bakes the object scale into the bone REST data, but
+        # Blender does NOT touch the location F-curves already sitting in the
+        # actions. Those are in bone-local units — the PRE-scale ones. So the
+        # rest pose comes out correct (the mesh measures 1.78m, every static
+        # check passes) and the moment a clip plays the hips teleport, because
+        # they are still being driven in centimetres.
+        #
+        # It shipped: the husk's `down` clip drove Hips 152m on a 1.78m
+        # character and `run` drove it to -10.6. On screen the body rendered
+        # far under the floor — invisible, while its contact shadow stayed at
+        # the feet, which is exactly how it was reported. Vesper never hit it
+        # because his FBX imported at armature scale 1.0, so nothing was ever
+        # applied. (VR-117, 8/22)
+        _k = (applied[0] + applied[1] + applied[2]) / 3.0
+        _scaled = 0
+        for _act in bpy.data.actions:
+            for _owner in fcurve_owners(_act):
+                for _fc in _owner.fcurves:
+                    if not _fc.data_path.endswith(".location"):
+                        continue
+                    for _kp in _fc.keyframe_points:
+                        _kp.co[1] *= _k
+                        _kp.handle_left[1] *= _k
+                        _kp.handle_right[1] *= _k
+                    _scaled += 1
+        log("scaled %d location f-curves by %.6f to match the applied armature scale"
+            % (_scaled, _k))
         bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
         zs2 = []
         for _m in base_meshes:
