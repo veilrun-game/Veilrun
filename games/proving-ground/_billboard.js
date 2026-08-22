@@ -188,7 +188,14 @@ console.log("\n[hud layout]");
    whatever positioning context it lands in and is a genuine corner risk, while
    a descendant selector is scoped to a stated parent. Matching now requires the
    token to start the selector, which keeps every original catch — `.hud-tr` and
-   `.helpfab`, the pair this was written for, are both single-token. */
+   `.helpfab`, the pair this was written for, are both single-token.
+
+   VR-112 made this cheaper to satisfy rather than harder: the three corner fabs
+   are now children of one `#sysfabs` flex row, so there is exactly one anchored
+   element up there instead of a set of hand-computed `right:` offsets that could
+   collide. (The `.chgs` / `.charges` pair described above no longer exists —
+   both were replaced by segmented fills — but the discriminator still stands and
+   the next descendant selector will need it.) */
 {
   const style = (html.match(/<style>([\s\S]*?)<\/style>/) || [])[1] || "";
   const anchors = {};
@@ -202,8 +209,16 @@ console.log("\n[hud layout]");
   ok("no two top-right elements share an anchor", clashes.length === 0,
      clashes.length ? clashes.join("; ") : Object.keys(anchors).length + " distinct top/right anchors");
 }
-ok("the gear sits clear of the score", /#tunefab\{position:fixed;top:14px;right:16px/.test(html) &&
+/* The gear moved into #sysfabs with VR-112, so this asserts the CLUSTER clears
+   the score rather than one fab's own coordinates. Asserting the container is
+   also what makes VR-113's camera button free: a fourth fab joins the row and
+   this check still means what it says. */
+ok("the system fab cluster sits clear of the score",
+   /#sysfabs\{position:fixed;top:14px;right:16px/.test(html) &&
    /\.hud-tr\{position:absolute;top:58px/.test(html));
+ok("every corner fab is inside that cluster",
+   !/^\s*(\.helpfab|#tunefab|#pausefab|#camfab)\{[^}]*position:fixed/m.test(html),
+   "a fab positioning itself again is how the ? button ended up on top of the score");
 
 console.log("\n[dom sanity]");
 {

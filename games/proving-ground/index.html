@@ -37,21 +37,53 @@ canvas{display:block}
 .waveline{margin-top:10px;display:flex;align-items:baseline;gap:8px}
 #waveno{font-family:var(--font-display);font-size:1.5rem;line-height:1;letter-spacing:.06em}
 #wavesub{font-size:.74rem;color:var(--mute)}
-.hud-tr{position:absolute;top:58px;right:18px;text-align:right}
+/* VR-112 supporting UI. The wave, the kills and the clock were all bare text —
+   true but shapeless. One bar does two jobs here because they are the same
+   question: how long until the next thing comes through. During a wave it fills
+   left-to-right as the wave is emptied; during the breather it DRAINS
+   right-to-left, because that is time running out rather than progress made. */
+#wavecount{margin-left:auto;font-size:.68rem;color:var(--mute);font-variant-numeric:tabular-nums}
+.wavebar{position:relative;height:4px;margin-top:6px;border-radius:2px;background:rgba(8,6,16,.7);
+  border:1px solid var(--line);overflow:hidden}
+#wavefill{position:absolute;inset:0;transform-origin:left center;transform:scaleX(0);
+  background:linear-gradient(90deg,rgba(124,74,182,.9),var(--violet-lt));transition:transform .18s ease}
+.wavebar.milestone #wavefill{background:linear-gradient(90deg,rgba(214,92,220,.75),var(--magenta))}
+.wavebar.knit #wavefill{transform-origin:right center;transition:none;
+  background:linear-gradient(90deg,rgba(60,52,92,.55),var(--violet-lt))}
+/* Milestone waves already carry in-world name/sub strings; the 2.4s banner is
+   easy to miss mid-fight, so the modifier stays on screen while it applies. */
+.wavetag{margin-top:7px;display:none;flex-direction:column;gap:1px;padding:4px 8px;border-radius:6px;
+  border:1px solid rgba(214,92,220,.42);background:rgba(214,92,220,.10)}
+.wavetag.on{display:flex}
+#wavetagn{font-family:var(--font-display);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--magenta)}
+#wavetags{font-size:.63rem;color:var(--mute);line-height:1.25}
+.hud-tr{position:absolute;top:58px;right:18px;text-align:right;padding-right:10px;border-right:2px solid var(--line)}
 #score{font-family:var(--font-display);font-size:1.9rem;line-height:1;letter-spacing:.04em}
-#kills{font-size:.74rem;color:var(--mute);margin-top:3px}
+.trmeta{display:flex;justify-content:flex-end;align-items:baseline;gap:6px;margin-top:4px;
+  font-size:.72rem;color:var(--mute);font-variant-numeric:tabular-nums}
+.trmeta .trdot{opacity:.45}
+#runtime{font-family:var(--font-display);letter-spacing:.06em;color:var(--violet-lt)}
 .hud-b{position:absolute;bottom:26px;left:50%;transform:translateX(-50%);display:flex;gap:16px;align-items:flex-end}
 .pip{width:56px;text-align:center}
 .pipbox{height:46px;border:1px solid var(--line);border-radius:8px;background:rgba(8,6,16,.66);position:relative;overflow:hidden;
   display:flex;align-items:center;justify-content:center}
-.pipfill{position:absolute;inset:0;background:rgba(150,90,230,.34);transform-origin:bottom center;transform:scaleY(0)}
+/* FILL MEANS READINESS, and it fills UPWARD (VR-112). It used to be the inverse —
+   the box drained as the cooldown ran — which reads fine beside a number but not
+   on a button you are pressing. Jordan, 8/17: "the button loading up". The touch
+   pad uses this exact vocabulary on purpose; see #vpad .vfill. A segmented fill
+   also lets Veilstep show BOTH its stock and its recharge in one box: one segment
+   per charge, the next one up filling as it comes back. That replaced the two
+   corner dots, which said stock and nothing about time. */
+.pipsegs{position:absolute;inset:0;display:flex;gap:2px}
+.pipfill{flex:1 1 0;background:rgba(150,90,230,.34);transform-origin:bottom center;transform:scaleY(0)}
 .pipkey{position:relative;font-family:var(--font-display);font-size:1.05rem;letter-spacing:.05em}
 .piplbl{font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);margin-top:5px}
 .pip.ready .pipbox{border-color:var(--accent);box-shadow:0 0 14px rgba(150,90,230,.4)}
 .pip.dim .pipkey{color:var(--mute)}
-.charges{position:absolute;top:4px;right:5px;display:flex;gap:3px}
-.chg{width:6px;height:6px;border-radius:50%;background:var(--line)}
-.chg.on{background:var(--violet-lt);box-shadow:0 0 6px var(--violet-lt)}
+/* A chain kill hands execCd back. Without a pulse the fill just jumps, which
+   reads as a glitch instead of as the reward it is. */
+@keyframes refundpulse{0%{box-shadow:0 0 0 rgba(214,92,220,0)}28%{box-shadow:0 0 18px rgba(214,92,220,.8)}100%{box-shadow:0 0 0 rgba(214,92,220,0)}}
+.pip.refund .pipbox{animation:refundpulse .45s ease}
 #crosshair{position:absolute;top:50%;left:50%;width:5px;height:5px;margin:-2.5px 0 0 -2.5px;border-radius:50%;
   background:rgba(240,238,250,.75);box-shadow:0 0 6px rgba(150,90,230,.9);transition:transform .1s ease}
 #crosshair.hot{transform:scale(2.1);background:var(--magenta)}
@@ -88,11 +120,28 @@ canvas{display:block}
   margin:0 auto 1.3rem;max-width:400px;color:var(--mute)}
 .keys b{font-family:var(--font-display);color:var(--white);letter-spacing:.06em;font-weight:400}
 .keys .hint{grid-column:1/-1;color:var(--violet-lt);font-size:.78rem;padding-top:.35rem;border-top:1px solid rgba(60,52,92,.5);margin-top:.35rem}
-.helpfab{position:fixed;top:14px;right:58px;z-index:15;width:30px;height:30px;border-radius:50%;cursor:pointer;padding:0;
-  border:1px solid var(--line);background:rgba(14,12,28,.8);color:var(--mute);font-family:var(--font-display);font-size:.9rem;line-height:1;
-  opacity:0;pointer-events:none;transition:opacity .3s,border-color .15s,color .15s}
-.helpfab.on{opacity:.8;pointer-events:auto}
-.helpfab:hover,.helpfab:focus-visible{border-color:var(--accent);color:var(--white);opacity:1;outline:none}
+/* ---------- system chrome cluster (VR-112) ----------------------------------
+   Pause and Settings used to live in the pad, taking two of six cells away from
+   gameplay. They are system verbs, not combat verbs, so they belong up here with
+   Help — and the pad gets to be four big targets instead of six small ones.
+
+   A FLEX ROW, deliberately, not three fixed elements with hand-computed `right:`
+   offsets. The old pair was `right:58px` / `right:16px`, which means adding a
+   fourth fab (VR-113's camera) meant re-deriving both. Now order is source order.
+   Run-only fabs keep their slot when hidden so ⚙ never moves under your thumb.
+   -------------------------------------------------------------------------- */
+#sysfabs{position:fixed;top:14px;right:16px;z-index:41;display:flex;align-items:center;gap:8px;pointer-events:none}
+.sysfab{width:34px;height:34px;border-radius:9px;padding:0;cursor:pointer;pointer-events:auto;
+  border:1px solid var(--line);background:rgba(14,12,28,.8);color:var(--mute);
+  font-family:var(--font-display);font-size:1rem;line-height:1;
+  display:flex;align-items:center;justify-content:center;
+  transition:opacity .3s,border-color .15s,color .15s}
+.sysfab:hover,.sysfab:focus-visible{border-color:var(--accent);color:var(--white);opacity:1;outline:none}
+.sysfab[hidden]{display:none}
+/* Help and Pause only mean anything inside a live run, but they hold their slot
+   so the cluster never reflows mid-fight. */
+.sysfab.runonly{opacity:0;pointer-events:none}
+.sysfab.runonly.on{opacity:.8;pointer-events:auto}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem;margin:1.2rem 0}
 .stat{border:1px solid var(--line);border-radius:10px;padding:.7rem .3rem;background:rgba(11,8,24,.6)}
 .stat .v{font-family:var(--font-display);font-size:1.5rem;line-height:1}
@@ -127,18 +176,22 @@ canvas{display:block}
 .tval{width:40px;text-align:right;color:var(--violet-lt);font-variant-numeric:tabular-nums}
 .tnote{color:var(--mute);font-size:.68rem;margin:-2px 0 8px;line-height:1.35}
 #tune .btn{width:100%;margin-top:8px;padding:.5rem;font-size:.78rem}
-#tunefab{position:fixed;top:14px;right:16px;z-index:41;width:34px;height:34px;border-radius:9px;
-  border:1px solid var(--line);background:rgba(8,6,16,.7);color:var(--mute);cursor:pointer;
-  pointer-events:auto;font-size:1rem;line-height:1}
-#tunefab:hover{color:var(--white);border-color:var(--accent)}
 #tunecopy{font-size:.66rem;color:var(--mute);margin-top:6px;line-height:1.4}
 
-/* ---------- touch layout + pad (VR-79 mobile pass) --------------------------
+/* ---------- touch layout + pad (VR-79 mobile pass, reshaped by VR-112) ------
    Deliberately shaped like the 2D track's controller (games/_engine/engine.js
-   VE.Controller) — same circle-in-circle stick on the left, same 3x2 grid on
+   VE.Controller) — same circle-in-circle stick on the left, a button grid on
    the right — but written inline, because the 3D track does NOT load the 2D
    engine and a single-file game can't import half of one. If the 2D pad's
    ergonomics change, this is the file that has to be changed with it.
+
+   DIVERGENCE FROM VE.Controller, recorded because the two are meant to move
+   together: the 2D pad is 3x2. This one is 2x2 as of VR-112. Vesper has four
+   verbs, and the two cells that were carrying Pause and Settings were spending
+   a third of the pad on things that are not gameplay (Jordan, 8/17: "6 actions
+   clustered in the bottom, two of which aren't gameplay, has just felt like a
+   lot"). Those moved to #sysfabs. A 2D pair level with more than four verbs
+   should keep 3x2 rather than copying this.
 
    The layout is a split, not an overlay: the canvas gets the window ABOVE the
    pad rather than living behind translucent buttons. Overlaid controls on a
@@ -168,18 +221,36 @@ canvas{display:block}
   #vpad{display:flex}
   .touchonly{display:block}
   #tune{width:min(320px,88vw)}
-  /* both fabs are thumb targets on touch, not cursor targets */
-  .helpfab{width:38px;height:38px;top:12px;right:60px;font-size:1rem}
-  #tunefab{width:38px;height:38px;top:12px;right:12px}
+  /* These are thumb targets on touch, not cursor targets. They shipped at 38px,
+     which is under the 44x44 floor every touch guideline agrees on — fixed here
+     with VR-112, which is also what moved Pause up into this cluster. */
+  #sysfabs{top:12px;right:12px;gap:10px}
+  .sysfab{width:44px;height:44px;font-size:1.05rem}
+  /* Both HUD corners drop below the fab row rather than squeezing past it — at
+     44px the cluster is wide enough to sit on top of the HP number on a 390px
+     screen, which is how the first VR-112 render came out. */
+  .hud-tl{top:64px;width:min(270px,56vw)}
+  .hud-tr{top:64px}
+  /* The bottom pips ARE the pad now: same two abilities, same fill vocabulary —
+     and their keycaps read "Shift" and "RMB" to someone holding a phone. Showing
+     both is precisely the second visual language this card exists to remove. */
+  .hud-b{display:none}
+  #shroudlbl{bottom:calc(var(--padh) + 24px)}
   .panel{max-height:88vh;overflow-y:auto}
 }
 
-#vpad{flex:0 0 auto;width:100%;justify-content:space-between;align-items:center;gap:10px;
+/* --stickw is the pad's height budget: the stick is the tallest thing in the row,
+   so the grid claims the SAME height instead of sitting content-sized inside it.
+   That is where VR-112's bigger buttons come from — two rows across the stick's
+   diameter, and the full remaining width, rather than three narrow columns.
+   Nothing here makes the pad taller, so the gameplay window is unchanged. */
+#vpad{--stickw:clamp(92px,30vw,132px);
+  flex:0 0 auto;width:100%;justify-content:space-between;align-items:center;gap:10px;
   padding:8px 10px calc(8px + env(safe-area-inset-bottom));user-select:none;-webkit-user-select:none;
   background:rgba(8,6,15,.55);border-top:1px solid var(--line);touch-action:none;box-sizing:border-box;
   z-index:16}
 /* left analog stick — drag or tap a direction */
-#vpad .vstick{position:relative;flex:0 0 auto;width:clamp(92px,30vw,132px);aspect-ratio:1/1;border-radius:50%;
+#vpad .vstick{position:relative;flex:0 0 auto;width:var(--stickw);aspect-ratio:1/1;border-radius:50%;
   background:radial-gradient(circle at 50% 42%,rgba(42,36,66,.92),rgba(15,12,28,.92));
   border:1px solid var(--line);touch-action:none}
 #vpad .vstick .varrow{position:absolute;color:#8f89a8;font-size:13px;line-height:1;pointer-events:none}
@@ -191,36 +262,53 @@ canvas{display:block}
   background:rgba(150,90,230,.26);border:1px solid rgba(183,156,237,.75);transition:transform .04s linear;pointer-events:none}
 #vpad .vstick.on{border-color:rgba(183,156,237,.7)}
 #vpad .vstick.on .vknob{background:rgba(150,90,230,.5)}
-/* right 3x2 grid */
-#vpad .vgrid{flex:1 1 auto;min-width:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
-  grid-auto-rows:1fr;gap:6px;max-width:360px}
+/* right 2x2 grid (VR-112). No max-width: the grid takes every pixel the stick
+   isn't using, which is what makes the cells wide. `minmax(44px,1fr)` rows are a
+   FLOOR, not a size — on a phone the stick's ~117px gives ~54px rows, and only on
+   a very narrow screen do the rows push the pad a few px taller than the stick.
+   The 520px cap only bites on a tablet, where four half-screen buttons would be
+   absurd rather than generous. */
+#vpad .vgrid{flex:1 1 auto;min-width:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  grid-template-rows:repeat(2,minmax(44px,1fr));gap:8px;max-width:520px;min-height:var(--stickw)}
 #vpad .vbtn{position:relative;border-radius:12px;background:rgba(30,26,52,.85);border:1px solid var(--line);
-  color:var(--white);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
-  min-height:clamp(44px,10vw,58px);touch-action:none;text-align:center;line-height:1.05;
+  color:var(--white);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  min-height:44px;touch-action:none;text-align:center;line-height:1.05;
   font-family:inherit;overflow:hidden;padding:0}
 #vpad .vbtn:active{background:rgba(150,90,230,.5)}
-#vpad .vbtn .ico{font-size:clamp(15px,4.4vw,19px);line-height:1}
-#vpad .vbtn .lbl{font-size:clamp(8px,2.6vw,10px);line-height:1.05;color:#cfc9e6;max-width:96%;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#vpad .vbtn.vsys{background:rgba(22,18,38,.92)}
+#vpad .vbtn .ico{position:relative;font-size:clamp(18px,5.4vw,24px);line-height:1}
+#vpad .vbtn .lbl{position:relative;font-size:clamp(9px,3vw,12px);line-height:1.05;color:#cfc9e6;max-width:96%;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:.02em}
 /* Stalk latches — a crouched creep you hold for seconds isn't a thumb you can spare */
 #vpad .vbtn.on{background:rgba(150,90,230,.42);border-color:var(--accent)}
-/* spent/charging states mirror the HUD pips so the pad isn't a second language */
-#vpad .vbtn.vdim{opacity:.42}
-#vpad .vbtn .chgs{position:absolute;top:4px;right:5px;display:flex;gap:3px}
-#vpad .vbtn .chgs i{width:5px;height:5px;border-radius:50%;background:var(--line)}
-#vpad .vbtn .chgs i.on{background:var(--violet-lt);box-shadow:0 0 6px var(--violet-lt)}
+#vpad .vbtn.vready{border-color:var(--accent)}
+/* THE COOLDOWN IS THE BUTTON (VR-112). Same vocabulary as .pipsegs/.pipfill in
+   the HUD — fill means readiness and grows upward — so the pad is not a second
+   visual language for the same two abilities. One .vfill fills a whole button
+   (Execute); two fill half each (Veilstep: one segment per charge, the next one
+   up filling on the stepRecharge timer, so stock AND time read at a glance).
+   Dimming is on the glyph only, never the button, or the fill would fade with it. */
+#vpad .vbtn .vfills{position:absolute;inset:0;display:flex;gap:2px;pointer-events:none}
+#vpad .vbtn .vfill{flex:1 1 0;background:rgba(150,90,230,.34);transform-origin:bottom center;transform:scaleY(0)}
+#vpad .vbtn.vdim .ico,#vpad .vbtn.vdim .lbl{opacity:.42}
+#vpad .vbtn.refund{animation:refundpulse .45s ease}
 
 </style>
 </head>
 <body>
 <div id="stage"></div>
 
-<!-- Touch pad (VR-79 mobile pass). Present in the DOM always, shown only by the
-     touch media query, so desktop pays nothing for it. Row 1 is Vesper's three
-     combat verbs; row 2 is Stalk plus the two system slots. Buttons are inert
-     until a run is live — the start/pause screens cover the pad anyway, but the
-     pad stays in layout so starting a run doesn't resize the canvas underneath. -->
+<!-- Touch pad (VR-79 mobile pass, reshaped to 2x2 by VR-112). Present in the DOM
+     always, shown only by the touch media query, so desktop pays nothing for it.
+     Four verbs, no system buttons — Pause and Settings live in #sysfabs now.
+
+     Reading order is deliberate: column 1 is the combat pair, column 2 is the
+     mobility pair, and the constantly-pressed verbs (Strike, Stalk) sit on the
+     bottom row where the thumb rests. Execute and Veilstep take the top row
+     because they are the two with a fill to watch.
+
+     Buttons are inert until a run is live — the start/pause screens cover the pad
+     anyway, but the pad stays in layout so starting a run doesn't resize the
+     canvas underneath. -->
 <div id="vpad" aria-label="Touch controls">
   <div class="vstick" id="vstick">
     <span class="varrow vup">▲</span>
@@ -230,13 +318,12 @@ canvas{display:block}
     <div class="vknob" id="vknob"></div>
   </div>
   <div class="vgrid">
-    <button class="vbtn" data-k="strike"><span class="ico">✦</span><span class="lbl">Strike</span></button>
-    <button class="vbtn" data-k="exec" id="vb-exec"><span class="ico">◈</span><span class="lbl">Execute</span></button>
-    <button class="vbtn" data-k="step" id="vb-step"><span class="ico">★</span><span class="lbl">Veilstep</span>
-      <span class="chgs"><i id="vchg0"></i><i id="vchg1"></i></span></button>
+    <button class="vbtn" data-k="exec" id="vb-exec"><span class="vfills"><i class="vfill" id="vf-exec"></i></span>
+      <span class="ico">◈</span><span class="lbl">Execute</span></button>
+    <button class="vbtn" data-k="step" id="vb-step"><span class="vfills"><i class="vfill" id="vf-step0"></i><i class="vfill" id="vf-step1"></i></span>
+      <span class="ico">★</span><span class="lbl">Veilstep</span></button>
+    <button class="vbtn" data-k="strike" id="vb-strike"><span class="ico">✦</span><span class="lbl">Strike</span></button>
     <button class="vbtn" data-k="stalk" id="vb-stalk"><span class="ico">⊹</span><span class="lbl">Stalk</span></button>
-    <button class="vbtn vsys" data-k="pause"><span class="ico">❚❚</span><span class="lbl">Pause</span></button>
-    <button class="vbtn vsys" data-k="tune"><span class="ico">⚙</span><span class="lbl">Settings</span></button>
   </div>
 </div>
 
@@ -244,13 +331,21 @@ canvas{display:block}
   <div class="hud-tl">
     <div class="hplbl"><span class="eyebrow">Vesper</span><span id="hpnum">100</span></div>
     <div class="hpwrap"><div id="hpghost"></div><div id="hpfill"></div></div>
-    <div class="waveline"><span id="waveno">1</span><span id="wavesub">wave</span></div>
+    <div class="waveline"><span id="waveno">1</span><span id="wavesub">wave</span><span id="wavecount"></span></div>
+    <div class="wavebar" id="wavebar"><div id="wavefill"></div></div>
+    <div class="wavetag" id="wavetag"><b id="wavetagn"></b><span id="wavetags"></span></div>
   </div>
-  <div class="hud-tr"><div id="score">0</div><div id="kills">0 kills</div></div>
+  <div class="hud-tr">
+    <div id="score">0</div>
+    <div class="trmeta"><span id="kills">0 kills</span><span class="trdot">·</span><span id="runtime">0:00</span></div>
+  </div>
   <div class="hud-b">
-    <div class="pip" id="pip-step"><div class="pipbox"><div class="pipfill" id="fill-step"></div><span class="pipkey">Shift</span>
-      <span class="charges"><i class="chg" id="chg0"></i><i class="chg" id="chg1"></i></span></div><div class="piplbl">Veilstep</div></div>
-    <div class="pip" id="pip-exec"><div class="pipbox"><div class="pipfill" id="fill-exec"></div><span class="pipkey">RMB</span></div><div class="piplbl">Execute</div></div>
+    <div class="pip" id="pip-step"><div class="pipbox">
+      <div class="pipsegs"><div class="pipfill" id="fill-step0"></div><div class="pipfill" id="fill-step1"></div></div>
+      <span class="pipkey">Shift</span></div><div class="piplbl">Veilstep</div></div>
+    <div class="pip" id="pip-exec"><div class="pipbox">
+      <div class="pipsegs"><div class="pipfill" id="fill-exec"></div></div>
+      <span class="pipkey">RMB</span></div><div class="piplbl">Execute</div></div>
   </div>
   <div id="crosshair"></div>
   
@@ -265,7 +360,17 @@ canvas{display:block}
 <div id="pausehint">Esc — release cursor</div>
 <div id="camtag">V — third person</div>
 <div id="fps"></div>
-<button class="helpfab" id="helpfab" aria-label="Controls and abilities" title="Controls and abilities (H)">?</button>
+<!-- System chrome (VR-112). Source order IS screen order, left to right.
+     VR-113 SLOT: #camfab is placed, sized and styled but `hidden` — landing the
+     camera toggle is removing that attribute and adding one listener calling
+     toggleCam(), not a relayout. Left hidden rather than half-wired so nothing
+     ships a button that looks live and does nothing. -->
+<div id="sysfabs">
+  <button class="sysfab runonly" id="helpfab" aria-label="Controls and abilities" title="Controls and abilities (H)">?</button>
+  <button class="sysfab runonly" id="pausefab" aria-label="Pause the run" title="Pause (Esc)">❚❚</button>
+  <button class="sysfab" id="camfab" aria-label="Camera view" title="Camera view (V)" hidden>▣</button>
+  <button class="sysfab" id="tunefab" aria-label="Settings" title="Settings  (\ key)">⚙</button>
+</div>
 
 <div class="screen" id="s-help">
   <div class="panel">
@@ -279,7 +384,6 @@ canvas{display:block}
   </div>
 </div>
 
-<button id="tunefab" title="Settings  (\ key)">⚙</button>
 <div id="tune">
   <h3>Arena</h3>
   <div class="trow"><label>Map</label><select id="t-map"></select></div>
@@ -1290,19 +1394,27 @@ var TPAD = (function () {
     if (moveId != null) { moveId = null; clearMove(); }
   });
 
-  /* ---- right grid -------------------------------------------------------
+  /* ---- right 2x2 grid ---------------------------------------------------
+     Four verbs, all gameplay — Pause and Settings moved to #sysfabs with VR-112,
+     and this handler no longer knows about either. Nothing here may reach a
+     system verb again: a system button inside the pad is a system button behind
+     the inert-when-not-live gate, which is how you get a Settings panel you
+     can't open on the death screen.
+
      Strike sets mouse.l as well as pressed.strike so a held button chains the
-     three-hit combo through the identical branch the desktop left button uses. */
+     three-hit combo through the identical branch the desktop left button uses.
+
+     FUTURE (Jordan, 8/17 — "layer things like adding a hold for a slightly
+     different effect"): a long-press variant hangs off this same pointerdown —
+     start a timer, and if it survives past the threshold without a pointerup,
+     fire the alternate verb and swallow the tap. Deliberately not built yet;
+     four verbs are the thing being tested first, and a hidden second verb per
+     button is not something to ship untested alongside a layout change. */
   var strikeId = null;
   pad.querySelectorAll(".vgrid .vbtn").forEach(function (btn) {
     var k = btn.getAttribute("data-k");
     btn.addEventListener("pointerdown", function (e) {
       e.preventDefault();
-      if (k === "tune") { TUNE.toggle(); return; }
-      if (k === "pause") {
-        if (game.running && !game.over) setPaused(!game.paused);
-        return;
-      }
       if (!live()) return;
       if (k === "strike") { strikeId = e.pointerId; mouse.l = true; pressed.strike = true; }
       else if (k === "exec") { pressed.exec = true; }
@@ -1348,13 +1460,24 @@ var TPAD = (function () {
   cv.addEventListener("pointerup", endLook);
   cv.addEventListener("pointercancel", endLook);
 
-  /* ---- state the pad shows back ---------------------------------------- */
+  /* ---- state the pad shows back -----------------------------------------
+     The cooldown IS the button now (VR-112). These read execFill()/stepFill() —
+     the same two functions updateHUD() uses for the pips — so the pad cannot
+     drift into a second visual language for one cooldown. The corner charge dots
+     are gone: two fill segments say stock AND recharge, which the dots could not. */
   var bStep = $("vb-step"), bExec = $("vb-exec"), bStalk = $("vb-stalk");
-  var chg = [$("vchg0"), $("vchg1")];
+  var fExec = $("vf-exec"), fStep = [$("vf-step0"), $("vf-step1")];
+  var padExecPrev = 0;
   api.refresh = function () {
-    for (var i = 0; i < 2; i++) chg[i].classList.toggle("on", player.stepCharges > i);
+    for (var i = 0; i < 2; i++) fStep[i].style.transform = "scaleY(" + stepFill(i) + ")";
+    fExec.style.transform = "scaleY(" + execFill() + ")";
     bStep.classList.toggle("vdim", player.stepCharges === 0);
     bExec.classList.toggle("vdim", player.execCd > 0);
+    bExec.classList.toggle("vready", player.execCd <= 0);
+    bStep.classList.toggle("vready", player.stepCharges > 0);
+    // chain-kill refund: the fill jumps back up, so say so
+    if (player.execCd > 0 && padExecPrev > 0 && player.execCd < padExecPrev - 0.4) pulseRefund(bExec);
+    padExecPrev = player.execCd;
   };
   api.release = function () {
     moveId = null; strikeId = null; lookId = null;
@@ -1506,12 +1629,38 @@ var game = {
 var HUD = {
   hpfill: $("hpfill"), hpghost: $("hpghost"), hpnum: $("hpnum"),
   waveno: $("waveno"), wavesub: $("wavesub"), score: $("score"), kills: $("kills"),
-  fillStep: $("fill-step"), fillExec: $("fill-exec"),
+  wavebar: $("wavebar"), wavefill: $("wavefill"), wavecount: $("wavecount"),
+  wavetag: $("wavetag"), wavetagn: $("wavetagn"), wavetags: $("wavetags"), runtime: $("runtime"),
+  fillStep: [$("fill-step0"), $("fill-step1")], fillExec: $("fill-exec"),
   pipStep: $("pip-step"), pipExec: $("pip-exec"),
-  chg: [$("chg0"), $("chg1")],
   vig: $("vignette"), shroudv: $("shroudv"), shroudlbl: $("shroudlbl"),
   cross: $("crosshair"), banner: $("banner"), dmg: $("dmgnum"), root: $("hud")
 };
+
+/* ---- one readiness vocabulary, shared by the HUD pips and the touch pad ----
+   VR-112. Both surfaces call THESE, rather than each deriving a fraction from
+   player state, because the pad drifting away from the pips is exactly how a
+   build ends up with two visual languages for one cooldown. Fill is READINESS:
+   0 is spent, 1 is ready to press, and it grows upward.
+
+   stepFill(i) is the whole Veilstep idea in three lines — segment i is banked if
+   you have more charges than i, is the one currently recharging if i equals the
+   charge count, and is empty above that. Stock and timer, one control. */
+function execFill() { return 1 - clamp(player.execCd / C.execCd, 0, 1); }
+function stepFill(i) {
+  if (player.stepCharges > i) return 1;
+  if (player.stepCharges === i) return clamp(player.stepTimer / C.stepRecharge, 0, 1);
+  return 0;
+}
+/* Restart the pulse even if it is already running — a fast chain can refund
+   twice inside one animation, and without the reflow the second one is silent. */
+var execPrev = 0;
+function pulseRefund(el) {
+  if (!el) return;
+  el.classList.remove("refund");
+  void el.offsetWidth;
+  el.classList.add("refund");
+}
 function banner(a, b) {
   HUD.banner.querySelector(".b1").textContent = a;
   HUD.banner.querySelector(".b2").textContent = b || "";
@@ -2075,6 +2224,9 @@ function updateWaves(dt) {
       game.breather = C.breather;
       player.hp = Math.min(C.playerHp, player.hp + 10);
       banner("Wave " + game.wave + " cleared", "The seam knits — for a moment");
+      // the breather is a beat, not a dead pause: the wave line says so while
+      // the bar counts it down (VR-112)
+      HUD.wavesub.textContent = "the seam knits";
     }
   } else if (game.phase === "breather") {
     game.breather -= dt;
@@ -2092,18 +2244,44 @@ function updateHUD() {
   game.score = BAL.scoreFor({ waves: Math.max(0, game.wave - 1), kills: game.kills, executes: game.executes, time: game.time });
   HUD.score.textContent = game.score;
   HUD.kills.textContent = game.kills + (game.kills === 1 ? " kill" : " kills");
+  var secs = Math.max(0, Math.floor(game.time));
+  HUD.runtime.textContent = Math.floor(secs / 60) + ":" + ("0" + (secs % 60)).slice(-2);
 
-  // veilstep charges + recharge
-  for (var i = 0; i < 2; i++) HUD.chg[i].classList.toggle("on", player.stepCharges > i);
-  var stepF = player.stepCharges >= C.stepCharges ? 0 : 1 - player.stepTimer / C.stepRecharge;
-  HUD.fillStep.style.transform = "scaleY(" + stepF + ")";
+  /* ---- wave shape (VR-112) --------------------------------------------
+     One bar, two jobs. Mid-wave it fills as the wave empties: everything still
+     owed you is toSpawn plus whatever is standing. Between waves it becomes the
+     breather draining, so the 3 seconds read as a held beat rather than as the
+     game having stopped. */
+  var knitting = game.phase === "breather", wf = 0;
+  if (knitting) {
+    wf = clamp(game.breather / C.breather, 0, 1);
+    HUD.wavecount.textContent = "";
+  } else if (game.spec) {
+    var left = game.toSpawn + liveCount();
+    wf = clamp(1 - left / Math.max(1, game.spec.count), 0, 1);
+    HUD.wavecount.textContent = left > 0 ? left + " left" : "";
+  }
+  HUD.wavefill.style.transform = "scaleX(" + wf + ")";
+  HUD.wavebar.classList.toggle("knit", knitting);
+  HUD.wavebar.classList.toggle("milestone", !knitting && !!(game.spec && game.spec.milestone));
+  var mile = knitting ? null : (game.spec && game.spec.milestone);
+  HUD.wavetag.classList.toggle("on", !!mile);
+  if (mile && HUD.wavetagn.textContent !== mile.name) {
+    HUD.wavetagn.textContent = mile.name;
+    HUD.wavetags.textContent = mile.sub;
+  }
+
+  // veilstep: one segment per charge, the next one up filling on stepRecharge
+  for (var i = 0; i < 2; i++) HUD.fillStep[i].style.transform = "scaleY(" + stepFill(i) + ")";
   HUD.pipStep.classList.toggle("ready", player.stepCharges > 0);
   HUD.pipStep.classList.toggle("dim", player.stepCharges === 0);
 
-  var execF = clamp(player.execCd / C.execCd, 0, 1);
-  HUD.fillExec.style.transform = "scaleY(" + execF + ")";
+  HUD.fillExec.style.transform = "scaleY(" + execFill() + ")";
   HUD.pipExec.classList.toggle("ready", player.execCd <= 0);
   HUD.pipExec.classList.toggle("dim", player.execCd > 0);
+  // a chain kill claws execCd back; pulse so the jump reads as a reward
+  if (player.execCd > 0 && execPrev > 0 && player.execCd < execPrev - 0.4) pulseRefund(HUD.pipExec);
+  execPrev = player.execCd;
 
   // the pad mirrors the pips rather than inventing a second vocabulary for the
   // same two cooldowns — no-op on desktop
@@ -2176,6 +2354,7 @@ function startRun() {
   $("s-over").classList.remove("on");
   $("s-help").classList.remove("on");
   $("helpfab").classList.add("on");
+  $("pausefab").classList.add("on");
   $("camtag").classList.add("on");
   if (wantsLock()) renderer.domElement.requestPointerLock();
   var tries = +(localStorage.getItem(LS + "tries") || 0) + 1;
@@ -2200,6 +2379,7 @@ function endRun() {
     HUD.root.classList.remove("on");
     $("pausehint").classList.remove("on");
     $("helpfab").classList.remove("on");
+    $("pausefab").classList.remove("on");
     $("camtag").classList.remove("on");
     $("o-score").textContent = score;
     $("o-best").textContent = isBest ? "New personal best" : "Personal best " + Math.max(best, score);
@@ -2243,12 +2423,12 @@ if (TOUCH) {
     '<b>★ Veilstep</b><span>Blink through anything, two charges</span>' +
     '<b>⊹ Stalk</b><span>A creep slow enough to keep the Shroud — tap on, tap off</span>' +
     '<b>Drag</b><span>Look and aim, in third and first person</span>' +
-    '<b>⚙ Settings</b><span>Camera view, how much arena fits, look speed</span>' +
+    '<b>❚❚ · ⚙</b><span>Top right — pause the arena, or change camera view, how much arena fits and look speed</span>' +
     '<span class="hint">Stand perfectly still for a moment and the Shroud takes you — they lose you, and your next strike kills outright. Standing still is also how you die.</span>';
   var foot = document.querySelector("#s-start .foot");
   if (foot) foot.textContent = "Prototype v0 — one character, endless waves. Touch controls, all three camera views.";
   var hfoot = document.querySelector("#s-help .foot");
-  if (hfoot) hfoot.textContent = "? — open this any time · Pause on the pad freezes the arena";
+  if (hfoot) hfoot.textContent = "? — open this any time · ❚❚ top right freezes the arena";
 }
 // Single source of truth for the legend: mirror the start screen's list into the help overlay.
 $("help-keys").innerHTML = document.querySelector("#s-start .keys").innerHTML;
@@ -2982,6 +3162,12 @@ initSprites();
 MODEL.load();
 TUNE.build();
 $("tunefab").addEventListener("click", function () { TUNE.toggle(); });
+/* Pause moved out of the pad with VR-112. Wired here rather than inside the
+   TOUCH block on purpose: it is a plain click that should work on a desktop too,
+   and system verbs must NOT sit behind the pad's inert-when-not-live gate. */
+$("pausefab").addEventListener("click", function () {
+  if (game.running && !game.over) setPaused(!game.paused);
+});
 cam.mode = "first"; toggleCam(); // -> arcade, the v1 default
 setPaused(false);
 requestAnimationFrame(frame);
