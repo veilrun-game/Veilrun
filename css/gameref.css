@@ -122,6 +122,17 @@
 .gr-quote { font-size: .88rem; line-height: 1.45; }
 .gr-quote::before { content: "\201C"; opacity: .5; }
 .gr-quote::after { content: "\201D"; opacity: .5; }
+/* A long take is clamped, not truncated (VR-120) — the whole string is in the DOM, so
+   find-in-page and screen readers get all of it and only the layout is capped. Without
+   this, one person's four paragraphs set the height of the column for the nine people who
+   wrote a sentence. `-webkit-line-clamp` is the right tool despite the prefix: it is the
+   only way to cut on a LINE boundary, and every browser we support implements it. */
+.gr-long .gr-quote { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;
+  overflow: hidden; }
+.gr-readmore { align-self: flex-start; margin-top: .3rem; background: none; border: none;
+  padding: 0; cursor: pointer; font-family: inherit; font-size: .76rem; color: var(--magenta);
+  text-decoration: underline; }
+.gr-readmore:focus-visible { outline: 2px solid var(--magenta); outline-offset: 2px; }
 .gr-none { font-size: .82rem; color: var(--mute); font-style: italic; margin: 0; }
 .gr-hidden { display: none; }
 .gr-more { margin-top: .5rem; background: none; border: none; padding: 0; cursor: pointer;

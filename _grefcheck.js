@@ -206,7 +206,11 @@ has(CARD("helldivers2", [note("SomeGuest", "x", "y")], fixtureRefs), "SomeGuest"
   "identity: a non-crew name is shown as typed rather than dropped");
 has(html1, "drop-in drop-out", "1 take: the love quote renders");
 has(html1, "grind between missions", "1 take: the gripe quote renders");
-hasnt(html1, "more</button>", "1 take: no disclosure button when there's nothing hidden");
+// Matched on the "+n more" shape rather than the bare substring "more</button>": VR-120
+// added a **Read more</button>** for long takes, and the loose match would have called a
+// single long take a hidden-quote disclosure. Found by mutation-testing VR-120, not by
+// reading — the two buttons only collide when one take is both alone and long.
+ok(!/\+\d+ more<\/button>/.test(html1), "1 take: no disclosure button when there's nothing hidden");
 has(html1, "1 take", "1 take: singular, not '1 takes'");
 
 var three = [
@@ -344,6 +348,35 @@ var other = CARD("seaofthieves", [note("Todd", "a", "b")], fixtureRefs);
 has(other, 'aria-expanded="false"', "toggle: opening one card does not open its neighbours");
 A.grefToggle("helldivers2");
 has(CARD("helldivers2", three, fixtureRefs), 'aria-expanded="false"', "toggle: toggling again closes it");
+
+/* ---- 9e. a long take is CLAMPED, never truncated (VR-120) ----------------
+   The fourth cap on this page, and the only one that caps a single person rather than a
+   count. The failure it exists for: one four-paragraph take sets the height of the column
+   for the nine people who wrote a sentence.
+   The load-bearing assertion is that the FULL string still reaches the DOM — if this ever
+   becomes a substring operation the page silently starts eating the ends of people's
+   takes, and nothing else here would notice. */
+var LONG = "x".repeat(400), SHORT = "a short and punchy take";
+var longNote = [note("Todd", LONG, SHORT)];
+h = CARD("helldivers2", longNote, fixtureRefs);
+has(h, LONG, "long take: the ENTIRE text is in the DOM — clamped by CSS, never cut");
+has(h, "gr-long", "long take: the row is marked for clamping");
+has(h, "Read more", "long take: …and offers to un-clamp");
+hasnt(h, "x".repeat(400) + "…", "long take: no ellipsis is baked into the string itself");
+// A short take must NOT get a button — a Read more over three words is noise, and it would
+// appear on almost every row, which is the same wall by another route.
+ok(h.indexOf("gr-long") === h.lastIndexOf("gr-long"),
+  "short take: only the long side is marked (the punchy one is left alone)");
+ok((h.match(/Read more/g) || []).length === 1, "short take: exactly one Read more, on the long quote");
+// The threshold has to sit between "a sentence" and "a paragraph" or it is doing nothing.
+// 220 chars is roughly five lines against a four-line clamp.
+var midNote = [note("Todd", "y".repeat(150), "")];
+hasnt(CARD("helldivers2", midNote, fixtureRefs), "Read more",
+  "threshold: a 150-character take is normal writing and is left unclamped");
+// Read more and "+n more" are different disclosures and must not be counted as each other.
+ok(!/\+\d+ more/.test('<button class="gr-readmore">Read more</button>'),
+  "Read more does not match the +n more pattern the quote-count checks rely on");
+ok(typeof A.grefExpand === "function", "grefExpand is exported for the Read more buttons");
 
 /* ---- 10. the page renders offline without throwing ---------------------- */
 var view = A.route ? null : null;

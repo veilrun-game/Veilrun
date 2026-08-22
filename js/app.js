@@ -1991,7 +1991,27 @@ window.VApp = (function () {
   function grefQuotes(notes, field, slug, side) {
     const rows = notes.filter(t => (t[field] || "").trim());
     if (!rows.length) return `<p class="gr-none">Nobody's said yet.</p>`;
-    const one = t => `<li><span class="gr-who">${C.esc(canonicalWho(t.who))}</span><span class="gr-quote">${C.esc(t[field].trim())}</span></li>`;
+    /* A long take is clamped to four lines with a Read more (VR-120).
+       This is the fourth and last thing on this page that hides something, and it's the
+       only one that caps a SINGLE PERSON rather than a collection. The other three cap
+       counts — how many games, how many halves, how many quotes — and none of them can do
+       anything about one person writing four paragraphs. Jordan, who did: "I put a big ole
+       paragraph in there, so it's looking big right now."
+       That's the failure the other caps can't reach: one long take sets the height of the
+       column for everybody in it, so the person who wrote the most buries the nine people
+       who wrote a sentence. Clamping is deliberately NOT truncation — the full text is in
+       the DOM, so find-in-page and screen readers get all of it, and expanding is one tap.
+       The threshold is a character count rather than a measured height on purpose: it can
+       be asserted headlessly, which a layout measurement cannot. It's generous enough
+       (~5 lines of copy against a 4-line clamp) that a quote which trips it is essentially
+       always actually clamped, so the button rarely appears over nothing. */
+    const CLAMP_AT = 220;
+    const one = t => {
+      const txt = t[field].trim();
+      const long = txt.length > CLAMP_AT;
+      return `<li${long ? ` class="gr-long"` : ""}><span class="gr-who">${C.esc(canonicalWho(t.who))}</span><span class="gr-quote">${C.esc(txt)}</span>${
+        long ? `<button type="button" class="gr-readmore" onclick="VApp.grefExpand(this)">Read more</button>` : ""}</li>`;
+    };
     // One constant, used twice — these two slices MUST agree or the card either hides a
     // quote with no disclosure or claims more are hidden than there are.
     const SHOWN = 2;
@@ -2167,6 +2187,15 @@ window.VApp = (function () {
     const me = grefMe().toLowerCase();
     if (!me) return null;
     return (notes || []).find(t => String(t.who || "").toLowerCase() === me) || null;
+  }
+
+  // Un-clamp one long take. One-way on purpose: someone who asked to read it has read it,
+  // and a Show less would re-collapse text under a cursor that is now below it.
+  function grefExpand(btn) {
+    if (!btn) return;
+    const li = btn.parentNode;
+    if (li && li.classList) li.classList.remove("gr-long");
+    btn.remove();
   }
 
   function grefMore(id, btn) {
@@ -2955,6 +2984,6 @@ window.VApp = (function () {
 
   return { init, route, toggleMenu, toggleDrop, signOut, __renderHub, __hubType, __renderUpdates, __weeklyHero, wkSkip,
     __grefSlug, __grefMatch, __grefCard, __loomPanel,
-    grefOpen, grefClose, grefSubmit, grefWhoChange, grefNameChange, grefPick, grefMore, grefSort, grefToggle, grefHalf, grefArtFail, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter, counterVote, gameBoardVer, gameBoardCombo, gameBoardLevel };
+    grefOpen, grefClose, grefSubmit, grefWhoChange, grefNameChange, grefPick, grefMore, grefSort, grefToggle, grefHalf, grefExpand, grefArtFail, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter, counterVote, gameBoardVer, gameBoardCombo, gameBoardLevel };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);
