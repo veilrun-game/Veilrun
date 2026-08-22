@@ -26,12 +26,27 @@
 
 import bpy, os, math, glob
 
-SRC_DIR = ("/Users/jordankersey/Desktop/Claude Access/Games/Veilrun/Art & Assets/assets/"
-           "vesper_canon_v2/mixamo")
-OUT_GLB = "/Users/jordankersey/Documents/GitHub/Veilrun/assets/models/vesper.glb"
-TARGET_HEIGHT = 1.80        # must match the game's worldHeight
+# ---------------------------------------------------------------------------
+# PER-CHARACTER PROFILES (VR-117, 8/22)
+#
+# Was: one hard-coded SRC_DIR/OUT_GLB pair for Vesper. The husk merge needs a
+# second run over a different folder with a different clip table, and copying
+# the script to do it is how two pipelines drift apart. So the character is a
+# parameter now, and Vesper's profile is byte-for-byte what the script did
+# before — a re-run of `vesper` must produce the same GLB it always did.
+#
+#   blender --background --python veilrun_merge_anims.py -- --char husk
+#   VEILRUN_CHAR=husk  (env, for a headless bpy-as-a-module run)
+#
+# VEILRUN_SRC / VEILRUN_OUT override the paths for a run somewhere that isn't
+# Jordan's Mac. Nothing else in the profile can be overridden — the clip table
+# is the contract, not a convenience.
+# ---------------------------------------------------------------------------
+import sys
 
-# game clip name -> filename keywords, in priority order
+CA = "/Users/jordankersey/Desktop/Claude Access/Games/Veilrun/Art & Assets/assets"
+REPO = "/Users/jordankersey/Documents/GitHub/Veilrun"
+
 # (game clip name, filename keywords, keywords that DISQUALIFY a file, strip root motion?)
 #
 # STRIP ROOT MOTION only on LOOPING clips. A walk that travels slides you away
@@ -41,18 +56,81 @@ TARGET_HEIGHT = 1.80        # must match the game's worldHeight
 # "collapses". Stripping it made Vesper die standing up.
 # The exclusions matter: "Walking Turn 180" contains "walk" and would happily
 # steal the move slot from the actual walk cycle.
-WANT = [
-    ("idle",    ["idle", "breath"],                    [],           True),
+VESPER_WANT = [
+    ("idle",    ["idle", "breath"],                    [],              True),
     ("move",    ["walk"],                              ["turn","back"], True),
-    ("run",     ["run", "jog", "sprint"],              [],           True),
-    ("stalk",   ["sneak", "crouch", "stalk", "creep"], [],           True),
-    ("attack",  ["slash", "attack", "stab", "sword"],  ["assassin"], True),
-    ("execute", ["assassin", "execute", "finisher"],   [],           True),
-    ("hurt",    ["hit", "impact", "react"],            [],           True),
-    ("down",    ["dying", "death", "die", "fall"],     [],           False),  # let him fall
+    ("run",     ["run", "jog", "sprint"],              [],              True),
+    ("stalk",   ["sneak", "crouch", "stalk", "creep"], [],              True),
+    ("attack",  ["slash", "attack", "stab", "sword"],  ["assassin"],    True),
+    ("execute", ["assassin", "execute", "finisher"],   [],              True),
+    ("hurt",    ["hit", "impact", "react"],            [],              True),
+    # VR-117: "fall" also matches "Falling", which is an ENTRANCE clip, not a
+    # death. Before this exclusion a folder containing both would hand the death
+    # slot to a man dropping through the floor — and it would not error, it
+    # would just look wrong.
+    ("down",    ["dying", "death", "die", "fall"],     ["falling"],     False),  # let him fall
 ]
 
+# The husks get all THIRTEEN clips in one GLB, not the eight the player uses.
+# VR-118 (seam load-in) and VR-119 (SEARCH state) are both blocked on this file,
+# and neither should need a second Blender run to get a clip that was sitting in
+# the same folder the whole time.
+#
+# Keys are the literal Mixamo filenames, because they are known and exact —
+# guessing keywords is what caused every collision this script has ever had.
+# ORDER MATTERS: first match wins, so `dodge` must veto "back" or it eats
+# "Dodging Back" — the same substring collision class as "Walking Turn 180".
+HUSK_WANT = [
+    ("run",       ["y-bot-run"],      [],       True),   # SEEK — running you down
+    ("walk",      ["sad walk"],       [],       True),   # SEARCH — lost you, wandering
+    ("scan",      ["looking around"], [],       True),   # SEARCH — stopped, scanning
+    ("dizzy",     ["dizzy"],          [],       True),   # SEARCH — confused turn, and stagger
+    ("attack",    ["stabbing"],       [],       True),
+    ("hurt",      ["big hit"],        [],       True),
+    ("down",      ["dying"],          [],       False),  # one-shot: it should travel
+    ("dodge",     ["dodging"],        ["back"], True),
+    ("dodgeback", ["dodging back"],   [],       True),
+    ("fall",      ["falling"],        [],       True),   # entrance A beat 1
+    ("getup",     ["getting up"],     [],       True),   # entrance A beat 2
+    ("float",     ["floating"],       [],       True),   # entrance B beat 1
+    ("land",      ["landing"],        [],       True),   # entrance B beat 2
+]
+# Every entrance clip is stripped: the seam rise owns Y (`spawnRise` lerps
+# -1.6 -> 0 in code), so a clip that also travels vertically would double it.
+
+PROFILES = {
+    "vesper": dict(src=CA + "/vesper_canon_v2/mixamo",
+                   out=REPO + "/assets/models/vesper.glb",
+                   height=1.80, want=VESPER_WANT),
+    "husk":   dict(src=CA + "/husk-ybot-v1/ybot",
+                   out=REPO + "/assets/models/husk.glb",
+                   height=1.78, want=HUSK_WANT),   # matches SPR.DEF.husk.h
+}
+
+def _pick_char():
+    argv = sys.argv
+    if "--" in argv:
+        rest = argv[argv.index("--") + 1:]
+        if "--char" in rest:
+            i = rest.index("--char")
+            if i + 1 < len(rest): return rest[i + 1]
+    return os.environ.get("VEILRUN_CHAR", "vesper")
+
+CHAR = _pick_char()
+if CHAR not in PROFILES:
+    raise SystemExit("[VEILRUN] unknown character %r — try one of: %s"
+                     % (CHAR, ", ".join(PROFILES)))
+_P = PROFILES[CHAR]
+SRC_DIR = os.environ.get("VEILRUN_SRC", _P["src"])
+OUT_GLB = os.environ.get("VEILRUN_OUT", _P["out"])
+TARGET_HEIGHT = _P["height"]        # must match the game's worldHeight
+WANT = _P["want"]
+
 def log(m): print("[VEILRUN] " + m)
+
+log("character: %s" % CHAR)
+log("  src: %s" % SRC_DIR)
+log("  out: %s" % OUT_GLB)
 
 def clear():
     bpy.ops.object.select_all(action="SELECT"); bpy.ops.object.delete(use_global=False)
@@ -194,13 +272,40 @@ def main():
     bpy.ops.object.select_all(action="DESELECT")
     for o in [base_arm] + base_meshes: o.select_set(True)
     bpy.context.view_layer.objects.active = base_arm
-    zs = [(base_meshes[0].matrix_world @ v.co).z for v in base_meshes[0].data.vertices]
+    # EVERY mesh, not just the first one. A Mixamo character usually arrives as
+    # two meshes — a body surface and a joint-ball overlay — and the joints are
+    # SHORTER than the body. Measuring meshes[0] measured whichever one the FBX
+    # importer happened to list first, and on the Y Bot that was the joints: the
+    # husk came out 2.02m instead of 1.78m, 13% too tall, with nothing to say so.
+    # (VR-117, 8/22)
+    zs = []
+    for _m in base_meshes:
+        zs += [(_m.matrix_world @ v.co).z for v in _m.data.vertices]
     h = max(zs) - min(zs)
     if h > 0.01:
         s = TARGET_HEIGHT / h
-        base_arm.scale = (s, s, s)
+        # MULTIPLY the existing scale, never assign over it. Mixamo's FBX lands
+        # with the armature at 0.01 (bones authored in centimetres) or at 1.0,
+        # depending on which download preset the clip came from — and `h` above
+        # is already the WORLD height, so it has that 0.01 baked into it.
+        # Assigning `s` outright threw the 0.01 away and produced a character
+        # 112x too big. It did not error and it did not look wrong in Blender;
+        # it looked wrong in the game, as a grey wall. Vesper never caught this
+        # because his wave happened to import at 1.0. (VR-117, 8/22)
+        base_arm.scale = tuple(v * s for v in base_arm.scale)
         bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-        log("rescaled x%.4f  (%.2f -> %.2f)" % (s, h, TARGET_HEIGHT))
+        zs2 = []
+        for _m in base_meshes:
+            zs2 += [(_m.matrix_world @ v.co).z for v in _m.data.vertices]
+        h2 = max(zs2) - min(zs2)
+        log("rescaled x%.4f  (%.2f -> %.2f)" % (s, h, h2))
+        # Prove it landed rather than trusting the arithmetic. A wrongly-sized
+        # character is invisible to every other check we own until someone loads
+        # the game, which is exactly the class of bug this merge keeps producing.
+        if abs(h2 - TARGET_HEIGHT) > 0.02:
+            raise SystemExit("[VEILRUN] scale did not land: wanted %.2f, got %.2f — "
+                             "refusing to export a wrongly-sized character."
+                             % (TARGET_HEIGHT, h2))
 
     # --- NLA strips: this is what makes the exporter emit NAMED clips ---
     if base_arm.animation_data is None: base_arm.animation_data_create()
@@ -224,6 +329,6 @@ def main():
         bpy.ops.export_scene.gltf(filepath=OUT_GLB, export_format="GLB")
     log("exported %s  (%.1f MB)  with %d clip(s)"
         % (OUT_GLB, os.path.getsize(OUT_GLB)/1048576, len(actions)))
-    log("done — reload the game, Vesper should walk in.")
+    log("done — reload the game, %s should walk in." % CHAR)
 
 main()

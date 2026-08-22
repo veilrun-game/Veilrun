@@ -176,6 +176,22 @@ canvas{display:block}
 .tval{width:40px;text-align:right;color:var(--violet-lt);font-variant-numeric:tabular-nums}
 .tnote{color:var(--mute);font-size:.68rem;margin:-2px 0 8px;line-height:1.35}
 #tune .btn{width:100%;margin-top:8px;padding:.5rem;font-size:.78rem}
+/* VR-117 — the benchmark readout. Deliberately a plain <pre>: the number is
+   meant to be copied onto the card, and a styled table is harder to paste than
+   it is to read. */
+#bench{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;
+  background:rgba(6,4,12,.86);backdrop-filter:blur(3px);padding:16px}
+#bench.on{display:flex}
+#bench .bwrap{max-width:min(560px,94vw);width:100%;max-height:88vh;overflow-y:auto;
+  background:rgba(8,6,16,.97);border:1px solid var(--line);border-radius:10px;padding:16px}
+#bench h3{font-family:var(--font-display);letter-spacing:.14em;text-transform:uppercase;
+  font-size:.68rem;color:var(--mute);margin:0 0 10px;border-bottom:1px solid var(--line);padding-bottom:5px}
+#bench pre{margin:0;white-space:pre-wrap;font-size:.72rem;line-height:1.5;
+  font-variant-numeric:tabular-nums;color:var(--white)}
+#bench .brow{display:flex;gap:8px;margin-top:12px}
+#bench .brow button{flex:1;padding:.6rem;font-size:.78rem;font-family:inherit;color:var(--white);
+  background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:6px;cursor:pointer;
+  min-height:44px}
 #tunecopy{font-size:.66rem;color:var(--mute);margin-top:6px;line-height:1.4}
 
 /* ---------- touch layout + pad (VR-79 mobile pass, reshaped by VR-112) ------
@@ -410,6 +426,12 @@ canvas{display:block}
     <option value="1">Off</option><option value="2">2:1</option><option value="3">3:1</option>
     <option value="4">4:1</option><option value="6">6:1</option><option value="8">8:1</option></select></div>
   <div class="trow"><label>Fog</label><input type="range" id="t-fog" min="0" max="0.08" step="0.002"><span class="tval" id="t-fogv"></span></div>
+  <div class="trow"><label>Husk models</label><select id="t-husks">
+    <option value="auto">Auto</option><option value="0">Off — billboards</option>
+    <option value="6">6</option><option value="12">12</option><option value="26">26 (all)</option></select></div>
+  <div class="tnote">A skinned husk is real CPU, which is why they were cards. Auto starts at 6 and only adds more once the measured 95th-percentile frame time proves there is room.</div>
+  <button class="btn ghost" id="t-bench">Measure frame rate</button>
+  <div class="tnote">Runs the same 26-husk load twice — once as meshes, once as cards — and reports percentiles, so the cost of the models is a number instead of an impression. Keep the window in front or the run invalidates itself.</div>
 
   <h3>Shroud</h3>
   <div class="trow"><label>Glass body</label><input type="color" id="t-glass"></div>
@@ -655,6 +677,95 @@ var CLIPFIT = {
   maxScale: 6.0
 };
 /* CLIPFIT:END */
+
+/* ------------------------------------------------------------------------
+   HUSKFIT:BEGIN — VR-111's rule, applied to the husks (VR-117)
+
+   The husks stopped being billboards in VR-117: the grey Mixamo Y Bot IS the
+   Thinned, per canon (`threats.md` — "drained hollow", "grey, listless",
+   palette "desaturated grey + one dying ember"). That reverses VR-91's
+   "3D player, sprite husks" hybrid render.
+
+   THE SAME RULE STILL GOVERNS: the BALANCE numbers decide how fast a husk
+   LOOKS. Playback rate is trimmed-clip duration / mechanical duration, and the
+   mechanical duration comes out of BAL.C. Nothing decides the speed twice.
+
+   THE WINDOWS ARE MEASURED, NOT GUESSED, and cannot be re-derived from this
+   file. They came from per-frame joint rotation energy in husk.glb, the same
+   method VR-111 used on Vesper. Source clips are 30fps.
+
+     attack  ("Stabbing", 2.17s) is TWO stabs with a lull between, exactly like
+             Vesper's — stab A f2-f16 (contact f13), lull f17-f26, stab B
+             f26-f42, tail to f65. A husk swings ONCE, so the window is
+             [0,26]: rest, drive, contact at f13 — the midpoint — then the lull
+             carries the recovery. Contact at 50% of the window lines up with
+             enemyWind/(wind+active+rec) = 0.55/1.19, which is where the
+             mechanic actually connects.
+     hurt    ("Big Hit To Head", 1.67s) impacts at once and then settles for a
+             second and a half. Only the impact is ever on screen: f0-f14.
+     down    ("Dying", 5.80s) is the dangerous one. It STANDS STILL for 86
+             frames before it collapses — peak motion at f93. At timeScale 1
+             against a 0.5s dissolve you would watch a husk stand perfectly
+             upright while it came apart, and nothing would throw. That is
+             precisely the VR-111 failure, caught before it shipped this time.
+             Window [86,118] is the collapse itself; the dissolve eats them
+             mid-fall, which is the right read for a husk anyway — they come
+             apart before they land.
+   ------------------------------------------------------------------------ */
+var HUSKFIT = {
+  fps: 30,
+  // clip -> [startFrame, endFrame] of the motion worth showing
+  win: {
+    attack: [0, 26],
+    hurt:   [0, 14],
+    down:   [86, 118]
+  },
+  // Locomotion is velocity-driven, not window-fitted: REF is the ground speed
+  // each clip looks natural at. Husks run between 3.0 and 5.6 u/s (enemySpeed
+  // x spdMult), so the run clip carries the whole band without a walk blend.
+  runRef: 4.6,
+  // A clip that needs to run outside this band is the wrong clip, not a tuning
+  // problem — clamp and warn, same contract as CLIPFIT.
+  minScale: 0.5,
+  maxScale: 6.0
+};
+/* HUSKFIT:END */
+
+/* How long a husk is on screen dying. Named rather than left as a literal in
+   two functions, for the same reason HURT_SHOW_T is: it is the denominator of
+   the `down` fit, and `_clipfit.js` reads the same constant the game does. */
+var HUSK_DIE_T = 0.5;
+
+/* ------------------------------------------------------------------------
+   HUSKLOD — the answer to "26 skinned meshes might not fit"
+
+   Husks were billboards SPECIFICALLY because 26 of them cost almost nothing.
+   A skinned Y Bot is 55,320 triangles and a 65-bone skeleton, and the real
+   cost is not the triangles — it is 26 AnimationMixers interpolating 195
+   channels each, on the CPU, every frame.
+
+   So the models are a budget, not a switch. The nearest N live husks get a
+   skinned rig; everything past N keeps the billboard it has today. The 4:1
+   pixel grid hides the swap — the same property that let a 3D player stand
+   next to 2D enemies in VR-91 without looking like a bug.
+
+   "auto" is honest about not knowing: it starts small and only adds rigs once
+   the measured 95th-percentile frame time proves there is room. Run BENCH
+   (Settings -> Measure frame rate) to pin it at max and get one real number
+   off a real phone — which per State of Play has never actually been done,
+   because every reading so far came from an unfocused tab with rAF throttled.
+   ------------------------------------------------------------------------ */
+var HUSKLOD = {
+  mode: "auto",       // "auto" | a number of rigs to pin
+  max: 26,            // never above BAL.C.liveCap
+  start: 6,
+  step: 2,            // rigs added per good window
+  drop: 4,            // rigs removed per bad one — give back faster than you take
+  raiseUnder: 15.5,   // ms, p95: under 64fps-equivalent there is headroom
+  dropOver: 21.0,     // ms, p95: over this (~47fps) hand some back
+  window: 1.5,        // sec between decisions
+  swapMargin: 1.2     // units of hysteresis on the near/far swap, so it can't flicker
+};
 
 /* How long each one-shot combat clip is actually ON SCREEN. These are feel
    windows, not balance, so they live out here — but they are the denominator
@@ -2161,7 +2272,7 @@ function updateEnemies(dt) {
     /* ---- dying: the thinning dissolve ---- */
     if (e.state === "die") {
       e.dissolve += dt;
-      var f = clamp(e.dissolve / 0.5, 0, 1);
+      var f = clamp(e.dissolve / HUSK_DIE_T, 0, 1);
       e.mat.transparent = true;
       e.mat.color.lerp(_grey, 0.16);
       e.mat.opacity = 1 - f;
@@ -2731,6 +2842,15 @@ function updateSprites() {
       var e = ENEMIES[i], hs = huskSprites[i];
       if (!hs) continue;
       if (!e.live) { hs.m.visible = false; continue; }
+      /* VR-117: a husk the LOD handed a rig to is drawn as a mesh, so its card
+         steps aside — but it still gets the contact decal, because a skinned
+         husk casts no shadow map either (see HUSKMODEL.makeRig). */
+      if (HUSKMODEL.rigged(e)) {
+        hs.m.visible = false;
+        e.g.visible = true;
+        if (e.state !== "die") SHADOWS.drop(e.x, e.z, 0.46 * (e.g.scale.y || 1), 1);
+        continue;
+      }
       e.g.visible = false;
       SPR.setState(hs, huskSpriteState(e));
       hs.m.visible = !!hs.mat.map;
@@ -2738,7 +2858,7 @@ function updateSprites() {
       SPR.place(hs, e.x, e.g.position.y, e.z, e.yaw, sc);
       // dying husks fade; alphaTest is relaxed for the handful that are mid-dissolve
       if (e.state === "die") {
-        var f = clamp(e.dissolve / 0.5, 0, 1);
+        var f = clamp(e.dissolve / HUSK_DIE_T, 0, 1);
         hs.mat.transparent = true; hs.mat.opacity = 1 - f; hs.mat.alphaTest = 0.1;
       } else if (hs.mat.transparent) {
         hs.mat.transparent = false; hs.mat.opacity = 1; hs.mat.alphaTest = 0.5;
@@ -3098,10 +3218,351 @@ var MODEL = (function () {
   }
 
   return { load: load, play: play, setVeil: setVeil, setVeilLook: setVeilLook,
+           trimClip: trimClip,          // VR-117: the husks fit their clips the same way
            fitDur: function (n) { return fitDur[n] || 0; },
            hasClip: function (n) { return !!actions[n]; },
            isReady: function () { return ready; },
            hasClips: function () { return !!mixer; } };
+})();
+
+
+/* ===================== husk models — the Thinned, rigged (VR-117) ========
+   Reverses VR-91's "3D player, sprite husks" hybrid. The grey Y Bot IS the
+   husk: a human form with the person removed, uniform desaturated grey, plus
+   one dying ember at the chest. That is the canon description of the Thinned
+   with nothing added, and it was already rigged to the exact skeleton the clip
+   library targets — so it cost a merge run, not an art wave.
+
+   THREE RULES THIS MODULE OBEYS.
+
+   1. A MISSING ASSET IS NEVER A BROKEN GAME (CLAUDE.md §5). The chain is
+      model -> billboard -> primitive rig, and each step is already proven: if
+      husk.glb 404s, `ready` stays false and the sprite layer runs exactly as
+      it does today; if the sprites are missing too, the primitives are still
+      sitting in the scene where they always were.
+
+   2. THE SIM NEVER LEARNS ABOUT THIS. Every rig reads x/z/yaw/state off the
+      same enemy object the primitives and the billboards read, so the BALANCE
+      block stays authoritative and `_sim.js` needs no re-run. This card is
+      presentation. VR-119's SEARCH state is the one that touches pursuit
+      timing, and it is a separate card for that reason.
+
+   3. THE RIG INHERITS THE ENEMY'S MATERIAL STATE RATHER THAN RE-DERIVING IT.
+      Hit flash, the dying grey-out, the dissolve fade and the collapse squash
+      are all already written against `e.mat` and `e.g.scale`. The rig copies
+      that state instead of reimplementing it, so there is exactly one place
+      that decides what a hurt husk looks like.
+   ------------------------------------------------------------------------ */
+var HUSKMODEL = (function () {
+  var URL = "../../assets/models/husk.glb";
+  var template = null, fitted = {}, raw = {}, fitDur = {}, ready = false;
+  var pool = [], budget = HUSKLOD.start, evalT = 0, assignT = 0;
+  var _c = new THREE.Color();
+
+  /* Skeleton-aware clone. Object3D.clone() copies the SkinnedMesh but leaves it
+     pointing at the SOURCE skeleton, so every copy would pose identically —
+     26 husks marching in perfect lockstep, which is the exact tell §1 of the
+     ybot doc warns about. Rebinding each mesh to the cloned bones is what makes
+     them separate creatures. (This is what examples/js/utils/SkeletonUtils does;
+     it is thirty lines, and it is not worth a third CDN that has to fall back.) */
+  function cloneRig(source) {
+    var root = source.clone(true);
+    var dstBones = {};
+    root.traverse(function (o) { if (o.isBone) dstBones[o.name] = o; });
+    var srcMeshes = [], dstMeshes = [];
+    source.traverse(function (o) { if (o.isSkinnedMesh) srcMeshes.push(o); });
+    root.traverse(function (o) { if (o.isSkinnedMesh) dstMeshes.push(o); });
+    for (var i = 0; i < dstMeshes.length && i < srcMeshes.length; i++) {
+      var sm = srcMeshes[i], dm = dstMeshes[i], bones = [];
+      for (var b = 0; b < sm.skeleton.bones.length; b++) {
+        bones.push(dstBones[sm.skeleton.bones[b].name] || sm.skeleton.bones[b]);
+      }
+      dm.bind(new THREE.Skeleton(bones, sm.skeleton.boneInverses), sm.bindMatrix);
+    }
+    return { root: root, meshes: dstMeshes, bones: dstBones };
+  }
+
+  function makeRig() {
+    var c = cloneRig(template);
+    /* One material per rig, cloned off the same `huskBody` the primitives use,
+       so a model husk and a billboard husk are the same grey. r128 needs
+       material.skinning set explicitly — without it the mesh renders in its
+       bind pose and looks like the animation silently failed, because it did. */
+    var mat = huskBody.clone();
+    mat.skinning = true;
+    for (var i = 0; i < c.meshes.length; i++) {
+      var m = c.meshes[i];
+      m.material = mat;
+      /* No shadow casting: 26 skinned casters is a second full skinning pass
+         for the shadow map, and it buys nothing the contact decal doesn't
+         already sell. `SHADOWS.drop` covers rigged husks the same way it covers
+         billboards. frustumCulled stays off because a skinned bounding sphere
+         is computed from the bind pose and pops on the wide clips. */
+      m.castShadow = false; m.receiveShadow = false; m.frustumCulled = false;
+    }
+    var mixer = new THREE.AnimationMixer(c.root);
+    var actions = {};
+    for (var name in fitted) {
+      var a = mixer.clipAction(fitted[name]);
+      a.clampWhenFinished = true;
+      if (name !== "run") a.setLoop(THREE.LoopOnce, 1);
+      actions[name] = a;
+    }
+
+    /* THE DYING EMBER. Canon palette for the Thinned is "desaturated grey +
+       one dying ember", and §5 of the ybot doc turns that into a rule: what
+       separates the crew from the enemy is not hue, it is CONTROL. The crew's
+       light is steady or tracks a meter. This one is the same light — the same
+       magenta the seam tears with — failing: two beat frequencies that never
+       line up, plus an occasional dropout. Parented to the chest bone so it
+       goes down with the body instead of hanging in the air. */
+    var ember = null, emberMat = null;
+    /* THE COLON IS GONE BY THE TIME YOU SEE THE BONE. Blender names these
+       "mixamorig:Spine2", and that is what is in the GLB — but GLTFLoader runs
+       every node name through PropertyBinding.sanitizeNodeName, which strips the
+       colon, so at runtime the bone is "mixamorigSpine2". Looking it up by the
+       name in the file returns undefined and the ember silently never appears:
+       no error, no warning, just a husk with no light in it. Both spellings are
+       tried, and a miss is loud. */
+    var chest = c.bones["mixamorigSpine2"] || c.bones["mixamorig:Spine2"] ||
+                c.bones["mixamorigSpine1"] || c.bones["mixamorig:Spine1"];
+    if (!chest) console.warn("[VR-117] no chest bone in husk.glb — the husks will " +
+                             "have no ember. Skeleton renamed?");
+    if (chest) {
+      emberMat = new THREE.MeshBasicMaterial({ color: 0xD65CDC, transparent: true, opacity: 0.9,
+                                               depthWrite: false, blending: THREE.AdditiveBlending });
+      ember = new THREE.Mesh(new THREE.SphereGeometry(0.055, 7, 6), emberMat);
+      /* The chest bone is in Mixamo's centimetre-ish rest space even after the
+         armature scale was applied, so the ember is sized against the bone's
+         own world scale rather than assumed to be 1:1. Measured once. */
+      chest.updateWorldMatrix(true, false);
+      var s = new THREE.Vector3().setFromMatrixScale(chest.matrixWorld);
+      var inv = 1 / Math.max(1e-4, (s.x + s.y + s.z) / 3);
+      ember.scale.setScalar(inv);
+      ember.position.set(0, 6 * inv * 0.01, 11 * inv * 0.01);
+      chest.add(ember);
+    }
+    var rig = { root: c.root, mixer: mixer, actions: actions, mat: mat,
+                ember: ember, emberMat: emberMat, phase: pool.length * 2.399963,
+                current: "", e: null };
+    pool.push(rig);
+    return rig;
+  }
+
+  /* Same fit as VR-111, same reason: a clip is trimmed to the motion worth
+     showing and then played at whatever rate makes it occupy its mechanical
+     window. MODEL.trimClip is reused rather than re-derived — the stock subclip
+     helper in three's AnimationUtils drops every bone that has no key inside
+     the window, which on a Blender export is most of them. */
+  function fitClips() {
+    for (var name in raw) {
+      var w = HUSKFIT.win[name];
+      if (!w) { fitted[name] = raw[name]; fitDur[name] = raw[name].duration; continue; }
+      var cut = MODEL.trimClip(raw[name], name, w[0], w[1], HUSKFIT.fps);
+      if (!cut.tracks.length || cut.duration <= 0.02) {
+        console.warn("[VR-117] window [" + w[0] + "," + w[1] + "] is empty for '" + name +
+                     "' — the clip changed under the table. Keeping the full clip.");
+        fitted[name] = raw[name]; fitDur[name] = raw[name].duration; continue;
+      }
+      fitted[name] = cut; fitDur[name] = cut.duration;
+    }
+  }
+
+  var warned = {};
+  function scaleFor(name, mech) {
+    var dur = fitDur[name];
+    if (!dur || !mech) return 1;
+    var s = dur / mech;
+    if (s < HUSKFIT.minScale || s > HUSKFIT.maxScale) {
+      if (!warned[name]) {
+        warned[name] = 1;
+        console.warn("[VR-117] husk '" + name + "' needs " + s.toFixed(2) + "x to fit " +
+                     mech.toFixed(2) + "s (clip " + dur.toFixed(2) + "s). Outside [" +
+                     HUSKFIT.minScale + "," + HUSKFIT.maxScale + "] — clamped. " +
+                     "The clip or the window is wrong, not the clamp.");
+      }
+      s = clamp(s, HUSKFIT.minScale, HUSKFIT.maxScale);
+    }
+    return s;
+  }
+
+  /* The state machine is deliberately IDENTICAL to huskSpriteState(), mapped
+     onto clip names. A husk must not read differently depending on whether the
+     LOD gave it a mesh this frame — that would make the swap visible, and the
+     swap being invisible is the whole premise of the budget. */
+  function clipFor(e) {
+    if (e.state === "die") return "down";
+    if (e.state === "wind" || e.state === "strike") return "attack";
+    if (e.stagger > 0) return "hurt";
+    return "run";
+  }
+  function windowFor(name) {
+    if (name === "attack") return C.enemyWind + C.enemyActive + C.enemyRec;
+    if (name === "hurt")   return C.enemyStagger;
+    if (name === "down")   return HUSK_DIE_T;
+    return 0;   // run loops — velocity drives it instead
+  }
+
+  function attach(rig, e) {
+    if (!e.prims) e.prims = e.g.children.slice();
+    for (var i = 0; i < e.prims.length; i++) e.prims[i].visible = false;
+    e.g.add(rig.root);
+    rig.root.position.set(0, 0, 0);
+    rig.root.rotation.set(0, 0, 0);
+    rig.e = e; e.rig = rig;
+    rig.current = "";
+    // a fresh phase per attachment, so two husks that spawn together and pick
+    // the same clip still do not breathe in step
+    rig.phase = Math.random() * TAU;
+  }
+  function detach(rig) {
+    var e = rig.e;
+    if (e) {
+      e.g.remove(rig.root);
+      if (e.prims) for (var i = 0; i < e.prims.length; i++) e.prims[i].visible = true;
+      e.rig = null;
+    }
+    rig.e = null; rig.current = "";
+  }
+
+  /* Budget. In "auto" the number of rigs only goes up when a HONEST p95 says
+     there is room — a tainted sampler (hidden tab, unfocused window) makes no
+     decision at all rather than a flattering one. */
+  function evaluate(dt) {
+    evalT -= dt;
+    if (evalT > 0) return;
+    evalT = HUSKLOD.window;
+    if (HUSKLOD.mode !== "auto") {
+      budget = clamp(HUSKLOD.mode | 0, 0, HUSKLOD.max);
+      return;
+    }
+    if (PERF.tainted() || PERF.count() < 60) return;
+    var p95 = PERF.pct(0.95);
+    if (p95 > HUSKLOD.dropOver) budget = Math.max(0, budget - HUSKLOD.drop);
+    else if (p95 < HUSKLOD.raiseUnder) budget = Math.min(HUSKLOD.max, budget + HUSKLOD.step);
+  }
+
+  /* Nearest-N wins a rig. Re-decided on a slow cadence with a margin, because
+     a husk crossing the boundary every frame would pop between a mesh and a
+     card several times a second, which is far worse than either. */
+  var order = [];
+  function assign(dt) {
+    // a husk that stopped being live gives its rig back at once, not in 0.25s
+    for (var p = 0; p < pool.length; p++) {
+      var r = pool[p];
+      if (r.e && (!r.e.live)) detach(r);
+    }
+    assignT -= dt;
+    if (assignT > 0) return;
+    assignT = 0.25;
+
+    order.length = 0;
+    for (var i = 0; i < ENEMIES.length; i++) {
+      var e = ENEMIES[i];
+      if (!e.live) continue;
+      var dx = e.x - camera.position.x, dz = e.z - camera.position.z;
+      var d = dx * dx + dz * dz;
+      if (e.rig) d -= HUSKLOD.swapMargin * HUSKLOD.swapMargin;   // incumbents keep their seat
+      order.push({ e: e, d: d });
+    }
+    order.sort(function (a, b) { return a.d - b.d; });
+
+    var want = Math.min(budget, order.length);
+    var keep = [];
+    for (var k = 0; k < want; k++) keep.push(order[k].e);
+
+    for (var q = 0; q < pool.length; q++) {
+      var rg = pool[q];
+      if (rg.e && keep.indexOf(rg.e) < 0) detach(rg);
+    }
+    for (var m = 0; m < keep.length; m++) {
+      var en = keep[m];
+      if (en.rig) continue;
+      var free = null;
+      for (var f = 0; f < pool.length; f++) if (!pool[f].e) { free = pool[f]; break; }
+      if (!free && pool.length < HUSKLOD.max) free = makeRig();
+      if (!free) break;
+      attach(free, en);
+    }
+  }
+
+  function update(dt) {
+    if (!ready) return;
+    evaluate(dt);
+    assign(dt);
+    for (var i = 0; i < pool.length; i++) {
+      var rig = pool[i], e = rig.e;
+      if (!e) continue;
+
+      var name = clipFor(e), a = rig.actions[name];
+      if (a && rig.current !== name) {
+        var prev = rig.actions[rig.current];
+        a.reset().fadeIn(name === "run" ? 0.16 : 0.06).play();
+        if (prev && prev !== a) prev.fadeOut(0.10);
+        rig.current = name;
+      }
+      if (a) {
+        if (name === "run") {
+          a.setEffectiveTimeScale(clamp((e.speed || C.enemySpeed) / HUSKFIT.runRef, 0.55, 1.9));
+        } else {
+          a.setEffectiveTimeScale(scaleFor(name, windowFor(name)));
+        }
+      }
+      rig.mixer.update(dt);
+
+      // inherit, never re-derive — see rule 3 at the top of this module
+      rig.mat.color.copy(e.mat.color);
+      rig.mat.transparent = e.mat.transparent;
+      rig.mat.opacity = e.mat.opacity;
+      rig.mat.depthWrite = e.mat.opacity > 0.92;
+
+      if (rig.emberMat) {
+        /* Two beats that never line up, and a dropout. A steady pulse would
+           read as a power source; this reads as a light going out. */
+        var t = gameTime;
+        var f = 0.55 + 0.45 * Math.sin(t * 5.3 + rig.phase) * Math.sin(t * 2.17 + rig.phase * 1.7);
+        if (Math.sin(t * 0.77 + rig.phase) > 0.93) f *= 0.22;
+        rig.emberMat.opacity = clamp(f, 0, 1) * 0.95 * (e.mat.transparent ? e.mat.opacity : 1);
+        _c.setHex(0xD65CDC);
+        rig.emberMat.color.copy(_c).multiplyScalar(0.55 + f * 0.45);
+      }
+    }
+  }
+
+  function load() {
+    if (typeof THREE.GLTFLoader !== "function") {
+      console.warn("[VR-117] GLTFLoader not present — husks stay billboards.");
+      return;
+    }
+    new THREE.GLTFLoader().load(URL, function (gltf) {
+      template = gltf.scene;
+      template.updateMatrixWorld(true);
+      var clips = gltf.animations || [];
+      for (var i = 0; i < clips.length; i++) raw[clips[i].name] = clips[i];
+      if (!clips.length) {
+        console.warn("[VR-117] husk.glb has no animation clips — staying on billboards.");
+        return;
+      }
+      fitClips();
+      ready = true;
+      console.log("[VR-117] husk clips:", clips.map(function (c) { return c.name; }).join(", "));
+      console.log("[VR-117] fitted:", Object.keys(HUSKFIT.win).map(function (n) {
+        return n + " " + (fitDur[n] || 0).toFixed(2) + "s"; }).join(", "));
+    }, undefined, function () {
+      console.warn("[VR-117] no model at " + URL + " — husks stay billboards. " +
+                   "Run the Blender merge with --char husk.");
+    });
+  }
+
+  return {
+    load: load, update: update,
+    isReady: function () { return ready; },
+    rigged: function (e) { return !!(ready && e.rig); },
+    budget: function () { return budget; },
+    setBudget: function (n) { budget = clamp(n | 0, 0, HUSKLOD.max); },
+    live: function () { var n = 0; for (var i = 0; i < pool.length; i++) if (pool[i].e) n++; return n; },
+    pooled: function () { return pool.length; }
+  };
 })();
 
 /* VR-111 — the mechanical window a combat state has to fit inside, read from
@@ -3166,7 +3627,7 @@ var TUNE = (function () {
        desktop each keep their own tuned distance rather than fighting over one. */
     dist: TOUCH ? 11 : ARC.dist,
     fov: ARC.fov, fit: FIT.comp, look: LOOK.sens,
-    pixel: PIXEL, fog: 0.030,
+    pixel: PIXEL, fog: 0.030, husks: String(HUSKLOD.mode),
     glass: "#" + VEIL_GLASS.toString(16).padStart(6, "0"),
     rim:   "#" + VEIL_RIM.toString(16).padStart(6, "0"),
     burn:  "#" + VEIL_BURN.toString(16).padStart(6, "0"),
@@ -3201,6 +3662,10 @@ var TUNE = (function () {
     }
     if (!what || what === "pixel") { PIXEL = +V.pixel; applyPixelScale(); }
     if (!what || what === "fog") { scene.fog.density = +V.fog; }
+    if (!what || what === "husks") {
+      HUSKLOD.mode = (V.husks === "auto") ? "auto" : +V.husks;
+      HUSKMODEL.setBudget(HUSKLOD.mode === "auto" ? HUSKLOD.start : HUSKLOD.mode);
+    }
     if (!what || what === "veil") {
       if (MODEL.setVeilLook) MODEL.setVeilLook({
         glass: V.glass, rim: V.rim, burn: V.burn,
@@ -3240,6 +3705,8 @@ var TUNE = (function () {
     bindRange("t-fit", "fit", "touch", function (v) { return (+v).toFixed(2); });
     bindRange("t-look", "look", "touch", function (v) { return (+v * 1000).toFixed(1); });
     bindRange("t-fog", "fog", "fog", function (v) { return (+v).toFixed(3); });
+    bindPick("t-husks", "husks", "husks");
+    $("t-bench").addEventListener("click", function () { BENCH.start(); });
     bindRange("t-amin", "amin", "veil", function (v) { return (+v).toFixed(2); });
     bindRange("t-amax", "amax", "veil", function (v) { return (+v).toFixed(2); });
     bindRange("t-lift", "lift", "veil", function (v) { return (+v).toFixed(2); });
@@ -3260,6 +3727,7 @@ var TUNE = (function () {
         "fit to screen  " + (+V.fit).toFixed(2),
         "look speed     " + (+V.look).toFixed(4),
         "pixel grid     " + V.pixel + ":1",
+        "husk models    " + V.husks + "   (" + HUSKMODEL.live() + " rigged now)",
         "fog density    " + (+V.fog).toFixed(3),
         "VEIL_GLASS     0x" + V.glass.slice(1),
         "VEIL_RIM       0x" + V.rim.slice(1),
@@ -3293,6 +3761,224 @@ window.addEventListener("keydown", function (e) {
   if (e.key === "\\\\") { TUNE.toggle(); }
 });
 
+
+/* ========================= frame-time sampling (VR-117) ==================
+   WHY THIS IS NOT `fpsEl.textContent`. The readout at the top of the screen is
+   a half-second mean, which is exactly the statistic that hides a stutter: 58
+   good frames and two 90ms ones average out to something that looks fine and
+   plays badly. Everything that decides anything reads percentiles instead.
+
+   AND IT REFUSES TO LIE. Every frame-rate reading this project has ever
+   recorded came from a browser tab that was not in front — where rAF is
+   throttled to a handful of hertz and the number means nothing at all. So the
+   sampler poisons itself the moment the page is hidden or the window loses
+   focus, and anything reading it has to say "invalid" rather than print a
+   figure it cannot stand behind.
+   ------------------------------------------------------------------------ */
+var PERF = (function () {
+  var N = 600, buf = new Float32Array(N), n = 0, w = 0;
+  var tainted = false, why = "";
+  function taint(reason) { if (!tainted) { tainted = true; why = reason; } }
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) taint("the tab was hidden — rAF throttles and the number is meaningless");
+  });
+  window.addEventListener("blur", function () {
+    taint("the window lost focus — rAF throttles and the number is meaningless");
+  });
+  function pct(p) {
+    if (!n) return 0;
+    var a = Array.prototype.slice.call(buf.subarray(0, n));
+    a.sort(function (x, y) { return x - y; });
+    return a[clamp(Math.round((a.length - 1) * p), 0, a.length - 1)];
+  }
+  return {
+    push: function (ms) { buf[w] = ms; w = (w + 1) % N; if (n < N) n++; },
+    reset: function () { n = 0; w = 0; tainted = false; why = ""; },
+    count: function () { return n; },
+    pct: pct,
+    tainted: function () { return tainted; },
+    why: function () { return why; }
+  };
+})();
+
+/* ======================= frame-rate benchmark (VR-117) ===================
+   THE GATE ON THIS CARD, made into a thing you can run.
+
+   "Measure frame rate before committing 26 skinned meshes" was the condition
+   attached to turning the husks into models, and per State of Play the frame
+   rate has NEVER been honestly measured — every reading came from a browser
+   tab that wasn't in front, where rAF throttles to a few hertz and the number
+   is fiction. So this does three things a glance at the fps counter cannot:
+
+     1. It runs a FIXED LOAD. 26 husks, the hard cap, spawned at deterministic
+        positions with the LOD budget pinned to max. Not "whatever wave 9
+        happened to look like".
+     2. It reports PERCENTILES. p95 is the number that decides whether a game
+        feels smooth; a mean hides exactly the stutters you care about.
+     3. It runs the SAME LOAD TWICE — once with 26 skinned rigs and once with
+        26 billboards — because the decision isn't "what is the frame rate", it
+        is "what did the models COST". A phone that holds 26 rigs at 55fps and
+        26 cards at 58fps has answered the card. One that goes 58 -> 24 has
+        answered it the other way, and the answer is LOD.
+
+   And it refuses to produce a number it can't stand behind: if the tab is
+   hidden or the window loses focus at any point during a pass, the result is
+   discarded and says so. That is the failure mode that produced every previous
+   reading, and a benchmark that can repeat it is worse than none.
+   ------------------------------------------------------------------------ */
+var BENCH = (function () {
+  var WARM = 2.0, RUN = 8.0;
+  var on = false, phase = "", t = 0, pass = 0, saved = null;
+  var results = [];
+  var el = null, out = null;
+
+  function ui() {
+    if (el) return;
+    el = document.createElement("div");
+    el.id = "bench";
+    el.innerHTML = '<div class="bwrap"><h3>Frame rate</h3><pre id="benchout"></pre>' +
+                   '<div class="brow"><button id="bench-copy">Copy</button>' +
+                   '<button id="bench-close">Close</button></div></div>';
+    document.body.appendChild(el);
+    out = el.querySelector("#benchout");
+    el.querySelector("#bench-close").addEventListener("click", function () {
+      el.classList.remove("on"); finish();
+    });
+    el.querySelector("#bench-copy").addEventListener("click", function () {
+      var txt = out.textContent, b = el.querySelector("#bench-copy");
+      var done = function () { b.textContent = "Copied ✓";
+        setTimeout(function () { b.textContent = "Copy"; }, 1400); };
+      if (navigator.clipboard) navigator.clipboard.writeText(txt).then(done, done);
+      else { console.log(txt); done(); }
+    });
+  }
+  function say(s) { ui(); out.textContent = s; el.classList.add("on"); }
+
+  /* Deterministic load. A ring at two radii so they are not all the same
+     distance from the camera — the LOD picks by distance, and a benchmark that
+     puts every husk in the near band would flatter the near band. */
+  function seed(n) {
+    for (var i = 0; i < ENEMIES.length; i++) { ENEMIES[i].live = false; ENEMIES[i].g.visible = false; }
+    for (var k = 0; k < n && k < ENEMIES.length; k++) {
+      var e = ENEMIES[k];
+      var ang = (k / n) * TAU, r = (k % 2 ? 4.2 : 8.2);
+      e.live = true;
+      e.x = Math.cos(ang) * r; e.z = Math.sin(ang) * r;
+      e.maxHp = e.hp = 100000;               // nothing dies mid-measurement
+      e.speed = C.enemySpeed;
+      e.lunge = false;
+      e.state = "seek"; e.t = 0; e.stagger = 0; e.kx = e.kz = 0; e.flash = 0; e.dissolve = 0;
+      e.yaw = ang; e.wander = 0; e.seekX = 0; e.seekZ = 0;
+      e.mat.color.setHex(HUSK_COL); e.mat.transparent = false; e.mat.opacity = 1;
+      e.g.scale.setScalar(1); e.g.position.set(e.x, 0, e.z); e.g.visible = true;
+    }
+  }
+
+  function startPass() {
+    HUSKLOD.mode = (pass === 0) ? HUSKLOD.max : 0;
+    HUSKMODEL.setBudget(HUSKLOD.mode);
+    seed(HUSKLOD.max);
+    PERF.reset();
+    phase = "warm"; t = WARM;
+    say(head() + "\npass " + (pass + 1) + " of 2 — " +
+        (pass === 0 ? HUSKLOD.max + " skinned husks" : "26 billboards") +
+        "\nwarming up…\n\nKeep this window in front. Looking away invalidates the run.");
+  }
+
+  function head() {
+    return "VEILRUN — Proving Ground frame rate (VR-117)\n" +
+           "device      " + (TOUCH ? "touch" : "desktop") + "  " + viewW() + "x" + viewH() +
+           "  dpr " + (window.devicePixelRatio || 1) + "\n" +
+           "pixel grid  " + PIXEL + ":1";
+  }
+
+  function snapshot(label) {
+    var info = renderer.info.render;
+    return { label: label,
+             p50: PERF.pct(0.50), p95: PERF.pct(0.95), p99: PERF.pct(0.99),
+             worst: PERF.pct(1), n: PERF.count(),
+             calls: info.calls, tris: info.triangles,
+             rigs: HUSKMODEL.live(),
+             bad: PERF.tainted(), why: PERF.why() };
+  }
+
+  function fmt(r) {
+    if (r.bad) return "  " + r.label.padEnd(12) + "INVALID — " + r.why;
+    function row(k, ms) {
+      return "  " + k.padEnd(12) + ms.toFixed(1).padStart(6) + " ms   " +
+             (ms > 0 ? (1000 / ms).toFixed(0) : "—").padStart(3) + " fps";
+    }
+    return "  " + r.label + "   (" + r.rigs + " skinned, " + r.n + " frames)\n" +
+           row("p50", r.p50) + "\n" + row("p95", r.p95) + "\n" +
+           row("p99", r.p99) + "\n" + row("worst", r.worst) + "\n" +
+           "  draw calls  " + r.calls + "   triangles " + r.tris.toLocaleString();
+  }
+
+  function verdict(a, b) {
+    if (a.bad || b.bad) return "verdict     NO CALL — a pass was invalidated. Re-run with the window in front.";
+    var cost = a.p95 - b.p95;
+    var line = "cost of the models   +" + cost.toFixed(1) + " ms at p95   (" +
+               b.p95.toFixed(1) + " -> " + a.p95.toFixed(1) + ")";
+    var call;
+    if (a.p95 <= 20.0) call = "HOLDS — 26 skinned husks stay above 50fps at p95. Ship them; set HUSKLOD.mode to 26.";
+    else if (a.p95 <= 28.0) call = "LOD — 26 is too many but some is fine. Leave HUSKLOD.mode on \"auto\"; it will find the number.";
+    else call = "BILLBOARDS — the models cost more than they are worth on this device. Set HUSKLOD.mode to 0 for touch and keep the cards.";
+    return line + "\nverdict     " + call;
+  }
+
+  function finish() {
+    if (!on) return;
+    on = false;
+    HUSKLOD.mode = saved.mode;
+    HUSKMODEL.setBudget(saved.mode === "auto" ? HUSKLOD.start : saved.mode);
+    for (var i = 0; i < ENEMIES.length; i++) { ENEMIES[i].live = false; ENEMIES[i].g.visible = false; }
+    saved = null; phase = "";
+  }
+
+  function start() {
+    if (on) return;
+    if (!HUSKMODEL.isReady()) {
+      say(head() + "\n\nNo husk.glb loaded — there is nothing to measure yet.\n" +
+          "Run the Blender merge with --char husk first.");
+      return;
+    }
+    on = true; pass = 0; results = [];
+    saved = { mode: HUSKLOD.mode };
+    resetRun();
+    game.running = false; game.over = false; game.phase = "idle";
+    player.x = 0; player.z = 0; player.vx = player.vz = 0;
+    startPass();
+  }
+
+  /* Sampling happens in frame(), after the render, on the RAW frame time —
+     the same clock the player experiences, not the fixed sim step. */
+  function tick(rawMs) {
+    if (!on) return;
+    player.iframe = 999;              // nothing may kill the subject mid-measurement
+    var dt = rawMs / 1000;
+    t -= dt;
+    if (phase === "warm") {
+      if (t <= 0) { PERF.reset(); phase = "run"; t = RUN;
+        say(head() + "\npass " + (pass + 1) + " of 2 — measuring…"); }
+      return;
+    }
+    if (phase !== "run") return;
+    PERF.push(rawMs);
+    if (t > 0) return;
+
+    results.push(snapshot(pass === 0 ? HUSKLOD.max + " skinned husks" : "26 billboards"));
+    pass++;
+    if (pass < 2) { startPass(); return; }
+
+    phase = "done";
+    say(head() + "\n\n" + fmt(results[0]) + "\n\n" + fmt(results[1]) + "\n\n" +
+        verdict(results[0], results[1]) +
+        "\n\nPaste this onto VR-117.");
+  }
+
+  return { start: start, tick: tick, active: function () { return on; } };
+})();
+
 /* =============================== main loop ============================== */
 /* Fixed timestep for the sim, render decoupled — feel stays frame-rate
    independent, and hit-stop freezes the sim without freezing the camera. */
@@ -3311,7 +3997,12 @@ function step(dt) {
 
 function frame(now) {
   requestAnimationFrame(frame);
-  var raw = Math.min((now - last) / 1000, 0.25);
+  /* VR-117: the sampler wants the frame the player actually got, so the true
+     delta is taken BEFORE the clamp. The clamp exists to stop a tab-switch
+     from teleporting the simulation; feeding it to the benchmark would quietly
+     record a 900ms hitch as 250ms. */
+  var trueMs = now - last;
+  var raw = Math.min(trueMs / 1000, 0.25);
   last = now;
 
   // hit-stop and pause both freeze the simulation, never the rendering
@@ -3331,6 +4022,7 @@ function frame(now) {
   updateGhosts(raw);
   updateTears(raw);
   updateCamera(raw);
+  HUSKMODEL.update(raw);       // decides the LOD, so it runs before the cards
   updateSprites();
   updatePlayerModel(raw);
   if (game.running || game.over) updateHUD();
@@ -3346,11 +4038,15 @@ function frame(now) {
 
   renderer.render(scene, camera);
 
+  PERF.push(trueMs);
+  BENCH.tick(trueMs);
+
   fpsN++; fpsT += raw;
   if (fpsT >= 0.5) { fpsEl.textContent = Math.round(fpsN / fpsT) + " fps"; fpsN = 0; fpsT = 0; }
 }
 initSprites();
 MODEL.load();
+HUSKMODEL.load();
 TUNE.build();
 $("tunefab").addEventListener("click", function () { TUNE.toggle(); });
 /* Pause moved out of the pad with VR-112. Wired here rather than inside the
