@@ -104,6 +104,16 @@ canvas{display:block}
   text-shadow:0 1px 6px #000;animation:fnum .7s ease forwards}
 .fnum.crit{color:var(--magenta);font-size:1.5rem}
 @keyframes fnum{0%{opacity:0;transform:translateY(0) scale(.8)}18%{opacity:1;transform:translateY(-10px) scale(1.12)}100%{opacity:0;transform:translateY(-46px) scale(1)}}
+/* VR-103 — the still variants of the two pops. NOT display:none: the banner
+   still has to announce the wave and the number still has to say what it hit,
+   so what is removed is the travel and the scale, never the message. The
+   DURATIONS are identical to the moving versions on purpose — a wave banner
+   that clears early would change the pacing a player reads the fight through,
+   and pacing is not what "reduced motion" was asked for. */
+@keyframes bannerstill{0%{opacity:0}14%{opacity:1}78%{opacity:1}100%{opacity:0}}
+#banner.play.still{animation:bannerstill 2.4s ease forwards}
+@keyframes fnumstill{0%{opacity:0}18%{opacity:1}100%{opacity:0}}
+.fnum.still{animation:fnumstill .7s ease forwards}
 
 /* ---------- Screens ---------- */
 .screen{position:fixed;inset:0;display:none;place-items:center;background:radial-gradient(ellipse at 50% 40%,rgba(35,20,66,.42),rgba(11,8,24,.80));
@@ -440,6 +450,16 @@ canvas{display:block}
   <div class="trow"><label>Visible face-on</label><input type="range" id="t-amin" min="0" max="0.9" step="0.01"><span class="tval" id="t-aminv"></span></div>
   <div class="trow"><label>Visible at edge</label><input type="range" id="t-amax" min="0" max="1" step="0.01"><span class="tval" id="t-amaxv"></span></div>
   <div class="trow"><label>Rim strength</label><input type="range" id="t-lift" min="0" max="3" step="0.05"><span class="tval" id="t-liftv"></span></div>
+
+  <h3>Motion</h3>
+  <div class="tnote" id="t-mnote"></div>
+  <button class="btn ghost" id="t-motion">Reduce all motion</button>
+  <div class="trow"><label>Screen shake</label><input type="range" id="t-mshake" min="0" max="1" step="0.05"><span class="tval" id="t-mshakev"></span></div>
+  <div class="trow"><label>Lens kick</label><input type="range" id="t-mfov" min="0" max="1" step="0.05"><span class="tval" id="t-mfovv"></span></div>
+  <div class="trow"><label>Hit vignette</label><input type="range" id="t-mflash" min="0" max="1" step="0.05"><span class="tval" id="t-mflashv"></span></div>
+  <div class="trow"><label>Afterimages</label><input type="range" id="t-mghost" min="0" max="1" step="0.05"><span class="tval" id="t-mghostv"></span></div>
+  <div class="trow"><label>Banner &amp; number pops</label><input type="range" id="t-mbanner" min="0" max="1" step="0.05"><span class="tval" id="t-mbannerv"></span></div>
+  <div class="tnote">Nothing here changes the fight — only how much it moves. The hit vignette never turns off completely, because it is the only full-screen sign that something got through. Impact freeze is deliberately left alone: it is the absence of movement, and it is what tells you a hit landed once the shake is gone.</div>
 
   <h3>Report back</h3>
   <button class="btn ghost" id="t-copy">Copy settings to clipboard</button>
@@ -1320,9 +1340,12 @@ var GHOSTS = [];
 })();
 var ghostIdx = 0;
 function ghost(x, z, yaw) {
+  // VR-103 — the afterimage is the blink's decoration, not its readout: the
+  // burst, the ring and the sound all still say a Veilstep happened.
+  if (MOTION.ghost <= 0) return;
   var G = GHOSTS[ghostIdx]; ghostIdx = (ghostIdx + 1) % GHOSTS.length;
   G.g.position.set(x, 0, z); G.g.rotation.y = yaw + MESH_PI; G.g.visible = true;
-  G.mat.opacity = 0.5; G.life = 0.36;
+  G.mat.opacity = 0.5 * MOTION.ghost; G.life = 0.36;
 }
 function updateGhosts(dt) {
   for (var i = 0; i < GHOSTS.length; i++) {
@@ -1736,8 +1759,76 @@ function playerSpriteReady() {
   if (modelReady()) return false;          // the model owns the player
   return typeof playerSprite !== "undefined" && playerSprite && !!playerSprite.mat.map;
 }
-function shake(mag) { cam.shake = Math.max(cam.shake, 0.22); cam.shakeMag = Math.max(cam.shakeMag, mag); }
-function fovKick(v) { cam.fovTarget = (cam.mode === "arcade" ? ARC.fov : (cam.mode === "third" ? 62 : 76)) + v; }
+/* ====================== reduced motion (VR-103) =========================
+   The first concrete piece of VR-73. The pattern the other eleven games are
+   meant to copy, so it is written to be copied.
+
+   WHY IT IS THIS SMALL. Every bit of screen movement in this game already
+   goes through a named function — shake(), fovKick(), ghost(), banner(),
+   floatNumber() and the one inline vignette pulse in hurtPlayer(). So the
+   whole feature is a scale factor applied at six choke points, not a hunt
+   through twenty-odd call sites. If a future effect wants to be damped, the
+   rule is: give it a function, then multiply here. Not at the call site.
+
+   THE OS IS THE DEFAULT, NOT THE VERDICT. `prefers-reduced-motion` seeds the
+   values, because someone who has told their machine once should not have to
+   tell us again. It does not lock them: the flag is a single bit and the need
+   is not — the person who wants the hit vignette but not the camera shake has
+   nowhere to say so at the OS level, and the panel is where they say it. If
+   the OS flag changes mid-session we follow it, but ONLY while nobody has
+   touched these controls (TUNE.mset); an explicit choice here outranks it.
+
+   WHAT IS DELIBERATELY NOT DAMPED, and why — VR-104 will add more damage
+   feedback and inherits these decisions:
+
+   · hitStop(). It is the one that looks like it belongs here and does not.
+     First, it is not motion — it is the ABSENCE of motion, a freeze frame.
+     Cutting it would leave the camera travelling straight through an impact,
+     which is more apparent movement, not less; and with shake and fovKick
+     damped to nothing, the freeze is carrying MORE of the impact read, not
+     less. Second and decisively: hitStop pauses simulation time. Scaling it
+     from an accessibility control would let a TUNE key change how long a
+     strike window really lasts — which is precisely the TUNE-reaches-BALANCE
+     violation _billboard.js exists to catch. It stays exactly as it is.
+     If anything ever wants tuning here, it is LENGTHENING it, and that is a
+     feel decision for the BALANCE block to make, not this panel.
+   · The blade trail. It is the strike's readable arc — the picture of which
+     enemies were inside the swing — not decoration.
+   · The Shroud dissolve. It reports state (are you veiled or not). Removing
+     it removes information, which is the opposite of an accessibility win.
+   · The vignette never goes fully dark, only softer and slower (see MOTION_RED
+     below). It is the only full-screen "you were hit" signal there is, and a
+     player who damps everything must not end up with less feedback than one
+     who damps nothing.
+   ------------------------------------------------------------------------ */
+var PREFERS_REDUCED = (function () {
+  try { return !!(window.matchMedia &&
+                  window.matchMedia("(prefers-reduced-motion: reduce)").matches); }
+  catch (e) { return false; }
+})();
+/* Scales, 0..1. MOTION_RED is not zeros across the board on purpose: `flash`
+   floors the hit vignette at a still, readable tint rather than deleting it,
+   and `fov` keeps a trace of the execute's lens pull because it is how you
+   tell an Execute landed from a strike landing. */
+var MOTION_FULL = { shake: 1,    fov: 1,    flash: 1,    ghost: 1, banner: 1 };
+var MOTION_RED  = { shake: 0,    fov: 0.25, flash: 0.34, ghost: 0, banner: 0 };
+var MOTION_KEYS = ["shake", "fov", "flash", "ghost", "banner"];
+var MOTION = {};
+(function () {
+  var src = PREFERS_REDUCED ? MOTION_RED : MOTION_FULL;
+  for (var i = 0; i < MOTION_KEYS.length; i++) MOTION[MOTION_KEYS[i]] = src[MOTION_KEYS[i]];
+})();
+
+function shake(mag) {
+  mag *= MOTION.shake;
+  // damped to nothing: don't start a decay the camera then has to run down
+  if (mag <= 0) return;
+  cam.shake = Math.max(cam.shake, 0.22); cam.shakeMag = Math.max(cam.shakeMag, mag);
+}
+function fovKick(v) {
+  var base = (cam.mode === "arcade" ? ARC.fov : (cam.mode === "third" ? 62 : 76));
+  cam.fovTarget = base + v * MOTION.fov;
+}
 
 var _cd = new THREE.Vector3();
 function updateCamera(dt) {
@@ -1847,6 +1938,9 @@ function pulseRefund(el) {
 function banner(a, b) {
   HUD.banner.querySelector(".b1").textContent = a;
   HUD.banner.querySelector(".b2").textContent = b || "";
+  // VR-103 — swap the travelling pop for a fade of the same length. Set before
+  // .play goes on, or the frame the animation starts on picks the wrong rule.
+  HUD.banner.classList.toggle("still", MOTION.banner <= 0.5);
   HUD.banner.classList.remove("play");
   void HUD.banner.offsetWidth;
   HUD.banner.classList.add("play");
@@ -1856,7 +1950,7 @@ function floatNumber(x, y, z, text, crit) {
   _v3.set(x, y, z).project(camera);
   if (_v3.z > 1) return;
   var el = document.createElement("div");
-  el.className = "fnum" + (crit ? " crit" : "");
+  el.className = "fnum" + (crit ? " crit" : "") + (MOTION.banner <= 0.5 ? " still" : "");
   el.textContent = text;
   // #dmgnum lives inside #hud, which is clipped to the stage on touch — so the
   // projection has to be scaled to the stage, not the window, or every damage
@@ -2224,9 +2318,16 @@ function hurtPlayer(dmg) {
   if (player.iframe > 0 || !player.alive) return;
   player.hp -= dmg;
   player.iframe = C.iframeOnHit;
+  // hitStop is NOT scaled here — see the VR-103 block above shake().
   AU.hurt(); shake(0.28); hitStop(70);
-  HUD.vig.style.opacity = "1";
-  setTimeout(function () { HUD.vig.style.opacity = "0"; }, 170);
+  /* VR-103 — damped, never removed. This is the only full-screen signal that
+     you took a hit, so the floor is a still tint you can still read; what the
+     scale actually buys is that a 170ms on/off at full opacity stops being a
+     strobe and becomes a slower, dimmer wash. */
+  var vs = Math.max(MOTION.flash, 0.34);
+  HUD.vig.style.transitionDuration = (0.18 + (1 - vs) * 0.34).toFixed(2) + "s";
+  HUD.vig.style.opacity = String(vs);
+  setTimeout(function () { HUD.vig.style.opacity = "0"; }, 170 + (1 - vs) * 210);
   burst(player.x, 1.2, player.z, 10, 0xE8574F, 4.0, { scale: 0.9, lifeScale: 0.7 });
   breakShroud(false);
   if (player.hp <= 0) { player.hp = 0; endRun(); }
@@ -3693,7 +3794,12 @@ var TUNE = (function () {
     glass: "#" + VEIL_GLASS.toString(16).padStart(6, "0"),
     rim:   "#" + VEIL_RIM.toString(16).padStart(6, "0"),
     burn:  "#" + VEIL_BURN.toString(16).padStart(6, "0"),
-    amin: VEIL_A_MIN, amax: VEIL_A_MAX, lift: VEIL_GLASS_LIFT
+    amin: VEIL_A_MIN, amax: VEIL_A_MAX, lift: VEIL_GLASS_LIFT,
+    /* --- accessibility (VR-103) — seeded from the OS, overridable here.
+       `mset` records that a human has expressed a preference on this device,
+       which is what stops a later OS change from overwriting it. */
+    mshake: MOTION.shake, mfov: MOTION.fov, mflash: MOTION.flash,
+    mghost: MOTION.ghost, mbanner: MOTION.banner, mset: false
   };
   var V = {};
   for (var k in DEF) V[k] = DEF[k];
@@ -3733,6 +3839,39 @@ var TUNE = (function () {
         glass: V.glass, rim: V.rim, burn: V.burn,
         aMin: +V.amin, aMax: +V.amax, lift: +V.lift });
     }
+    /* VR-103 — the ONLY writer of MOTION. Everything that moves reads the
+       scales; nothing reads V directly, so there is one place to look when an
+       effect ignores the setting. Reaches nothing in BALANCE, by construction:
+       the keys here are display scales and are asserted absent from the block
+       by _billboard.js. */
+    if (!what || what === "a11y") {
+      for (var mi = 0; mi < MOTION_KEYS.length; mi++) {
+        MOTION[MOTION_KEYS[mi]] = clamp(+V["m" + MOTION_KEYS[mi]], 0, 1);
+      }
+      var mb = $("t-motion");
+      if (mb) mb.textContent = isReduced() ? "Restore full motion" : "Reduce all motion";
+    }
+  }
+
+  /* At or below the reduced preset on every axis. Derived rather than stored,
+     so the button can never disagree with the sliders under it. */
+  function isReduced() {
+    for (var i = 0; i < MOTION_KEYS.length; i++) {
+      if (+V["m" + MOTION_KEYS[i]] > MOTION_RED[MOTION_KEYS[i]]) return false;
+    }
+    return true;
+  }
+  function motionPreset(src) {
+    for (var i = 0; i < MOTION_KEYS.length; i++) V["m" + MOTION_KEYS[i]] = src[MOTION_KEYS[i]];
+    syncMotionRows();
+  }
+  // push V back into the five sliders after the button or the OS moves them
+  function syncMotionRows() {
+    for (var i = 0; i < MOTION_KEYS.length; i++) {
+      var k = MOTION_KEYS[i], el = $("t-m" + k), out = $("t-m" + k + "v");
+      if (el) el.value = V["m" + k];
+      if (out) out.textContent = Math.round(+V["m" + k] * 100) + "%";
+    }
   }
 
   function bindRange(id, key, group, fmt) {
@@ -3750,6 +3889,20 @@ var TUNE = (function () {
     var el = $(id); if (!el) return;
     el.value = V[key];
     el.addEventListener("change", function () { V[key] = el.value; apply(group); save(); });
+  }
+  /* Its own binder rather than a flag on bindRange: touching one of these is
+     the event that makes the OS stop being authoritative, and that only ever
+     applies to the motion rows. */
+  function bindMotion(key) {
+    var id = "t-m" + key, el = $(id), out = $(id + "v");
+    if (!el) return;
+    el.value = V["m" + key];
+    if (out) out.textContent = Math.round(+V["m" + key] * 100) + "%";
+    el.addEventListener("input", function () {
+      V["m" + key] = +el.value; V.mset = true;
+      if (out) out.textContent = Math.round(+V["m" + key] * 100) + "%";
+      apply("a11y"); save();
+    });
   }
 
   function build() {
@@ -3772,6 +3925,36 @@ var TUNE = (function () {
     bindRange("t-amin", "amin", "veil", function (v) { return (+v).toFixed(2); });
     bindRange("t-amax", "amax", "veil", function (v) { return (+v).toFixed(2); });
     bindRange("t-lift", "lift", "veil", function (v) { return (+v).toFixed(2); });
+    /* --- accessibility (VR-103) --- */
+    var mn = $("t-mnote");
+    if (mn) {
+      mn.textContent = PREFERS_REDUCED
+        ? "Your system asks for reduced motion, so that is where these started. Change anything here and this device keeps your answer instead."
+        : "Your system has not asked for reduced motion. These start at full and stay wherever you leave them.";
+    }
+    for (var mi = 0; mi < MOTION_KEYS.length; mi++) bindMotion(MOTION_KEYS[mi]);
+    var mbtn = $("t-motion");
+    if (mbtn) {
+      mbtn.addEventListener("click", function () {
+        motionPreset(isReduced() ? MOTION_FULL : MOTION_RED);
+        V.mset = true; apply("a11y"); save();
+      });
+    }
+    /* Follow the OS if it changes mid-session — but only while nobody has said
+       anything here. An explicit choice on this device outranks a system flag,
+       and silently undoing it the next time someone flips a system toggle is
+       exactly how a setting stops being trusted. */
+    try {
+      var mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+      var onMQ = function () {
+        if (V.mset) return;
+        motionPreset(mq.matches ? MOTION_RED : MOTION_FULL);
+        apply("a11y"); save();
+      };
+      if (mq.addEventListener) mq.addEventListener("change", onMQ);
+      else if (mq.addListener) mq.addListener(onMQ);
+    } catch (e) {}
+
     ["glass", "rim", "burn"].forEach(function (k) {
       var el = $("t-" + k); if (!el) return;
       el.value = V[k];
@@ -3791,6 +3974,12 @@ var TUNE = (function () {
         "pixel grid     " + V.pixel + ":1",
         "husk models    " + V.husks + "   (" + HUSKMODEL.live() + " rigged now)",
         "fog density    " + (+V.fog).toFixed(3),
+        // the OS flag belongs in the paste too — "shake 0" reads very
+        // differently depending on whether we chose it or they did
+        "motion         " + MOTION_KEYS.map(function (k) {
+          return k + " " + Math.round(+V["m" + k] * 100) + "%"; }).join("  ") +
+          "   (os " + (PREFERS_REDUCED ? "reduce" : "no-preference") +
+          ", " + (V.mset ? "overridden here" : "following os") + ")",
         "VEIL_GLASS     0x" + V.glass.slice(1),
         "VEIL_RIM       0x" + V.rim.slice(1),
         "VEIL_BURN      0x" + V.burn.slice(1),

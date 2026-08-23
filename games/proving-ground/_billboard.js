@@ -246,12 +246,96 @@ ok("a run that can't lock starts unpaused", /setPaused\(wantsLock\(\)\)/.test(ht
 ok("never pauses on a lock that was never asked for", /wantsLock\(\)\) setPaused\(!mouse\.locked\)/.test(html),
    "this is what left the run stuck on the pause screen");
 
+/* ---- reduced motion (VR-103) ---- */
+console.log("\n[reduced motion]");
+/* Read the axis list out of the game rather than restating it, so a sixth
+   motion scale added to MOTION_KEYS is asserted by every check below on the
+   day it is added — including, and this is the point, the ones that prove it
+   cannot reach the sim. A harness that has to be updated to stay honest is a
+   harness that eventually isn't. */
+const MK = ((html.match(/var MOTION_KEYS = \[([^\]]*)\]/) || [])[1] || "")
+  .split(",").map(s => s.trim().replace(/^"|"$/g, "")).filter(Boolean);
+ok("MOTION_KEYS is declared in the game", MK.length >= 5, MK.join(", ") || "none found");
+/* Anchored INSIDE the PREFERS_REDUCED initialiser, not merely present in the
+   file: the live-change listener also names the media query, so a loose test
+   here stays green while the boot-time seed is gutted. (Found by the mutation
+   pass — it was the one mutant that survived.) */
+ok("the OS preference is read at boot, not assumed",
+   /var PREFERS_REDUCED = \(function \(\) \{[\s\S]{0,260}?matchMedia\("\(prefers-reduced-motion: reduce\)"\)\.matches/.test(html),
+   "seeds the defaults");
+ok("and followed live afterwards",
+   /addEventListener\("change", onMQ\)/.test(html) && /addListener\(onMQ\)/.test(html),
+   "both spellings — Safari only grew the modern one recently");
+ok("it seeds the defaults rather than overriding them",
+   /mshake: MOTION\.shake/.test(html) && /var src = PREFERS_REDUCED \? MOTION_RED : MOTION_FULL;/.test(html),
+   "the panel can always disagree with the system");
+ok("an explicit choice here outranks a later OS change",
+   /if \(V\.mset\) return;/.test(html) && /V\.mset = true;/.test(html));
+const presetLine = n => (html.match(new RegExp("var MOTION_" + n + "\\s*=[^\\n]*")) || [""])[0];
+ok("every axis has a full and a reduced value",
+   MK.length > 0 && ["FULL", "RED"].every(n =>
+     MK.every(k => new RegExp("\\b" + k + ":\\s*[\\d.]+").test(presetLine(n)))),
+   "a scale with no reduced value is an effect the setting silently misses");
+ok("MOTION has exactly one writer", (html.match(/MOTION\[MOTION_KEYS\[\w+\]\] =/g) || []).length === 2,
+   "the seed and the apply() branch — nothing else assigns a scale");
+
+/* Each damped primitive must actually consult its scale. Checked by name so a
+   primitive that gets rewritten and silently drops the multiply fails here. */
+ok("shake() reads MOTION.shake", /function shake\(mag\) \{[\s\S]{0,200}?mag \*= MOTION\.shake;/.test(html));
+ok("fovKick() reads MOTION.fov", /function fovKick\(v\) \{[\s\S]{0,260}?v \* MOTION\.fov;/.test(html));
+ok("ghost() reads MOTION.ghost", /function ghost\(x, z, yaw\) \{[\s\S]{0,300}?MOTION\.ghost <= 0\) return;/.test(html));
+ok("banner() reads MOTION.banner", /classList\.toggle\("still", MOTION\.banner <= 0\.5\)/.test(html));
+ok("floatNumber() reads MOTION.banner", /MOTION\.banner <= 0\.5 \? " still" : ""/.test(html));
+ok("the hit vignette reads MOTION.flash", /Math\.max\(MOTION\.flash, 0\.34\)/.test(html),
+   "and floors: damping must never cost a player the only sign they were hit");
+ok("the still variants keep the same durations",
+   /bannerstill 2\.4s/.test(html) && /#banner\.play\{animation:bannerpop 2\.4s/.test(html) &&
+   /fnumstill \.7s/.test(html) && /animation:fnum \.7s/.test(html),
+   "reduced motion must not become reduced pacing");
+
+/* THE JUDGEMENT CALL, asserted so VR-104 inherits it rather than rediscovers
+   it. hitStop pauses simulation time — a motion scale reaching it would let an
+   accessibility control change how long a strike window really lasts, which is
+   the TUNE-reaches-BALANCE failure this file exists to catch, arriving through
+   a door nobody was watching. */
+ok("hitStop is not scaled by any motion axis",
+   /function hitStop\(ms\) \{ game\.hitStop = Math\.max\(game\.hitStop, ms \/ 1000\); \}/.test(html),
+   "it freezes simulation time — scaling it from the panel would be a balance edit");
+{
+  const hurt = (html.match(/function hurtPlayer\(dmg\)[\s\S]*?\n\}/) || [""])[0];
+  ok("and no call site scales it either",
+     !/hitStop\([^)]*MOTION/.test(html) && /hitStop\(70\);/.test(hurt),
+     "the freeze is what carries the impact once shake is damped to nothing");
+}
+
 /* ---- the sim must not have been touched ---- */
 console.log("\n[separation of concerns]");
 const bal = html.match(/BALANCE:BEGIN[\s\S]*?BALANCE:END/);
 ok("BALANCE block still present", !!bal);
 ok("sprite layer never touches BALANCE", bal && !/SPR\.|playerSprite|huskSprites/.test(bal[0]),
    "the sim stays authoritative");
+/* VR-103 — the same assertion pointed at the accessibility keys. This is the
+   one that makes the feature safe to extend: whatever a11y option lands next,
+   it is a name in MOTION_KEYS, and a name in MOTION_KEYS may not appear in the
+   block the sim reads. */
+ok("no motion axis name appears inside BALANCE",
+   bal && MK.length > 0 && MK.every(k => !new RegExp("\\bm?" + k + "\\b").test(bal[0])),
+   MK.length ? "checked " + MK.length + " axes" : "MOTION_KEYS not found — cannot vouch for this");
+ok("BALANCE never reads MOTION or PREFERS_REDUCED",
+   bal && !/MOTION|PREFERS_REDUCED|matchMedia|prefers-reduced/.test(bal[0]),
+   "feel is tunable, balance is sim-proven");
+/* Comments stripped first: the block's own header says "may not touch THREE,
+   window or document", and a check that its own rule trips is a check that
+   gets deleted rather than fixed. */
+/* The BEGIN marker lives INSIDE the banner comment, so the captured text opens
+   mid-comment with no `/*` to match on — drop through the first `*​/` before
+   stripping the rest, or the block's own header survives as "code". */
+const balCode = bal
+  ? bal[0].slice(bal[0].indexOf("*/") + 2)
+          .replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "")
+  : "";
+ok("BALANCE is still DOM-free", !!bal && !/document\.|window\.|localStorage|THREE\./.test(balCode),
+   "an accessibility key is a display concern and cannot become a mechanical one");
 
 console.log("\n" + "=".repeat(58));
 console.log(fails ? `FAIL — ${fails} of ${checks}` : `PASS — ${checks} checks`);
