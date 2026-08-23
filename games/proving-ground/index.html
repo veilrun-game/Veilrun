@@ -7,6 +7,13 @@
 <style>
 :root{
   --ink:#0B0818; --ink-2:#121224; --line:#3C345C;
+  /* VR-114 — --line is a 1.76:1 hairline on the panel ground. That is fine for a
+     decorative divider and NOT fine for the edge of a control, which WCAG 1.4.11
+     wants at 3:1: on a select or a colour swatch the border IS the control's only
+     boundary, so at 1.76 there is nothing telling you where the target is. This is
+     the same hue lifted to 3.64:1. Measured, not eyeballed — _touch.js recomputes
+     both ratios from these hex values and fails if either drifts. */
+  --line-hi:#6A6296;
   --violet:#7C4AB6; --violet-lt:#B79CED; --magenta:#D65CDC;
   --white:#F0EEFA; --mute:#9692AC;
   --accent:#965AE6; /* Vesper */
@@ -24,6 +31,12 @@ canvas{display:block}
 .btn:hover{background:rgba(214,92,220,.28);transform:translateY(-1px)}
 .btn.ghost{border-color:var(--line);background:rgba(18,18,36,.6)}
 .btn.ghost:hover{background:rgba(60,52,92,.4)}
+/* VR-114 — WCAG 2.4.7. A two-tone ring rather than one colour: the outline sits
+   on whatever the control's own background happens to be, and a single violet
+   ring disappears against the violet-tinted .btn while a single dark one
+   disappears against the panel. The dark offset ring is the separator. */
+:focus-visible{outline:2px solid var(--violet-lt);outline-offset:2px;
+  box-shadow:0 0 0 4px rgba(11,8,24,.9)}
 
 /* ---------- HUD ---------- */
 #hud{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .3s ease}
@@ -167,25 +180,97 @@ canvas{display:block}
 #camtag{position:fixed;bottom:14px;right:18px;font-size:.68rem;color:var(--mute);opacity:0;transition:opacity .3s;z-index:15}
 #camtag.on{opacity:.75}
 #fps{position:fixed;top:4px;left:50%;transform:translateX(-50%);font-size:.62rem;color:var(--mute);opacity:.45;z-index:15;font-variant-numeric:tabular-nums}
-/* ---------- tuning panel (VR-91) ---------- */
-#tune{position:fixed;top:0;right:0;bottom:0;width:290px;background:rgba(8,6,16,.94);
-  border-left:1px solid var(--line);z-index:40;overflow-y:auto;padding:14px 14px 40px;
-  transform:translateX(100%);transition:transform .22s ease;font-size:.78rem;
-  backdrop-filter:blur(3px)}
-#tune.on{transform:translateX(0)}
+/* VR-114 — the scrim is what makes `aria-modal="true"` true. The focus trap
+   holds the keyboard, but without this a mouse or a thumb still reaches the ⚙
+   fab, the pause buttons and the arena behind an element claiming to be modal,
+   and "aria-modal on a thing that isn't" is worse than no attribute at all. It
+   sits ABOVE #sysfabs (41) deliberately: on desktop the drawer's close button
+   and the fab cluster occupy the same top-right corner, and the fabs are the
+   ones that belong behind. Tapping it closes, which is what every sheet on a
+   phone does and the only reason a thumb reaches outside one. */
+#tunescrim{position:fixed;inset:0;z-index:42;background:rgba(6,4,12,.45);
+  opacity:0;pointer-events:none;transition:opacity .22s ease}
+#tunescrim.on{opacity:1;pointer-events:auto}
+
+/* ---------- settings (VR-91, rebuilt to WCAG 2.1 AA by VR-114) --------------
+   ONE STRUCTURE, TWO EDGES. Desktop keeps the right-hand drawer — it was never
+   the problem, and regressing it to fix a phone would be trading one bad surface
+   for another. Touch gets a bottom sheet, because the drawer put twenty controls
+   in the strip of screen the reaching thumb covers worst and ate the right third
+   of the arena while doing it.
+
+   The split is a media query over the SAME markup, not a second panel: a
+   duplicate control tree is how a setting ends up wired on one device and dead
+   on the other. #tunehead / #tunebody exist so the title, the close button and
+   the drag handle stay put while the twenty rows scroll under them, on both.
+
+   TARGET SIZE IS A TOKEN, NOT A NUMBER TYPED TWENTY TIMES. --tap is the 44x44
+   floor from WCAG 2.5.5; every control below is sized from it, and _touch.js
+   asserts that nothing in the sheet is declared smaller.
+   ------------------------------------------------------------------------- */
+#tune{--tap:44px;
+  position:fixed;top:0;right:0;bottom:0;width:290px;background:rgba(8,6,16,.94);
+  border-left:1px solid var(--line);z-index:43;padding:0;
+  display:flex;flex-direction:column;
+  transform:translateX(100%);font-size:.86rem;
+  backdrop-filter:blur(3px);
+  /* visibility, not just transform: a translated panel is still in the tab
+     order, so without this the closed sheet swallows twenty tab stops and
+     "focus is trapped in the dialog" becomes "focus vanished into a dialog
+     nobody can see". Delayed on close so the slide still plays. */
+  visibility:hidden;transition:transform .22s ease,visibility 0s linear .22s}
+#tune.on{transform:translateX(0);visibility:visible;transition:transform .22s ease,visibility 0s}
+#tunehead{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:8px 10px 8px 14px;
+  border-bottom:1px solid var(--line-hi);background:rgba(8,6,16,.98)}
+#tunetitle{flex:1;margin:0;font-family:var(--font-display);letter-spacing:.14em;
+  text-transform:uppercase;font-size:.9rem;font-weight:400;color:var(--white)}
+.ticon{width:var(--tap);height:var(--tap);flex:0 0 auto;padding:0;cursor:pointer;
+  border:1px solid var(--line-hi);border-radius:10px;background:rgba(18,18,36,.6);
+  color:var(--white);font-family:var(--font-display);font-size:1rem;line-height:1;
+  display:flex;align-items:center;justify-content:center}
+.ticon:hover{background:rgba(60,52,92,.5)}
+/* `hidden` is a UA `display:none`, and .ticon / #t-grab both set display with
+   more specificity than the UA sheet has — so without this the Back button is
+   on screen in the list stage and the grab handle is on screen in the detail
+   stage, both of them lying about where you are. Found by rendering it, not by
+   reading it. The same trap is already handled for .sysfab[hidden] (VR-112). */
+#tune [hidden]{display:none}
+#t-grab{display:none}
+#tunebody{flex:1 1 auto;min-height:0;overflow-y:auto;padding:14px 14px 40px;
+  -webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 #tune h3{font-family:var(--font-display);letter-spacing:.14em;text-transform:uppercase;
-  font-size:.68rem;color:var(--mute);margin:16px 0 7px;border-bottom:1px solid var(--line);padding-bottom:5px}
+  font-size:.72rem;color:var(--mute);margin:18px 0 7px;border-bottom:1px solid var(--line);padding-bottom:5px}
 #tune h3:first-child{margin-top:0}
-.trow{display:flex;align-items:center;gap:8px;margin:6px 0}
-.trow label{flex:1;color:var(--white);opacity:.86}
-.trow input[type=range]{flex:1.1;accent-color:var(--violet)}
-.trow input[type=color]{width:34px;height:22px;padding:0;border:1px solid var(--line);
-  background:none;border-radius:4px;cursor:pointer}
-.trow select{flex:1.1;background:var(--ink-2);color:var(--white);border:1px solid var(--line);
-  border-radius:5px;padding:3px 5px;font-size:.76rem}
-.tval{width:40px;text-align:right;color:var(--violet-lt);font-variant-numeric:tabular-nums}
-.tnote{color:var(--mute);font-size:.68rem;margin:-2px 0 8px;line-height:1.35}
-#tune .btn{width:100%;margin-top:8px;padding:.5rem;font-size:.78rem}
+.trow{display:flex;align-items:center;gap:10px;margin:4px 0;min-height:var(--tap)}
+.trow label{flex:1;color:var(--white);opacity:.86;line-height:1.25}
+/* Hand-rolled rather than `accent-color`: accent-color paints a native thumb
+   whose size the page does not control, and on every engine we can measure that
+   thumb is well under the floor. The INPUT is 44 tall edge to edge, so the whole
+   strip is the target, and the visible thumb is 28 so it still reads as a thumb. */
+.trow input[type=range]{-webkit-appearance:none;appearance:none;flex:1.1;min-width:96px;
+  height:var(--tap);min-height:var(--tap);margin:0;padding:0;background:none;cursor:pointer}
+.trow input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;
+  background:var(--line-hi)}
+.trow input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+  width:28px;height:28px;border-radius:50%;background:var(--violet-lt);
+  border:2px solid var(--ink);margin-top:-11px}
+.trow input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:var(--line-hi)}
+.trow input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;
+  background:var(--violet-lt);border:2px solid var(--ink)}
+.trow input[type=color]{width:var(--tap);height:var(--tap);min-width:var(--tap);min-height:var(--tap);
+  flex:0 0 auto;padding:3px;border:1px solid var(--line-hi);
+  background:none;border-radius:10px;cursor:pointer}
+.trow select{flex:1.1;min-width:var(--tap);min-height:var(--tap);background:var(--ink-2);
+  color:var(--white);border:1px solid var(--line-hi);
+  border-radius:8px;padding:.35rem .5rem;font-size:.86rem;font-family:inherit}
+.tval{width:46px;text-align:right;color:var(--violet-lt);font-variant-numeric:tabular-nums}
+/* 1.4.1 Use of Colour. Three swatches that differ only by the colour inside them
+   are three identical grey rectangles to a colourblind player the moment they've
+   been changed — "Glass body" and "Rim" become unfindable. The hex is the
+   non-colour channel carrying the same information. */
+.thex{width:auto;min-width:66px;font-size:.78rem;letter-spacing:.02em;text-transform:uppercase}
+.tnote{color:var(--mute);font-size:.78rem;margin:2px 0 10px;line-height:1.4}
+#tune .btn{width:100%;margin-top:8px;padding:.6rem;font-size:.86rem;min-height:var(--tap)}
 /* VR-117 — the benchmark readout. Deliberately a plain <pre>: the number is
    meant to be copied onto the card, and a styled table is harder to paste than
    it is to read. */
@@ -202,7 +287,64 @@ canvas{display:block}
 #bench .brow button{flex:1;padding:.6rem;font-size:.78rem;font-family:inherit;color:var(--white);
   background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:6px;cursor:pointer;
   min-height:44px}
-#tunecopy{font-size:.66rem;color:var(--mute);margin-top:6px;line-height:1.4}
+#tunecopy{font-size:.78rem;color:var(--mute);margin-top:6px;line-height:1.4}
+
+/* ---------- two-stage sheet: list, then one control (VR-114, 8/22) ----------
+   Jordan, watching the first build: *"the setting should be selected first, and
+   then the slider appears along with the full view on the window, so you can
+   see the change you're making as you make it."*
+
+   That names something the a11y audit did not: on a phone you have been tuning
+   BLIND. Fog, the pixel grid, the three Shroud colours and every camera number
+   are judged by looking at the arena, and the panel was standing in front of the
+   arena while you judged. Making the targets bigger does not fix that; it makes
+   the panel taller.
+
+   So the sheet has two stages. LIST is one tappable row per setting showing its
+   name and its current value — no controls, which is also what turns twenty
+   crowded rows into a list you can actually scan. DETAIL is that one control,
+   large, in a sheet that drops to a peek at the bottom of the screen with the
+   arena above it and the scrim nearly clear. The cost is a tap per setting, and
+   it buys back the thing the setting is for.
+
+   TOUCH ONLY, by the `.staged` class, which JS adds only under the same TOUCH
+   constant everything else on this page is gated on. The desktop drawer shows
+   all twenty rows at once beside an arena it never covered — staging it would be
+   two taps to do what one drag already does.
+
+   NO SECOND CONTROL TREE. The detail stage shows the SAME .trow the list stage
+   hides; nothing is cloned, moved or re-bound. A duplicate control is how a
+   setting ends up wired in one stage and dead in the other.
+   ------------------------------------------------------------------------- */
+.tpick{display:none;width:100%;align-items:center;gap:10px;min-height:var(--tap);
+  padding:.4rem .1rem;margin:2px 0;background:none;border:none;border-bottom:1px solid var(--line);
+  color:var(--white);font-family:inherit;font-size:.86rem;text-align:left;cursor:pointer}
+.tpick:hover{background:rgba(60,52,92,.28)}
+.tpickl{flex:1;opacity:.86}
+.tpickv{color:var(--violet-lt);font-variant-numeric:tabular-nums;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:52%}
+.tpickc{color:var(--mute);font-size:1.1rem;line-height:1}
+#tune.staged .tpick{display:flex}
+#tune.staged #tunebody .trow,#tune.staged #tunebody .tnote-row{display:none}
+#tune.staged.detail .tpick{display:none}
+#tune.staged.detail #tunebody h3,#tune.staged.detail #tunebody .btn,
+#tune.staged.detail #tunebody .tnote,#tune.staged.detail #tunecopy{display:none}
+#tune.staged.detail #tunebody .trow.tfocus{display:flex}
+#tune.staged.detail #tunebody .tnote-row.tfocus-note{display:block}
+/* One control, given the room a control being watched deserves. order:3 puts it
+   under the name-and-value line whatever source order the row happens to have. */
+#tune.staged.detail .trow.tfocus{flex-wrap:wrap;min-height:0;padding:4px 0 10px}
+/* The header already says which setting this is. The <label> stays in the
+   accessibility tree because it is the control's NAME — clipped, never
+   display:none, or the slider goes back to being announced as "slider". */
+#tune.staged.detail .trow.tfocus label{position:absolute;width:1px;height:1px;padding:0;
+  margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+#tune.staged.detail .trow.tfocus .tval{flex:1 1 auto;text-align:left;width:auto;
+  font-family:var(--font-display);font-size:1.7rem;letter-spacing:.04em;color:var(--white)}
+#tune.staged.detail .trow.tfocus input[type=range]{order:3;flex:0 0 100%;min-width:100%;height:56px}
+#tune.staged.detail .trow.tfocus select{order:3;flex:0 0 100%;min-height:52px;font-size:1rem}
+#tune.staged.detail .trow.tfocus input[type=color]{order:3;flex:0 0 100%;width:100%;height:56px}
+#tunescrim.clear{background:rgba(6,4,12,.12)}
 
 /* ---------- touch layout + pad (VR-79 mobile pass, reshaped by VR-112) ------
    Deliberately shaped like the 2D track's controller (games/_engine/engine.js
@@ -246,7 +388,55 @@ canvas{display:block}
   #fps{display:none}
   #vpad{display:flex}
   .touchonly{display:block}
-  #tune{width:min(320px,88vw)}
+  /* VR-114 — the drawer becomes a bottom sheet. Every closing brace in here is
+     INDENTED on purpose: _touch.js extracts this media query up to the first
+     column-zero `}`, so a nested rule that closes at column zero silently cuts
+     the harness's view of everything below it.
+
+     --sheeth is a detent, not a height: the sheet opens at 62vh so the arena
+     stays visible above it — half these controls (fog, pixel grid, the three
+     Shroud colours) are judged by watching them change, and a full-screen
+     settings page makes you close it to see what you did. The grab handle
+     promotes it to 92vh for the long scroll and drops it back. */
+  #tune{
+    --sheeth:62vh;
+    top:auto;left:0;right:0;bottom:0;width:auto;height:var(--sheeth);max-height:92vh;
+    border-left:none;border-top:1px solid var(--line-hi);
+    border-radius:18px 18px 0 0;
+    transform:translateY(100%);
+    box-shadow:0 -18px 50px rgba(0,0,0,.55);
+    transition:transform .24s ease,height .24s ease,visibility 0s linear .24s;
+  }
+  #tune.on{transform:translateY(0);transition:transform .24s ease,height .24s ease,visibility 0s}
+  #tune.tall{--sheeth:92vh}
+  /* The peek. Content-height rather than a detent, capped, so a colour picker
+     and a slider both sit at the bottom edge with as much arena above them as
+     each needs to leave. This is the whole point of the second stage. */
+  #tune.detail{height:auto;max-height:52vh}
+  #tune.detail::after{display:none}
+  /* The handle is a real button, not a decorative bar: dragging it is the
+     gesture, but a gesture is not an affordance an assistive technology can
+     reach, so the same element toggles the detent on click/Enter and carries
+     aria-expanded. 44px tall with the grip drawn inside it. */
+  #t-grab{display:flex;order:-1;width:100%;flex:0 0 100%;height:var(--tap);
+    background:none;border:none;justify-content:center;touch-action:none;border-radius:18px 18px 0 0}
+  #t-grab::before{content:"";width:40px;height:5px;border-radius:3px;background:var(--line-hi)}
+  #t-grab:hover::before,#t-grab:focus-visible::before{background:var(--violet-lt)}
+  #t-grab:focus-visible{outline-offset:-4px}
+  #tunehead{flex-wrap:wrap;padding:0 10px 8px 14px;border-radius:18px 18px 0 0}
+  #tunebody{padding:12px 14px calc(34px + env(safe-area-inset-bottom))}
+  /* Twenty rows and no edge told you there were twenty rows. The fade is the
+     affordance; it is removed at the end of the scroll so it never claims there
+     is more when there isn't. pointer-events:none or it eats the last button. */
+  #tune::after{content:"";position:absolute;left:0;right:0;bottom:0;height:38px;
+    pointer-events:none;border-radius:0 0 18px 18px;
+    background:linear-gradient(to top,rgba(8,6,16,.96),rgba(8,6,16,0));
+    opacity:1;transition:opacity .18s ease}
+  #tune.atend::after{opacity:0}
+  /* Rows get the width back that the drawer never had, so the label stops
+     wrapping next to a 44px control. */
+  .trow{gap:12px}
+  .trow input[type=range]{flex:1.3}
   /* These are thumb targets on touch, not cursor targets. They shipped at 38px,
      which is under the 44x44 floor every touch guideline agrees on — fixed here
      with VR-112, which is also what moved Pause up into this cluster. */
@@ -264,6 +454,22 @@ canvas{display:block}
   #shroudlbl{bottom:calc(var(--padh) + 24px)}
   .panel{max-height:88vh;overflow-y:auto}
 }
+
+/* VR-114 — the sheet respects reduced motion (WCAG 2.3.3, and the same request
+   VR-103 answered for the arena). The panel still APPEARS and still disappears —
+   what goes is the travel. Visibility keeps its zero-length transition so the
+   tab order still flips at the right moment.
+
+   TWO TRIGGERS, and the second is the one that matters. The media query catches
+   the OS flag. `.noanim` is written by apply("a11y") from TUNE's own isReduced(),
+   which is what makes the panel's "Reduce all motion" button mean the panel too:
+   VR-103's whole point was that an explicit choice on this device outranks the
+   system flag, and a settings panel that keeps sliding after you asked it to
+   stop is the one piece of motion you are guaranteed to be looking at. */
+@media (prefers-reduced-motion: reduce){
+  #tune,#tune.on{transition:visibility 0s}
+}
+#tune.noanim,#tune.noanim.on{transition:visibility 0s}
 
 /* --stickw is the pad's height budget: the stick is the tallest thing in the row,
    so the grid claims the SAME height instead of sitting content-sized inside it.
@@ -410,61 +616,79 @@ canvas{display:block}
   </div>
 </div>
 
-<div id="tune">
+<div id="tunescrim"></div>
+<!-- VR-114 — settings, as a dialog. Was a bare <div> with unlabelled controls:
+     no role, no name, no focus contract, and every <label> free-floating beside
+     its input rather than tied to it, so a screen reader announced twenty
+     controls called "combo box" and "slider". The head/body split is what lets
+     the title and the close button hold still while the rows scroll, on both
+     the desktop drawer and the touch sheet.
+
+     aria-hidden is toggled from JS alongside .on rather than being implied by
+     the transform — a translated panel is still in the accessibility tree. -->
+<div id="tune" role="dialog" aria-modal="true" aria-labelledby="tunetitle" aria-hidden="true">
+  <div id="tunehead">
+    <button class="ticon touchonly" id="t-grab" aria-label="Expand settings" aria-expanded="false"></button>
+    <button class="ticon" id="t-back" aria-label="Back to all settings" hidden>&#8249;</button>
+    <h2 id="tunetitle">Settings</h2>
+    <button class="ticon" id="t-close" aria-label="Close settings">&#10005;</button>
+  </div>
+  <div id="tunebody">
   <h3>Arena</h3>
-  <div class="trow"><label>Map</label><select id="t-map"></select></div>
+  <div class="trow"><label for="t-map">Map</label><select id="t-map"></select></div>
   <div class="tnote" id="t-mapnote"></div>
 
   <h3>Camera</h3>
-  <div class="trow"><label>View</label><select id="t-cam">
+  <div class="trow"><label for="t-cam">View</label><select id="t-cam">
     <option value="arcade">Arcade (fixed)</option><option value="third">Third person</option>
     <option value="first">First person</option></select></div>
-  <div class="trow"><label>Angle</label><input type="range" id="t-pitch" min="10" max="70" step="1"><span class="tval" id="t-pitchv"></span></div>
-  <div class="trow"><label>Distance</label><input type="range" id="t-dist" min="6" max="24" step="0.5"><span class="tval" id="t-distv"></span></div>
-  <div class="trow"><label>Zoom (FOV)</label><input type="range" id="t-fov" min="24" max="80" step="1"><span class="tval" id="t-fovv"></span></div>
+  <div class="trow"><label for="t-pitch">Angle</label><input type="range" id="t-pitch" min="10" max="70" step="1"><output class="tval" id="t-pitchv" for="t-pitch"></output></div>
+  <div class="trow"><label for="t-dist">Distance</label><input type="range" id="t-dist" min="6" max="24" step="0.5"><output class="tval" id="t-distv" for="t-dist"></output></div>
+  <div class="trow"><label for="t-fov">Zoom (FOV)</label><input type="range" id="t-fov" min="24" max="80" step="1"><output class="tval" id="t-fovv" for="t-fov"></output></div>
 
   <div class="touchonly">
     <h3>Touch</h3>
-    <div class="trow"><label>Fit to screen</label><input type="range" id="t-fit" min="0" max="1" step="0.05"><span class="tval" id="t-fitv"></span></div>
+    <div class="trow"><label for="t-fit">Fit to screen</label><input type="range" id="t-fit" min="0" max="1" step="0.05"><output class="tval" id="t-fitv" for="t-fit"></output></div>
     <div class="tnote">A phone's window is nearly square, so the arena crops at the sides. 0 keeps the tuned telephoto and the biggest character; 1 widens the lens until you see as much arena as a desktop does.</div>
-    <div class="trow"><label>Look speed</label><input type="range" id="t-look" min="0.001" max="0.014" step="0.0005"><span class="tval" id="t-lookv"></span></div>
-    <div class="tnote">Drag the gameplay window to aim. Arcade ignores it — its camera is fixed on purpose.</div>
+    <div class="trow"><label for="t-look">Look speed</label><input type="range" id="t-look" min="0.001" max="0.014" step="0.0005"><output class="tval" id="t-lookv" for="t-look"></output></div>
+    <div class="tnote">Drag the gameplay window to aim. Arcade ignores it &mdash; its camera is fixed on purpose.</div>
   </div>
 
   <h3>Render</h3>
-  <div class="trow"><label>Pixel grid</label><select id="t-pixel">
+  <div class="trow"><label for="t-pixel">Pixel grid</label><select id="t-pixel">
     <option value="1">Off</option><option value="2">2:1</option><option value="3">3:1</option>
     <option value="4">4:1</option><option value="6">6:1</option><option value="8">8:1</option></select></div>
-  <div class="trow"><label>Fog</label><input type="range" id="t-fog" min="0" max="0.08" step="0.002"><span class="tval" id="t-fogv"></span></div>
-  <div class="trow"><label>Husk models</label><select id="t-husks">
-    <option value="auto">Auto</option><option value="0">Off — billboards</option>
+  <div class="trow"><label for="t-fog">Fog</label><input type="range" id="t-fog" min="0" max="0.08" step="0.002"><output class="tval" id="t-fogv" for="t-fog"></output></div>
+  <div class="trow"><label for="t-husks">Husk models</label><select id="t-husks">
+    <option value="auto">Auto</option><option value="0">Off &mdash; billboards</option>
     <option value="6">6</option><option value="12">12</option><option value="26">26 (all)</option></select></div>
   <div class="tnote">A skinned husk is real CPU, which is why they were cards. Auto starts at 6 and only adds more once the measured 95th-percentile frame time proves there is room.</div>
   <button class="btn ghost" id="t-bench">Measure frame rate</button>
-  <div class="tnote">Runs the same 26-husk load twice — once as meshes, once as cards — and reports percentiles, so the cost of the models is a number instead of an impression. Keep the window in front or the run invalidates itself.</div>
+  <div class="tnote">Runs the same 26-husk load twice &mdash; once as meshes, once as cards &mdash; and reports percentiles, so the cost of the models is a number instead of an impression. Keep the window in front or the run invalidates itself.</div>
 
   <h3>Shroud</h3>
-  <div class="trow"><label>Glass body</label><input type="color" id="t-glass"></div>
-  <div class="trow"><label>Rim</label><input type="color" id="t-rim"></div>
-  <div class="trow"><label>Burn edge</label><input type="color" id="t-burn"></div>
-  <div class="trow"><label>Visible face-on</label><input type="range" id="t-amin" min="0" max="0.9" step="0.01"><span class="tval" id="t-aminv"></span></div>
-  <div class="trow"><label>Visible at edge</label><input type="range" id="t-amax" min="0" max="1" step="0.01"><span class="tval" id="t-amaxv"></span></div>
-  <div class="trow"><label>Rim strength</label><input type="range" id="t-lift" min="0" max="3" step="0.05"><span class="tval" id="t-liftv"></span></div>
+  <div class="trow"><label for="t-glass">Glass body</label><input type="color" id="t-glass"><output class="tval thex" id="t-glassv" for="t-glass"></output></div>
+  <div class="trow"><label for="t-rim">Rim</label><input type="color" id="t-rim"><output class="tval thex" id="t-rimv" for="t-rim"></output></div>
+  <div class="trow"><label for="t-burn">Burn edge</label><input type="color" id="t-burn"><output class="tval thex" id="t-burnv" for="t-burn"></output></div>
+  <div class="trow"><label for="t-amin">Visible face-on</label><input type="range" id="t-amin" min="0" max="0.9" step="0.01"><output class="tval" id="t-aminv" for="t-amin"></output></div>
+  <div class="trow"><label for="t-amax">Visible at edge</label><input type="range" id="t-amax" min="0" max="1" step="0.01"><output class="tval" id="t-amaxv" for="t-amax"></output></div>
+  <div class="trow"><label for="t-lift">Rim strength</label><input type="range" id="t-lift" min="0" max="3" step="0.05"><output class="tval" id="t-liftv" for="t-lift"></output></div>
 
   <h3>Motion</h3>
   <div class="tnote" id="t-mnote"></div>
   <button class="btn ghost" id="t-motion">Reduce all motion</button>
-  <div class="trow"><label>Screen shake</label><input type="range" id="t-mshake" min="0" max="1" step="0.05"><span class="tval" id="t-mshakev"></span></div>
-  <div class="trow"><label>Lens kick</label><input type="range" id="t-mfov" min="0" max="1" step="0.05"><span class="tval" id="t-mfovv"></span></div>
-  <div class="trow"><label>Hit vignette</label><input type="range" id="t-mflash" min="0" max="1" step="0.05"><span class="tval" id="t-mflashv"></span></div>
-  <div class="trow"><label>Afterimages</label><input type="range" id="t-mghost" min="0" max="1" step="0.05"><span class="tval" id="t-mghostv"></span></div>
-  <div class="trow"><label>Banner &amp; number pops</label><input type="range" id="t-mbanner" min="0" max="1" step="0.05"><span class="tval" id="t-mbannerv"></span></div>
-  <div class="tnote">Nothing here changes the fight — only how much it moves. The hit vignette never turns off completely, because it is the only full-screen sign that something got through. Impact freeze is deliberately left alone: it is the absence of movement, and it is what tells you a hit landed once the shake is gone.</div>
+  <div class="trow"><label for="t-mshake">Screen shake</label><input type="range" id="t-mshake" min="0" max="1" step="0.05"><output class="tval" id="t-mshakev" for="t-mshake"></output></div>
+  <div class="trow"><label for="t-mfov">Lens kick</label><input type="range" id="t-mfov" min="0" max="1" step="0.05"><output class="tval" id="t-mfovv" for="t-mfov"></output></div>
+  <div class="trow"><label for="t-mflash">Hit vignette</label><input type="range" id="t-mflash" min="0" max="1" step="0.05"><output class="tval" id="t-mflashv" for="t-mflash"></output></div>
+  <div class="trow"><label for="t-mghost">Afterimages</label><input type="range" id="t-mghost" min="0" max="1" step="0.05"><output class="tval" id="t-mghostv" for="t-mghost"></output></div>
+  <div class="trow"><label for="t-mbanner">Banner &amp; number pops</label><input type="range" id="t-mbanner" min="0" max="1" step="0.05"><output class="tval" id="t-mbannerv" for="t-mbanner"></output></div>
+  <div class="tnote">Nothing here changes the fight &mdash; only how much it moves. The hit vignette never turns off completely, because it is the only full-screen sign that something got through. Impact freeze is deliberately left alone: it is the absence of movement, and it is what tells you a hit landed once the shake is gone.</div>
 
   <h3>Report back</h3>
   <button class="btn ghost" id="t-copy">Copy settings to clipboard</button>
   <div id="tunecopy">Paste these to Claude and they become the new defaults.</div>
   <button class="btn ghost" id="t-reset">Reset to defaults</button>
+  </div>
 </div>
 <div class="screen on" id="s-start">
   <div class="panel">
@@ -491,7 +715,16 @@ canvas{display:block}
     <div class="eyebrow">Paused</div>
     <h1 style="font-size:clamp(1.3rem,3.4vw,1.9rem)">The Weave holds still</h1>
     <div class="sub" id="pausesub" style="margin-bottom:.8rem">The arena is frozen.</div>
-    <button class="btn" id="btn-unpause">Resume</button>
+    <!-- VR-114 — Settings from inside pause (Jordan, 8/17: "inside pause I think
+         it would be helpful to have a 'settings' button just to make that bit a
+         bit easier"). Without it the only route to the panel mid-run is dismiss
+         pause, hunt the ⚙ in the corner, and give up the frozen arena you paused
+         in order to look at. A .row so Resume keeps its weight as the primary
+         verb instead of becoming one of a stack. -->
+    <div class="row">
+      <button class="btn" id="btn-unpause">Resume</button>
+      <button class="btn ghost" id="btn-pausetune">Settings</button>
+    </div>
   </div>
 </div>
 
@@ -886,6 +1119,12 @@ var stage = $("stage");
    Everything downstream of this flag is INPUT and LAYOUT only. It does not reach
    the BALANCE block, and _billboard.js asserts that it can't. -------------- */
 var TOUCH = !!(window.matchMedia && window.matchMedia("(hover:none),(pointer:coarse)").matches);
+/* VR-114 — the two-stage sheet is a touch behaviour, and it is gated on the SAME
+   constant as everything else touch-shaped on this page rather than on a second
+   media query. One query in the JS, one in the CSS, character-identical, is the
+   invariant _touch.js has asserted since VR-79; a third reading of "is this a
+   phone" is a third thing that can fall out of step with the other two. */
+var STAGED = TOUCH;
 
 /* The canvas is no longer the whole window on touch — it's the stage, which is
    the window ABOVE the pad. Every place that used to reach for window.innerWidth
@@ -1455,6 +1694,15 @@ function wantsLock() { return !TOUCH && cam.mode !== "arcade"; }
 
 window.addEventListener("keydown", function (e) {
   var k = e.key.toLowerCase();
+  /* VR-114 — aria-modal means modal, and modal means the game's single-letter
+     hotkeys stop reaching the arena underneath. Without this, arrowing a slider
+     and then pressing V swaps the camera behind the dialog, and H opens the help
+     overlay UNDER an aria-modal panel, which is two modals and no way out.
+     `keys` is not written either: a held W while the panel is open is a walk you
+     didn't ask for — the same class of thing dropHeldInput() exists to stop.
+     Escape is the one key that still gets through, and the dialog's own handler
+     has already claimed it by stopping propagation before this ever runs. */
+  if (TUNE.isOpen()) { if (k === "escape") TUNE.close(); return; }
   keys[k] = true;
   if (k === " ") e.preventDefault();
   if (e.repeat) return;   // auto-repeat must not re-fire abilities
@@ -1963,7 +2211,13 @@ function floatNumber(x, y, z, text, crit) {
 function hitStop(ms) { game.hitStop = Math.max(game.hitStop, ms / 1000); }
 function setPaused(p) {
   game.paused = !!p;
-  $("s-paused").classList.toggle("on", game.paused);
+  /* VR-114 — a quiet freeze. The sheet's detail stage exists to show the arena
+     while you change it, and the pause panel is a full-screen sheet of its own:
+     showing it here would cover the exact thing the stage was built to reveal.
+     The FREEZE still happens — the simulation stops, the renderer keeps going
+     (see the hitStop note in the frame loop) — only the panel is withheld, and
+     only while the dialog that replaced it is up. */
+  $("s-paused").classList.toggle("on", game.paused && !(TUNE && TUNE.isOpen()));
   var ps = $("pausesub");
   if (ps) ps.textContent = TOUCH
     ? "The arena is frozen. Resume to carry on."
@@ -1972,7 +2226,38 @@ function setPaused(p) {
       : "Your cursor is free. The arena is frozen.";
   // A pause must also drop anything the pad is holding, or a finger still on the
   // stick when the panel opens leaves you walking into the arena on resume.
-  if (game.paused) { keys = Object.create(null); mouse.l = mouse.r = false; TPAD.release(); }
+  if (game.paused) dropHeldInput();
+}
+/* VR-114 — the held-input bug had exactly one fix and one caller, which meant
+   the SECOND thing that covers the arena inherited none of it: opening Settings
+   mid-run left the stick's keys latched, so you walked while you tuned and kept
+   walking when you closed it. Same class of bug, same sentence in the source,
+   different panel. So the fix is a function now, and everything that puts a
+   surface over the arena calls it — setPaused, TUNE.open, and whatever comes
+   next. _touch.js asserts both callers, so a third panel added without one is a
+   failing harness rather than a mystery on a phone.
+   `keys` is REASSIGNED rather than cleared key-by-key because that is what
+   setPaused has always done and the pad reads the same binding. */
+function dropHeldInput() { keys = Object.create(null); mouse.l = mouse.r = false; TPAD.release(); }
+/* VR-114 — freeze the arena for as long as the settings sheet is over it, and
+   ONLY if the sheet is what froze it. Opening settings from the pause screen
+   must not un-pause the run on the way back out, which is what a bare
+   setPaused(false) on close would do. */
+var frozenByPanel = false;
+function freezeArena(on) {
+  if (on) {
+    // remember whether WE froze it, then re-run setPaused either way: it is the
+    // one place the pause panel's visibility is decided, and it now also asks
+    // whether this dialog is up. Opening settings FROM the pause screen has to
+    // re-run it too, or the pause panel stays on screen behind the sheet
+    // covering the arena the detail stage exists to show.
+    if (game.running && !game.over && !game.paused) frozenByPanel = true;
+    if (game.running && !game.over) setPaused(true);
+  } else if (frozenByPanel) {
+    frozenByPanel = false; setPaused(false);
+  } else {
+    setPaused(game.paused);   // already frozen when we arrived — put its panel back
+  }
 }
 
 /* ============================ collision helpers ========================= */
@@ -3850,6 +4135,10 @@ var TUNE = (function () {
       }
       var mb = $("t-motion");
       if (mb) mb.textContent = isReduced() ? "Restore full motion" : "Reduce all motion";
+      /* VR-114 — the sheet is motion too, and it is the motion you are looking
+         at while you turn motion off. Derived from the same isReduced() the
+         button's own label is derived from, so the two can't disagree. */
+      var sh = $("tune"); if (sh) sh.classList.toggle("noanim", isReduced());
     }
   }
 
@@ -3955,10 +4244,23 @@ var TUNE = (function () {
       else if (mq.addListener) mq.addListener(onMQ);
     } catch (e) {}
 
+    /* VR-114 — each swatch now writes its hex into a text output beside it.
+       WCAG 1.4.1: three <input type=color> in a column are distinguishable only
+       by the colour inside them, and the moment two of them have been dragged
+       near each other a colourblind player cannot tell which row they changed.
+       The hex is the same information in a channel that isn't colour — and it
+       doubles as the value you'd paste back, which the panel already trades in. */
     ["glass", "rim", "burn"].forEach(function (k) {
-      var el = $("t-" + k); if (!el) return;
+      var el = $("t-" + k), out = $("t-" + k + "v"); if (!el) return;
       el.value = V[k];
-      el.addEventListener("input", function () { V[k] = el.value; apply("veil"); save(); });
+      // uppercased HERE rather than by the list's CSS: the list column also
+      // carries map names and camera modes, and shouting those reads as an error
+      if (out) out.textContent = V[k].toUpperCase();
+      el.addEventListener("input", function () {
+        V[k] = el.value;
+        if (out) out.textContent = el.value.toUpperCase();
+        apply("veil"); save();
+      });
     });
 
     $("t-copy").addEventListener("click", function () {
@@ -3999,14 +4301,256 @@ var TUNE = (function () {
     apply();
   }
 
-  function toggle() {
-    var el = $("tune");
-    el.classList.toggle("on");
-    // the panel is a mouse surface; arcade doesn't hold pointer lock anyway
-    if (el.classList.contains("on") && document.pointerLockElement) document.exitPointerLock();
+  /* ===================== the dialog contract (VR-114) =====================
+     SHEET:BEGIN
+     Marked the way BALANCE and TOUCH are, and for the same reason: `_touch.js`
+     extracts this exact block and EXECUTES it against a DOM stub, so "focus
+     moves in, focus is trapped, Escape closes, focus goes back to the opener"
+     is proven rather than asserted from a regex. A focus contract is precisely
+     the kind of thing that reads correct in a diff and is wrong in a browser,
+     and nothing else in this repo can see it. Nothing in here may touch THREE,
+     the renderer or game state — the only outside things it may call are `$`
+     and dropHeldInput().
+
+     WHAT WAS WRONG. `toggle()` used to be two lines: flip a class, drop the
+     pointer lock. That is a panel, not a dialog. Nothing announced it, nothing
+     named it, keyboard focus stayed behind it on the arena, Escape did not
+     close it, and closing it dropped focus on <body> so the next Tab restarted
+     from the top of the document. WCAG 4.1.2 and 2.4.3, and on touch it was
+     worse than on desktop because there is no Tab key to notice it with.
+
+     The contract, in the order it runs: remember who opened it → move focus in →
+     trap Tab inside while it is open → Escape closes → give focus back to the
+     opener. `opener` is what makes the ⚙ fab and the pause button both correct
+     without either of them knowing about the other.
+     --------------------------------------------------------------------- */
+  var opener = null;
+  var SEL = 'button,select,input,[href],[tabindex]:not([tabindex="-1"])';
+  function isOpen() { return $("tune").classList.contains("on"); }
+  function focusables() {
+    var el = $("tune"), out = [];
+    var all = el.querySelectorAll(SEL);
+    for (var i = 0; i < all.length; i++) {
+      var n = all[i];
+      // offsetParent is null for the .touchonly rows on desktop and vice versa;
+      // a trap that cycles through hidden controls is a trap that feels broken
+      if (!n.disabled && (n.offsetParent !== null || n === document.activeElement)) out.push(n);
+    }
+    return out;
   }
-  return { build: build, toggle: toggle, apply: apply };
+  function open(from) {
+    if (isOpen()) return;
+    var el = $("tune");
+    opener = from || (document.activeElement && document.activeElement !== document.body
+      ? document.activeElement : $("tunefab"));
+    el.classList.add("on");
+    el.setAttribute("aria-hidden", "false");
+    $("tunescrim").classList.add("on");
+    // the panel is a mouse surface; arcade doesn't hold pointer lock anyway
+    if (document.pointerLockElement) document.exitPointerLock();
+    /* THE VR-112 GOTCHA, INHERITED DELIBERATELY. A thumb still on the stick when
+       a panel opens leaves keys latched and you walk into the arena behind it.
+       setPaused has always done this; opening Settings never did, which is the
+       live bug this card's warning is about. One function, both callers. */
+    dropHeldInput();
+    /* THE OTHER HALF OF SEEING WHAT YOU CHANGE. The detail stage puts the arena
+       on screen behind the sheet, and a live arena is one that keeps swinging at
+       you while both your thumbs are on a slider. So the run freezes — quietly:
+       setPaused suppresses its own panel while this dialog is open, because the
+       pause panel would cover the very arena the second stage exists to show.
+       Rendering carries on, which is what makes fog, the pixel grid and the
+       three Shroud colours visibly change under your thumb. */
+    freezeArena(true);
+    toList();
+    edgeFade();
+    var f = focusables();
+    (f[0] || el).focus();
+  }
+  function close() {
+    if (!isOpen()) return;
+    var el = $("tune");
+    el.classList.remove("on");
+    el.setAttribute("aria-hidden", "true");
+    $("tunescrim").classList.remove("on");
+    el.classList.remove("tall");
+    var g = $("t-grab"); if (g) { g.setAttribute("aria-expanded", "false"); g.setAttribute("aria-label", "Expand settings"); }
+    // Focus must land somewhere deliberate. Dropping it on <body> means the next
+    // Tab starts from the top of the document, which on this page is the pad.
+    if (opener && opener.focus) { try { opener.focus(); } catch (e) {} }
+    opener = null;
+    freezeArena(false);
+  }
+  function toggle() { isOpen() ? close() : open(null); }
+
+  /* Detents. The grab bar is a BUTTON that also happens to be draggable: the
+     drag is the gesture a thumb expects, and the button is the affordance a
+     keyboard and a screen reader can reach. Both drive the same one class. */
+  function setTall(on) {
+    var el = $("tune"), g = $("t-grab");
+    el.classList.toggle("tall", !!on);
+    if (g) {
+      g.setAttribute("aria-expanded", on ? "true" : "false");
+      g.setAttribute("aria-label", on ? "Collapse settings" : "Expand settings");
+    }
+    edgeFade();
+  }
+  /* The fade at the bottom edge is the only thing saying "there are twenty rows
+     down there". It has to switch OFF at the end of the scroll, or it is lying. */
+  function edgeFade() {
+    var b = $("tunebody"); if (!b) return;
+    var atEnd = b.scrollHeight - b.scrollTop - b.clientHeight < 8;
+    $("tune").classList.toggle("atend", atEnd);
+  }
+
+  function wireDialog() {
+    var el = $("tune"), body = $("tunebody");
+    $("t-close").addEventListener("click", close);
+    $("tunescrim").addEventListener("click", close);
+    body.addEventListener("scroll", edgeFade);
+    window.addEventListener("resize", edgeFade);
+
+    el.addEventListener("keydown", function (e) {
+      /* Escape unwinds one stage at a time. Dumping you out of the panel
+         because you wanted out of one slider is the kind of thing that makes
+         people stop pressing Escape at all. */
+      if (e.key === "Escape") { e.stopPropagation();
+        if ($("tune").classList.contains("detail")) toList(); else close(); return; }
+      if (e.key !== "Tab") return;
+      var f = focusables();
+      if (!f.length) return;
+      var first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
+
+    var g = $("t-grab");
+    if (g) {
+      g.addEventListener("click", function () { setTall(!el.classList.contains("tall")); });
+      /* Drag is additive, never the only way. Thresholded rather than
+         proportional: a sheet that tracks the finger 1:1 needs a velocity model
+         and a rubber band to feel right, and half of one feels worse than none. */
+      var gy = null, moved = 0;
+      g.addEventListener("pointerdown", function (e) {
+        gy = e.clientY; moved = 0;
+        try { g.setPointerCapture(e.pointerId); } catch (_) {}
+      });
+      g.addEventListener("pointermove", function (e) {
+        if (gy === null) return;
+        moved = e.clientY - gy;
+      });
+      var endDrag = function () {
+        if (gy === null) return;
+        gy = null;
+        if (moved < -40) setTall(true);
+        else if (moved > 80 && !el.classList.contains("tall")) close();
+        else if (moved > 40) setTall(false);
+      };
+      g.addEventListener("pointerup", endDrag);
+      g.addEventListener("pointercancel", endDrag);
+    }
+    $("t-back").addEventListener("click", toList);
+    /* One delegated listener rather than a hook in each of the four binders: the
+       list's value column has to agree with the control the moment the control
+       moves, and a binder that forgets to call back is a row that lies. */
+    body.addEventListener("input", refreshPicks);
+    body.addEventListener("change", refreshPicks);
+  }
+
+  /* ------------------- stage one: the list (VR-114, 8/22) -------------------
+     Generated from the rows that already exist, at boot, rather than written
+     out as a second block of markup. Seventeen hand-written list items beside
+     seventeen hand-written controls is seventeen chances for the two to drift,
+     and the drift is silent: a row whose list entry points at the wrong control
+     looks exactly like a row that works. */
+  var picks = [], lastPick = null;
+  function labelOf(row) { var l = row.querySelector("label"); return l ? l.textContent : "Setting"; }
+  function controlOf(row) { return row.querySelector("select,input"); }
+  function valueOf(row) {
+    var c = controlOf(row);
+    if (c && c.tagName === "SELECT") return c.options[c.selectedIndex] ? c.options[c.selectedIndex].text : "";
+    var o = row.querySelector("output");
+    return o ? o.textContent : "";
+  }
+  function span(cls, txt) {
+    var n = document.createElement("span");
+    n.className = cls; n.textContent = txt || "";
+    return n;
+  }
+  function makePick(row) {
+    var name = labelOf(row);
+    row.setAttribute("data-name", name);
+    /* The note under a row belongs to that row, not to the section: it is the
+       sentence explaining what the control does, and the detail stage is exactly
+       where somebody is about to want it. Marked here so the list can hide it
+       and the detail stage can bring it back. */
+    var nx = row.nextElementSibling;
+    if (nx && nx.classList && nx.classList.contains("tnote")) {
+      nx.classList.add("tnote-row"); row._note = nx;
+    }
+    var b = document.createElement("button");
+    b.className = "tpick"; b.type = "button";
+    var v = span("tpickv", valueOf(row));
+    b.appendChild(span("tpickl", name));
+    b.appendChild(v);
+    var c = span("tpickc", "\u203A"); c.setAttribute("aria-hidden", "true");
+    b.appendChild(c);
+    b.addEventListener("click", function () { lastPick = b; toDetail(row); });
+    row.parentNode.insertBefore(b, row);
+    picks.push({ row: row, btn: b, val: v });
+  }
+  function refreshPicks() {
+    for (var i = 0; i < picks.length; i++) picks[i].val.textContent = valueOf(picks[i].row);
+  }
+  function toDetail(row) {
+    var el = $("tune");
+    el.classList.remove("tall");
+    el.classList.add("detail");
+    for (var i = 0; i < picks.length; i++) {
+      var r = picks[i].row, on = (r === row);
+      r.classList.toggle("tfocus", on);
+      if (r._note) r._note.classList.toggle("tfocus-note", on);
+    }
+    $("t-back").hidden = false;
+    $("t-grab").hidden = true;
+    $("tunetitle").textContent = row.getAttribute("data-name");
+    // the scrim stops dimming the thing the player came here to look at, but
+    // still catches the tap — aria-modal is a promise about the pointer too
+    $("tunescrim").classList.add("clear");
+    var c = controlOf(row); if (c) c.focus();
+    edgeFade();
+  }
+  function toList() {
+    var el = $("tune");
+    if (!el.classList.contains("staged")) return;
+    el.classList.remove("detail");
+    for (var i = 0; i < picks.length; i++) {
+      picks[i].row.classList.remove("tfocus");
+      if (picks[i].row._note) picks[i].row._note.classList.remove("tfocus-note");
+    }
+    $("t-back").hidden = true;
+    $("t-grab").hidden = false;
+    $("tunetitle").textContent = "Settings";
+    $("tunescrim").classList.remove("clear");
+    refreshPicks();
+    if (lastPick) lastPick.focus();
+    edgeFade();
+  }
+  /* Called after build() has filled the controls, so the list's value column is
+     right on the first open rather than one interaction behind. */
+  function buildStage() {
+    if (!STAGED) return;                 // the desktop drawer stays one flat list
+    var rows = $("tunebody").querySelectorAll(".trow");
+    for (var i = 0; i < rows.length; i++) makePick(rows[i]);
+    $("tune").classList.add("staged");
+    refreshPicks();
+  }
+  /* SHEET:END */
+
+  return { build: build, toggle: toggle, apply: apply,
+           open: open, close: close, isOpen: isOpen,
+           wireDialog: wireDialog, buildStage: buildStage };
 })();
+TUNE.wireDialog();
 
 window.addEventListener("keydown", function (e) {
   if (e.key === "\\\\") { TUNE.toggle(); }
@@ -4406,7 +4950,17 @@ initSprites();
 MODEL.load();
 HUSKMODEL.load();
 TUNE.build();
+/* After build(), never before: the list column shows each setting's CURRENT
+   value, and before build() every control still holds its markup default. */
+TUNE.buildStage();
 $("tunefab").addEventListener("click", function () { TUNE.toggle(); });
+/* VR-114 — the pause-screen entry point. TUNE.open() rather than toggle() so a
+   second tap can never close a sheet you just asked for, and the opener is
+   passed explicitly so Escape hands focus back to THIS button rather than to the
+   ⚙ fab in the corner — which is on the other side of the screen and, on touch,
+   under the sheet you just closed. The run stays paused underneath: settings is
+   a thing you do while frozen, not a second way to unfreeze. */
+$("btn-pausetune").addEventListener("click", function () { TUNE.open($("btn-pausetune")); });
 /* Pause moved out of the pad with VR-112. Wired here rather than inside the
    TOUCH block on purpose: it is a plain click that should work on a desktop too,
    and system verbs must NOT sit behind the pad's inert-when-not-live gate. */

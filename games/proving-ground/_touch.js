@@ -434,6 +434,607 @@ ok("no parallel movement path",
 ok("desktop is untouched by the framing maths", /if \(!TOUCH \|\| !aspect \|\| aspect >= DESIGN_ASPECT/.test(html),
    "framedFov returns early off touch, so a monitor renders exactly as before");
 
+/* ======================================================================
+   10. The settings sheet meets WCAG 2.1 AA  (VR-114)
+   ======================================================================
+   The commit message for this card could have said "now conforms to WCAG AA"
+   and nobody could have checked it. This section is that claim turned into
+   something that fails.
+
+   Three things get proven rather than declared:
+     a) TARGET SIZE, resolved through the real cascade — not "the source
+        mentions 44px somewhere", which passes happily while one control is
+        still 22px tall.
+     b) CONTRAST, recomputed from the palette's own hex values, so a palette
+        tweak that drops a border under 3:1 fails here instead of shipping.
+     c) THE FOCUS CONTRACT, by executing the shipped SHEET block against a stub
+        DOM and actually tabbing around inside it.
+   ====================================================================== */
+console.log("\n[settings sheet — structure]");
+
+const sheetHtml = (html.match(/<div id="tune"[\s\S]*?\n<\/div>\n/) || [""])[0];
+ok("the sheet markup is findable", !!sheetHtml && sheetHtml.length > 2000);
+
+/* --- 4.1.2 Name, Role, Value: the dialog itself ---------------------------- */
+const dlgOpen = (sheetHtml.match(/<div id="tune"[^>]*>/) || [""])[0];
+ok('role="dialog"', /role="dialog"/.test(dlgOpen), dlgOpen.slice(0, 96));
+ok('aria-modal="true"', /aria-modal="true"/.test(dlgOpen));
+const labelledBy = (dlgOpen.match(/aria-labelledby="([^"]+)"/) || [])[1];
+ok("the dialog is named by an element that exists and has text",
+   !!labelledBy && new RegExp('id="' + labelledBy + '"[^>]*>\\s*\\S').test(sheetHtml),
+   labelledBy ? "#" + labelledBy : "no aria-labelledby");
+ok("aria-hidden is toggled, not left to the transform",
+   /aria-hidden="true"/.test(dlgOpen) &&
+   /setAttribute\("aria-hidden", "false"\)/.test(html) &&
+   /setAttribute\("aria-hidden", "true"\)/.test(html),
+   "a translated panel is still in the accessibility tree");
+/* aria-modal is a promise about the pointer as well as the keyboard. */
+ok("a scrim makes aria-modal true for a thumb as well",
+   /<div id="tunescrim">/.test(html) && /#tunescrim\{[^}]*pointer-events:none/.test(html) &&
+   /#tunescrim\.on\{[^}]*pointer-events:auto/.test(html) &&
+   /\$\("tunescrim"\)\.addEventListener\("click", close\)/.test(html));
+
+/* --- 1.3.1 / 4.1.2: every control has a programmatic name ------------------ */
+const sheetBody = (sheetHtml.match(/<div id="tunebody">[\s\S]*/) || [""])[0];
+const labelFors = (sheetBody.match(/<label for="([^"]+)"/g) || []).map(s => s.slice(12, -1));
+const bareLabels = (sheetBody.match(/<label(?! for=)/g) || []).length;
+ok("no <label> in the sheet is free-floating", bareLabels === 0,
+   bareLabels + " label(s) with no for= — the control beside them has no name at all");
+const missingTargets = labelFors.filter(id => !new RegExp('id="' + id + '"').test(sheetBody));
+ok("every label points at a control that exists", missingTargets.length === 0, missingTargets.join(" "));
+
+/* Every focusable control in the sheet is named by a label, an aria-label, or
+   its own text. Enumerated from the markup, so a control added later without a
+   name fails here rather than being discovered by someone using a screen reader. */
+const controls = (sheetBody.match(/<(select|input|button)\b[^>]*>/g) || [])
+  .concat((sheetHtml.match(/<button[^>]*class="ticon[^>]*>/g) || []));
+const unnamed = controls.filter(tag => {
+  const id = (tag.match(/id="([^"]+)"/) || [])[1];
+  if (/aria-label="/.test(tag)) return false;
+  if (id && labelFors.includes(id)) return false;
+  // a <button> with its own text content is named by that text
+  if (/^<button/.test(tag) && new RegExp(tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*\\S").test(sheetHtml)) return false;
+  return true;
+});
+ok("every control in the sheet has an accessible name", unnamed.length === 0, unnamed.join(" | "));
+
+/* --- 1.4.1 Use of Colour: the three swatches ------------------------------- */
+const swatches = (sheetBody.match(/<input type="color" id="t-(\w+)"/g) || []).map(s => s.slice(-5, -1).replace(/"/g, ""));
+ok("each colour swatch carries its value as text too",
+   ["glass", "rim", "burn"].every(k => new RegExp('id="t-' + k + 'v"').test(sheetBody)) &&
+   /out\.textContent = el\.value/.test(html),
+   "three swatches differing only by colour are three grey boxes to a colourblind player");
+
+/* --- 2.3.3 / prefers-reduced-motion ---------------------------------------- */
+ok("the sheet transition respects the OS motion flag",
+   /@media \(prefers-reduced-motion: reduce\)\{[\s\S]*?#tune[^}]*transition:visibility 0s/.test(html),
+   "the panel still appears — what goes is the travel");
+/* VR-103 ruled that an explicit choice on this device outranks the system flag.
+   A media query alone cannot honour that, so the panel's own Reduce all motion
+   button has to reach the panel — which is the one piece of motion you are
+   certainly looking at at the moment you press it. */
+ok("and the panel's own Reduce all motion button reaches the panel",
+   /#tune\.noanim,#tune\.noanim\.on\{transition:visibility 0s\}/.test(html) &&
+   /classList\.toggle\("noanim", isReduced\(\)\)/.test(html));
+ok("that stillness is derived, not stored",
+   /toggle\("noanim", isReduced\(\)\)[\s\S]{0,400}?function isReduced\(\)/.test(html) ||
+   /function isReduced\(\)[\s\S]*?toggle\("noanim", isReduced\(\)\)/.test(html),
+   "same predicate the button's own label comes from, so the two can't disagree");
+
+/* --- 2.4.7 Focus Visible --------------------------------------------------- */
+ok("there is a :focus-visible style", /:focus-visible\{outline:2px solid/.test(html));
+ok("nothing in the sheet kills the outline",
+   !/outline:\s*none/.test(html.slice(html.indexOf("#tune{"), html.indexOf("#bench{"))),
+   "outline:none with no replacement is the single most common 2.4.7 failure");
+
+/* ======================================================================
+   10b. Target size, resolved through the cascade (WCAG 2.5.5)
+   ======================================================================
+   Not `/44px/.test(html)`. That regex passes while one control is still 22px
+   tall, which is exactly the state this card found the panel in. Instead the
+   stylesheet is parsed into rules, the touch media query is applied on top of
+   the base rules the way a browser would, and each control's declared box is
+   resolved from the rules that actually match it.
+   ====================================================================== */
+console.log("\n[settings sheet — target size (WCAG 2.5.5)]");
+
+const css = (html.match(/<style>([\s\S]*?)<\/style>/) || ["", ""])[1];
+const TAP = 44;
+const tapVar = +(css.match(/--tap:(\d+)px/) || [])[1];
+ok("the 44px floor is a token, not twenty literals", tapVar === TAP, "--tap:" + tapVar + "px");
+
+/* A deliberately small rule reader: selector + declarations, plus whether the
+   rule sits inside the touch media query. Enough to model a cascade over a
+   hand-written stylesheet with no nesting beyond @media, which is what this
+   file is; anything more would be a CSS engine, and a CSS engine in a harness
+   is a second thing that can be wrong. */
+function readRules(text, inTouch) {
+  const out = [];
+  const re = /([^{}]+)\{([^{}]*)\}/g;
+  let r;
+  while ((r = re.exec(text))) {
+    const sel = r[1].replace(/\/\*[\s\S]*?\*\//g, "").trim();
+    if (!sel || sel.startsWith("@") || sel.startsWith("0%") || /^\d+%/.test(sel)) continue;
+    out.push({ sel, decl: r[2], inTouch });
+  }
+  return out;
+}
+const touchBlock = (css.match(/@media \(hover:none\),\(pointer:coarse\)\{([\s\S]*?)\n\}/) || ["", ""])[1];
+const rules = readRules(css.replace(touchBlock, ""), false).concat(readRules(touchBlock, true));
+
+function decls(selectors, touch) {
+  const acc = {};
+  rules.forEach(r => {
+    if (!selectors.includes(r.sel)) return;
+    if (r.inTouch && !touch) return;
+    (r.decl.match(/[-\w]+\s*:\s*[^;]+/g) || []).forEach(d => {
+      const i = d.indexOf(":");
+      acc[d.slice(0, i).trim()] = d.slice(i + 1).trim();
+    });
+  });
+  return acc;
+}
+function px(v) {
+  if (v === undefined) return null;
+  if (/var\(--tap\)/.test(v)) return tapVar;
+  if (/^100%$/.test(v)) return Infinity;      // fills its row — bigger than any floor
+  const n = v.match(/^(\d+(?:\.\d+)?)px$/);
+  return n ? +n[1] : null;
+}
+/* Every interactive thing the sheet contains, with the selectors that size it.
+   The list is checked against the markup below, so a control type added without
+   an entry here fails rather than quietly skipping the assertion. */
+const SIZED = {
+  "select":            [".trow select"],
+  "input[type=range]": [".trow input[type=range]"],
+  "input[type=color]": [".trow input[type=color]"],
+  "button.btn":        [".btn", "#tune .btn"],
+  "button.ticon":      [".ticon", "#t-grab"]
+};
+[false, true].forEach(touch => {
+  const where = touch ? "touch sheet" : "desktop drawer";
+  Object.keys(SIZED).forEach(name => {
+    const d = decls(SIZED[name], touch);
+    const h = Math.max(px(d.height) || 0, px(d["min-height"]) || 0);
+    const w = Math.max(px(d.width) || 0, px(d["min-width"]) || 0);
+    ok(where + ": " + name + " is at least " + TAP + " tall", h >= TAP,
+       (h || "unset") + "px");
+    ok(where + ": " + name + " is at least " + TAP + " wide", w >= TAP,
+       (w === Infinity ? "fills the row" : (w || "unset") + "px"));
+  });
+});
+/* The regression that put this card on the board: a control sized in single
+   digits. Anything in the sheet's own rules declaring a box under the floor is
+   a failure regardless of which property it used. */
+const sheetRules = rules.filter(r => /^(#tune|\.trow|\.ticon|#t-grab|#tunehead|#tunebody|\.tval|\.thex)/.test(r.sel));
+const undersized = [];
+sheetRules.forEach(r => {
+  (r.decl.match(/(?:min-)?(?:width|height)\s*:\s*(\d+(?:\.\d+)?)px/g) || []).forEach(d => {
+    const n = +d.match(/(\d+(?:\.\d+)?)px/)[1];
+    /* Pseudo-elements are paint, not targets: the slider thumb, the grip bar and
+       the scroll fade are all marks drawn inside or over a control, and the
+       control around them is what a thumb actually hits. .tval / .thex are the
+       readouts beside the sliders and are not interactive at all. */
+    if (/::/.test(r.sel) || /^\.tval|^\.thex/.test(r.sel)) return;
+    /* The one legitimate 1x1: a label clipped out of sight but kept in the
+       accessibility tree, which is a NAME rather than a target — the control it
+       names is the target, and it is measured above. Matched on the clip itself
+       rather than on the selector, so only the visually-hidden pattern gets the
+       exemption and a genuinely shrunken label still fails. */
+    if (/clip-path:inset\(50%\)/.test(r.decl)) return;
+    if (n < TAP) undersized.push(r.sel + " { " + d + " }");
+  });
+});
+ok("no control in the sheet declares a box under the floor", undersized.length === 0,
+   undersized.join("  ·  ") || "nothing under " + TAP + "px");
+
+/* Desktop is not regressed to fix mobile: the drawer is still a drawer. */
+console.log("\n[settings sheet — bottom sheet on touch, drawer on desktop]");
+ok("desktop still slides in from the right",
+   /#tune\{[\s\S]*?transform:translateX\(100%\)/.test(css) && /#tune\.on\{transform:translateX\(0\)/.test(css));
+ok("touch slides up from the bottom instead",
+   /transform:translateY\(100%\)/.test(touchBlock) && /#tune\.on\{transform:translateY\(0\)/.test(touchBlock));
+ok("the sheet is anchored to the bottom edge on touch",
+   /top:auto;left:0;right:0;bottom:0/.test(touchBlock));
+ok("it opens at a detent, not full screen",
+   /--sheeth:\d+vh/.test(touchBlock) && /#tune\.tall\{--sheeth:\d+vh\}/.test(touchBlock),
+   "half these controls are judged by watching the arena change behind them");
+ok("there is a scroll affordance at the edge",
+   /#tune::after\{/.test(touchBlock) && /#tune\.atend::after\{opacity:0\}/.test(touchBlock),
+   "twenty rows and nothing saying so");
+ok("the grab handle is a real button, not a decorative bar",
+   /<button class="ticon touchonly" id="t-grab"[^>]*aria-label=/.test(html) &&
+   /aria-expanded/.test(html),
+   "a drag gesture is not an affordance an assistive technology can reach");
+/* The invariant from §1, restated for the sheet: CSS decides where the sheet
+   comes from, JS never does. If the sheet ever gets a JS branch on device type,
+   that branch and this media query are the next thing to fall out of step. */
+ok("no second media query decides where the sheet comes from",
+   (css.match(/@media \(hover:none\),\(pointer:coarse\)/g) || []).length === 1);
+
+/* ======================================================================
+   10c. Contrast, recomputed (WCAG 1.4.3 / 1.4.11)
+   ====================================================================== */
+console.log("\n[settings sheet — contrast]");
+const hex = h => [1, 3, 5].map(i => parseInt(h.replace("#", "").substr(i - 1, 2), 16));
+const lum = c => {
+  const s = c.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+  return 0.2126 * s[0] + 0.7152 * s[1] + 0.0722 * s[2];
+};
+const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+const tok = n => hex((css.match(new RegExp("--" + n + ":(#[0-9A-Fa-f]{6})")) || [])[1] || "#000000");
+/* The sheet's own ground, composited the way the browser does it, rather than a
+   number typed in from a screenshot. */
+const panelRgba = (css.match(/#tune\{[\s\S]*?background:rgba\((\d+),(\d+),(\d+),([\d.]+)\)/) || []).slice(1).map(Number);
+const inkC = tok("ink");
+const ground = panelRgba.length === 4
+  ? [0, 1, 2].map(i => Math.round(panelRgba[i] * panelRgba[3] + inkC[i] * (1 - panelRgba[3])))
+  : inkC;
+const cr = n => ratio(tok(n), ground);
+ok("body text (--white) clears 4.5:1 on the sheet", cr("white") >= 4.5, cr("white").toFixed(2) + ":1");
+ok("secondary text (--mute) clears 4.5:1", cr("mute") >= 4.5, cr("mute").toFixed(2) + ":1  — the notes and the section heads");
+ok("the numeric readout (--violet-lt) clears 4.5:1", cr("violet-lt") >= 4.5, cr("violet-lt").toFixed(2) + ":1");
+ok("control borders (--line-hi) clear 3:1", cr("line-hi") >= 3,
+   cr("line-hi").toFixed(2) + ":1  — 1.4.11, the border IS the control's boundary");
+/* The reason --line-hi had to exist. Kept as an assertion so nobody "tidies"
+   the two tokens back into one and silently reverts the fix. */
+ok("--line is still the decorative hairline it always was", cr("line") < 3,
+   cr("line").toFixed(2) + ":1 — fine for a divider, which is why it stays");
+const borderUsers = sheetRules.filter(r => /border(?!-radius)[^;]*:[^;]*var\(--line\)(?!-hi)/.test(r.decl) &&
+                                           /(select|input|\.ticon|#t-grab)/.test(r.sel));
+ok("no control in the sheet still draws its edge with --line", borderUsers.length === 0,
+   borderUsers.map(r => r.sel).join(" ") || "all control edges use --line-hi");
+ok("the focus ring itself clears 3:1", ratio(tok("violet-lt"), ground) >= 3,
+   "a focus indicator nobody can see is 2.4.7 twice over");
+
+/* ======================================================================
+   10d. The focus contract, executed  (WCAG 2.4.3 / 2.1.2 / 2.4.7)
+   ======================================================================
+   A focus trap is the part of a dialog that reads correct in a diff and is
+   wrong in a browser. So the shipped SHEET block is extracted and RUN here,
+   the same way the TOUCH block is in §3, and the assertions below are the
+   result of actually tabbing around inside it.
+   ====================================================================== */
+console.log("\n[settings sheet — focus contract, executed]");
+const sm = html.match(/SHEET:BEGIN[\s\S]*?-+ \*\/([\s\S]*?)\/\* SHEET:END/);
+ok("the SHEET block is marked and findable", !!sm);
+if (!sm) { console.log("\n" + "=".repeat(58) + "\nFAIL — " + fails + " of " + checks); process.exit(1); }
+
+const doc = { activeElement: null, pointerLockElement: null, exitPointerLock() { doc.pointerLockElement = null; } };
+function dlgEl(id, opts) {
+  const el = makeEl(id);
+  el._attrsSet = {};
+  el.setAttribute = (k, v) => { el._attrsSet[k] = v; };
+  el.getAttribute = k => el._attrsSet[k];
+  el.focus = () => { doc.activeElement = el; };
+  el.disabled = false;
+  el.offsetParent = {};              // visible unless a test says otherwise
+  el.scrollTop = 0; el.scrollHeight = 900; el.clientHeight = 400;
+  Object.assign(el, opts || {});
+  return el;
+}
+const d = {
+  tune: dlgEl("tune"), tunescrim: dlgEl("tunescrim"), tunebody: dlgEl("tunebody"),
+  "t-close": dlgEl("t-close"), "t-grab": dlgEl("t-grab"), tunefab: dlgEl("tunefab"),
+  "t-back": dlgEl("t-back"), tunetitle: dlgEl("tunetitle"),
+  "btn-pausetune": dlgEl("btn-pausetune")
+};
+d.tunetitle.textContent = "Settings";
+/* Three controls standing in for the twenty: first, middle, last is all a trap
+   can be wrong about. The middle one goes hidden later to prove the trap skips
+   the .touchonly rows that the other device never shows. */
+const inner = [dlgEl("c-first"), dlgEl("c-mid"), dlgEl("c-last")];
+d.tune.querySelectorAll = () => inner;
+
+let dropped = 0, frozen = [];
+const win = { addEventListener() {} };
+/* Enough of document.createElement for the list stage to build itself. The list
+   is GENERATED from the rows, so a stub that cannot make a node cannot see the
+   half of this feature most likely to be wrong. */
+doc.createElement = tag => {
+  const n = dlgEl("");
+  n.tagName = tag.toUpperCase();
+  n.className = ""; n.textContent = ""; n.children = [];
+  n.appendChild = c => { n.children.push(c); c.parentNode = n; return c; };
+  n.insertBefore = (c, before) => { n.children.splice(Math.max(0, n.children.indexOf(before)), 0, c); c.parentNode = n; return c; };
+  n.querySelector = sel => n.children.find(c => c._matches && c._matches(sel)) || null;
+  return n;
+};
+const sheetBox = {
+  $: id => d[id],
+  document: doc, window: win,
+  STAGED: true,
+  dropHeldInput: () => { dropped++; },
+  freezeArena: on => { frozen.push(on); },
+  console, Math
+};
+vm.createContext(sheetBox);
+let sheetClean = true, sheetErr = "";
+try { new vm.Script(sm[1], { filename: "index.html#SHEET" }).runInContext(sheetBox); }
+catch (e) { sheetClean = false; sheetErr = e.message; }
+ok("the sheet module boots against a stub DOM", sheetClean, sheetErr || "no missing refs, no typo'd ids");
+if (!sheetClean) { console.log("\n" + "=".repeat(58) + "\nFAIL — " + fails + " of " + checks); process.exit(1); }
+
+sheetBox.wireDialog();
+ok("closed is closed", sheetBox.isOpen() === false);
+
+/* --- open ------------------------------------------------------------- */
+doc.pointerLockElement = {};
+doc.activeElement = d.tunefab;
+sheetBox.open(d.tunefab);
+ok("opening shows the dialog", sheetBox.isOpen() === true &&
+   d.tune.getAttribute("aria-hidden") === "false" && d.tunescrim.classList.contains("on"));
+ok("opening releases the pointer lock", doc.pointerLockElement === null,
+   "the panel is a mouse surface");
+ok("opening drops whatever the pad is holding", dropped === 1,
+   "the VR-112 gotcha: a thumb still on the stick leaves you walking behind the panel");
+ok("opening freezes the arena behind it", frozen[frozen.length - 1] === true,
+   "the detail stage shows a live arena, and a live arena keeps swinging while both thumbs are on a slider");
+ok("focus moves into the dialog", doc.activeElement === inner[0],
+   "2.4.3 — otherwise the next Tab starts from the top of the document, behind the modal");
+
+/* --- trap ------------------------------------------------------------- */
+const key = (k, shift) => d.tune.fire("keydown", { key: k, shiftKey: !!shift, stopPropagation() {} });
+doc.activeElement = inner[2];
+key("Tab");
+ok("Tab wraps from the last control to the first", doc.activeElement === inner[0]);
+doc.activeElement = inner[0];
+key("Tab", true);
+ok("Shift+Tab wraps from the first back to the last", doc.activeElement === inner[2]);
+doc.activeElement = inner[1];
+key("Tab");
+ok("Tab in the middle is left alone", doc.activeElement === inner[1],
+   "the trap only intervenes at the two ends, or arrowing a slider stops working");
+/* Hide the LAST control — a .touchonly row on a desktop, or a desktop-only row
+   on a phone. The one before it is now the end of the cycle, so Tab from there
+   has to wrap. If the trap counted the hidden control instead, Tab would do
+   nothing and focus would sit on a control nobody can see. */
+inner[2].offsetParent = null;
+doc.activeElement = inner[1];
+key("Tab");
+ok("the trap skips controls the other device hides", doc.activeElement === inner[0],
+   "cycling through invisible controls is a trap that feels broken");
+inner[2].offsetParent = {};
+
+/* --- escape and focus restore ----------------------------------------- */
+let propagationStopped = false;
+d.tune.fire("keydown", { key: "Escape", stopPropagation() { propagationStopped = true; } });
+ok("Escape closes the dialog", sheetBox.isOpen() === false &&
+   d.tune.getAttribute("aria-hidden") === "true" && !d.tunescrim.classList.contains("on"));
+ok("Escape does not also reach the game underneath", propagationStopped,
+   "or closing settings would pause the run at the same time");
+ok("focus goes back to whatever opened it", doc.activeElement === d.tunefab,
+   "2.4.3 — dropping focus on <body> restarts tabbing at the touch pad");
+ok("closing lets the arena run again", frozen[frozen.length - 1] === false);
+
+/* The opener is per-open, which is the whole reason the pause button can exist. */
+sheetBox.open(d["btn-pausetune"]);
+d["t-close"].fire("click", {});
+ok("the close button restores focus to the pause button, not the corner fab",
+   sheetBox.isOpen() === false && doc.activeElement === d["btn-pausetune"],
+   "the ⚙ fab is on the far side of the screen and, on touch, under the sheet");
+sheetBox.open(d.tunefab);
+d.tunescrim.fire("click", {});
+ok("tapping outside closes it too", sheetBox.isOpen() === false);
+
+/* --- detents ---------------------------------------------------------- */
+sheetBox.open(d.tunefab);
+d["t-grab"].fire("click", {});
+ok("the handle expands the sheet", d.tune.classList.contains("tall") &&
+   d["t-grab"].getAttribute("aria-expanded") === "true");
+ok("and renames itself so it isn't lying", d["t-grab"].getAttribute("aria-label") === "Collapse settings");
+d["t-grab"].fire("click", {});
+ok("and collapses it again", !d.tune.classList.contains("tall") &&
+   d["t-grab"].getAttribute("aria-expanded") === "false");
+d["t-grab"].fire("pointerdown", { pointerId: 1, clientY: 400 });
+d["t-grab"].fire("pointermove", { pointerId: 1, clientY: 300 });
+d["t-grab"].fire("pointerup", { pointerId: 1 });
+ok("dragging the handle up expands it as well", d.tune.classList.contains("tall"),
+   "the drag is the gesture a thumb expects; the click is the one a keyboard can reach");
+d["t-grab"].fire("pointerdown", { pointerId: 2, clientY: 300 });
+d["t-grab"].fire("pointermove", { pointerId: 2, clientY: 400 });
+d["t-grab"].fire("pointerup", { pointerId: 2 });
+ok("dragging it down collapses it", !d.tune.classList.contains("tall"));
+d["t-grab"].fire("pointerdown", { pointerId: 3, clientY: 300 });
+d["t-grab"].fire("pointermove", { pointerId: 3, clientY: 420 });
+d["t-grab"].fire("pointerup", { pointerId: 3 });
+ok("dragging a collapsed sheet further down dismisses it", sheetBox.isOpen() === false);
+ok("closing resets the detent", !d.tune.classList.contains("tall"),
+   "or it reopens at 92vh having been asked for 62 last time");
+
+/* --- the scroll affordance tells the truth ---------------------------- */
+sheetBox.open(d.tunefab);
+d.tunebody.scrollTop = 0;
+d.tunebody.fire("scroll", {});
+ok("the edge fade is on while there is more below", !d.tune.classList.contains("atend"));
+d.tunebody.scrollTop = 500;   // 900 scrollHeight - 400 clientHeight
+d.tunebody.fire("scroll", {});
+ok("and off at the end of the scroll", d.tune.classList.contains("atend"),
+   "a fade that never clears is claiming there is more when there isn't");
+sheetBox.close();
+
+/* ======================================================================
+   10e. Settings from inside pause  (Jordan, 8/17)
+   ====================================================================== */
+console.log("\n[settings from pause]");
+const pauseScreen = (html.match(/<div class="screen" id="s-paused">[\s\S]*?\n<\/div>/) || [""])[0];
+ok("the pause screen has a Settings button", /id="btn-pausetune"/.test(pauseScreen));
+ok("Resume is still the primary verb beside it",
+   pauseScreen.indexOf("btn-unpause") < pauseScreen.indexOf("btn-pausetune") &&
+   /id="btn-pausetune"[^>]*>|class="btn ghost" id="btn-pausetune"/.test(pauseScreen));
+ok("it opens rather than toggles",
+   /\$\("btn-pausetune"\)\.addEventListener\("click", function \(\) \{ TUNE\.open\(\$\("btn-pausetune"\)\); \}\)/.test(html),
+   "toggle() on a second tap would close a sheet you just asked for");
+ok("it does not unpause",
+   !/btn-pausetune[\s\S]{0,200}setPaused/.test(html),
+   "settings is a thing you do while frozen, not a second way to unfreeze");
+/* THE GOTCHA THIS CARD WAS WARNED ABOUT. One fix, and every surface that covers
+   the arena has to call it — a third panel added without this line is a failing
+   harness rather than a mystery on a phone. */
+ok("the held-input fix is a function with one definition",
+   /function dropHeldInput\(\) \{ keys = Object\.create\(null\); mouse\.l = mouse\.r = false; TPAD\.release\(\); \}/.test(html));
+ok("pause calls it", /if \(game\.paused\) dropHeldInput\(\);/.test(html));
+ok("opening settings calls it too", /dropHeldInput\(\);/.test(sm[1]),
+   "opening settings mid-run used to leave the stick latched — same bug, different panel");
+/* A modal that leaves the game's single-letter hotkeys live is a modal in name
+   only: V swaps the camera behind it, H opens a second overlay under it. */
+ok("game hotkeys stop at the dialog",
+   /if \(TUNE\.isOpen\(\)\) \{ if \(k === "escape"\) TUNE\.close\(\); return; \}/.test(html),
+   "V would swap the camera behind the panel and H would open a modal under a modal");
+ok("the ⚙ fab still opens it the way it always did",
+   /\$\("tunefab"\)\.addEventListener\("click", function \(\) \{ TUNE\.toggle\(\); \}\)/.test(html));
+
+/* ======================================================================
+   10f. Two stages: the list, then one control  (Jordan, 8/22)
+   ======================================================================
+   "The setting should be selected first, and then the slider appears along with
+   the full view on the window, so you can see the change you're making as you
+   make it."
+
+   The list is GENERATED from the rows rather than written out a second time, so
+   the thing worth proving is that the generation is faithful: one entry per row,
+   pointing at that row, showing that row's current value. A list entry wired to
+   the wrong control looks exactly like one that works.
+   ====================================================================== */
+console.log("\n[two-stage sheet — list, then one control]");
+
+/* A stub row: a label, a control, a value readout — the three things the list
+   reads — plus the sibling note that belongs to it. */
+function stubRow(name, kind, value) {
+  const row = dlgEl("row-" + name);
+  row.className = "trow";
+  const label = dlgEl("l-" + name); label.tagName = "LABEL"; label.textContent = name;
+  const out = dlgEl("o-" + name); out.tagName = "OUTPUT"; out.textContent = value;
+  const ctl = dlgEl("c-" + name);
+  ctl.tagName = kind === "select" ? "SELECT" : "INPUT";
+  if (kind === "select") { ctl.options = [{ text: value }]; ctl.selectedIndex = 0; }
+  row.querySelector = sel => {
+    if (sel === "label") return label;
+    if (sel === "select,input") return ctl;
+    if (sel === "output") return out;
+    return null;
+  };
+  row._ctl = ctl; row._out = out;
+  row.parentNode = { insertBefore(node) { inserted.push(node); } };
+  row.nextElementSibling = null;
+  return row;
+}
+const inserted = [];
+const rangeRow = stubRow("Angle", "range", "32°");
+const noteEl = dlgEl("note-angle"); noteEl.className = "tnote"; noteEl._cls.add("tnote");
+rangeRow.nextElementSibling = noteEl;
+const selectRow = stubRow("View", "select", "Arcade (fixed)");
+const colourRow = stubRow("Rim", "color", "#B79CED");
+const rows = [rangeRow, selectRow, colourRow];
+d.tunebody.querySelectorAll = () => rows;
+
+sheetBox.buildStage();
+ok("the list stage turns itself on for touch", d.tune.classList.contains("staged"));
+ok("one list entry per row, and no more", inserted.length === rows.length, inserted.length + " entries for " + rows.length + " rows");
+ok("each entry is a real button", inserted.every(b => b.tagName === "BUTTON" && b.type === "button"),
+   "not a div with a click handler — it has to be reachable by keyboard and announced as a control");
+ok("each entry carries its setting's name and current value",
+   inserted[0].children[0].textContent === "Angle" && inserted[0].children[1].textContent === "32°" &&
+   inserted[1].children[1].textContent === "Arcade (fixed)" &&
+   inserted[2].children[1].textContent === "#B79CED",
+   "a select reads its selected option, a slider and a swatch read their output");
+ok("the chevron is decorative and says so",
+   inserted[0].children[2].getAttribute("aria-hidden") === "true",
+   "or every row announces a stray '›' after its value");
+ok("the note under a row is tied to that row",
+   noteEl.classList.contains("tnote-row"),
+   "the sentence explaining a control belongs with the control, which is the detail stage");
+ok("rows remember their own name for the detail title",
+   rangeRow.getAttribute("data-name") === "Angle");
+
+/* --- into the detail stage ------------------------------------------------ */
+sheetBox.open(d.tunefab);
+ok("opening lands on the list, not wherever it was left",
+   !d.tune.classList.contains("detail") && d.tunetitle.textContent === "Settings",
+   "reopening into somebody's last slider is a panel that has lost its place");
+inserted[0].fire("click", {});
+ok("picking a setting drops to the detail stage", d.tune.classList.contains("detail"));
+ok("exactly one row is shown, and it is the one picked",
+   rows.filter(r => r.classList.contains("tfocus")).length === 1 && rangeRow.classList.contains("tfocus"));
+ok("its note comes with it", noteEl.classList.contains("tfocus-note"));
+ok("the title becomes the setting's name", d.tunetitle.textContent === "Angle");
+ok("focus moves to the control itself", doc.activeElement === rangeRow._ctl,
+   "the point of the stage is that one control; landing anywhere else costs a tab");
+ok("the scrim stops dimming the arena", d.tunescrim.classList.contains("clear"),
+   "you came here to look at the arena — but it still catches the tap, so aria-modal holds");
+ok("back is offered and the drag handle stands down",
+   d["t-back"].hidden === false && d["t-grab"].hidden === true);
+ok("the detail stage is never the tall detent", !d.tune.classList.contains("tall"),
+   "a 92vh sheet showing one slider is the blind-tuning problem again");
+
+/* --- and back ------------------------------------------------------------- */
+rangeRow._out.textContent = "41°";     // as though the slider had been dragged
+d.tunebody.fire("input", {});
+ok("moving the control updates the list behind it", inserted[0].children[1].textContent === "41°",
+   "one delegated listener, so a binder can't forget to call back and leave a row lying");
+d.tune.fire("keydown", { key: "Escape", stopPropagation() {} });
+ok("Escape goes back to the list rather than out of the panel",
+   sheetBox.isOpen() === true && !d.tune.classList.contains("detail"),
+   "dumping you out of the panel because you wanted out of one slider is how people stop pressing Escape");
+ok("the list stage is restored whole",
+   d.tunetitle.textContent === "Settings" && d["t-back"].hidden === true &&
+   d["t-grab"].hidden === false && !d.tunescrim.classList.contains("clear") &&
+   rows.every(r => !r.classList.contains("tfocus")));
+ok("focus returns to the row you came from", doc.activeElement === inserted[0],
+   "2.4.3 again, one level down — otherwise you tab from the top of the list every time");
+d.tune.fire("keydown", { key: "Escape", stopPropagation() {} });
+ok("a second Escape does close it", sheetBox.isOpen() === false);
+
+/* --- the desktop drawer is not staged ------------------------------------- */
+sheetBox.STAGED = false;
+d.tune.classList.remove("staged");
+inserted.length = 0;
+sheetBox.buildStage();
+ok("the desktop drawer stays one flat list",
+   inserted.length === 0 && !d.tune.classList.contains("staged"),
+   "twenty rows beside an arena it never covered — staging it is two taps to do what one drag already does");
+sheetBox.STAGED = true;
+
+/* --- and the stage split is CSS over one control tree, not two ------------- */
+console.log("\n[two-stage sheet — one control tree]");
+ok("the list hides the rows and the detail hides the list",
+   /#tune\.staged #tunebody \.trow,#tune\.staged #tunebody \.tnote-row\{display:none\}/.test(css) &&
+   /#tune\.staged \.tpick\{display:flex\}/.test(css) &&
+   /#tune\.staged\.detail \.tpick\{display:none\}/.test(css) &&
+   /#tune\.staged\.detail #tunebody \.trow\.tfocus\{display:flex\}/.test(css));
+ok("the detail stage shows the SAME control the list hides",
+   !/id="t-pitch"[\s\S]*id="t-pitch"/.test(sheetHtml),
+   "nothing is cloned — a duplicate control is how a setting ends up dead in one stage");
+ok("staging is gated on the same TOUCH constant as everything else",
+   /var STAGED = TOUCH;/.test(html) && /if \(!STAGED\) return;/.test(sm[1]),
+   "a third reading of 'is this a phone' is a third thing that can fall out of step");
+ok("the peek detent is content-height and capped",
+   /#tune\.detail\{height:auto;max-height:\d+vh\}/.test(touchBlock),
+   "as much arena above it as the one control leaves");
+/* The freeze, and the reason the pause panel is withheld rather than the pause. */
+console.log("\n[the quiet freeze]");
+ok("the run freezes while the sheet is over it",
+   /function freezeArena\(on\) \{[\s\S]*?setPaused\(true\)/.test(html));
+ok("the pause panel is withheld, not the pause",
+   /\$\("s-paused"\)\.classList\.toggle\("on", game\.paused && !\(TUNE && TUNE\.isOpen\(\)\)\)/.test(html),
+   "the pause panel would cover the exact arena the detail stage exists to show");
+ok("closing does not un-pause a run the sheet did not pause",
+   /frozenByPanel = false; setPaused\(false\);/.test(html) &&
+   /if \(game\.running && !game\.over && !game\.paused\) frozenByPanel = true;/.test(html),
+   "opening settings from the pause screen must not resume the run on the way out");
+/* Found by walking the OTHER entry point: opening from pause leaves the pause
+   panel already on screen, and nothing re-evaluates its visibility unless
+   setPaused runs again. A sheet with the pause panel behind it shows no arena
+   at all, which is the whole feature gone. */
+ok("opening from an already-paused run re-runs the panel decision",
+   /if \(game\.running && !game\.over\) setPaused\(true\);/.test(html),
+   "otherwise the pause panel sits behind the sheet covering the arena");
+ok("and closing back into a run we did not freeze puts its panel back",
+   /setPaused\(game\.paused\);   \/\/ already frozen when we arrived/.test(html));
+ok("rendering is untouched by the freeze",
+   /if \(game\.paused\) \{ acc = 0; \}/.test(html),
+   "fog, the pixel grid and the three Shroud colours have to keep changing under your thumb");
+
 console.log("\n" + "=".repeat(58));
 console.log((fails ? "FAIL — " + fails + " of " : "PASS — ") + checks + " checks\n");
 process.exit(fails ? 1 : 0);
