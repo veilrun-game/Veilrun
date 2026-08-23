@@ -835,9 +835,33 @@ ok("touch slides up from the bottom instead",
    /transform:translateY\(100%\)/.test(touchBlock) && /#tune\.on\{transform:translateY\(0\)/.test(touchBlock));
 ok("the sheet is anchored to the bottom edge on touch",
    /top:auto;left:0;right:0;bottom:0/.test(touchBlock));
-ok("it opens at a detent, not full screen",
-   /--sheeth:\d+vh/.test(touchBlock) && /#tune\.tall\{--sheeth:\d+vh\}/.test(touchBlock),
-   "half these controls are judged by watching the arena change behind them");
+/* VR-136 INVERTED THIS. VR-114 opened at 62vh so the arena stayed visible;
+   VR-131 changed what "opening" means — you land on a grid of tiles, and there
+   is nothing to watch behind a grid of tiles. So the sheet opens FULL and the
+   only named detent is the small one. The arena argument moved to where it was
+   always really about: `.detail`, one control being watched, still peeks. */
+const sheetOpen = +(touchBlock.match(/--sheeth:(\d+)vh/) || [])[1];
+const sheetShort = +(touchBlock.match(/#tune\.short\{--sheeth:(\d+)vh\}/) || [])[1];
+ok("it opens full rather than at a half detent", sheetOpen >= 90, sheetOpen + "vh");
+ok("and the small detent is still reachable by hand", sheetShort > 0 && sheetShort < sheetOpen,
+   sheetShort + "vh — the arena is behind ONE control, not behind a grid of tiles");
+ok("no `.tall` class survives the inversion", !/#tune\.tall\{/.test(css),
+   "a class called `tall` on the SHORT state is correct only until somebody reads it");
+/* The proportional drag VR-114 declined to build, on its own terms: it said a
+   1:1 drag "needs a velocity model and a rubber band to feel right, and half of
+   one feels worse than none". All three, or none. */
+ok("the sheet is not animated while a finger is on it",
+   /#tune\.dragging\{transition:none;max-height:none\}/.test(touchBlock),
+   "an eased height under a 1:1 drag is exactly the lag that makes a sheet feel cheap");
+ok("and the cap does not clamp the rubber band into a hard stop",
+   /#tune\.dragging\{[^}]*max-height:none/.test(touchBlock),
+   "a drag writes an inline height; a live max-height turns the give back into a wall");
+ok("the sheet is content-height under a cap, not a fixed pane",
+   /#tune\{[\s\S]*?height:auto;max-height:var\(--sheeth\)/.test(touchBlock),
+   "a six-row group in a fixed pane is six rows and a scrollbar with nothing to scroll");
+ok("and it settles on a curve rather than on `ease`",
+   /transition:transform [\d.]+s cubic-bezier/.test(touchBlock),
+   "symmetric easing reads as mechanical at this size");
 ok("there is a scroll affordance at the edge",
    /#tune::after\{/.test(touchBlock) && /#tune\.atend::after\{opacity:0\}/.test(touchBlock),
    "twenty rows and nothing saying so");
@@ -920,6 +944,10 @@ const d = {
   // VR-131 — the container the category tiles are appended into
   tcats: dlgEl("tcats")
 };
+/* VR-135 — the sheet writes `tuning` onto <body> so the start/pause panel can
+   fade out from in front of the arena. A stub without a body is a TypeError
+   thrown from the one line that makes settings usable over the intro screen. */
+doc.body = dlgEl("body");
 d.tcats.children = [];
 d.tcats.appendChild = c => { d.tcats.children.push(c); return c; };
 d.tunetitle.textContent = "Settings";
@@ -1029,30 +1057,79 @@ sheetBox.open(d.tunefab);
 d.tunescrim.fire("click", {});
 ok("tapping outside closes it too", sheetBox.isOpen() === false);
 
-/* --- detents ---------------------------------------------------------- */
+/* --- detents, inverted, and a drag that tracks the finger (VR-136) ------
+   The stub's rect has to reflect the sheet's actual height or every drag ends
+   at the same place: a browser reports the dragged inline height while a finger
+   is down and the class height otherwise, so the stub does too. 800px viewport
+   → full 752, peek 416. */
+win.innerHeight = 800;
+d.tune.getBoundingClientRect = () => {
+  const inline = parseFloat(d.tune.style.height);
+  if (isFinite(inline)) return { height: inline };
+  return { height: 800 * (d.tune.classList.contains("short") ? 0.52 : 0.94) };
+};
 sheetBox.open(d.tunefab);
+ok("it opens full, not at a half detent", !d.tune.classList.contains("short") &&
+   d["t-grab"].getAttribute("aria-expanded") === "true",
+   "you land on a grid of tiles, and there is nothing to watch behind a grid of tiles");
 d["t-grab"].fire("click", {});
-ok("the handle expands the sheet", d.tune.classList.contains("tall") &&
-   d["t-grab"].getAttribute("aria-expanded") === "true");
-ok("and renames itself so it isn't lying", d["t-grab"].getAttribute("aria-label") === "Collapse settings");
-d["t-grab"].fire("click", {});
-ok("and collapses it again", !d.tune.classList.contains("tall") &&
+ok("the handle shrinks it to the peek", d.tune.classList.contains("short") &&
    d["t-grab"].getAttribute("aria-expanded") === "false");
+ok("and renames itself so it isn't lying", d["t-grab"].getAttribute("aria-label") === "Expand settings");
+d["t-grab"].fire("click", {});
+ok("and puts it back", !d.tune.classList.contains("short"));
+// the handle's click is the only public way in; named so the drag tests below
+// can start from a known detent without reaching into the module
+const setShortForTest = on => {
+  if (d.tune.classList.contains("short") !== on) d["t-grab"].fire("click", {});
+};
+
+/* The 1:1 drag, which VR-114 declined to ship without all three parts of it.
+   Started from the PEEK, because a full sheet has no room left to travel into —
+   dragging up from 94vh is testing the rubber band, not the tracking. */
+setShortForTest(true);
 d["t-grab"].fire("pointerdown", { pointerId: 1, clientY: 400 });
-d["t-grab"].fire("pointermove", { pointerId: 1, clientY: 300 });
+ok("a finger on the handle stops the animation", d.tune.classList.contains("dragging"),
+   "an eased height under a drag is the lag that makes a sheet feel cheap");
+d["t-grab"].fire("pointermove", { pointerId: 1, clientY: 340 });
+ok("the sheet follows the finger 1:1", parseFloat(d.tune.style.height) === 416 + 60,
+   d.tune.style.height + " from the 416px peek, for 60px of travel");
+d["t-grab"].fire("pointermove", { pointerId: 1, clientY: -400 });
+ok("and resists past the top rather than stopping dead",
+   parseFloat(d.tune.style.height) > 752 && parseFloat(d.tune.style.height) < 416 + 800,
+   d.tune.style.height + " for 800px of travel — a hard stop reads as the drag having broken");
 d["t-grab"].fire("pointerup", { pointerId: 1 });
-ok("dragging the handle up expands it as well", d.tune.classList.contains("tall"),
-   "the drag is the gesture a thumb expects; the click is the one a keyboard can reach");
+ok("releasing hands the height back to the class",
+   d.tune.style.height === "" && !d.tune.classList.contains("dragging"),
+   "or the next open reopens at whatever pixel height the last drag ended on");
+ok("and it snaps back to full", !d.tune.classList.contains("short"));
+
 d["t-grab"].fire("pointerdown", { pointerId: 2, clientY: 300 });
-d["t-grab"].fire("pointermove", { pointerId: 2, clientY: 400 });
+d["t-grab"].fire("pointermove", { pointerId: 2, clientY: 600 });
 d["t-grab"].fire("pointerup", { pointerId: 2 });
-ok("dragging it down collapses it", !d.tune.classList.contains("tall"));
+ok("dragging most of the way down lands on the peek", d.tune.classList.contains("short"),
+   "752 - 300 = 452, nearest of {0, 416, 752}");
 d["t-grab"].fire("pointerdown", { pointerId: 3, clientY: 300 });
-d["t-grab"].fire("pointermove", { pointerId: 3, clientY: 420 });
+d["t-grab"].fire("pointermove", { pointerId: 3, clientY: 600 });
 d["t-grab"].fire("pointerup", { pointerId: 3 });
-ok("dragging a collapsed sheet further down dismisses it", sheetBox.isOpen() === false);
-ok("closing resets the detent", !d.tune.classList.contains("tall"),
-   "or it reopens at 92vh having been asked for 62 last time");
+ok("dragging the peek down again dismisses it", sheetBox.isOpen() === false,
+   "416 - 300 = 116, nearest is closed");
+ok("closing resets the detent and any dragged height",
+   !d.tune.classList.contains("short") && d.tune.style.height === "" &&
+   !d.tune.classList.contains("dragging"));
+
+/* THE ASSERTION THE VELOCITY MODEL IS FOR. Forty pixels of travel would leave
+   the sheet nearer full on position alone; thrown downward it should still land
+   on the peek. A sheet that ignores a flick is the single most common complaint
+   about hand-written ones. */
+sheetBox.open(d.tunefab);
+d["t-grab"].fire("pointerdown", { pointerId: 4, clientY: 300, timeStamp: 0 });
+d["t-grab"].fire("pointermove", { pointerId: 4, clientY: 340, timeStamp: 20 });
+d["t-grab"].fire("pointerup", { pointerId: 4 });
+ok("a short fast flick down is read as a flick, not as 40 pixels",
+   d.tune.classList.contains("short"),
+   "position alone says 712 of 752 — the projection says 492");
+sheetBox.close();
 
 /* --- the scroll affordance tells the truth ---------------------------- */
 sheetBox.open(d.tunefab);
@@ -1121,7 +1198,9 @@ function stubRow(name, kind, value) {
   ctl.tagName = kind === "select" ? "SELECT" : "INPUT";
   if (kind === "select") { ctl.options = [{ text: value }]; ctl.selectedIndex = 0; }
   row.querySelector = sel => {
-    if (sel === "label") return label;
+    // VR-137 widened labelOf to "label,.tlbl" — the map row names itself with a
+    // <span>, because a for= in a radio group would name one radio "Map".
+    if (sel === "label" || sel === "label,.tlbl") return label;
     if (sel === "select,input") return ctl;
     if (sel === "output") return out;
     return null;
@@ -1245,6 +1324,7 @@ const rowsA = [stubRow("Fog", "range", "0.030"), stubRow("Pixel grid", "select",
 const rowsB = [stubRow("Stick side", "select", "Left — buttons right")];
 const secA = stubSec("Render", "i-cat-render", "Pixel grid, fog, husk models", rowsA);
 const secB = stubSec("Controls", "i-cat-pad", "Which hand, how big, camera stick", rowsB);
+secB._attrsSet["data-watch"] = "pad";   // VR-136 — the one group watched at the bottom
 const secs = [secA, secB], allRows = rowsA.concat(rowsB);
 inserted.length = 0;
 d.tcats.children.length = 0;
@@ -1363,6 +1443,149 @@ ok("the gap between groups is bigger than the gap inside one",
      return secM >= 24 && secM > hM * 2;
    })(),
    "18px between groups and 7px under a header is what 'everything feels tight together' was");
+
+/* --- the sheet gets off the pad when the pad is the thing being watched --- */
+console.log("\n[the sheet moves for the group it is covering]");
+sheetBox.open(d.tunefab);
+d.tcats.children[0].fire("click", {});          // Render — watched in the arena
+inserted[0].fire("click", {});
+ok("an arena setting keeps the sheet at the bottom", !d.tune.classList.contains("watchtop"));
+sheetBox.close();
+sheetBox.open(d.tunefab);
+d.tcats.children[1].fire("click", {});          // Controls — watched at the pad
+inserted[2].fire("click", {});
+ok("a pad setting moves the sheet to the other edge", d.tune.classList.contains("watchtop"),
+   "a bottom sheet covers the pad at every height there is — this is not a height problem");
+ok("the watch target is stamped from the section, not carried on the row",
+   rowsB[0]._watch === "pad" && rowsA[0]._watch !== "pad",
+   "a row moved between groups inherits the right answer instead of carrying a stale flag");
+d.tune.fire("keydown", { key: "Escape", stopPropagation() {} });
+ok("and it comes back down on the way out", !d.tune.classList.contains("watchtop"));
+sheetBox.close();
+ok("closing clears it too", !d.tune.classList.contains("watchtop"));
+ok("the top-anchored peek is a real reposition in CSS, not a taller sheet",
+   /#tune\.detail\.watchtop\{top:0;bottom:auto/.test(touchBlock) &&
+   /#tune\.detail\.watchtop\.on\{transform:translateY\(0\)/.test(touchBlock));
+ok("it announces itself with a drop rather than teleporting",
+   /@keyframes sheetdrop\{/.test(css) && /animation:sheetdrop/.test(touchBlock),
+   "top and bottom cannot be transitioned between — a frame-drop and a move look identical without this");
+
+/* ======================================================================
+   10h2. The panel in front of the arena  (VR-135)
+   ======================================================================
+   VR-114 froze the arena so it would hold still behind the detail stage. It
+   never noticed that on the start and pause screens there is a 560px panel and
+   a scrim between you and that arena, so every setting judged by looking was
+   still being judged blind — just for a different reason.
+   ====================================================================== */
+console.log("\n[the screen behind the sheet]");
+sheetBox.open(d.tunefab);
+ok("opening marks the document as tuning", doc.body.classList.contains("tuning"));
+ok("which fades the start or pause panel out of the way",
+   /body\.tuning \.screen\.on\{opacity:0;pointer-events:none/.test(css),
+   "fog, the pixel grid and the Shroud colours are judged against the arena, not against a panel");
+sheetBox.close();
+ok("and closing puts it back", !doc.body.classList.contains("tuning"));
+ok("the screen is faded, never closed",
+   !/classList\.remove\("on"\)[\s\S]{0,40}s-start/.test(html) &&
+   /body\.tuning \.screen\.on/.test(css),
+   "closing the start screen would mean deciding what happens when settings closes, and there is no good answer");
+ok("it honours an explicit reduced-motion choice, not only the OS flag",
+   /body\.noanim\.tuning \.screen\.on\{transition:none\}/.test(css) &&
+   /document\.body\.classList\.toggle\("noanim", isReduced\(\)\)/.test(html),
+   "same predicate as the panel's own stillness, one line down");
+
+/* ======================================================================
+   10h3. The message bar  (VR-135)
+   ====================================================================== */
+console.log("\n[the message bar]");
+ok("there is one bar, directly above the controls",
+   /<div id="msgbar">/.test(html) && /#msgbar\{[^}]*bottom:calc\(var\(--padh\) \+ \d+px\)/.test(css),
+   "--padh is the pad on a phone and 0 on a desktop, so one rule puts it above whatever the controls are");
+ok("both messages live in it", /<div id="msgbar">[\s\S]*?id="shroudlbl"[\s\S]*?id="camtag"[\s\S]*?<\/div>/.test(html));
+ok("they share one grid cell rather than stacking",
+   /#msgbar\{[^}]*display:grid/.test(css) && /#msgbar > \*\{[^}]*grid-area:1\/1/.test(css));
+ok("the event outranks the state while it is up",
+   /#msgbar\.toasting #shroudlbl\{opacity:0 !important\}/.test(css) &&
+   /bar\.classList\.add\("toasting"\)/.test(html) && /bar\.classList\.remove\("toasting"\)/.test(html),
+   "the Shroud line is true while you are veiled; a toast is true for two seconds");
+ok("and the priority is released with the toast, not left latched",
+   /setTimeout\(function \(\) \{[\s\S]{0,200}?remove\("toasting"\)/.test(html));
+ok("nothing positions the toast in a corner any more",
+   !/#camtag\{[^}]*(?:right|left):/.test(css),
+   "VR-132 had already had to re-corner it once when the camera stick landed on it");
+ok("the Shroud line no longer floats at a hand-picked height in the arena",
+   !/#shroudlbl\{[^}]*bottom:/.test(css),
+   "bottom:96px meant something on exactly one screen");
+
+/* ======================================================================
+   10h4. Pickers that show what you are picking  (VR-137)
+   ====================================================================== */
+console.log("\n[map plates and colour chips]");
+ok("the map row is a radio group, not a dropdown",
+   /<div class="tplateset" id="t-maps" role="radiogroup" aria-label="Map">/.test(html) &&
+   !/id="t-map"[^-]/.test(html.replace(/name="t-map"/g, "")),
+   "arrows move between options and the label is on the plate you tap");
+ok("its plates are drawn from each map's own pillars",
+   /function mapPlan\(m\)[\s\S]*?m\.pillars\[i\]/.test(html) &&
+   /viewBox/.test((html.match(/function mapPlan\(m\)[\s\S]*?\n  \}/) || [""])[0]),
+   "a screenshot is four more assets to keep in sync and goes silently wrong the day a pillar moves");
+ok("and in the arena's own coordinates, so there is no second constant",
+   /var R = C\.arena;/.test(html),
+   "the half-extent the sim uses, not a copy of it");
+ok("the plates are built in the SVG namespace",
+   /document\.createElementNS\(SVGN, tag\)/.test(html),
+   "createElement('svg') lands in XHTML and renders as nothing — the second time this file has hit it");
+ok("every plate carries a name and a real radio",
+   /input\.type = "radio"; input\.name = "t-map"/.test(html) &&
+   /lab\.setAttribute\("for", input\.id\)/.test(html));
+ok("the row has an output so the list stage can show its value",
+   /id="t-mapv"/.test(html) && /var out = \$\("t-mapv"\); if \(out\) out\.textContent = name;/.test(html),
+   "valueOf() reads a row's <output>; a radio group has no selectedIndex to read");
+ok("the push half is registered like every other binder",
+   /bound\.push\(syncMap\);/.test(html),
+   "VR-113's rule — a loaded preset or a corrected value has to reach the control, not just V");
+ok("a map id that is not a map corrects the control as well as V",
+   /if \(m && m\.id !== V\.map\) \{ V\.map = m\.id; save\(\); \}/.test(html),
+   "otherwise every plate sits unchecked while the arena runs on the first one");
+/* The chip, driven through the real makePick against a stubbed colour input. */
+ok("a colour row gets a chip in the list, beside the hex and not instead of it",
+   (() => {
+     inserted.length = 0;
+     const row = stubRow("Burn edge", "color", "#B79CED");
+     row._ctl.type = "color"; row._ctl.value = "#123456";
+     d.tunebody.querySelectorAll = sel => (sel === ".trow" ? [row] : []);
+     d.tcats.children.length = 0;
+     sheetBox.buildStage();
+     const entry = inserted[inserted.length - 1];
+     const chip = entry.children.find(x => x.className === "tchip");
+     return !!chip && chip.style.background === "#123456" &&
+            entry.children.some(x => x.textContent === "#B79CED");
+   })(),
+   "1.4.1 is why the hex is there — swapping it for a chip would undo VR-114 to fix something smaller");
+ok("and the chip is decorative, since the hex beside it is the value",
+   /chip\.setAttribute\("aria-hidden", "true"\)/.test(html));
+
+/* ======================================================================
+   10h5. Husk models start where they are visible  (VR-137)
+   ====================================================================== */
+console.log("\n[husk model budget]");
+const huskStart = +(html.match(/start: (\d+),/) || [])[1];
+/* Concurrent live enemies at wave N is `3 + floor(N/2)`, read off the shipped
+   BALANCE block rather than retyped, so this stays true if the curve moves. */
+const firstCardWave = (() => {
+  for (let n = 1; n < 200; n++) if (balBox.module.exports.waveSpec(n).concurrent > huskStart) return n;
+  return 200;
+})();
+ok("auto does not mean cards", huskStart > 0, "auto starts with " + huskStart + " rigs, not zero");
+ok("and the first billboard is far enough in to be a perf decision, not a first impression",
+   firstCardWave >= 12, "first card at wave " + firstCardWave);
+ok("the ceiling is still the live cap, so nothing here can outrun the sim",
+   +(html.match(/max: (\d+),/) || [])[1] === balBox.module.exports.C.liveCap);
+ok("and the drop path is untouched — this raises the opening bid, not the ceiling",
+   /drop: 4,/.test(html) && /dropOver: [\d.]+,/.test(html));
+ok("the option says what auto does", /Auto &mdash; models first/.test(html),
+   "\"Auto\" alone reads as \"we decided not to show you the models\"");
 
 /* ======================================================================
    10h. The icon set  (VR-133)
@@ -1707,10 +1930,15 @@ ok("the spec carries no map and no camera mode",
    "a preset that yanks you into first person on somebody else's arena is one you undo before you can judge it");
 ok("and no mset", !/mset/.test(specFn),
    "mset records that a human on THIS device expressed a motion preference — not a thing somebody else's preset asserts for them");
+/* Scoped to the FUNCTION BODY (VR-137). This used to run a non-greedy match
+   from `function applyPreset` to the first `apply("map")` anywhere later in the
+   file, which quietly turned into "does the rest of the file mention the map
+   branch" — and it started failing the moment the map plates gained a change
+   handler four hundred lines below. Same claim, read off the right text. */
+const applyPresetFn = (html.match(/function applyPreset\(p\) \{[\s\S]*?\n  \}/) || [""])[0];
 ok("loading applies the look-and-feel groups only",
-   /apply\("arc"\); apply\("touch"\); apply\("pixel"\); apply\("fog"\);/.test(html) &&
-   /function applyPreset\(p\) \{[\s\S]*?\n  \}/.test(html) &&
-   !/function applyPreset\(p\) \{[\s\S]*?apply\("map"\)/.test(html),
+   /apply\("arc"\); apply\("touch"\); apply\("pixel"\); apply\("fog"\);/.test(applyPresetFn) &&
+   !!applyPresetFn && !/apply\("map"\)/.test(applyPresetFn),
    "a bare apply() would re-run the map branch and rebuild the arena under a live run");
 ok("stored presets are re-sanitised on the way OUT as well as in",
    /PRESETS\.decode\(r\.s, SPEC\)/.test(html),

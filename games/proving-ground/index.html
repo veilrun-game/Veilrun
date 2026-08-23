@@ -104,7 +104,36 @@ canvas{display:block}
   background:radial-gradient(ellipse at center,transparent 42%,rgba(200,40,60,.62) 100%)}
 #shroudv{position:absolute;inset:0;opacity:0;transition:opacity .35s ease;
   background:radial-gradient(ellipse at center,transparent 30%,rgba(80,40,140,.7) 100%)}
-#shroudlbl{position:absolute;bottom:96px;left:50%;transform:translateX(-50%);font-family:var(--font-display);
+/* ---------- the message bar (VR-135) ----------------------------------------
+   Jordan, 8/23: *"the placement of the Shrouded message feels weird — maybe it
+   could become some sort of message bar directly above the controls."*
+
+   It was floating at `bottom:96px` inside the arena, which is a number that
+   meant something on one screen: on a phone it landed in the middle of the
+   fight, and on a desktop it sat above nothing in particular. **It is a slot
+   now, not a position** — pinned directly above whatever the controls are, so
+   it reads as the game telling you something rather than as text loose in the
+   scene.
+
+   ONE LANE, TWO WRITERS, AND A PRIORITY. The Shroud line is a STATE (true for
+   as long as you are veiled) and the camera toast is an EVENT (true for two
+   seconds). Stacked in the same grid cell, the event wins while it is up and
+   the state comes back underneath it. That also retires the corner the toast
+   used to live in — which VR-132 had just had to move once already, because the
+   camera stick landed on top of it, and would have had to move again for every
+   future thing that floats over a corner.
+
+   `!important` on the suppression is deliberate and is the only one in the file:
+   updateHUD writes `style.opacity` on the Shroud line every frame, and an inline
+   style outranks a class rule. The alternative is teaching the frame loop about
+   toasts, which is a worse trade than one keyword.
+   ------------------------------------------------------------------------- */
+#msgbar{position:fixed;left:0;right:0;bottom:calc(var(--padh) + 10px);z-index:15;
+  display:grid;justify-items:center;pointer-events:none}
+#msgbar > *{grid-area:1/1;padding:5px 14px;border-radius:999px;
+  background:rgba(10,8,20,.74);border:1px solid var(--line);backdrop-filter:blur(2px)}
+#msgbar.toasting #shroudlbl{opacity:0 !important}
+#shroudlbl{font-family:var(--font-display);
   letter-spacing:.28em;text-transform:uppercase;font-size:.76rem;color:var(--violet-lt);opacity:0;transition:opacity .3s ease}
 #banner{position:absolute;top:26%;left:0;right:0;text-align:center;opacity:0;pointer-events:none}
 #banner .b1{font-family:var(--font-display);font-size:clamp(1.9rem,5vw,3.4rem);letter-spacing:.14em;text-transform:uppercase;
@@ -127,6 +156,11 @@ canvas{display:block}
 #banner.play.still{animation:bannerstill 2.4s ease forwards}
 @keyframes fnumstill{0%{opacity:0}18%{opacity:1}100%{opacity:0}}
 .fnum.still{animation:fnumstill .7s ease forwards}
+/* VR-136 — the sheet changing which EDGE it is anchored to (see #tune.watchtop)
+   is a reposition, not a slide: top and bottom cannot be transitioned between.
+   A short drop-in is what makes it read as the panel deliberately moving out of
+   the way rather than as a frame dropping. */
+@keyframes sheetdrop{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
 
 /* ---------- icons (VR-133) --------------------------------------------------
    ONE INLINE <symbol> SPRITE, and nothing else. The chrome shipped as unicode
@@ -158,6 +192,23 @@ canvas{display:block}
 .screen{position:fixed;inset:0;display:none;place-items:center;background:radial-gradient(ellipse at 50% 40%,rgba(35,20,66,.42),rgba(11,8,24,.80));
   backdrop-filter:blur(2px);z-index:20}
 .screen.on{display:grid}
+/* ---------- get out of the way while somebody is tuning (VR-135) ------------
+   Jordan, 8/23: *"when in settings with the intro screen shown you can't really
+   see the in game screen, would be good to remove that when adjusting settings"*
+   — and again, separately, about the pixel grid.
+
+   VR-114 froze the arena so it would hold still behind the detail stage, and
+   VR-131 kept that. Neither noticed that on the START screen and the PAUSE
+   screen there is a 560px panel and a scrim between you and the arena you are
+   supposedly watching — so fog, the pixel grid, the Shroud colours and every
+   camera number were still being judged blind, just for a different reason.
+
+   The screen is FADED, not closed: `.on` stays, so the run state underneath is
+   untouched and closing the sheet puts the panel back exactly as it was. Doing
+   this by closing the start screen would mean deciding what happens when you
+   close settings, and there is no good answer to that.
+   ------------------------------------------------------------------------- */
+body.tuning .screen.on{opacity:0;pointer-events:none;transition:opacity .18s ease}
 /* VR-132 — the help overlay is reachable FROM the start screen now, and both are
    .screen at z-index 20, so source order alone decided which won: s-start sits
    below s-help in the document, so "How to play" opened a panel *underneath* the
@@ -214,9 +265,13 @@ canvas{display:block}
    restated something the top-right button now shows. Worse, the [ key wrote
    "pixel grid 1:4" into it and nothing ever put the camera mode back, so the
    readout spent most of a session describing a key you pressed once. It fades
-   in on a change, names the thing in words, and gets out of the way. */
-#camtag{position:fixed;bottom:14px;right:18px;font-size:.68rem;color:var(--mute);opacity:0;transition:opacity .3s;z-index:15}
-#camtag.on{opacity:.75}
+   in on a change, names the thing in words, and gets out of the way.
+
+   VR-135 — no longer positioned at all. It is a lane in #msgbar, which is what
+   stopped it having to be re-cornered every time something new floats over the
+   screen; VR-132's camera stick had already forced one move. */
+#camtag{font-size:.68rem;color:var(--white);opacity:0;transition:opacity .3s}
+#camtag.on{opacity:1}
 #fps{position:fixed;top:4px;left:50%;transform:translateX(-50%);font-size:.62rem;color:var(--mute);opacity:.45;z-index:15;font-variant-numeric:tabular-nums}
 /* VR-114 — the scrim is what makes `aria-modal="true"` true. The focus trap
    holds the keyboard, but without this a mouse or a thumb still reaches the ⚙
@@ -338,6 +393,47 @@ canvas{display:block}
    been changed — "Glass body" and "Rim" become unfindable. The hex is the
    non-colour channel carrying the same information. */
 .thex{width:auto;min-width:66px;font-size:.78rem;letter-spacing:.02em;text-transform:uppercase}
+.trow .tlbl{flex:1;color:var(--white);opacity:.86;line-height:1.25}
+/* ---------- map plates and colour chips (VR-137) ----------------------------
+   Two answers to the same note from Jordan: a picker should show you what you
+   are picking. The maps get a drawn plan each; the three Shroud rows get their
+   colour in the LIST, beside the hex, so the list stage stops being three grey
+   rows that differ only by a number you have to decode.
+
+   The chip is additive, never a replacement. WCAG 1.4.1 is why the hex is there
+   at all (three swatches differing only by colour are three grey boxes to a
+   colourblind player), and swapping the hex for a chip would undo VR-114 to fix
+   something smaller. Both, in one row.
+   ------------------------------------------------------------------------- */
+.tplaterow{flex-wrap:wrap}
+/* The row's <output> exists so the LIST stage has a value to show — valueOf()
+   reads textContent, which works while hidden. Beside the plates it is just the
+   checked plate's name said twice, and in a 290px drawer it wraps. Shown again
+   in the detail stage, where it is the big readout at the top. */
+.tplaterow > .tval{display:none}
+#tune.staged.detail .tplaterow.tfocus > .tval{display:block}
+.tplateset{order:3;flex:0 0 100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;margin-top:6px}
+.tplate{position:relative;display:block;cursor:pointer;margin:0}
+/* The radio is the control and stays in the accessibility tree and the tab
+   order; the plate is its visible box. Stretched over the plate rather than
+   clipped to 1px so a stray tap on the input itself still lands. */
+.tplate input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.tplateb{display:block;min-height:var(--tap);padding:8px;border:1px solid var(--line-hi);
+  border-radius:12px;background:rgba(18,18,36,.6);color:var(--violet-lt)}
+.tplate:hover .tplateb{background:rgba(60,52,92,.42)}
+.tplate input:checked + .tplateb{border-color:var(--accent);background:rgba(60,52,92,.55)}
+.tplate input:focus-visible + .tplateb{outline:2px solid var(--violet-lt);outline-offset:2px}
+/* A fixed height rather than the square the viewBox would give: four plates at
+   full column width do not fit the peek, and the plan is legible at 72px — it is
+   a diagram of where cover is, not a picture. */
+.tplateb svg{display:block;width:100%;height:72px}
+.tplaten{display:block;font-family:var(--font-display);letter-spacing:.1em;text-transform:uppercase;
+  font-size:.66rem;color:var(--white);margin-top:7px}
+.tplated{display:block;color:var(--mute);font-size:.66rem;line-height:1.3;margin-top:2px}
+/* The chip in a list row. Bordered, because a dark colour on a dark sheet with
+   no edge is a hole rather than a swatch. */
+.tchip{width:18px;height:18px;flex:0 0 auto;border-radius:5px;border:1px solid var(--line-hi)}
 .tnote{color:var(--mute);font-size:.78rem;margin:2px 0 10px;line-height:1.4}
 #tune .btn{width:100%;margin-top:8px;padding:.6rem;font-size:.86rem;min-height:var(--tap)}
 /* VR-117 — the benchmark readout. Deliberately a plain <pre>: the number is
@@ -411,7 +507,10 @@ canvas{display:block}
 /* The header already says which setting this is. The <label> stays in the
    accessibility tree because it is the control's NAME — clipped, never
    display:none, or the slider goes back to being announced as "slider". */
-#tune.staged.detail .trow.tfocus label{position:absolute;width:1px;height:1px;padding:0;
+/* `> label` (VR-137): the map row's plates are labels too, and a descendant
+   selector clipped every one of them out of sight. Only the row's OWN name is
+   redundant with the header — the names on the options are the options. */
+#tune.staged.detail .trow.tfocus > label,#tune.staged.detail .trow.tfocus > .tlbl{position:absolute;width:1px;height:1px;padding:0;
   margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
 #tune.staged.detail .trow.tfocus .tval{flex:1 1 auto;text-align:left;width:auto;
   font-family:var(--font-display);font-size:1.7rem;letter-spacing:.04em;color:var(--white)}
@@ -510,17 +609,11 @@ canvas{display:block}
      Pause button doing that job. The camera tag stays: it's the only thing
      telling you which of the three views you're in. */
   #pausehint{display:none}
-  /* VR-132 — moved to the LEFT corner on touch. The camera stick now floats
-     just above the pad's button grid, which is the bottom-right corner, and a
-     toast that says "third person" underneath the control you just used it with
-     is a toast sitting on top of your thumb. #pausehint is display:none here,
-     so the left corner is empty and free. */
-  #camtag{bottom:calc(var(--padh) + 8px);left:14px;right:auto;font-size:.6rem}
-  /* …and back to the right when the pad is mirrored, because the camera stick
-     goes with the BUTTONS and the toast has to stay off it. Found by rendering
-     a right-handed pad, not by reading: the first version pinned the toast to
-     the left corner and the stick landed on top of it. */
-  #vpad.righty ~ #camtag{left:auto;right:18px}
+  /* VR-135 — the toast has no corner to defend any more; it is a lane in
+     #msgbar, centred above the pad. VR-132 had already had to move it once
+     when the camera stick landed on it, which was the tell that "a corner" was
+     the wrong home for it in the first place. */
+  #camtag{font-size:.62rem}
   #fps{display:none}
   #vpad{display:flex}
   .touchonly{display:block}
@@ -529,27 +622,84 @@ canvas{display:block}
      column-zero `}`, so a nested rule that closes at column zero silently cuts
      the harness's view of everything below it.
 
-     --sheeth is a detent, not a height: the sheet opens at 62vh so the arena
-     stays visible above it — half these controls (fog, pixel grid, the three
-     Shroud colours) are judged by watching them change, and a full-screen
-     settings page makes you close it to see what you did. The grab handle
-     promotes it to 92vh for the long scroll and drops it back. */
+     VR-136 — THE SHEET OPENS FULL NOW, and the detents inverted with it.
+     Jordan, 8/23: *"lets also open the window sheet to the full to start, I'm
+     actually wondering if we even need the scroll in there or if we just allow
+     the scroll to continue down as needed."*
+
+     VR-114's 62vh was the right default for a flat list of twenty controls you
+     were tuning against a live arena. VR-131 changed what "opening" means: you
+     land on a grid of tiles, and there is nothing to watch behind a grid of
+     tiles. So `--sheeth` starts at 94vh — the sheet IS the screen, the content
+     scrolls the way a page does, and the internal scrollbar stops reading as a
+     little window inside a little window.
+
+     The arena argument did not go away; it moved to where it was always really
+     about. `.detail` — one control, being watched — still drops to a peek, and
+     `.short` is the same peek reachable by hand at any stage. The old `.tall`
+     is gone rather than renamed: it meant "bigger than default" and the default
+     is now the big one, so keeping the word would have inverted its meaning
+     while the class name went on claiming otherwise. */
   #tune{
-    --sheeth:62vh;
-    top:auto;left:0;right:0;bottom:0;width:auto;height:var(--sheeth);max-height:92vh;
+    --sheeth:94vh;
+    /* CONTENT HEIGHT, CAPPED — the other half of Jordan's note (*"wondering if
+       we even need the scroll in there"*). A fixed `height` meant a six-row
+       group rendered as six rows and forty percent of a screen of nothing, with
+       a scrollbar that had nothing to scroll. `height:auto` under a cap means
+       the sheet is exactly as tall as it needs to be, up to full: short groups
+       simply do not scroll, and only the ones that genuinely overflow do.
+       The cap is what animates, which is fine because it is the only thing that
+       moves when there is more content than screen. */
+    top:auto;left:0;right:0;bottom:0;width:auto;height:auto;max-height:var(--sheeth);
     border-left:none;border-top:1px solid var(--line-hi);
     border-radius:18px 18px 0 0;
     transform:translateY(100%);
     box-shadow:0 -18px 50px rgba(0,0,0,.55);
-    transition:transform .24s ease,height .24s ease,visibility 0s linear .24s;
+    /* The sheet curve, not `ease`. Fast out of the gate and a long settle is
+       what makes a panel feel like it has weight rather than like a div whose
+       height changed; `ease` is symmetric and reads as mechanical at this size.
+       Jordan, 8/23: *"make the sheet feel more fluid with its motion."* */
+    transition:transform .34s cubic-bezier(.32,.72,0,1),
+               max-height .34s cubic-bezier(.32,.72,0,1),
+               visibility 0s linear .34s;
   }
-  #tune.on{transform:translateY(0);transition:transform .24s ease,height .24s ease,visibility 0s}
-  #tune.tall{--sheeth:92vh}
+  #tune.on{transform:translateY(0);
+    transition:transform .34s cubic-bezier(.32,.72,0,1),
+               max-height .34s cubic-bezier(.32,.72,0,1),
+               visibility 0s}
+  #tune.short{--sheeth:52vh}
+  /* WHILE A FINGER IS ON IT, nothing is animated — the sheet IS the finger.
+     A transition during a 1:1 drag is the thing that makes a sheet feel like it
+     is lagging behind your thumb, and it is why VR-114 shipped a thresholded
+     drag instead: half a proportional drag feels worse than none. This is the
+     other half. */
+  /* max-height:none as well as no transition — a drag writes an inline HEIGHT,
+     and the cap would quietly clamp the rubber band into a hard stop, which is
+     the exact feel the rubber band exists to avoid. */
+  #tune.dragging{transition:none;max-height:none}
   /* The peek. Content-height rather than a detent, capped, so a colour picker
      and a slider both sit at the bottom edge with as much arena above them as
-     each needs to leave. This is the whole point of the second stage. */
+     each needs to leave. This is the whole point of the detail stage. */
   #tune.detail{height:auto;max-height:52vh}
   #tune.detail::after{display:none}
+  /* ---- and the one row group that is watched at the BOTTOM ----------------
+     Jordan, 8/23: *"the stick side setting covers the controls on the bottom,
+     so that should maybe move up to show the controls."*
+
+     Exactly right, and it is not a height problem: a bottom sheet always covers
+     the pad, at every detent, because they are anchored to the same edge. So
+     for a group whose section declares `data-watch="pad"`, the detail stage
+     goes to the OTHER edge. The sheet's whole justification is that you can see
+     the thing you are changing; when the thing you are changing is the pad,
+     that means getting off the bottom of the screen. */
+  #tune.detail.watchtop{top:0;bottom:auto;
+    border-top:none;border-bottom:1px solid var(--line-hi);
+    border-radius:0 0 18px 18px;
+    box-shadow:0 18px 50px rgba(0,0,0,.55);
+    transform:translateY(-100%)}
+  #tune.detail.watchtop.on{transform:translateY(0);animation:sheetdrop .22s cubic-bezier(.32,.72,0,1)}
+  #tune.watchtop #t-grab{display:none}
+  #tune.watchtop #tunehead{border-radius:0}
   /* The handle is a real button, not a decorative bar: dragging it is the
      gesture, but a gesture is not an affordance an assistive technology can
      reach, so the same element toggles the detent on click/Enter and carries
@@ -587,7 +737,8 @@ canvas{display:block}
      and their keycaps read "Shift" and "RMB" to someone holding a phone. Showing
      both is precisely the second visual language this card exists to remove. */
   .hud-b{display:none}
-  #shroudlbl{bottom:calc(var(--padh) + 24px)}
+  /* #shroudlbl needs no rule of its own here any more — VR-135 put it in
+     #msgbar, which is already measured off --padh on both devices. */
   .panel{max-height:88vh;overflow-y:auto}
   /* VR-132 — the start screen's eight-row legend is hidden on touch, not
      deleted: it is still the ONE copy of that list, still read from here at
@@ -613,8 +764,10 @@ canvas{display:block}
    stop is the one piece of motion you are guaranteed to be looking at. */
 @media (prefers-reduced-motion: reduce){
   #tune,#tune.on{transition:visibility 0s}
+  body.tuning .screen.on{transition:none}
 }
 #tune.noanim,#tune.noanim.on{transition:visibility 0s}
+body.noanim.tuning .screen.on{transition:none}
 
 /* --stickw is the pad's height budget: the stick is the tallest thing in the row,
    so the grid claims the SAME height instead of sitting content-sized inside it.
@@ -909,14 +1062,21 @@ canvas{display:block}
   
 
 <div id="shroudv"></div>
-  <div id="shroudlbl">Shrouded — next strike executes</div>
   <div id="vignette"></div>
   <div id="dmgnum"></div>
   <div id="banner"><div class="b1"></div><div class="b2"></div></div>
 </div>
 
 <div id="pausehint">Esc — release cursor</div>
-<div id="camtag" role="status" aria-live="polite"></div>
+<!-- VR-135 — the message bar. One slot directly above the controls, holding
+     the two things the game says to you outside the HUD: the Shroud STATE,
+     which is true for as long as you are veiled, and a toast EVENT, which is
+     true for two seconds. They stack in one grid cell and the event wins while
+     it is up — see the #msgbar rules for why that beats two floating corners. -->
+<div id="msgbar">
+  <div id="shroudlbl">Shrouded — next strike executes</div>
+  <div id="camtag" role="status" aria-live="polite"></div>
+</div>
 <div id="fps"></div>
 <!-- System chrome (VR-112). Source order IS screen order, left to right.
      VR-113 landed the camera toggle in the slot VR-112 held open for it. It
@@ -990,7 +1150,26 @@ canvas{display:block}
        is a guess, "Fog, pixel grid, husk models" is a destination. -->
   <section class="tsec" data-ico="i-cat-arena" data-sub="Which map you fight on">
   <h3>Arena</h3>
-  <div class="trow"><label for="t-map">Map</label><select id="t-map"></select></div>
+  <!-- VR-137 — the map picker is PLATES, not a dropdown. Jordan, 8/23:
+       *"Arena options could show each map image as options instead of being
+       shown in a dropdown, since right now there are only the few options we
+       have, that could grow but for now could take advantage of the extra
+       space."*
+
+       The plates are DRAWN FROM EACH MAP'S OWN PILLAR DATA, not photographed.
+       A screenshot would be four more assets to keep in sync, and it would go
+       silently wrong the day somebody moves a pillar — a plan generated from
+       `MAPS[i].pillars` cannot. It also shows the thing that actually decides
+       the fight: where cover is, and therefore where the Shroud is worth using.
+
+       Real radios rather than a select styled to look like plates, so the group
+       is announced as a group, arrows move between options, and the label is on
+       the plate you tap. The row's own name is a <span class="tlbl"> because a
+       labelled-control relationship here would have to point at ONE radio, and
+       would then be claiming that radio is called "Map". Built in build(),
+       before buildStage() runs. -->
+  <div class="trow tplaterow"><span class="tlbl">Map</span><output class="tval" id="t-mapv"></output>
+    <div class="tplateset" id="t-maps" role="radiogroup" aria-label="Map"></div></div>
   <div class="tnote" id="t-mapnote"></div>
   </section>
 
@@ -1016,7 +1195,7 @@ canvas{display:block}
        row here is ergonomics rather than look-and-feel, which is also why none
        of them is in the preset spec: how you hold your phone is not a fact
        somebody else's saved setup gets to assert about you. -->
-  <section class="tsec touchonly" data-ico="i-cat-pad" data-sub="Which hand, how big, camera stick">
+  <section class="tsec touchonly" data-ico="i-cat-pad" data-sub="Which hand, how big, camera stick" data-watch="pad">
   <h3>Controls</h3>
   <div class="trow"><label for="t-hand">Stick side</label><select id="t-hand">
     <option value="left">Left &mdash; buttons right</option>
@@ -1043,9 +1222,9 @@ canvas{display:block}
     <option value="4">4:1</option><option value="6">6:1</option><option value="8">8:1</option></select></div>
   <div class="trow"><label for="t-fog">Fog</label><input type="range" id="t-fog" min="0" max="0.08" step="0.002"><output class="tval" id="t-fogv" for="t-fog"></output></div>
   <div class="trow"><label for="t-husks">Husk models</label><select id="t-husks">
-    <option value="auto">Auto</option><option value="0">Off &mdash; billboards</option>
+    <option value="auto">Auto &mdash; models first</option><option value="0">Off &mdash; billboards</option>
     <option value="6">6</option><option value="12">12</option><option value="26">26 (all)</option></select></div>
-  <div class="tnote">A skinned husk is real CPU, which is why they were cards. Auto starts at 6 and only adds more once the measured 95th-percentile frame time proves there is room.</div>
+  <div class="tnote">A skinned husk is real CPU, which is why they were cards. Auto is not "cards until proven otherwise" &mdash; it starts with ten models, which covers every enemy alive at once through wave 15, and only adds the rest once the measured 95th-percentile frame time proves there is room. It hands them back faster than it takes them.</div>
   <button class="btn ghost" id="t-bench">Measure frame rate</button>
   <div class="tnote">Runs the same 26-husk load twice &mdash; once as meshes, once as cards &mdash; and reports percentiles, so the cost of the models is a number instead of an impression. Keep the window in front or the run invalidates itself.</div>
   </section>
@@ -1438,7 +1617,20 @@ var HUSK_DIE_T = 0.5;
 var HUSKLOD = {
   mode: "auto",       // "auto" | a number of rigs to pin
   max: 26,            // never above BAL.C.liveCap
-  start: 6,
+  /* VR-137 — raised from 6. Jordan, 8/23: *"for husk models being on auto as a
+     default — does it auto default to the sprites? I think I would prefer the
+     newer models in there so they can see them right away."*
+
+     It never defaulted to sprites: auto starts with a budget of RIGS and only
+     the husks past it keep their billboard. But the budget was 6 and wave N
+     allows `3 + floor(N/2)` alive at once, so the first card appeared at
+     **wave 7** — early enough that somebody playing two minutes could meet one
+     and conclude the models were off. 10 pushes that to **wave 16**, which is
+     past where most sessions get, at a cost of four more rigs built two per
+     frame at boot. The drop path is unchanged: a phone that cannot hold it
+     still hands 4 back per bad window, so this raises the opening bid, not the
+     ceiling, and nothing here can outrun the measurement. */
+  start: 10,
   step: 2,            // rigs added per good window
   drop: 4,            // rigs removed per bad one — give back faster than you take
   raiseUnder: 15.5,   // ms, p95: under 64fps-equivalent there is headroom
@@ -2532,10 +2724,20 @@ var TPAD = (function () {
 var toastT = null;
 function toast(msg, ms) {
   var t = $("camtag"); if (!t) return;
+  var bar = $("msgbar");
   t.textContent = msg;
   t.classList.add("on");
+  /* VR-135 — the lane is shared with the Shroud line, and an EVENT outranks a
+     STATE for as long as it is up. Toggled here rather than in updateHUD
+     because this is the only thing that knows a toast started or ended, and
+     the frame loop should not have to learn about toasts to stay correct. */
+  if (bar) bar.classList.add("toasting");
   if (toastT) clearTimeout(toastT);
-  toastT = setTimeout(function () { t.classList.remove("on"); toastT = null; }, ms || 1800);
+  toastT = setTimeout(function () {
+    t.classList.remove("on");
+    if (bar) bar.classList.remove("toasting");
+    toastT = null;
+  }, ms || 1800);
 }
 // [ cycles the pixel grid live so the look can be dialled in without a rebuild
 window.addEventListener("keydown", function (e) {
@@ -4968,7 +5170,13 @@ var TUNE = (function () {
   function apply(what) {
     if (!what || what === "map") {
       var m = buildMap(V.map);
+      /* buildMap already falls back to MAPS[0] for an id it does not know, so
+         the correction is free — but it has to reach V and the radios too, or a
+         corrupt saved map leaves every plate unchecked while the arena runs on
+         the first one. Same class of bug as VR-113's blank View row. */
+      if (m && m.id !== V.map) { V.map = m.id; save(); }
       var n = $("t-mapnote"); if (n && m) n.textContent = m.note;
+      syncMap();
     }
     if (!what || what === "cam") {
       /* VR-113 — BOUNDED. This used to be an unbounded `while` on the same
@@ -5047,6 +5255,11 @@ var TUNE = (function () {
          at while you turn motion off. Derived from the same isReduced() the
          button's own label is derived from, so the two can't disagree. */
       var sh = $("tune"); if (sh) sh.classList.toggle("noanim", isReduced());
+      /* VR-135 — and the fade that takes the start/pause panel out from in front
+         of the arena while you tune. Same predicate, same call, one line down,
+         because a second way of asking "did they ask for less motion" is a
+         second way of getting a different answer. */
+      document.body.classList.toggle("noanim", isReduced());
     }
   }
 
@@ -5257,13 +5470,84 @@ var TUNE = (function () {
     });
   }
 
-  function build() {
-    var sel = $("t-map");
-    if (sel) {
-      sel.innerHTML = MAPS.map(function (m) {
-        return '<option value="' + m.id + '">' + m.name + "</option>"; }).join("");
+  /* ---------------- the map plates (VR-137) ----------------
+     One <svg> plan per map, drawn from that map's OWN pillars, so the picture
+     cannot disagree with the arena it is advertising. The arena is a 20x20 box
+     (BAL.C.arena is the half-extent, 10), which is the whole coordinate system
+     this needs — viewBox in world units means the pillar positions go in
+     untranslated and a moved pillar moves on the plate with no second constant
+     to update.
+
+     Built with createElementNS: an <svg> made through createElement lands in the
+     XHTML namespace and renders as nothing — the same trap VR-131's category
+     tiles hit, recorded here because this is the second time. */
+  var SVGN = "http://www.w3.org/2000/svg";
+  function svgEl(tag, attrs) {
+    var n = document.createElementNS(SVGN, tag);
+    for (var k in attrs) n.setAttribute(k, attrs[k]);
+    return n;
+  }
+  function mapPlan(m) {
+    var R = C.arena;                      // the half-extent the sim itself uses
+    var pad = R * 0.12;
+    var svg = svgEl("svg", { viewBox: (-R - pad) + " " + (-R - pad) + " " +
+                                      (2 * (R + pad)) + " " + (2 * (R + pad)),
+                             "aria-hidden": "true" });
+    svg.appendChild(svgEl("rect", { x: -R, y: -R, width: 2 * R, height: 2 * R, rx: R * 0.08,
+      fill: "rgba(150,90,230,.10)", stroke: "currentColor", "stroke-width": R * 0.045,
+      "stroke-opacity": ".55" }));
+    for (var i = 0; i < m.pillars.length; i++) {
+      var p = m.pillars[i];
+      svg.appendChild(svgEl("circle", { cx: p.x, cy: p.z, r: p.r,
+        fill: "currentColor", "fill-opacity": ".85" }));
     }
-    bindPick("t-map", "map", "map");
+    return svg;
+  }
+  function buildPlates() {
+    var host = $("t-maps"); if (!host) return;
+    for (var i = 0; i < MAPS.length; i++) {
+      (function (m) {
+        var lab = document.createElement("label");
+        lab.className = "tplate";
+        var input = document.createElement("input");
+        input.type = "radio"; input.name = "t-map"; input.value = m.id;
+        input.id = "t-map-" + m.id;
+        lab.setAttribute("for", input.id);
+        var box = document.createElement("span");
+        box.className = "tplateb";
+        box.appendChild(mapPlan(m));
+        var nm = document.createElement("span");
+        nm.className = "tplaten"; nm.textContent = m.name;
+        var note = document.createElement("span");
+        note.className = "tplated"; note.textContent = m.note;
+        box.appendChild(nm); box.appendChild(note);
+        lab.appendChild(input); lab.appendChild(box);
+        input.addEventListener("change", function () {
+          if (!input.checked) return;
+          V.map = m.id; apply("map"); save();
+        });
+        host.appendChild(lab);
+      })(MAPS[i]);
+    }
+  }
+  /* The push half, registered in `bound` like every other binder (VR-113) so a
+     loaded preset — or the fallback above — reaches the control and not just V.
+     The <output> is what the list stage shows as this row's value, which is why
+     a radio group needs one at all. */
+  function syncMap() {
+    var host = $("t-maps"); if (!host) return;
+    var ins = host.querySelectorAll("input"), name = "";
+    for (var i = 0; i < ins.length; i++) {
+      ins[i].checked = (ins[i].value === V.map);
+      if (ins[i].checked) name = MAPS[i] ? MAPS[i].name : ins[i].value;
+    }
+    var out = $("t-mapv"); if (out) out.textContent = name;
+    refreshPicks();
+  }
+
+  function build() {
+    buildPlates();
+    bound.push(syncMap);
     bindPick("t-cam", "cam", "cam");
     bindPick("t-pixel", "pixel", "pixel");
     bindRange("t-pitch", "pitch", "arc", function (v) { return v + "°"; });
@@ -5474,6 +5758,10 @@ var TUNE = (function () {
     el.classList.add("on");
     el.setAttribute("aria-hidden", "false");
     $("tunescrim").classList.add("on");
+    /* VR-135 — fade the start or pause panel out from in front of the arena.
+       The screen keeps its `.on`, so nothing about the run's state changes and
+       closing the sheet puts the panel back exactly as it was. */
+    document.body.classList.add("tuning");
     // the panel is a mouse surface; arcade doesn't hold pointer lock anyway
     if (document.pointerLockElement) document.exitPointerLock();
     /* THE VR-112 GOTCHA, INHERITED DELIBERATELY. A thumb still on the stick when
@@ -5505,8 +5793,15 @@ var TUNE = (function () {
     el.classList.remove("on");
     el.setAttribute("aria-hidden", "true");
     $("tunescrim").classList.remove("on");
-    el.classList.remove("tall");
-    var g = $("t-grab"); if (g) { g.setAttribute("aria-expanded", "false"); g.setAttribute("aria-label", "Expand settings"); }
+    /* Reset every transient piece of geometry, or it reopens mid-drag: the
+       detent, the inline height a drag left behind, the drag flag itself, and
+       the edge the detail stage may have moved it to. */
+    el.classList.remove("short");
+    el.classList.remove("dragging");
+    el.classList.remove("watchtop");
+    el.style.height = "";
+    document.body.classList.remove("tuning");
+    var g = $("t-grab"); if (g) { g.setAttribute("aria-expanded", "true"); g.setAttribute("aria-label", "Shrink settings to see the arena"); }
     // Focus must land somewhere deliberate. Dropping it on <body> means the next
     // Tab starts from the top of the document, which on this page is the pad.
     if (opener && opener.focus) { try { opener.focus(); } catch (e) {} }
@@ -5517,13 +5812,22 @@ var TUNE = (function () {
 
   /* Detents. The grab bar is a BUTTON that also happens to be draggable: the
      drag is the gesture a thumb expects, and the button is the affordance a
-     keyboard and a screen reader can reach. Both drive the same one class. */
-  function setTall(on) {
+     keyboard and a screen reader can reach. Both drive the same one class.
+
+     VR-136 INVERTED THIS. The class used to be `.tall` and meant "bigger than
+     the 62vh default"; the sheet opens full now, so the only detent worth a
+     name is the small one and it is `.short`. Renamed rather than re-pointed:
+     leaving a class called `tall` on the SHORT state is the kind of thing that
+     is correct for exactly as long as nobody reads it. aria-expanded still means
+     what it says — expanded is the full sheet. */
+  var DETENT = { full: 0.94, short: 0.52 };
+  function vpH() { return (window.innerHeight || 800); }
+  function setShort(on) {
     var el = $("tune"), g = $("t-grab");
-    el.classList.toggle("tall", !!on);
+    el.classList.toggle("short", !!on);
     if (g) {
-      g.setAttribute("aria-expanded", on ? "true" : "false");
-      g.setAttribute("aria-label", on ? "Collapse settings" : "Expand settings");
+      g.setAttribute("aria-expanded", on ? "false" : "true");
+      g.setAttribute("aria-label", on ? "Expand settings" : "Shrink settings to see the arena");
     }
     edgeFade();
   }
@@ -5560,28 +5864,68 @@ var TUNE = (function () {
 
     var g = $("t-grab");
     if (g) {
-      g.addEventListener("click", function () { setTall(!el.classList.contains("tall")); });
-      /* Drag is additive, never the only way. Thresholded rather than
-         proportional: a sheet that tracks the finger 1:1 needs a velocity model
-         and a rubber band to feel right, and half of one feels worse than none. */
-      var gy = null, moved = 0;
+      g.addEventListener("click", function () { setShort(!el.classList.contains("short")); });
+      /* VR-136 — THE PROPORTIONAL DRAG VR-114 DECLINED TO BUILD.
+         Its note was: *"a sheet that tracks the finger 1:1 needs a velocity
+         model and a rubber band to feel right, and half of one feels worse than
+         none."* That was true and it is still the standard this has to meet, so
+         all three are here — the sheet follows the thumb exactly, resists past
+         the top instead of stopping dead, and lands on a detent chosen from
+         where the drag was GOING rather than where it stopped.
+
+         Height rather than transform, because the sheet's content must reflow as
+         it grows — a transform would slide a 94vh panel down and leave the rows
+         hanging off the bottom. `.dragging` kills the transition for the
+         duration: an eased height while a finger is on it is exactly the lag
+         that makes a sheet feel cheap.
+
+         The inline height is removed on release so the class-driven `--sheeth`
+         takes over and the settle animates from wherever the thumb left it. */
+      var gy = null, gh = 0, lastY = 0, lastT = 0, vel = 0;
+      var maxPx = function () { return vpH() * DETENT.full; };
       g.addEventListener("pointerdown", function (e) {
-        gy = e.clientY; moved = 0;
+        gy = e.clientY; lastY = e.clientY; lastT = e.timeStamp || 0; vel = 0;
+        gh = el.getBoundingClientRect().height;
+        el.classList.add("dragging");
         try { g.setPointerCapture(e.pointerId); } catch (_) {}
       });
       g.addEventListener("pointermove", function (e) {
         if (gy === null) return;
-        moved = e.clientY - gy;
+        var h = gh + (gy - e.clientY);
+        var top = maxPx();
+        // resist past the top rather than stopping dead — a hard stop reads as
+        // the drag having broken, and the give is what says "this is the end"
+        if (h > top) h = top + (h - top) * 0.22;
+        if (h < 0) h = 0;
+        el.style.height = h + "px";
+        var dt = (e.timeStamp || 0) - lastT;
+        if (dt > 0) vel = (lastY - e.clientY) / dt;   // px per ms, up positive
+        lastY = e.clientY; lastT = e.timeStamp || 0;
       });
       var endDrag = function () {
         if (gy === null) return;
         gy = null;
-        if (moved < -40) setTall(true);
-        else if (moved > 80 && !el.classList.contains("tall")) close();
-        else if (moved > 40) setTall(false);
+        var h = el.getBoundingClientRect().height;
+        el.classList.remove("dragging");
+        el.style.height = "";
+        /* Project the flick forward 110ms and snap to whichever detent that
+           lands nearest. Position alone means a fast short flick does nothing,
+           which is the single most common complaint about hand-written sheets. */
+        var vp = vpH(), want = h + vel * 110;
+        var stops = [
+          { h: 0, act: close },
+          { h: vp * DETENT.short, act: function () { setShort(true); } },
+          { h: vp * DETENT.full,  act: function () { setShort(false); } }
+        ];
+        var best = stops[0];
+        for (var i = 1; i < stops.length; i++) {
+          if (Math.abs(stops[i].h - want) < Math.abs(best.h - want)) best = stops[i];
+        }
+        best.act();
       };
       g.addEventListener("pointerup", endDrag);
       g.addEventListener("pointercancel", endDrag);
+      g.addEventListener("lostpointercapture", endDrag);
     }
     $("t-back").addEventListener("click", function () { back(); });
     /* One delegated listener rather than a hook in each of the four binders: the
@@ -5599,7 +5943,11 @@ var TUNE = (function () {
      looks exactly like a row that works. */
   var picks = [], lastPick = null;
   var cats = [], curCat = null, lastCat = null;
-  function labelOf(row) { var l = row.querySelector("label"); return l ? l.textContent : "Setting"; }
+  /* `.tlbl` as well as `label` (VR-137): the map row's name is a <span>, because
+     a <label for> in a radio group would have to point at ONE radio and would
+     then be claiming that radio is called "Map". Ordered so whichever comes
+     first in the row wins, which is the row's own name in both shapes. */
+  function labelOf(row) { var l = row.querySelector("label,.tlbl"); return l ? l.textContent : "Setting"; }
   function controlOf(row) { return row.querySelector("select,input"); }
   function valueOf(row) {
     var c = controlOf(row);
@@ -5628,19 +5976,45 @@ var TUNE = (function () {
     var v = span("tpickv", valueOf(row));
     b.appendChild(span("tpickl", name));
     b.appendChild(v);
+    /* VR-137 — a colour row shows its colour in the list, next to the hex.
+       Jordan, 8/23: *"for the shroud settings, I think it would be nice to see
+       the colors in addition to the hex codes."* ADDITIVE, never instead of:
+       WCAG 1.4.1 is the whole reason the hex is there, and swapping one for the
+       other would undo VR-114 to fix something smaller. aria-hidden because the
+       hex beside it is already the accessible value. */
+    var ctl = controlOf(row), chip = null;
+    if (ctl && ctl.type === "color") {
+      chip = span("tchip", "");
+      chip.setAttribute("aria-hidden", "true");
+      b.appendChild(chip);
+    }
     var c = span("tpickc", "\u203A"); c.setAttribute("aria-hidden", "true");
     b.appendChild(c);
     b.addEventListener("click", function () { lastPick = b; toDetail(row); });
     row.parentNode.insertBefore(b, row);
-    picks.push({ row: row, btn: b, val: v });
+    picks.push({ row: row, btn: b, val: v, chip: chip });
   }
   function refreshPicks() {
-    for (var i = 0; i < picks.length; i++) picks[i].val.textContent = valueOf(picks[i].row);
+    for (var i = 0; i < picks.length; i++) {
+      picks[i].val.textContent = valueOf(picks[i].row);
+      if (picks[i].chip) {
+        var cc = controlOf(picks[i].row);
+        picks[i].chip.style.background = cc ? cc.value : "";
+      }
+    }
   }
   function toDetail(row) {
     var el = $("tune");
-    el.classList.remove("tall");
+    el.classList.remove("short");
+    el.style.height = "";
     el.classList.add("detail");
+    /* VR-136 — which EDGE the peek comes from. A bottom sheet covers the pad at
+       every height there is, so a row whose group is watched down there gets the
+       sheet at the top instead. Declared on the section (`data-watch="pad"`) and
+       stamped onto its rows at build time, so a row moved between groups
+       inherits the right answer instead of carrying a flag somebody has to
+       remember to move with it. */
+    el.classList.toggle("watchtop", row._watch === "pad");
     for (var i = 0; i < picks.length; i++) {
       var r = picks[i].row, on = (r === row);
       r.classList.toggle("tfocus", on);
@@ -5665,6 +6039,7 @@ var TUNE = (function () {
     var el = $("tune");
     if (!el.classList.contains("staged")) return;
     el.classList.remove("detail");
+    el.classList.remove("watchtop");   // VR-136 — only the detail stage ever moves edges
     el.classList.remove("cats");
     clearFocusRows();
     /* Back is offered at this level only when there is a level ABOVE it. In a
@@ -5689,6 +6064,7 @@ var TUNE = (function () {
     var el = $("tune");
     if (!el.classList.contains("staged")) return;
     el.classList.remove("detail");
+    el.classList.remove("watchtop");   // VR-136 — only the detail stage ever moves edges
     el.classList.add("cats");
     clearFocusRows();
     for (var i = 0; i < cats.length; i++) cats[i].sec.classList.remove("tcat-on");
@@ -5760,14 +6136,21 @@ var TUNE = (function () {
   function buildStage() {
     if (!STAGED) return;                 // the desktop drawer stays one flat list
     var body = $("tunebody");
-    /* Rows first, and off the BODY rather than per-section, so a row that ends
-       up outside a section still gets its list entry instead of silently losing
-       its control. `_touch.js` asserts separately that no row is in that state:
-       the belt is here, the braces are in the harness. */
+    var secs = body.querySelectorAll(".tsec"), s, j;
+    /* Stamp each section's watch target onto its rows BEFORE the picks are
+       built, so toDetail never has to walk back up the tree for it. */
+    for (s = 0; s < secs.length; s++) {
+      var w = secs[s].getAttribute("data-watch");
+      var sr = secs[s].querySelectorAll(".trow");
+      for (j = 0; j < sr.length; j++) sr[j]._watch = w;
+    }
+    /* Rows off the BODY rather than per-section, so a row that ends up outside
+       a section still gets its list entry instead of silently losing its
+       control. `_touch.js` asserts separately that no row is in that state: the
+       belt is here, the braces are in the harness. */
     var rows = body.querySelectorAll(".trow");
     for (var i = 0; i < rows.length; i++) makePick(rows[i]);
-    var secs = body.querySelectorAll(".tsec");
-    for (var s = 0; s < secs.length; s++) {
+    for (s = 0; s < secs.length; s++) {
       var srows = secs[s].querySelectorAll(".trow");
       makeTile(secs[s], srows.length ? pickFor(srows[0]) : null);
     }
