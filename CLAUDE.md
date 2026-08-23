@@ -37,6 +37,10 @@ contract:** ids are cited across `_Project Knowledge/`, commit messages and this
 they did not change in the migration. **Never renumber one.** For pre-migration history,
 grep the archived file. **A number cited in a commit subject is a claim on that number** —
 VR-110 shipped in `c8576a9` with no card and nearly collided with the next one opened.
+**It stopped being hypothetical on 8/22: `cece0e2` claimed VR-120 for the Game Reference clamp
+while a Backlog card ("Vesper model fidelity") already held that number.** Both cards now exist.
+So: **before putting a `VR-##` in a commit subject, check the board for that number** — a commit
+message is permanent and the card is not, which means the commit wins and the card has to move.
 
 **Three waiting states, and the distinction is who owns the next step:** `⏸️ Parked` = a
 person (crew playtest, a vote, Jordan's call); `🚧 Blocked` = another card; `🔵 To do` =
