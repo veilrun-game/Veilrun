@@ -3454,7 +3454,19 @@ var MODEL = (function () {
      down" rather than "stepping out of the world". This punches holes through
      the surface with procedural noise and lights the eaten edges, so he erodes
      away. Discard-based, so there is no transparency sorting to go wrong.
-     Capped below 1 on purpose — a fully invisible player is unplayable. */
+     Capped below 1 on purpose — a fully invisible player is unplayable.
+
+     VR-130 — ONE FRONT, NOT TWO EFFECTS. This used to run as two phases: burn
+     him full of holes, then separately cross-fade a glass shell over the whole
+     body. Two different things happening in sequence, and it read that way —
+     a dissolve, and then a hologram. The noise field is now treated as a DEPTH
+     MAP into him rather than a hole mask: the skin burns back from the lowest
+     values first, and what is under the skin is the glass. Any one fragment is
+     therefore one of three things at a given moment —
+         ahead of the front   SKIN   (untouched)
+         at the front         GONE   (a thin burning tear)
+         behind the front     GLASS  (uncovered, not faded in)
+     The glass was always inside him; the violet is what takes the skin off it. */
   var DISSOLVE_HEAD = [
     "uniform float uDissolve;",
     "uniform float uGhost;",
@@ -3470,23 +3482,51 @@ var MODEL = (function () {
     "             mix(vr_hash(i+vec2(0.,1.)),vr_hash(i+vec2(1.,1.)),f.x), f.y); }"
   ].join("\n");
   var DISSOLVE_BODY = [
-    // 1. coming apart — noise eats holes through him, eaten edges lit
+    // the depth map. Low values are the thin places in him — they go first.
     "float vrN = vr_noise(vUv * 26.0) * 0.65 + vr_noise(vUv * 7.0) * 0.35;",
-    "if (uDissolve > 0.001) {",
-    "  if (vrN < uDissolve) discard;",
-    "  gl_FragColor.rgb = mix(gl_FragColor.rgb, uEdge, smoothstep(uDissolve + 0.10, uDissolve, vrN));",
-    "}",
-    // 2. reformed as glass — a fresnel shell: near-invisible face-on, a bright
-    //    rim where the surface turns away. That is what makes it read as a
-    //    figure-shaped absence rather than a faded texture.
-    "if (uGhost > 0.001) {",
+    /* Value noise bunches hard around 0.5 — measured, 80% of the surface sits
+       inside [0.31, 0.71], and a front moving at a constant rate through THAT
+       does almost nothing for half the shroud and then takes him all at once.
+       So flatten the histogram before using it: the field is near-normal about
+       0.505 with sd 0.156, and pushing a normal through its own logistic CDF
+       returns a near-uniform one. Measured after this line, the front covers
+       10/20/30…% of him at 0.1/0.2/0.3… — within 2% of a straight line the
+       whole way, which is what makes a steady sweep LOOK steady. */
+    "vrN = 1.0 / (1.0 + exp(-10.9 * (vrN - 0.505)));",
+    // VR_TEAR  how wide the open burn is between skin and glass
+    // VR_SOFT  how fast the glass settles once the tear has passed over it
+    // VR_GLOW  how far the burn light reaches either side of the tear
+    "const float VR_TEAR = 0.055;",
+    "const float VR_SOFT = 0.100;",
+    "const float VR_GLOW = 0.130;",
+    "float vrBack = uDissolve - VR_TEAR;",
+    // 1. the tear itself — a moving gap, not a growing hole. It opens ahead of
+    //    the glass and closes behind it, so nothing stays perforated.
+    "if (uDissolve > 0.001 && uGhost < 0.999 && vrN < uDissolve && vrN > vrBack) discard;",
+    // 2. the glass UNDER the skin, uncovered wherever the tear has already been.
+    //    uGhost is only a backstop for stragglers the front never reached — the
+    //    reveal itself is the dissolve, which is the whole point of VR-130.
+    "float vrG = (uDissolve > 0.001) ? smoothstep(vrBack, vrBack - VR_SOFT, vrN) : 0.0;",
+    "vrG = max(vrG, uGhost);",
+    // a fresnel shell: near-invisible face-on, bright where the surface turns
+    // away. That is what makes it read as a figure-shaped absence.
+    "if (vrG > 0.001) {",
     "  vec3 vrV = normalize(vViewPosition);",
     "  float vrF = pow(1.0 - abs(dot(normalize(normal), vrV)), 2.2);",
-    // deep violet through the body, warming toward the seam's pink at the rim —
-    // that gradient is what stops it reading as flat tinted glass
+    // deep violet through the body, cold blue at the rim — that gradient is what
+    // stops it reading as flat tinted glass
     "  vec3 vrT = mix(uGlass, uRim, vrF * vrF);",
-    "  gl_FragColor.rgb = mix(gl_FragColor.rgb, vrT * (0.55 + vrF * uGlassLift), uGhost * 0.94);",
-    "  gl_FragColor.a   = mix(gl_FragColor.a, mix(uAMin, uAMax, vrF), uGhost);",
+    "  gl_FragColor.rgb = mix(gl_FragColor.rgb, vrT * (0.55 + vrF * uGlassLift), vrG * 0.94);",
+    "  gl_FragColor.a   = mix(gl_FragColor.a, mix(uAMin, uAMax, vrF), vrG);",
+    "}",
+    // 3. the burn, last, so it sits on skin and glass alike and the seam between
+    //    them is a lit edge rather than a colour change. It needs its own alpha
+    //    floor or the half of it lying on glass would be invisible.
+    "if (uDissolve > 0.001 && uGhost < 0.999) {",
+    "  float vrOut = max(vrN - uDissolve, vrBack - vrN);",
+    "  float vrE = 1.0 - smoothstep(0.0, VR_GLOW, max(vrOut, 0.0));",
+    "  gl_FragColor.rgb = mix(gl_FragColor.rgb, uEdge, vrE * 0.85);",
+    "  gl_FragColor.a   = max(gl_FragColor.a, vrE * 0.90);",
     "}"
   ].join("\n");
   var dissolveUniforms = [], dissolveMats = [];
@@ -3704,12 +3744,16 @@ var MODEL = (function () {
     return s;
   }
 
-  /* Two phases, because "dissolves and stays dissolved" reads as a rendering
-     bug and "fades out" reads as an opacity slider:
-       0.00 -> 0.70   he comes apart, holes widening, edges burning
-       0.70 -> 1.00   the holes knit back up and he settles as glass
-     So the destruction is the TRANSITION and the glass is the STATE. */
-  var GHOST_AT = 0.70;
+  /* VR-130: one continuous sweep, where the two phases used to be.
+       0.00 -> 1.00   the burn front travels across him; skin ahead of it,
+                      glass behind it, a lit tear in between
+     uDissolve overshoots 1 because the noise field's extremes are rare — the
+     front has to run past the top of the range for the last patch of skin to
+     go. uGhost is no longer the effect; it is a late backstop that guarantees
+     a fully-settled glass state even if a straggler survived the sweep, and it
+     also switches the tear off so a veiled Vesper is never left perforated. */
+  var VEIL_SWEEP = 1.06;
+  var veilT = 0;
   function setVeilLook(o) {
     for (var i = 0; i < dissolveUniforms.length; i++) {
       var u = dissolveUniforms[i];
@@ -3722,20 +3766,22 @@ var MODEL = (function () {
     }
   }
   function setVeil(t) {
-    t = clamp(t, 0, 1);
-    var holes, ghost;
-    if (t <= GHOST_AT) { holes = (t / GHOST_AT) * 0.82; ghost = 0; }
-    else {
-      var k = (t - GHOST_AT) / (1 - GHOST_AT);
-      holes = (1 - k) * 0.82;          // holes recede as the glass comes in
-      ghost = k;
-    }
+    t = veilT = clamp(t, 0, 1);
+    var front = t * VEIL_SWEEP;
+    // eases in over the last stretch, by which point the front has covered ~93%
+    // of him on its own — this only catches what it missed
+    var ghost = t <= 0.88 ? 0 : (t - 0.88) / 0.12;
     for (var i = 0; i < dissolveUniforms.length; i++) {
-      dissolveUniforms[i].uDissolve.value = holes;
+      dissolveUniforms[i].uDissolve.value = front;
       dissolveUniforms[i].uGhost.value = ghost;
     }
+    /* Depth stays written almost the whole way, which is a change of mind from
+       the two-phase version and the right one for VR-130: while the reveal is
+       running, the glass is meant to read as something INSIDE him, and a hole
+       you can see the far side of him through reads as a hole. It opens up
+       only at the end, where a settled glass Vesper does want to be a window. */
     for (var j = 0; j < dissolveMats.length; j++) {
-      dissolveMats[j].depthWrite = ghost < 0.5;   // let the far side show through the glass
+      dissolveMats[j].depthWrite = veilT < 0.8;
     }
   }
 

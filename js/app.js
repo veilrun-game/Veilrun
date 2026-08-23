@@ -711,7 +711,13 @@ window.VApp = (function () {
       </div>`;
     },
 
-    /* ---- Games index: high-level browse of everything playable (VR-94) ---- */
+    /* ---- Games index: high-level browse of everything playable (VR-94) ----
+       Every card carries Play as well as Open (VR-129). Browsing and playing are
+       two different intents and the index was only serving the first: to actually
+       start a game you had to open its page, scroll past the leaderboard and find
+       the button at the bottom. Play here launches the game's DEFAULT run — the
+       same target the game page opens on, i.e. versions[0] · first line-up ·
+       level 1 — so the index can never offer a run the game page wouldn't. */
     games() {
       const cards = (D.games || []).map(g => {
         const levels = g.versions.reduce((m, v) => m + v.combos.reduce((k, c) => k + c.levels.length, 0), 0);
@@ -719,19 +725,27 @@ window.VApp = (function () {
         const vers = g.versions.length;
         const bits = [`${combos} ${combos === 1 ? "line-up" : "line-ups"}`, `${levels} ${levels === 1 ? "level" : "levels"}`];
         if (vers > 1) bits.push(`${vers} versions`);
+        const run = defaultRun(g);
+        // No playable path in the manifest → no button at all, rather than a dead one.
+        const play = run.href ? `<a class="btn gamecard-play" href="${C.esc(run.href)}"
+            onclick="event.stopPropagation()" aria-label="Play ${C.esc(g.name)} — ${C.esc(run.label)}">▶ Play</a>` : "";
         return `<div class="panel gamecard" onclick="location.hash='#games/${C.esc(g.id)}'">
           ${g.art ? `<img class="gamecard-img" src="${C.esc(g.art)}" alt="${C.esc(g.name)}" loading="lazy" />` : ""}
           <div class="gamecard-body">
             <div class="gamecard-top">${C.statusPill(g.status)}<span class="mute gamecard-meta">${C.esc(bits.join(" · "))}</span></div>
             <h3>${C.esc(g.name)}</h3>
             <p class="mute gamecard-desc">${C.esc(g.short || g.text)}</p>
-            <span class="gamecard-go">Open ${C.esc(g.name.split(" (")[0])} →</span>
+            <div class="gamecard-act">
+              ${play}
+              <span class="gamecard-go">Open ${C.esc(g.name.split(" (")[0])} →</span>
+            </div>
+            ${run.href ? `<p class="mute gamecard-run">Play opens ${C.esc(run.label)}</p>` : ""}
           </div>
         </div>`;
       }).join("");
       return `<div class="wrap section">
         ${C.sectionHeader("Playable","Games")}
-        <p class="mute" style="max-width:62ch;margin-top:1rem">Everything you can actually play right now. Open one for its versions, levels, controls, leaderboard and changelog. Ideas that aren't built yet live in <a href="#lab">the Lab</a>.</p>
+        <p class="mute" style="max-width:62ch;margin-top:1rem">Everything you can actually play right now. Hit Play to drop straight in, or open one for its versions, levels, controls, leaderboard and changelog. Ideas that aren't built yet live in <a href="#lab">the Lab</a>.</p>
         <div class="grid cols-3" style="margin-top:1.5rem">${cards}</div>
       </div>`;
     },
@@ -1380,6 +1394,22 @@ window.VApp = (function () {
     if (ver) q.push("v=" + encodeURIComponent(ver.id));
     return combo.play + (q.length ? "?" + q.join("&") : "");
   }
+  /* A game's default run: versions[0] · first line-up · level 1 — the manifest's
+     stated default, and precisely what the game page's Play points at before you
+     touch a dropdown. The games index (VR-129) reads this so the two surfaces can
+     never disagree about what "Play" means. Returns "" href when a combo has no
+     play path, which is the caller's cue to render no button. */
+  function defaultRun(g) {
+    const ver = (g && g.versions || [])[0];
+    const combo = ver && ver.combos && ver.combos[0];
+    const level = combo && combo.levels && combo.levels[0];
+    if (!combo) return { href: "", label: "" };
+    const multiLvl = combo.levels && combo.levels.length > 1;
+    const bits = [(combo.label || "").split(" · ")[0]];
+    if (multiLvl && level) bits.push(level.label);
+    if ((g.versions || []).length > 1) bits.push(ver.label);
+    return { href: playHref(ver, combo, multiLvl ? level : null), label: bits.filter(Boolean).join(" · ") };
+  }
   function gbIdx(id) { const el = document.getElementById(id); return el ? el.selectedIndex : 0; }
   // The card's current (version, combo, level) selection — the one source of truth
   // that the board, the "where you stand" line, and the Play button all read from.
@@ -1449,12 +1479,20 @@ window.VApp = (function () {
   const controlsRows = (g, ver) => controlsFor(g, ver).map(([keys, does]) =>
     `<div class="kit-row"><span class="name" style="min-width:11rem;display:inline-block">${C.esc(keys)}</span><div class="mute">${C.esc(does)}</div></div>`).join("");
 
-  /* Full-width play card. One card = one game. The three selects at the top of the
-     config rail are its single control surface: changing any of them re-scopes BOTH
-     the leaderboard and the Play button, so the card can never claim one thing and
-     launch another. Play sits bottom-right, after the board — the last thing you
-     read is the thing you press. Lifted out of the Lab in VR-94 so the game page
-     and the Lab share one implementation rather than two that drift. */
+  /* Full-width play card. One card = one game. The three selects are its single
+     control surface: changing any of them re-scopes BOTH the leaderboard and the
+     Play button, so the card can never claim one thing and launch another.
+
+     VR-129 reordered it: pick a run → Play → then where you stand. It used to run
+     board-first with Play in a footer under it, on the reasoning that the last
+     thing you read is the thing you press. That reads well for someone comparing
+     times; it reads badly for someone who came to play, because on a phone the
+     selects sat under the board and the button under those — the primary action
+     was two screens below the title. The board loses nothing by moving down: it
+     is a thing you read, not a thing you act on.
+
+     Lifted out of the Lab in VR-94 so the game page and the Lab share one
+     implementation rather than two that drift. */
   function playCard(g) {
     const tree = g.versions || [];
     const v0 = tree[0], c0 = v0 && v0.combos[0];
@@ -1466,12 +1504,23 @@ window.VApp = (function () {
     return `
       <div class="panel play-full" id="playcard-${id}" style="margin-top:1.5rem">
         <div class="pc-head">
-          <div class="pc-title">
-            <div class="eyebrow">Choose your run</div>
-            <h3>${C.esc(g.name)}</h3>
-            <p class="mute pc-desc">${C.esc(g.short || g.text)}</p>
-          </div>
+          <div class="pc-title"><div class="eyebrow" style="margin:0">Choose your run</div></div>
           <div class="pc-head-act">${C.feedbackButton("Game: " + g.name)}</div>
+        </div>
+        <div class="pc-run">
+          <div class="pc-run-grid">
+            ${tree.length ? `
+              <label class="pc-field${multiVer ? "" : " solo"}"><span>Version</span>
+                <select class="gb-sel" id="gbver-${id}" onchange="VApp.gameBoardVer('${id}')">${verOpts}</select></label>
+              <label class="pc-field${multiCombo ? "" : " solo"}"><span>Characters</span>
+                <select class="gb-sel" id="gbcombo-${id}" onchange="VApp.gameBoardCombo('${id}')">${comboOpts}</select></label>
+              <label class="pc-field${multiLvl ? "" : " solo"}"><span>Level</span>
+                <select class="gb-sel" id="gblvl-${id}" onchange="VApp.gameBoardLevel('${id}', this.value)">${lvlOpts}</select></label>` : ""}
+            <div class="pc-run-act">
+              <a class="btn pc-play" id="gbplay-${id}" href="#">▶ Play</a>
+              <p class="mute pc-launch" id="gblaunch-${id}"></p>
+            </div>
+          </div>
         </div>
         <div class="pc-body">
           <div class="pc-board">
@@ -1481,20 +1530,6 @@ window.VApp = (function () {
             </div>
             <div id="gboard-${id}" class="pc-rows"><p class="mute" style="font-size:.85rem">Loading…</p></div>
           </div>
-          <div class="pc-config">
-            <div class="pc-rail-lab">Pick a run</div>
-            ${tree.length ? `
-              <label class="pc-field${multiVer ? "" : " solo"}"><span>Version</span>
-                <select class="gb-sel" id="gbver-${id}" onchange="VApp.gameBoardVer('${id}')">${verOpts}</select></label>
-              <label class="pc-field${multiCombo ? "" : " solo"}"><span>Characters</span>
-                <select class="gb-sel" id="gbcombo-${id}" onchange="VApp.gameBoardCombo('${id}')">${comboOpts}</select></label>
-              <label class="pc-field${multiLvl ? "" : " solo"}"><span>Level</span>
-                <select class="gb-sel" id="gblvl-${id}" onchange="VApp.gameBoardLevel('${id}', this.value)">${lvlOpts}</select></label>` : ""}
-          </div>
-        </div>
-        <div class="pc-foot">
-          <p class="mute pc-launch" id="gblaunch-${id}"></p>
-          <a class="btn pc-play" id="gbplay-${id}" href="#">▶ Play</a>
         </div>
       </div>`;
   }

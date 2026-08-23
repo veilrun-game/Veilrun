@@ -155,9 +155,14 @@ ok("shroud is a dissolve, not a fade", /uDissolve/.test(html) && /discard;/.test
    "discard-based, so no transparency sorting to go wrong");
 ok("dissolve resolves into a glass ghost", /uGhost/.test(html) && /vrF = pow\(1\.0 - abs\(dot/.test(html),
    "fresnel shell: near-invisible face-on, bright where the surface turns away");
-ok("destruction is the transition, glass is the state", /GHOST_AT = 0\.70/.test(html) &&
-   /holes = \(1 - k\) \* 0\.82/.test(html), "holes recede as the glass comes in");
-ok("glass lets the far side through", /depthWrite = ghost < 0\.5/.test(html));
+ok("the dissolve UNCOVERS the glass, it does not precede it",
+   /vrG = max\(vrG, uGhost\)/.test(html) && /VR_TEAR/.test(html),
+   "VR-130: one front — skin ahead of it, a lit tear at it, glass behind it");
+ok("the tear moves rather than accumulating", /vrN < uDissolve && vrN > vrBack\) discard;/.test(html),
+   "a gap that opens ahead of the glass and closes behind it, so nothing stays perforated");
+ok("uGhost is a backstop, not the effect", /uGhost < 0\.999/.test(html) &&
+   /t <= 0\.88 \? 0 :/.test(html), "it only settles stragglers the sweep never reached");
+ok("glass lets the far side through", /depthWrite = veilT < 0\.8/.test(html));
 ok("veil colours are tunable in one place", /VEIL_BURN/.test(html) && /VEIL_A_MIN/.test(html));
 ok("glass has a rim gradient", /vrT = mix\(uGlass, uRim, vrF \* vrF\)/.test(html),
    "deep violet through the body, pink only where he turns away");
@@ -165,7 +170,9 @@ ok("execute has its own clip with a fallback", /\["execute","\[|\["execute",\s*\
    /st === "execute" && !MODEL\.hasClip\("execute"\)/.test(html));
 ok("glass is not the seam's magenta", !/uGlass = \{ value: new THREE\.Color\(0xD65CDC\)/.test(html),
    "magenta belongs to the world tearing, not to Vesper");
-ok("eaten edges are lit", /uEdge/.test(html) && /smoothstep\(uDissolve/.test(html));
+ok("eaten edges are lit", /uEdge/.test(html) &&
+   /vrE = 1\.0 - smoothstep\(0\.0, VR_GLOW/.test(html),
+   "the burn is applied last, so the seam lights on skin and glass alike");
 ok("locomotion is speed-matched", /setEffectiveTimeScale\(clamp\(\(speed \|\| 0\) \/ REF/.test(html),
    "feet skate when stride rate doesn't match actual velocity");
 ok("run blends in by speed when it exists", /MODEL\.hasClip\("run"\)/.test(html) &&

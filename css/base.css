@@ -266,10 +266,11 @@ html { scroll-behavior: smooth; }
 .votebtn .vc { font-variant-numeric: tabular-nums; }
 /* ---------------------------------------------------------------------------
    Lab · playable prototype card (full width)
-   One card per game. Reading order top-to-bottom is: what this is → configure
-   your run → how the crew did → play it. The config rail and the board sit in
-   the same bordered container so it reads as one object whose controls re-scope
-   the whole card, and the primary action lands at the end of that scan path.
+   One card per game. Reading order top-to-bottom is: what this is → pick your
+   run → play it → how the crew did (VR-129; it used to put the board ahead of
+   the button). The run bar and the board sit in the same bordered container so
+   it reads as one object whose controls re-scope the whole card, and the
+   primary action is reachable without scrolling past a leaderboard.
    --------------------------------------------------------------------------- */
 /* ---------------------------------------------------------------------------
    Games index card. Art is the first thing read, so it has to be uniform —
@@ -283,35 +284,58 @@ html { scroll-behavior: smooth; }
 .gamecard:hover { border-color: var(--magenta); transform: translateY(-2px); }
 .gamecard-img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; object-position: center;
   border-bottom: 1px solid var(--line); }
-.gamecard-body { padding: var(--s-4) var(--s-4) var(--s-5); display: flex; flex-direction: column; gap: 0.4rem; }
+/* flex:1 + the auto margin on the action row lines every card's Play up along the
+   same baseline, whatever the pitch or the title wrapping does above it. */
+.gamecard-body { padding: var(--s-4) var(--s-4) var(--s-5); display: flex; flex-direction: column;
+  gap: 0.4rem; flex: 1; }
 .gamecard-top { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
 .gamecard-meta { font-size: 0.74rem; }
 .gamecard h3 { margin: 0; font-size: 1.05rem; }
 /* Two lines, always — so the row can't be dragged tall by the wordiest pitch. */
 .gamecard-desc { margin: 0; font-size: 0.88rem; display: -webkit-box; -webkit-line-clamp: 2;
   -webkit-box-orient: vertical; overflow: hidden; }
-.gamecard-go { margin-top: 0.2rem; font-family: var(--font-display); text-transform: uppercase;
+.gamecard-go { font-family: var(--font-display); text-transform: uppercase;
   letter-spacing: 0.06em; font-size: 0.8rem; color: var(--magenta); }
 .gamecard:hover .gamecard-go { color: var(--white); }
+/* Two intents on one card (VR-129): Play drops you into the default run, Open is
+   the page with versions, board and changelog. Play is a real anchor that stops
+   the click bubbling, so the card's own navigation can't swallow it — and it
+   keeps the 44px touch target the selects elsewhere hold to. */
+.gamecard-act { margin-top: auto; padding-top: 0.5rem; display: flex; align-items: center;
+  gap: 0.9rem; flex-wrap: wrap; }
+.gamecard-play { flex: none; padding: 10px 20px; font-size: 0.9rem; min-height: 44px;
+  display: inline-flex; align-items: center; text-decoration: none; }
+/* Says what Play will open, so the button is never a mystery box — and it is the
+   one line that tells you this card has more runs than the one it launches. */
+.gamecard-run { margin: 0; font-size: 0.72rem; }
 
 .play-full { padding: 0; overflow: hidden; }
 .pc-head { display: flex; gap: var(--s-4); align-items: flex-start; justify-content: space-between;
   flex-wrap: wrap; padding: var(--s-5) var(--s-5) var(--s-4); border-bottom: 1px solid var(--line); }
-.pc-title { min-width: 0; flex: 1 1 320px; }
-.pc-head h3 { margin: 0.3rem 0 0.4rem; font-size: clamp(1.15rem, 2.4vw, 1.5rem); }
-.pc-desc { font-size: 0.9rem; max-width: 78ch; margin: 0; }
-.pc-head-act { flex: none; }
-/* Board first, pickers second. The board is the thing you came to read — the
-   pickers are the control you reach for once you've seen where you stand. On
-   mobile the grid collapses and source order puts the board on top, which is
-   the same priority. */
+/* The head is a label and a feedback button now (VR-129). It used to restate the
+   game's name and pitch — both of which the page's own h1 and lede say directly
+   above it, so on a phone the same two sentences pushed Play a screen further
+   down for nothing. */
+.pc-title { min-width: 0; flex: 1 1 auto; align-self: center; }
+.pc-head-act { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+/* The feedback label carries the game's full name, which is wider than a phone.
+   A pill button defaults to one unbreakable line, so it was being cropped by the
+   card's overflow — let it wrap instead of losing its own end. */
+.pc-head-act .fb { max-width: 100%; white-space: normal; text-align: left; border-radius: 14px; }
+/* The run bar: three pickers and the button they scope, directly under the title
+   (VR-129 — it was a right-hand rail with the button in a footer below the
+   board). Wide screens lay the pickers out in a row with Play on the end, so the
+   whole decision is one line; narrow screens stack, and Play still lands above
+   the fold because nothing but the header precedes it. */
+.pc-run { padding: var(--s-5); background: rgba(11, 8, 24, 0.35);
+  border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 0.7rem; }
+.pc-run-grid { display: grid; grid-template-columns: 1fr; gap: 0.7rem; align-items: end; }
+@media (min-width: 760px) {
+  .pc-run-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: var(--s-4); }
+}
+.pc-run-act { display: flex; flex-direction: column; gap: 0.3rem; }
+@media (min-width: 760px) { .pc-run-act { align-items: flex-end; } }
 .pc-body { display: grid; grid-template-columns: 1fr; gap: 0; }
-@media (min-width: 860px) { .pc-body { grid-template-columns: minmax(0, 1fr) minmax(230px, 280px); } }
-.pc-config { padding: var(--s-5); display: flex; flex-direction: column; gap: 0.7rem;
-  background: rgba(11, 8, 24, 0.35); border-top: 1px solid var(--line); }
-@media (min-width: 860px) { .pc-config { border-top: 0; border-left: 1px solid var(--line); } }
-.pc-rail-lab { font-family: var(--font-display); text-transform: uppercase; letter-spacing: var(--tracking);
-  font-size: 0.68rem; color: var(--mute); }
 .pc-field { display: flex; flex-direction: column; gap: 5px; }
 .pc-field > span { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mute); }
 /* A picker with a single option carries no decision — keep it visible for orientation
@@ -329,13 +353,11 @@ html { scroll-behavior: smooth; }
 .gb-row .gb-gap { color: var(--mute); font-size: 0.78rem; margin-left: 0.5rem; }
 .pc-scope { font-size: 0.78rem; }
 .pc-rows { margin-top: 0.6rem; min-height: 120px; }
-.pc-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4);
-  flex-wrap: wrap; padding: var(--s-4) var(--s-5); border-top: 1px solid var(--line);
-  background: rgba(11, 8, 24, 0.35); }
 .pc-launch { margin: 0; font-size: 0.82rem; }
-.pc-play { padding: 13px 28px; font-size: 1rem; margin-left: auto; }
+.pc-play { padding: 13px 28px; font-size: 1rem; display: inline-block; text-align: center;
+  text-decoration: none; }
 .pc-play.disabled { opacity: 0.45; pointer-events: none; }
-@media (max-width: 560px) { .pc-play { width: 100%; text-align: center; margin-left: 0; } }
+@media (max-width: 759px) { .pc-play { width: 100%; } }
 .play-board-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 .gb-sel { appearance: none; -webkit-appearance: none; background-color: var(--ink-2);
   background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="8" viewBox="0 0 12 8" fill="none" stroke="%239692ac" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l5 5 5-5"/></svg>');

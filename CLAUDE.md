@@ -38,9 +38,11 @@ they did not change in the migration. **Never renumber one.** For pre-migration 
 grep the archived file. **A number cited in a commit subject is a claim on that number** —
 VR-110 shipped in `c8576a9` with no card and nearly collided with the next one opened.
 **It stopped being hypothetical on 8/22: `cece0e2` claimed VR-120 for the Game Reference clamp
-while a Backlog card ("Vesper model fidelity") already held that number.** Both cards now exist.
-So: **before putting a `VR-##` in a commit subject, check the board for that number** — a commit
-message is permanent and the card is not, which means the commit wins and the card has to move.
+while a Backlog card ("Vesper model fidelity") already held that number.** Resolved 8/23 on
+Jordan's call: **the shipped card keeps VR-120 and the Backlog card became VR-128** — because the
+commit is permanent and the card is not, so *the commit wins and the card moves*. That is the
+general rule. Cited VR-120s written before 8/23 mean the Game Reference clamp.
+So: **before putting a `VR-##` in a commit subject, check the board for that number.**
 
 **Three waiting states, and the distinction is who owns the next step:** `⏸️ Parked` = a
 person (crew playtest, a vote, Jordan's call); `🚧 Blocked` = another card; `🔵 To do` =
@@ -91,7 +93,7 @@ in the folder before assuming:
 
 - **2D pair track** — `games/<name>-v2/_sim.py` (Python physics sim).
 - **3D** — `games/proving-ground/_sim.js` (asserts against the marked `BALANCE` block extracted from
-  the HTML), plus `_billboard.js`, `_touch.js`, `_clipfit.js` and `_check.js`. **`_clipfit.js`
+  the HTML), plus `_billboard.js`, `_touch.js`, `_clipfit.js`, `_shroud.js` and `_check.js`. **`_clipfit.js`
   (added 8/22 with VR-111) is the only harness in the repo that reads a BINARY ASSET** — it parses
   `assets/models/vesper.glb` for real clip durations and proves them against the marked `CLIPFIT`
   block and the strike windows in `BALANCE`. It exists because VR-111 was invisible to everything
@@ -105,6 +107,14 @@ in the folder before assuming:
   that the `matchMedia` string in the script and the `@media` query in the stylesheet are
   **character-identical**: CSS decides whether the pad is on screen, JS decides whether it's wired,
   and a mismatch reads as "mobile is broken" rather than as a one-character typo.
+  **`_shroud.js` (added 8/23 with VR-130) is the only harness that RENDERS.** It lifts the veil
+  shader out of `index.html` — never a retyped copy — compiles it in a real GL context, draws
+  the whole Shroud transition and **counts pixels**, so it can assert that skin, glass and the
+  burning tear are all on screen at once mid-sweep. That is a claim about the picture, and no
+  amount of reading the file as text can make it. **It is the one thing in this repo that needs
+  an npm install (`playwright`), so it SKIPS its render pass — five text checks, exit 0 —
+  rather than failing a clean checkout.** `_shroud.png` beside it is the sheet from a run that
+  did render, checked in so the picture is reviewable without installing anything.
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 
