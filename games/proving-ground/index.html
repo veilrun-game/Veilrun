@@ -177,6 +177,12 @@ canvas{display:block}
 .foot a{color:var(--violet-lt)}
 #pausehint{position:fixed;bottom:14px;left:18px;font-size:.68rem;color:var(--mute);opacity:0;transition:opacity .3s;z-index:15}
 #pausehint.on{opacity:.75}
+/* VR-113 — this is a TOAST now, not a label. It used to be switched on when a
+   run started and left on for the whole run, which meant the corner permanently
+   restated something the top-right button now shows. Worse, the [ key wrote
+   "pixel grid 1:4" into it and nothing ever put the camera mode back, so the
+   readout spent most of a session describing a key you pressed once. It fades
+   in on a change, names the thing in words, and gets out of the way. */
 #camtag{position:fixed;bottom:14px;right:18px;font-size:.68rem;color:var(--mute);opacity:0;transition:opacity .3s;z-index:15}
 #camtag.on{opacity:.75}
 #fps{position:fixed;top:4px;left:50%;transform:translateX(-50%);font-size:.62rem;color:var(--mute);opacity:.45;z-index:15;font-variant-numeric:tabular-nums}
@@ -263,6 +269,19 @@ canvas{display:block}
 .trow select{flex:1.1;min-width:var(--tap);min-height:var(--tap);background:var(--ink-2);
   color:var(--white);border:1px solid var(--line-hi);
   border-radius:8px;padding:.35rem .5rem;font-size:.86rem;font-family:inherit}
+/* VR-113 — the preset name field. Sized from --tap like every other control in
+   here, so the 2.5.5 floor holds for the one row that isn't a slider, a swatch
+   or a dropdown. */
+.trow input[type=text]{flex:1.1;min-width:var(--tap);min-height:var(--tap);background:var(--ink-2);
+  color:var(--white);border:1px solid var(--line-hi);
+  border-radius:8px;padding:.35rem .5rem;font-size:.86rem;font-family:inherit}
+/* Three verbs on one preset, side by side, because they act on the SAME thing
+   the row above names — stacked full-width they read as three unrelated
+   buttons. Each still clears the 44px floor on its own. */
+.tbtnrow{display:flex;gap:8px;margin-top:8px}
+.tpstatus{color:var(--violet-lt);margin-top:8px}
+.tpstatus:empty{margin:0}
+#tune .tbtnrow .btn{width:auto;flex:1 1 0;margin-top:0;padding:.6rem .3rem}
 .tval{width:46px;text-align:right;color:var(--violet-lt);font-variant-numeric:tabular-nums}
 /* 1.4.1 Use of Colour. Three swatches that differ only by the colour inside them
    are three identical grey rectangles to a colourblind player the moment they've
@@ -328,6 +347,7 @@ canvas{display:block}
 #tune.staged #tunebody .trow,#tune.staged #tunebody .tnote-row{display:none}
 #tune.staged.detail .tpick{display:none}
 #tune.staged.detail #tunebody h3,#tune.staged.detail #tunebody .btn,
+#tune.staged.detail #tunebody .tbtnrow,
 #tune.staged.detail #tunebody .tnote,#tune.staged.detail #tunecopy{display:none}
 #tune.staged.detail #tunebody .trow.tfocus{display:flex}
 #tune.staged.detail #tunebody .tnote-row.tfocus-note{display:block}
@@ -344,6 +364,7 @@ canvas{display:block}
 #tune.staged.detail .trow.tfocus input[type=range]{order:3;flex:0 0 100%;min-width:100%;height:56px}
 #tune.staged.detail .trow.tfocus select{order:3;flex:0 0 100%;min-height:52px;font-size:1rem}
 #tune.staged.detail .trow.tfocus input[type=color]{order:3;flex:0 0 100%;width:100%;height:56px}
+#tune.staged.detail .trow.tfocus input[type=text]{order:3;flex:0 0 100%;min-height:52px;font-size:1rem}
 #tunescrim.clear{background:rgba(6,4,12,.12)}
 
 /* ---------- touch layout + pad (VR-79 mobile pass, reshaped by VR-112) ------
@@ -590,17 +611,23 @@ canvas{display:block}
 </div>
 
 <div id="pausehint">Esc — release cursor</div>
-<div id="camtag">V — third person</div>
+<div id="camtag" role="status" aria-live="polite"></div>
 <div id="fps"></div>
 <!-- System chrome (VR-112). Source order IS screen order, left to right.
-     VR-113 SLOT: #camfab is placed, sized and styled but `hidden` — landing the
-     camera toggle is removing that attribute and adding one listener calling
-     toggleCam(), not a relayout. Left hidden rather than half-wired so nothing
-     ships a button that looks live and does nothing. -->
+     VR-113 landed the camera toggle in the slot VR-112 held open for it. It
+     cycles the SAME arcade → third → first path the V key has always driven, and
+     it does it by calling the same function, so a change to one is a change to
+     both. The glyph, the accessible name and the title are rewritten on every
+     change by syncCamUI(): a toggle that changes the view without saying which
+     view you are now in is a button you have to press three times to read.
+
+     NOT `runonly`, unlike Help and Pause. The camera is a thing you set before
+     you start as much as during a run, and the start screen is exactly where a
+     phone player wants to pick arcade. -->
 <div id="sysfabs">
   <button class="sysfab runonly" id="helpfab" aria-label="Controls and abilities" title="Controls and abilities (H)">?</button>
   <button class="sysfab runonly" id="pausefab" aria-label="Pause the run" title="Pause (Esc)">❚❚</button>
-  <button class="sysfab" id="camfab" aria-label="Camera view" title="Camera view (V)" hidden>▣</button>
+  <button class="sysfab" id="camfab" aria-label="Camera view — arcade (fixed). Change view" title="Camera view (V)">▣</button>
   <button class="sysfab" id="tunefab" aria-label="Settings" title="Settings  (\ key)">⚙</button>
 </div>
 
@@ -684,6 +711,23 @@ canvas{display:block}
   <div class="trow"><label for="t-mbanner">Banner &amp; number pops</label><input type="range" id="t-mbanner" min="0" max="1" step="0.05"><output class="tval" id="t-mbannerv" for="t-mbanner"></output></div>
   <div class="tnote">Nothing here changes the fight &mdash; only how much it moves. The hit vignette never turns off completely, because it is the only full-screen sign that something got through. Impact freeze is deliberately left alone: it is the absence of movement, and it is what tells you a hit landed once the shake is gone.</div>
 
+  <!-- VR-113 — presets, tier one: this device, by name. The clipboard hook below
+       is deliberately LEFT ALONE rather than replaced. It is how tuning feedback
+       currently reaches the project, and a save-slot is a different job from a
+       paste that a person reads: one restores, the other reports. -->
+  <h3>Presets</h3>
+  <div class="trow"><label for="t-preset">Saved</label><select id="t-preset"></select></div>
+  <div class="trow"><label for="t-pname">Name</label><input type="text" id="t-pname" maxlength="24" autocomplete="off" spellcheck="false" placeholder="My setup"><output class="tval" id="t-pnamev" for="t-pname"></output></div>
+  <div class="tbtnrow">
+    <button class="btn ghost" id="t-psave">Save</button>
+    <button class="btn ghost" id="t-pload">Load</button>
+    <button class="btn ghost" id="t-pdel">Delete</button>
+  </div>
+  <!-- role=status so the outcome of Save / Load / Delete is announced. Every one
+       of the three is a change with no visible consequence on this screen. -->
+  <div class="tnote tpstatus" id="t-pstatus" role="status" aria-live="polite"></div>
+  <div class="tnote" id="t-pnote">A preset remembers how the game looks and feels &mdash; camera framing, fog, the pixel grid, the Shroud colours, the motion sliders. It deliberately does <b>not</b> remember the map or which view you are in, so loading one never moves you somewhere you did not ask to be.</div>
+
   <h3>Report back</h3>
   <button class="btn ghost" id="t-copy">Copy settings to clipboard</button>
   <div id="tunecopy">Paste these to Claude and they become the new defaults.</div>
@@ -702,7 +746,7 @@ canvas{display:block}
       <b>Left click</b><span>Strike — chains into a three-hit combo</span>
       <b>Right click</b><span>Execute — finishes the wounded, refunds a Veilstep</span>
       <b>Shift / Space</b><span>Veilstep — blink through anything, two charges</span>
-      <b>V</b><span>Swap third / first person</span>
+      <b>V or ▣</b><span>Change view — cycles arcade, third person, first person</span>
       <span class="hint">Stand perfectly still for a moment and the Shroud takes you — they lose you, and your next strike kills outright. Standing still is also how you die.</span>
     </div>
     <button class="btn" id="btn-start">Enter the arena</button>
@@ -1708,7 +1752,7 @@ window.addEventListener("keydown", function (e) {
   if (e.repeat) return;   // auto-repeat must not re-fire abilities
   if (k === " " || k === "shift") pressed.step = true;
   if (k === "q") pressed.exec = true;
-  if (k === "v") toggleCam();
+  if (k === "v") cycleCam();   // VR-113 — the key and the ▣ fab are one path
   if (k === "h") toggleHelp();
   if (k === "escape") { if (helpOpen()) { closeHelp(); return; }
     if (cam.mode === "arcade") { if (game.running && !game.over) setPaused(!game.paused); return; }
@@ -1913,6 +1957,12 @@ var TPAD = (function () {
   function endLook(e) { if (e.pointerId === lookId) lookId = null; }
   cv.addEventListener("pointerup", endLook);
   cv.addEventListener("pointercancel", endLook);
+  /* VR-113 — deliberately NARROWER than release(). Changing the camera mid-drag
+     leaves a thumb aiming a camera that no longer exists, and in arcade that
+     stale drag keeps writing mouse.yaw, which is the character's facing there —
+     so the player spins. release() would fix it and also drop the Stalk latch,
+     and a camera change is not a reason to disarm an ability somebody armed. */
+  api.endLook = function () { lookId = null; };
 
   /* ---- state the pad shows back -----------------------------------------
      The cooldown IS the button now (VR-112). These read execFill()/stepFill() —
@@ -1942,14 +1992,27 @@ var TPAD = (function () {
   return api;
 })();
 /* TOUCH:END */
+/* VR-113 — the corner readout, as a toast. ONE writer, so nothing can leave a
+   stale sentence sitting in the corner: [ used to write the pixel grid into
+   #camtag and nothing ever wrote the camera mode back, so the tag spent the
+   rest of the session describing a key you pressed once. role="status" is what
+   makes it reach a screen reader at all — the camera changing under you is
+   exactly the kind of thing a sighted player sees and a blind one does not. */
+var toastT = null;
+function toast(msg, ms) {
+  var t = $("camtag"); if (!t) return;
+  t.textContent = msg;
+  t.classList.add("on");
+  if (toastT) clearTimeout(toastT);
+  toastT = setTimeout(function () { t.classList.remove("on"); toastT = null; }, ms || 1800);
+}
 // [ cycles the pixel grid live so the look can be dialled in without a rebuild
 window.addEventListener("keydown", function (e) {
   if (e.key !== "[") return;
   var i = PIXEL_STEPS.indexOf(PIXEL);
   PIXEL = PIXEL_STEPS[(i + 1) % PIXEL_STEPS.length];
   applyPixelScale();
-  var t = $("camtag");
-  if (t) t.textContent = "pixel grid 1:" + PIXEL + (PIXEL === 1 ? " (off)" : "");
+  toast("pixel grid 1:" + PIXEL + (PIXEL === 1 ? " (off)" : ""));
 });
 
 /* =============================== camera ================================= */
@@ -1981,20 +2044,85 @@ var TP_OFF = { x: 0.95, y: 0.30, z: 6.4 };
 var ARC = { yaw: 0, pitch: 0.6283, dist: 13.5, height: 0.95, lam: 7.5, fov: 24 };
 var CAM_MODES = ["arcade", "third", "first"];
 var CAM_LABEL = { arcade: "arcade (fixed)", third: "third person", first: "first person (experimental)" };
+/* VR-113 — one glyph per mode, because the toggle has to SHOW the mode and not
+   just change it. A 34px button holds one character, so the words live in the
+   accessible name and in the toast and the glyph is the at-a-glance cue: a
+   fixed frame, a figure, an eye. Nothing here is load-bearing on its own — a
+   player who cannot read the glyph still gets the sentence. */
+var CAM_GLYPH = { arcade: "▣", third: "◉", first: "◎" };
 function resumeFromPause() {
   if (!wantsLock()) { setPaused(false); return; }
   renderer.domElement.requestPointerLock();
 }
+/* THE MECHANISM. Advances the mode and re-rigs everything that depends on it.
+   Called at boot and from the settings panel as well as from the two places a
+   player asks for it, so it must stay free of anything that only makes sense as
+   a response to a person — pointer lock above all. That belongs in cycleCam(). */
 function toggleCam() {
   cam.mode = CAM_MODES[(CAM_MODES.indexOf(cam.mode) + 1) % CAM_MODES.length];
   var first = cam.mode === "first";
   player.g.visible = !first && !(playerSpriteReady());
   vmBlade.visible = first;
-  // no V key on a phone — the camera is changed from the tuning panel there
-  $("camtag").textContent = (TOUCH ? "⚙ " : "V — ") + CAM_LABEL[cam.mode];
   cam.fovTarget = cam.mode === "arcade" ? ARC.fov : (first ? 76 : 62);
   // pointer lock is a free-look affordance; the arcade camera doesn't want it
   if (cam.mode === "arcade" && document.pointerLockElement) document.exitPointerLock();
+  syncCamUI();
+}
+/* The button IS the readout. Rewritten from cam.mode rather than from whoever
+   changed it, so the fab is right no matter which of the three entry points ran
+   — V, the fab, or the View row in Settings. */
+function syncCamUI() {
+  var b = $("camfab");
+  if (b) {
+    b.textContent = CAM_GLYPH[cam.mode] || "▣";
+    b.setAttribute("aria-label", "Camera view — " + CAM_LABEL[cam.mode] + ". Change view");
+    b.title = "Camera view: " + CAM_LABEL[cam.mode] + (TOUCH ? "" : "  (V)");
+  }
+}
+/* THE VERB. What a person pressing V or tapping ▣ actually means, and the only
+   place the side effects of LEAVING a mode live.
+
+   1. `wantsLock()` is mode-dependent — that is the bug this card was warned
+      about. arcade → third put a desktop player in a free-look camera with no
+      pointer lock and a mouse that did nothing; third → arcade left a lock
+      nothing wanted. Neither could be fixed inside toggleCam, because toggleCam
+      also runs at boot and from the settings panel, and a page may not grab a
+      pointer lock outside a user gesture.
+   2. A drag-to-look in flight belonged to a camera that no longer exists, so it
+      ends here. ONLY the drag: the Stalk latch is an ability the player armed,
+      and changing the camera is no reason to disarm it. That is why this calls
+      TPAD.endLook() and not dropHeldInput(), which would take Stalk with it.
+   3. `--padh` was checked and needs nothing: it is measured off #vpad's height
+      in applyPixelScale(), and the pad is the same size in all three modes.
+
+   On desktop the fab is only reachable in arcade, because the other two modes
+   hold pointer lock and a locked page has no cursor to click a button with. That
+   is fine and deliberate — V is the desktop verb, the fab is the touch one, and
+   both run this. */
+function cycleCam() {
+  toggleCam();
+  if (TUNE && TUNE.setCam) TUNE.setCam(cam.mode);
+  toast(CAM_LABEL[cam.mode]);
+  settleCam();
+}
+/* Chrome throttles a re-lock for about a second after an exit, and refuses via a
+   rejected promise in new builds and a pointerlockerror event in old ones. Both
+   are already survivable — the error handler unpauses the run — so the only job
+   below is to not turn a refusal into an unhandled rejection. (Kept up here so
+   the wantsLock() guard sits next to the call it guards: _billboard.js proves
+   every requestPointerLock is gated by proximity, and a paragraph wedged between
+   the two reads to it exactly like a missing guard.) */
+function settleCam() {
+  if (typeof TPAD !== "undefined" && TPAD && TPAD.endLook) TPAD.endLook();
+  if (!game.running || game.over || game.paused) return;
+  if (wantsLock()) {
+    if (!mouse.locked) {
+      try {
+        var p = renderer.domElement.requestPointerLock();
+        if (p && p["catch"]) p["catch"](function () {});
+      } catch (e) {}
+    }
+  } else if (document.pointerLockElement) document.exitPointerLock();
 }
 /* Render precedence for the PLAYER, in order: MODEL > SPRITE > PRIMITIVES.
    Without this the layers fight: the sprite layer hides player.g when a sheet
@@ -2924,7 +3052,10 @@ function startRun() {
   $("s-help").classList.remove("on");
   $("helpfab").classList.add("on");
   $("pausefab").classList.add("on");
-  $("camtag").classList.add("on");
+  /* VR-113 — the camera readout used to be switched on here and left on for the
+     whole run. It is a toast now and the ▣ fab is the standing readout, so
+     nothing pins it open; a run start says the mode once and then clears. */
+  toast(CAM_LABEL[cam.mode]);
   if (wantsLock()) renderer.domElement.requestPointerLock();
   var tries = +(localStorage.getItem(LS + "tries") || 0) + 1;
   localStorage.setItem(LS + "tries", tries);
@@ -2949,7 +3080,6 @@ function endRun() {
     $("pausehint").classList.remove("on");
     $("helpfab").classList.remove("on");
     $("pausefab").classList.remove("on");
-    $("camtag").classList.remove("on");
     $("o-score").textContent = score;
     $("o-best").textContent = isBest ? "New personal best" : "Personal best " + Math.max(best, score);
     $("o-wave").textContent = waves;
@@ -4063,6 +4193,121 @@ function updatePlayerModel(dt) {
    Persisted to localStorage so a reload doesn't undo an evening's tuning.
    Nothing in here touches the BALANCE block: feel is tunable, balance is
    sim-proven. ------------------------------------------------------------ */
+/* ===================== settings presets (VR-113) =========================
+   PRESET:BEGIN
+   Pure, deterministic, DOM-free — marked and exported exactly like BALANCE, and
+   for the harder version of the same reason. `_touch.js` runs this block and
+   feeds it hostile input, because a preset is the first thing in this project
+   that a player can hand to another player. Two untrusted sources, not one: a
+   pasted code from a stranger, and localStorage, which is a text file anyone
+   with a console open can rewrite.
+
+   THE RULE THIS ENFORCES IN CODE, NOT BY CONVENTION. VR-91 set it and VR-113 is
+   the card most likely to break it: THE TUNING PANEL NEVER TOUCHES BALANCE. So a
+   preset is not "the settings object". It is an ALLOW-LIST — only keys present
+   in SPEC survive, each clamped to the bound the panel's own control declares —
+   and no balance key is on that list. There is no reachable path from a pasted
+   string to a number the sim proved, and the reason is structural rather than a
+   line in a review checklist: the copy is opt-in per key.
+
+   AND IT CARRIES LOOK AND FEEL, NEVER PLACE. `map` and `cam` are deliberately
+   not in the spec. A preset that drops you onto somebody else's arena, or yanks
+   you into first person, is a preset you have to undo before you can judge it —
+   and "it moved my camera" is how a share feature stops getting shared. The
+   camera fab and the Map row stay the only things that change either.
+   ---------------------------------------------------------------------- */
+var PRESETS = (function () {
+  "use strict";
+  var MAXLEN = 4096;    // a preset is ~25 short keys; anything longer is not one
+  var NAMEMAX = 24;
+  var has = function (o, k) { return Object.prototype.hasOwnProperty.call(o, k); };
+
+  /* Names are shown back in a <select> and in a heading, so they are stripped of
+     control characters and length-capped at the door rather than at the point
+     they're rendered. Nothing here builds HTML from a name — it is only ever
+     assigned to .textContent and .value — but a 40KB "name" is still a broken
+     panel, and that is a thing a shared preset could arrive carrying. */
+  function clean(name) {
+    if (typeof name !== "string") return "";
+    return name.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, NAMEMAX);
+  }
+
+  /* One value against the one bound the panel declares for it. Returns undefined
+     for anything it will not vouch for, and never a best guess: a silently
+     coerced value is how a bad preset half-applies and leaves the panel showing
+     numbers the game isn't using. NaN and Infinity are rejected rather than
+     clamped, because both arrive from JSON as a legitimate-looking number and
+     both render as a blank slider. */
+  function coerce(spec, raw) {
+    if (!spec) return undefined;
+    if (spec.t === "num") {
+      var n = (typeof raw === "string" && raw.trim() !== "") ? +raw : raw;
+      if (typeof n !== "number" || !isFinite(n)) return undefined;
+      return Math.min(spec.max, Math.max(spec.min, n));
+    }
+    if (spec.t === "pick") {
+      var s = (typeof raw === "number" || typeof raw === "string") ? String(raw) : null;
+      return (s !== null && spec.of.indexOf(s) >= 0) ? s : undefined;
+    }
+    if (spec.t === "hex") {
+      return (typeof raw === "string" && /^#[0-9a-fA-F]{6}$/.test(raw)) ? raw.toLowerCase() : undefined;
+    }
+    return undefined;
+  }
+
+  /* The allow-list copy. Driven by SPEC's keys, never by the payload's — which
+     is what makes `__proto__`, `constructor` and a hundred keys nobody has heard
+     of unreachable rather than merely unread. (JSON.parse does create __proto__
+     as an OWN property, so "we never look at it" would be true and still the
+     wrong thing to rely on.) `dropped` is reported rather than swallowed so the
+     panel can say "3 settings in that preset were ignored" instead of pretending
+     it loaded cleanly. */
+  function sanitize(raw, SPEC) {
+    var v = {}, kept = 0, dropped = [], k;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      return { ok: false, value: v, kept: 0, dropped: dropped };
+    }
+    for (k in SPEC) {
+      if (!has(SPEC, k) || !has(raw, k)) continue;
+      var c = coerce(SPEC[k], raw[k]);
+      if (c === undefined) { dropped.push(k); continue; }
+      v[k] = c; kept++;
+    }
+    for (k in raw) if (has(raw, k) && !has(SPEC, k)) dropped.push(k);
+    return { ok: kept > 0, value: v, kept: kept, dropped: dropped };
+  }
+
+  /* Canonical: sanitized first, then written in sorted key order, so the same
+     tuning always produces the same string. That is what makes the round-trip
+     assertion in _touch.js meaningful — an encoder that reorders keys round-
+     trips by value and not by string, and the day this grows a checksum or a
+     URL hash (tier 2) the string is the thing being checked. */
+  function encode(obj, SPEC) {
+    var s = sanitize(obj, SPEC), keys = [], o = {}, k, i;
+    for (k in s.value) if (has(s.value, k)) keys.push(k);
+    keys.sort();
+    for (i = 0; i < keys.length; i++) o[keys[i]] = s.value[keys[i]];
+    return JSON.stringify({ v: 1, s: o });
+  }
+  /* Every rejection returns null. There is exactly one way for a caller to
+     handle a bad preset and it is "say so and change nothing", so there is
+     exactly one failure value — a partial object would be a preset that
+     half-applied, which is worse than one that didn't. */
+  function decode(str, SPEC) {
+    if (typeof str !== "string" || !str || str.length > MAXLEN) return null;
+    var raw;
+    try { raw = JSON.parse(str); } catch (e) { return null; }
+    if (!raw || typeof raw !== "object" || Array.isArray(raw) || raw.v !== 1) return null;
+    var s = sanitize(raw.s, SPEC);
+    return s.ok ? s.value : null;
+  }
+
+  return { clean: clean, coerce: coerce, sanitize: sanitize,
+           encode: encode, decode: decode, MAXLEN: MAXLEN, NAMEMAX: NAMEMAX };
+})();
+if (typeof module !== "undefined" && module.exports) { module.exports.PRESETS = PRESETS; }
+/* PRESET:END */
+
 var TUNE = (function () {
   var LSK = LS + "tune";
   var DEF = {
@@ -4101,7 +4346,22 @@ var TUNE = (function () {
       var n = $("t-mapnote"); if (n && m) n.textContent = m.note;
     }
     if (!what || what === "cam") {
-      while (cam.mode !== V.cam) toggleCam();
+      /* VR-113 — BOUNDED. This used to be an unbounded `while` on the same
+         condition, which spins forever on a V.cam that is not a mode — and
+         V is rehydrated from localStorage, which is untrusted input the moment
+         anything can write a settings blob into it. A hang at boot with no
+         console open is indistinguishable from the game being broken. */
+      /* The correction has to reach the CONTROL too, not just V. A <select> given
+         a value none of its options carry goes to "" — so a corrupt saved mode
+         left the View row blank while the arena ran in arcade, which is the same
+         panel-disagrees-with-the-game bug this card fixed at boot, arriving from
+         the other direction. Found by feeding a hostile blob to a real browser;
+         no static assertion would have seen it. */
+      if (CAM_MODES.indexOf(V.cam) < 0) {
+        V.cam = DEF.cam;
+        var ce = $("t-cam"); if (ce) ce.value = V.cam;
+      }
+      for (var ci = 0; ci < CAM_MODES.length && cam.mode !== V.cam; ci++) toggleCam();
     }
     if (!what || what === "arc") {
       ARC.pitch = V.pitch * Math.PI / 180; ARC.dist = +V.dist; ARC.fov = +V.fov;
@@ -4163,11 +4423,23 @@ var TUNE = (function () {
     }
   }
 
+  /* VR-113 — every binder now registers the half of itself that PUSHES V back
+     into its control, and syncControls() replays the lot. Loading a preset
+     changes fourteen values at once, and without this the panel would keep
+     showing the numbers you had before while the game ran on the new ones —
+     which is the failure mode that makes people stop trusting a settings panel.
+     A registry rather than a second hand-written sync function, for the same
+     reason the list stage is generated from the rows: two lists of seventeen
+     things drift, and the drift is silent. */
+  var bound = [];
   function bindRange(id, key, group, fmt) {
     var el = $(id), out = $(id + "v");
     if (!el) return;
-    el.value = V[key];
-    if (out) out.textContent = fmt ? fmt(V[key]) : V[key];
+    var put = function () {
+      el.value = V[key];
+      if (out) out.textContent = fmt ? fmt(V[key]) : V[key];
+    };
+    put(); bound.push(put);
     el.addEventListener("input", function () {
       V[key] = +el.value;
       if (out) out.textContent = fmt ? fmt(V[key]) : V[key];
@@ -4176,8 +4448,141 @@ var TUNE = (function () {
   }
   function bindPick(id, key, group) {
     var el = $(id); if (!el) return;
-    el.value = V[key];
+    var put = function () { el.value = V[key]; };
+    put(); bound.push(put);
     el.addEventListener("change", function () { V[key] = el.value; apply(group); save(); });
+  }
+  function syncControls() {
+    for (var i = 0; i < bound.length; i++) bound[i]();
+    syncMotionRows();
+    refreshPicks();
+  }
+
+  /* ---------------- presets: the spec IS the panel (VR-113) ----------------
+     Every bound below is READ OFF the control the player actually drags. Widen
+     a slider and the preset range widens with it, in one edit instead of two —
+     and, more to the point, the validator can never start rejecting a value the
+     panel is happily offering. A second hand-typed copy of `min="10" max="70"`
+     is exactly the kind of thing that goes stale in silence.
+
+     What is NOT here is the interesting half. `map` and `cam` are absent by
+     construction, and so is every name in BALANCE — a preset simply has no key
+     to write them through. `mset` is absent too: it records that a human on THIS
+     device expressed a motion preference, and that is not a fact somebody else's
+     preset gets to assert on their behalf. */
+  /* VR-113 — the ▣ fab and the V key change cam.mode directly, and V.cam is what
+     survives a reload. Without this the two diverge the first time anybody uses
+     either: the panel keeps saying "Arcade", the arena is in third person, and
+     the next boot silently throws the change away. One setter, called from
+     cycleCam(), so the fab, the key and the View row cannot disagree. */
+  function setCam(mode) {
+    if (CAM_MODES.indexOf(mode) < 0 || V.cam === mode) return;
+    V.cam = mode; save();
+    var el = $("t-cam"); if (el) el.value = mode;
+    refreshPicks();
+  }
+  function camMode() { return CAM_MODES.indexOf(V.cam) < 0 ? DEF.cam : V.cam; }
+
+  var SPEC = null;
+  function buildSpec() {
+    var S = {}, i;
+    function num(key, id) {
+      var el = $(id); if (!el) return;
+      var lo = +el.min, hi = +el.max;
+      if (!isFinite(lo) || !isFinite(hi) || hi <= lo) return;   // an unbounded row is not presettable
+      S[key] = { t: "num", min: lo, max: hi };
+    }
+    function pick(key, id) {
+      var el = $(id); if (!el || !el.options) return;
+      var of = [];
+      for (var j = 0; j < el.options.length; j++) of.push(el.options[j].value);
+      if (of.length) S[key] = { t: "pick", of: of };
+    }
+    num("pitch", "t-pitch"); num("dist", "t-dist"); num("fov", "t-fov");
+    num("fit", "t-fit"); num("look", "t-look"); num("fog", "t-fog");
+    num("amin", "t-amin"); num("amax", "t-amax"); num("lift", "t-lift");
+    for (i = 0; i < MOTION_KEYS.length; i++) num("m" + MOTION_KEYS[i], "t-m" + MOTION_KEYS[i]);
+    pick("pixel", "t-pixel"); pick("husks", "t-husks");
+    S.glass = { t: "hex" }; S.rim = { t: "hex" }; S.burn = { t: "hex" };
+    return S;
+  }
+
+  /* The store. Sanitized on the way OUT as well as on the way in, because the
+     bytes in localStorage are older than this build: a preset saved before a
+     slider's range moved has to be clamped to today's range, not trusted
+     because we were the ones who wrote it. */
+  var PLSK = LS + "presets", PMAX = 12;
+  var slots = [];
+  function loadSlots() {
+    var out = [];
+    try {
+      var raw = JSON.parse(localStorage.getItem(PLSK) || "[]");
+      if (!Array.isArray(raw)) return out;
+      for (var i = 0; i < raw.length && out.length < PMAX; i++) {
+        var r = raw[i]; if (!r || typeof r !== "object") continue;
+        var n = PRESETS.clean(r.n);
+        var s = PRESETS.decode(r.s, SPEC);
+        if (n && s) out.push({ n: n, s: s });
+      }
+    } catch (e) {}
+    return out;
+  }
+  function saveSlots() {
+    try { localStorage.setItem(PLSK, JSON.stringify(slots)); } catch (e) {}
+  }
+  /* Built with createElement/textContent rather than an innerHTML string. A
+     preset name can arrive from another player's device, and the ONE place a
+     shared string would otherwise become markup is this dropdown. Not a
+     theoretical worry the day tier two lands, and free to get right now. */
+  function renderSlots(select) {
+    var sel = $("t-preset"); if (!sel) return;
+    var want = select != null ? select : sel.value;
+    while (sel.firstChild) sel.removeChild(sel.firstChild);
+    if (!slots.length) {
+      var none = document.createElement("option");
+      none.value = ""; none.textContent = "— none saved —";
+      sel.appendChild(none);
+    } else {
+      for (var i = 0; i < slots.length; i++) {
+        var o = document.createElement("option");
+        o.value = slots[i].n; o.textContent = slots[i].n;
+        sel.appendChild(o);
+      }
+    }
+    if (want) sel.value = want;
+    if (!sel.value && sel.options.length) sel.selectedIndex = 0;
+    var del = $("t-pdel"), ld = $("t-pload");
+    if (del) del.disabled = !slots.length;
+    if (ld) ld.disabled = !slots.length;
+    refreshPicks();
+  }
+  function slotIndex() {
+    var sel = $("t-preset"); if (!sel || !sel.value) return -1;
+    for (var i = 0; i < slots.length; i++) if (slots[i].n === sel.value) return i;
+    return -1;
+  }
+  /* A LINE OF ITS OWN, not a rewrite of the explanatory note. Overwriting the
+     note would spend the sentence that explains what a preset is on a
+     confirmation that is stale ten seconds later — and it would only ever be
+     read once, by the person who least needed it. */
+  function pnote(msg) { var n = $("t-pstatus"); if (n) n.textContent = msg; }
+
+  /* Loading applies the LOOK-AND-FEEL groups only. Not apply() with no argument,
+     which would also re-run the "map" branch and rebuild the arena underneath a
+     player mid-run — and rebuilding the arena is the one thing a preset is
+     promised not to do. */
+  function applyPreset(p) {
+    var k, n = 0;
+    for (k in p) if (Object.prototype.hasOwnProperty.call(p, k) && SPEC[k]) { V[k] = p[k]; n++; }
+    /* A preset carries motion values, so loading one IS a human on this device
+       expressing a motion preference — the OS must stop overriding it, exactly
+       as if they had dragged the sliders themselves. */
+    V.mset = true;
+    save();
+    apply("arc"); apply("touch"); apply("pixel"); apply("fog");
+    apply("husks"); apply("veil"); apply("a11y");
+    syncControls();
+    return n;
   }
   /* Its own binder rather than a flag on bindRange: touching one of these is
      the event that makes the OS stop being authoritative, and that only ever
@@ -4252,15 +4657,73 @@ var TUNE = (function () {
        doubles as the value you'd paste back, which the panel already trades in. */
     ["glass", "rim", "burn"].forEach(function (k) {
       var el = $("t-" + k), out = $("t-" + k + "v"); if (!el) return;
-      el.value = V[k];
-      // uppercased HERE rather than by the list's CSS: the list column also
-      // carries map names and camera modes, and shouting those reads as an error
-      if (out) out.textContent = V[k].toUpperCase();
+      var put = function () {
+        el.value = V[k];
+        // uppercased HERE rather than by the list's CSS: the list column also
+        // carries map names and camera modes, and shouting those reads as an error
+        if (out) out.textContent = String(V[k]).toUpperCase();
+      };
+      put(); bound.push(put);
       el.addEventListener("input", function () {
         V[k] = el.value;
         if (out) out.textContent = el.value.toUpperCase();
         apply("veil"); save();
       });
+    });
+
+    /* ---------------- presets, tier one (VR-113) ----------------
+       Built AFTER every control above, because the spec is read off those
+       controls' own min/max/options. */
+    SPEC = buildSpec();
+    slots = loadSlots();
+    renderSlots();
+    var nameEl = $("t-pname"), nameOut = $("t-pnamev");
+    if (nameEl) {
+      // the list stage shows a row's <output> as its value column, so the name
+      // row has one and it mirrors what is being typed
+      var putName = function () { if (nameOut) nameOut.textContent = nameEl.value; };
+      nameEl.addEventListener("input", function () { putName(); refreshPicks(); });
+      putName();
+    }
+    var presetSel = $("t-preset");
+    if (presetSel) {
+      /* Choosing a name in the dropdown fills the name field with it, so Save
+         means "overwrite this one" without anybody having to retype it — and
+         so the field is never quietly out of step with the selection. */
+      presetSel.addEventListener("change", function () {
+        if (nameEl && presetSel.value) { nameEl.value = presetSel.value; putName(); refreshPicks(); }
+      });
+    }
+    var psave = $("t-psave");
+    if (psave) psave.addEventListener("click", function () {
+      var name = PRESETS.clean(nameEl ? nameEl.value : "") ||
+                 PRESETS.clean(presetSel ? presetSel.value : "");
+      if (!name) { pnote("Give the preset a name first — that is what you will pick it out by later."); if (nameEl) nameEl.focus(); return; }
+      var body = PRESETS.decode(PRESETS.encode(V, SPEC), SPEC);
+      if (!body) { pnote("Nothing to save — no setting in this panel produced a value."); return; }
+      var at = -1, i;
+      for (i = 0; i < slots.length; i++) if (slots[i].n === name) at = i;
+      if (at >= 0) slots[at] = { n: name, s: body };
+      else if (slots.length >= PMAX) { pnote("That is " + PMAX + " presets already. Delete one you don't use and save again."); return; }
+      else slots.push({ n: name, s: body });
+      saveSlots(); renderSlots(name);
+      pnote((at >= 0 ? "Replaced " : "Saved ") + "“" + name + "” on this device.");
+    });
+    var pload = $("t-pload");
+    if (pload) pload.addEventListener("click", function () {
+      var i = slotIndex();
+      if (i < 0) { pnote("Pick a preset to load."); return; }
+      var n = applyPreset(slots[i].s);
+      pnote("Loaded “" + slots[i].n + "” — " + n + " settings. Your map and your view are untouched.");
+    });
+    var pdel = $("t-pdel");
+    if (pdel) pdel.addEventListener("click", function () {
+      var i = slotIndex();
+      if (i < 0) { pnote("Pick a preset to delete."); return; }
+      var gone = slots[i].n;
+      slots.splice(i, 1);
+      saveSlots(); renderSlots("");
+      pnote("Deleted “" + gone + "”. Nothing else changed — the settings you are looking at are still live.");
     });
 
     $("t-copy").addEventListener("click", function () {
@@ -4548,7 +5011,8 @@ var TUNE = (function () {
 
   return { build: build, toggle: toggle, apply: apply,
            open: open, close: close, isOpen: isOpen,
-           wireDialog: wireDialog, buildStage: buildStage };
+           wireDialog: wireDialog, buildStage: buildStage,
+           setCam: setCam, camMode: camMode };
 })();
 TUNE.wireDialog();
 
@@ -4967,7 +5431,20 @@ $("btn-pausetune").addEventListener("click", function () { TUNE.open($("btn-paus
 $("pausefab").addEventListener("click", function () {
   if (game.running && !game.over) setPaused(!game.paused);
 });
-cam.mode = "first"; toggleCam(); // -> arcade, the v1 default
+/* VR-113 — the camera toggle, landed in the slot VR-112 left. cycleCam() rather
+   than toggleCam(): the fab is the same verb as the V key, side effects and
+   all, and a second implementation of "change the camera" is how the key and
+   the button start disagreeing about pointer lock. */
+$("camfab").addEventListener("click", function () { cycleCam(); });
+/* Boot the rig THROUGH toggleCam once — it is what sets player.g / vmBlade
+   visibility and the fab's glyph — while landing on the mode this device saved.
+   The old line forced the mode to first and toggled once, landing on arcade —
+   which threw away a saved camera on every boot: the panel said "Third person" and
+   the arena was in arcade, and the setting looked broken rather than ignored.
+   Starting one step BEHIND the target means the single toggle lands on it. */
+var camWant = TUNE.camMode();
+cam.mode = CAM_MODES[(CAM_MODES.indexOf(camWant) + CAM_MODES.length - 1) % CAM_MODES.length];
+toggleCam();
 setPaused(false);
 requestAnimationFrame(frame);
 

@@ -254,14 +254,28 @@ ok("every cell clears the 44px touch floor", /min-height:44px/.test(btnCss));
 console.log("\n[system chrome]");
 const fabRow = (html.match(/<div id="sysfabs">[\s\S]*?<\/div>/) || [""])[0];
 ok("there is a system fab cluster", !!fabRow);
-ok("help, pause and settings are all in it",
-   /id="helpfab"/.test(fabRow) && /id="pausefab"/.test(fabRow) && /id="tunefab"/.test(fabRow));
+ok("help, pause, camera and settings are all in it",
+   /id="helpfab"/.test(fabRow) && /id="pausefab"/.test(fabRow) &&
+   /id="camfab"/.test(fabRow) && /id="tunefab"/.test(fabRow));
 ok("source order is screen order", fabRow.indexOf("helpfab") < fabRow.indexOf("pausefab") &&
-   fabRow.indexOf("pausefab") < fabRow.indexOf("tunefab"),
+   fabRow.indexOf("pausefab") < fabRow.indexOf("camfab") &&
+   fabRow.indexOf("camfab") < fabRow.indexOf("tunefab"),
    "the cluster is a flex row, so there are no hand-computed right: offsets to re-derive");
-ok("the VR-113 camera slot is placed but not half-wired",
-   /id="camfab"[^>]*hidden/.test(fabRow) && !/camfab.*addEventListener/.test(html),
-   "a button that looks live and does nothing is worse than no button");
+/* VR-112 held this slot open and asserted it was NOT wired, so that nothing
+   shipped a button that looks live and does nothing. VR-113 landed it, so the
+   assertion inverts: the slot is now proven live rather than proven inert. */
+ok("the camera slot is landed, not hidden",
+   /id="camfab"/.test(fabRow) && !/id="camfab"[^>]*hidden/.test(fabRow));
+ok("the camera fab is wired",
+   /\$\("camfab"\)\.addEventListener\("click", function \(\) \{ cycleCam\(\); \}\)/.test(html));
+/* The whole point of routing the fab through cycleCam: a second implementation
+   of "change the camera" is how the key and the button start disagreeing about
+   pointer lock, which is invisible until somebody plays on a desktop. */
+ok("the V key runs the same verb the fab does",
+   /if \(k === "v"\) cycleCam\(\);/.test(html),
+   "one verb, two triggers");
+ok("the camera is not a run-only fab", !/id="camfab"[^>]*runonly/.test(html),
+   "picking arcade before you start is exactly when a phone player wants to");
 /* 38x38 shipped with VR-79 and is under the 44x44 minimum every touch guideline
    agrees on. This is the assertion that stops it drifting back. */
 const touchQ = (html.match(/@media \(hover:none\),\(pointer:coarse\)\{[\s\S]*?\n\}/) || [""])[0];
@@ -1034,6 +1048,282 @@ ok("and closing back into a run we did not freeze puts its panel back",
 ok("rendering is untouched by the freeze",
    /if \(game\.paused\) \{ acc = 0; \}/.test(html),
    "fog, the pixel grid and the three Shroud colours have to keep changing under your thumb");
+
+/* ======================================================================
+   11. The camera toggle, and the three ways it could strand you  (VR-113)
+   ======================================================================
+   A mode switch is not a camera position. `wantsLock()` reads cam.mode, so
+   changing the mode changes whether the page should be holding a pointer lock
+   at all — and getting that wrong leaves a desktop player in a free-look camera
+   with a mouse that does nothing, which reads as "the game froze".
+   ====================================================================== */
+console.log("\n[camera toggle — leaving a mode]");
+const toggleFn = (html.match(/function toggleCam\(\) \{[\s\S]*?\n\}/) || [""])[0];
+const cycleFn  = (html.match(/function cycleCam\(\) \{[\s\S]*?\n\}/) || [""])[0];
+const settleFn = (html.match(/function settleCam\(\) \{[\s\S]*?\n\}/) || [""])[0];
+ok("there is one mechanism and one verb", !!toggleFn && !!cycleFn && !!settleFn);
+/* toggleCam also runs at boot and from the settings panel, and a page may not
+   request a pointer lock outside a user gesture. So the lock work has to live in
+   the verb, not the mechanism — this is the assertion that stops it drifting
+   back down into toggleCam where it would fire on page load. */
+ok("the mechanism never touches pointer lock acquisition",
+   !/requestPointerLock/.test(toggleFn),
+   "toggleCam runs at boot; a boot that asks for pointer lock is a boot that throws");
+ok("the verb settles the lock after the mode moves",
+   /toggleCam\(\);/.test(cycleFn) && /settleCam\(\);/.test(cycleFn));
+ok("settling acquires a lock the new mode wants",
+   /if \(wantsLock\(\)\)/.test(settleFn) && /requestPointerLock/.test(settleFn),
+   "arcade → third with no lock is a free-look camera and a dead mouse");
+ok("and drops one the new mode does not",
+   /else if \(document\.pointerLockElement\) document\.exitPointerLock\(\)/.test(settleFn));
+ok("a refused re-lock cannot become an unhandled rejection",
+   /p\["catch"\]/.test(settleFn) || /\.catch\(/.test(settleFn),
+   "Chrome throttles a re-lock for about a second after an exit");
+ok("it does not grab a lock while the run is paused or over",
+   /if \(!game\.running \|\| game\.over \|\| game\.paused\) return;/.test(settleFn),
+   "resuming is the pause button's job, and stealing the cursor back is not");
+/* The narrow-vs-wide call this card had to make. A drag-to-look in flight
+   belonged to a camera that no longer exists — and in arcade a stale drag keeps
+   writing mouse.yaw, which is the character's FACING there, so the player spins.
+   But release() would also drop the Stalk latch, and changing the camera is no
+   reason to disarm an ability somebody armed. */
+ok("a mode change ends an in-flight look drag", /TPAD\.endLook\(\)/.test(settleFn));
+ok("but does not disarm Stalk", !/dropHeldInput\(\)/.test(settleFn) && !/TPAD\.release\(\)/.test(settleFn),
+   "release() would take the latch with it — a camera change is not an ability cancel");
+ok("endLook is narrower than release", /api\.endLook = function \(\) \{ lookId = null; \};/.test(html) &&
+   /api\.release = function \(\) \{[\s\S]*?stalk = false;/.test(html));
+/* --padh: checked rather than assumed. It is measured off #vpad's height, and
+   #vpad is the same size in all three modes, so a mode change moves nothing. */
+ok("--padh does not depend on the camera mode",
+   !/cam\.mode/.test((html.match(/function applyPixelScale\(\)[\s\S]*?\n}/) || [""])[0]),
+   "the pad is the same size in arcade, third and first");
+
+console.log("\n[the toggle says which mode you are in]");
+ok("the fab is rewritten from cam.mode, not from whoever changed it",
+   /function syncCamUI\(\) \{[\s\S]*?CAM_GLYPH\[cam\.mode\][\s\S]*?CAM_LABEL\[cam\.mode\]/.test(html),
+   "three entry points — V, the fab, the View row — and one readout");
+ok("syncCamUI runs from the mechanism, so every entry point gets it",
+   /syncCamUI\(\);\n\}/.test(toggleFn) || /syncCamUI\(\);/.test(toggleFn));
+ok("each mode has its own glyph", (() => {
+  const g = (html.match(/var CAM_GLYPH = \{([^}]*)\}/) || ["", ""])[1];
+  const vals = (g.match(/"[^"]+"/g) || []).map(s => s.slice(1, -1));
+  return vals.length === 3 && new Set(vals).size === 3;
+})(), "a toggle with one glyph is a button you press three times to read");
+ok("the accessible name carries the mode in words",
+   /setAttribute\("aria-label", "Camera view — " \+ CAM_LABEL\[cam\.mode\]/.test(html),
+   "a glyph is not a name, and 44px holds one character");
+/* The tag stopped being a permanent label and became a toast, which also fixes
+   the [ key leaving "pixel grid 1:4" in the corner for the rest of the run. */
+ok("the corner readout is a toast with one writer",
+   /function toast\(msg, ms\)/.test(html) &&
+   (html.match(/\$\("camtag"\)\.textContent/g) || []).length === 0,
+   "nothing may write the tag except toast(), or a stale sentence sits there all run");
+ok("it is announced, not just drawn",
+   /<div id="camtag" role="status" aria-live="polite">/.test(html),
+   "the camera changing under you is what a sighted player sees and a blind one does not");
+ok("nothing pins the toast open for the whole run",
+   !/\$\("camtag"\)\.classList\.add\("on"\)/.test(html));
+
+console.log("\n[the saved camera survives a boot]");
+/* The bug this card found rather than caused: build() applied the saved V.cam
+   and then the last line of the file forced arcade, so a saved camera was
+   thrown away on every boot and the panel said one thing while the arena did
+   another. */
+ok("boot lands on the saved mode instead of forcing arcade",
+   /var camWant = TUNE\.camMode\(\);/.test(html) && !/cam\.mode = "first"; toggleCam\(\)/.test(html));
+ok("boot still initialises the rig through toggleCam",
+   /cam\.mode = CAM_MODES\[\(CAM_MODES\.indexOf\(camWant\)[\s\S]{0,80}toggleCam\(\);/.test(html),
+   "toggleCam is what sets player.g / vmBlade visibility and the fab glyph");
+ok("the fab writes the change back so it persists",
+   /if \(TUNE && TUNE\.setCam\) TUNE\.setCam\(cam\.mode\);/.test(cycleFn));
+/* localStorage is untrusted input the moment anything can write a settings blob
+   into it, and `while (cam.mode !== V.cam)` on a V.cam that is not a mode is an
+   infinite loop at boot with no console open. */
+ok("applying a camera mode is bounded",
+   !/while \(cam\.mode !== V\.cam\) toggleCam\(\)/.test(html) &&
+   /for \(var ci = 0; ci < CAM_MODES\.length && cam\.mode !== V\.cam; ci\+\+\) toggleCam\(\);/.test(html),
+   "a corrupt saved mode used to hang the boot");
+ok("and falls back rather than trusting it",
+   /if \(CAM_MODES\.indexOf\(V\.cam\) < 0\) \{\s*\n\s*V\.cam = DEF\.cam;/.test(html));
+/* Found by feeding a hostile blob to a real browser, not by reading: a <select>
+   given a value none of its options carry goes to "", so a corrupt saved mode
+   left the View row BLANK while the arena ran in arcade. Same
+   panel-disagrees-with-the-game bug, arriving from the other direction. */
+ok("the correction reaches the control, not just V",
+   /V\.cam = DEF\.cam;\s*\n\s*var ce = \$\("t-cam"\); if \(ce\) ce\.value = V\.cam;/.test(html));
+
+/* ======================================================================
+   12. Presets — the codec, executed against hostile input  (VR-113)
+   ======================================================================
+   A preset is the first thing in this project a player can hand to another
+   player, so the block that parses one is run here rather than read. Two
+   untrusted sources, not one: a pasted code, and localStorage — which is a text
+   file anyone with a console open can rewrite.
+   ====================================================================== */
+console.log("\n[preset codec]");
+const pm = html.match(/PRESET:BEGIN[\s\S]*?-+ \*\/([\s\S]*?)\/\* PRESET:END/);
+ok("the PRESET block is marked and findable", !!pm);
+if (!pm) { console.log("\n" + "=".repeat(58) + "\nFAIL — " + fails + " of " + checks); process.exit(1); }
+const pBox = { module: { exports: {} }, Math, JSON, console, isFinite, Object, Array, String };
+vm.createContext(pBox);
+let pClean = true, pErr = "";
+try { new vm.Script(pm[1], { filename: "index.html#PRESET" }).runInContext(pBox); }
+catch (e) { pClean = false; pErr = e.message; }
+ok("it is pure enough to run with no DOM at all", pClean, pErr || "no window, no document, no THREE");
+if (!pClean) { console.log("\n" + "=".repeat(58) + "\nFAIL — " + fails + " of " + checks); process.exit(1); }
+const P = pBox.module.exports.PRESETS;
+
+/* A stand-in spec with one of each kind. The SHIPPED spec is asserted
+   structurally below — it is built from the panel's own controls, so it cannot
+   be reproduced here without a DOM, and reproducing it is exactly the duplicate
+   that would go stale. */
+const SPEC = {
+  pitch: { t: "num", min: 10, max: 70 },
+  fog:   { t: "num", min: 0, max: 0.08 },
+  pixel: { t: "pick", of: ["1", "2", "4"] },
+  glass: { t: "hex" }
+};
+const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+/* --- the round trip ------------------------------------------------------ */
+const src = { pitch: 34, fog: 0.03, pixel: "4", glass: "#8844ff" };
+const wire = P.encode(src, SPEC);
+ok("a preset round-trips losslessly", eq(P.decode(wire, SPEC), src), wire);
+ok("encoding is canonical", P.encode({ glass: "#8844ff", pixel: "4", fog: 0.03, pitch: 34 }, SPEC) === wire,
+   "same tuning, same string, whatever order the keys arrived in");
+ok("a decoded preset re-encodes to the same string", P.encode(P.decode(wire, SPEC), SPEC) === wire);
+
+/* --- hostile and malformed input ----------------------------------------- */
+console.log("\n[a bad preset changes nothing and breaks nothing]");
+const hostile = [
+  ["not JSON at all", "{"],
+  ["empty string", ""],
+  ["null", null],
+  ["a number", 42],
+  ["an array", "[1,2,3]"],
+  ["a bare array payload", JSON.stringify({ v: 1, s: [1, 2, 3] })],
+  ["no version", JSON.stringify({ s: { pitch: 34 } })],
+  ["a version from the future", JSON.stringify({ v: 9, s: { pitch: 34 } })],
+  ["nothing this build knows", JSON.stringify({ v: 1, s: { nonsense: 1 } })],
+  ["a null payload", JSON.stringify({ v: 1, s: null })],
+  ["longer than the cap", JSON.stringify({ v: 1, s: { pitch: 34 } }) + " ".repeat(P.MAXLEN)]
+];
+let hostileClean = true, hostileWhy = "";
+hostile.forEach(([name, s]) => {
+  let r;
+  try { r = P.decode(s, SPEC); } catch (e) { hostileClean = false; hostileWhy = name + " threw: " + e.message; return; }
+  if (r !== null) { hostileClean = false; hostileWhy = name + " decoded to " + JSON.stringify(r); }
+});
+ok("every malformed preset is rejected, and none of them throws", hostileClean, hostileWhy ||
+   hostile.length + " shapes, all null");
+
+/* Out-of-range is CLAMPED rather than rejected — a preset from a build with a
+   wider slider is still a usable preset — but NaN and Infinity are rejected,
+   because both arrive from JSON looking like numbers and both render as a blank
+   slider rather than as an error. */
+ok("out of range is clamped to the panel's own bound",
+   P.decode(JSON.stringify({ v: 1, s: { pitch: 9999 } }), SPEC).pitch === 70 &&
+   P.decode(JSON.stringify({ v: 1, s: { pitch: -9999 } }), SPEC).pitch === 10);
+ok("a value that is not a number is dropped, not coerced",
+   P.coerce({ t: "num", min: 0, max: 1 }, "banana") === undefined &&
+   P.coerce({ t: "num", min: 0, max: 1 }, NaN) === undefined &&
+   P.coerce({ t: "num", min: 0, max: 1 }, Infinity) === undefined &&
+   P.coerce({ t: "num", min: 0, max: 1 }, null) === undefined,
+   "a silently coerced value is how a bad preset half-applies");
+ok("a pick outside the panel's own options is dropped",
+   P.coerce({ t: "pick", of: ["1", "2"] }, "9") === undefined &&
+   P.coerce({ t: "pick", of: ["1", "2"] }, 1) === "1");
+ok("a colour that is not six hex digits is dropped",
+   P.coerce({ t: "hex" }, "#fff") === undefined &&
+   P.coerce({ t: "hex" }, "javascript:alert(1)") === undefined &&
+   P.coerce({ t: "hex" }, "#AABBCC") === "#aabbcc");
+
+/* --- the guardrail this card exists not to break -------------------------- */
+console.log("\n[a preset cannot reach BALANCE]");
+const balKeys = Object.keys(C);
+const smuggle = {};
+balKeys.forEach(k => { smuggle[k] = 1; });
+smuggle.strike = 999; smuggle.enemyHp = 1;
+const got = P.sanitize(smuggle, SPEC);
+ok("no balance key survives sanitising", Object.keys(got.value).length === 0,
+   "VR-91's rule, enforced by the allow-list rather than by review: " + balKeys.length + " keys in, 0 out");
+ok("the copy is driven by the spec's keys, not the payload's",
+   /for \(k in SPEC\)/.test(pm[1]) && !/for \(k in raw\) \{[\s\S]{0,40}v\[k\]/.test(pm[1]),
+   "iterating the payload is how an unknown key gets copied");
+ok("a prototype-polluting payload writes nothing",
+   (() => {
+     const r = P.decode('{"v":1,"s":{"__proto__":{"polluted":1},"pitch":34}}', SPEC);
+     return r && r.pitch === 34 && ({}).polluted === undefined &&
+            !Object.prototype.hasOwnProperty.call(r, "__proto__");
+   })(),
+   "JSON.parse makes __proto__ an OWN property, so 'we never read it' is true and not the thing to rely on");
+ok("dropped keys are reported rather than swallowed",
+   P.sanitize({ pitch: 34, enemyHp: 9 }, SPEC).dropped.indexOf("enemyHp") >= 0,
+   "so the panel can say what it ignored instead of pretending it loaded cleanly");
+
+/* --- the shipped spec ----------------------------------------------------- */
+console.log("\n[the shipped spec is the panel]");
+const specFn = (html.match(/function buildSpec\(\) \{[\s\S]*?\n  \}/) || [""])[0];
+ok("the spec builder exists", !!specFn);
+ok("numeric bounds are read off the control, not typed twice",
+   /var lo = \+el\.min, hi = \+el\.max;/.test(specFn),
+   "a second hand-typed copy of min=10 max=70 goes stale in silence");
+ok("pick options are read off the control too",
+   /el\.options\[j\]\.value/.test(specFn));
+ok("an unbounded row is not presettable", /if \(!isFinite\(lo\) \|\| !isFinite\(hi\) \|\| hi <= lo\) return;/.test(specFn),
+   "a spec entry with no real bound is a validator that validates nothing");
+/* PLACE, not look and feel. This is the recommendation the card asked for, in
+   the only form that can't drift: the keys simply are not in the spec. */
+ok("the spec carries no map and no camera mode",
+   !/num\("map"|pick\("map"|S\.map/.test(specFn) && !/num\("cam"|pick\("cam"|S\.cam/.test(specFn),
+   "a preset that yanks you into first person on somebody else's arena is one you undo before you can judge it");
+ok("and no mset", !/mset/.test(specFn),
+   "mset records that a human on THIS device expressed a motion preference — not a thing somebody else's preset asserts for them");
+ok("loading applies the look-and-feel groups only",
+   /apply\("arc"\); apply\("touch"\); apply\("pixel"\); apply\("fog"\);/.test(html) &&
+   /function applyPreset\(p\) \{[\s\S]*?\n  \}/.test(html) &&
+   !/function applyPreset\(p\) \{[\s\S]*?apply\("map"\)/.test(html),
+   "a bare apply() would re-run the map branch and rebuild the arena under a live run");
+ok("stored presets are re-sanitised on the way OUT as well as in",
+   /PRESETS\.decode\(r\.s, SPEC\)/.test(html),
+   "bytes in localStorage are older than this build — a slider's range may have moved since");
+ok("the panel pushes a loaded preset back into every control",
+   /function syncControls\(\) \{[\s\S]*?bound\[i\]\(\);[\s\S]*?refreshPicks\(\);/.test(html) &&
+   /syncControls\(\);/.test((html.match(/function applyPreset\(p\) \{[\s\S]*?\n  \}/) || [""])[0]),
+   "fourteen values change at once; a panel still showing the old ones is a panel nobody trusts");
+/* The existing feedback loop is a different job from a save slot: one restores,
+   the other reports. Removing it would take the only channel tuning currently
+   reaches the project through. */
+ok("the copy-to-clipboard loop is still there",
+   /id="t-copy"/.test(html) && /Paste these to Claude and they become the new defaults\./.test(html));
+
+console.log("\n[the preset rows are controls like any other]");
+const presetRows = (html.match(/<h3>Presets<\/h3>[\s\S]*?<h3>Report back<\/h3>/) || [""])[0];
+ok("the preset section is in the sheet", !!presetRows);
+ok("every field is labelled",
+   /<label for="t-preset">/.test(presetRows) && /<label for="t-pname">/.test(presetRows),
+   "4.1.2 — the rest of this panel was fixed by VR-114 and new rows do not get to regress it");
+ok("the name row carries an output so the list stage can show it",
+   /id="t-pnamev"/.test(presetRows),
+   "valueOf() reads a row's <output>; without one the list entry shows an empty value");
+ok("the outcome of save / load / delete is announced",
+   /id="t-pstatus"[^>]*role="status"/.test(presetRows),
+   "all three are changes with no visible consequence on this screen");
+ok("the status line is separate from the explanation",
+   /id="t-pnote"/.test(presetRows) && /\$\("t-pstatus"\)/.test(html) && !/\$\("t-pnote"\)\.textContent = msg/.test(html),
+   "overwriting the note spends the sentence that explains presets on a confirmation");
+ok("the name field clears the touch floor like everything else",
+   /\.trow input\[type=text\]\{[^}]*min-height:var\(--tap\)/.test(html));
+ok("the three verbs are hidden in the detail stage with the other buttons",
+   /#tune\.staged\.detail #tunebody \.tbtnrow/.test(html),
+   "a stray button row over one slider is the second visual language the stage removes");
+/* A name can arrive from another player's device the day tier two lands. */
+ok("a preset name never becomes markup",
+   /o\.textContent = slots\[i\]\.n;/.test(html) && !/innerHTML[^\n]*slots/.test(html),
+   "the dropdown is the one place a shared string would otherwise be parsed as HTML");
+ok("names are cleaned and length-capped at the door",
+   P.clean("  a b  ").length > 0 && P.clean("x".repeat(400)).length === P.NAMEMAX &&
+   P.clean(null) === "" && P.clean({}) === "");
 
 console.log("\n" + "=".repeat(58));
 console.log((fails ? "FAIL — " + fails + " of " : "PASS — ") + checks + " checks\n");
