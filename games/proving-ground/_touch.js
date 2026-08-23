@@ -73,7 +73,11 @@ function makeEl(id) {
   const el = {
     id,
     _cls: new Set(),
-    style: {},
+    /* setProperty as well as plain keys: VR-132 writes --padscale as a custom
+       property, and `style["--padscale"] = x` is a silent no-op in a real
+       browser. A stub that quietly accepts the wrong call is worse than one
+       that throws, because the harness then proves the wrong thing. */
+    style: { setProperty(k, v) { el.style[k] = v; } },
     listeners: {},
     classList: {
       add: c => el._cls.add(c),
@@ -97,7 +101,8 @@ const buttons = ["exec", "step", "strike", "stalk"].map(k => {
   const b = makeEl("vb-" + k); b._attrs.k = k; b.getAttribute = n => (n === "data-k" ? k : undefined); return b;
 });
 const els = {};
-["vpad", "vstick", "vknob", "vf-exec", "vf-step0", "vf-step1"].forEach(id => els[id] = makeEl(id));
+["vpad", "vstick", "vknob", "vf-exec", "vf-step0", "vf-step1",
+ "vlook", "vlookknob"].forEach(id => els[id] = makeEl(id));
 /* #vb-stalk and the .vbtn whose class gets toggled are ONE element in the real
    DOM — the stub has to reflect that or the latch appears not to light up. */
 ["step", "exec", "stalk", "strike"].forEach(k => els["vb-" + k] = buttons.find(b => b.getAttribute("data-k") === k));
@@ -138,7 +143,15 @@ const sandbox = {
   clamp: (v, a, b) => Math.max(a, Math.min(b, v)),
   setPaused: p => state.paused.push(p),
   TUNE: { toggle() { state.tuneToggled = true; } },
-  LOOK: { sens: 0.0055 },
+  /* The SHIPPED LOOK, lifted out of the file rather than retyped. VR-132 added
+     `stickPx` to it, and a hand-copied `{ sens: 0.0055 }` here would have gone
+     on passing while the camera stick integrated against a constant this
+     harness invented. Same argument as the BALANCE block above. */
+  LOOK: (() => {
+    const src = (html.match(/var LOOK = (\{[^}]*\});/) || [])[1];
+    if (!src) { console.error("could not find LOOK in index.html"); process.exit(1); }
+    return new vm.Script("(" + src + ")").runInNewContext({});
+  })(),
   renderer: { domElement: makeEl("canvas") },
   Math, console
 };
@@ -240,11 +253,22 @@ ok("markup and harness agree on the four verbs",
    content height. If any of those three regress, the cells silently shrink back. */
 ok("the grid is no longer capped at the old 360px", !/max-width:360px/.test(padCss),
    "that cap is what kept the cells narrow when there were three of them");
-ok("the grid claims the stick's full height", /min-height:var\(--stickw\)/.test(padCss),
+ok("the grid claims the stick's full height", /min-height:var\(--stick\)/.test(padCss),
    "otherwise the rows are content-sized and the pad wastes the space it already owns");
+/* VR-132 put ONE multiply between the clamp and its two consumers so the player
+   can size the pad. The invariant is unchanged and is the only thing worth
+   asserting: the stick and the grid still read the same variable, so they can't
+   drift apart. What moved is that the variable is now the scaled one. */
 ok("--stickw drives both the stick and the grid",
-   /#vpad\{--stickw:clamp\(/.test(html) && /#vpad \.vstick\{[^}]*width:var\(--stickw\)/.test(html),
+   /#vpad\{--stickw:clamp\(/.test(html) && /#vpad \.vstick\{[^}]*width:var\(--stick\)/.test(html),
    "one number, so they can't drift apart");
+ok("and the scaled number is derived, not a second clamp",
+   /--stick:calc\(var\(--stickw\) \* var\(--padscale\)\)/.test(html) &&
+   (html.match(/--stickw:clamp\(/g) || []).length === 1,
+   "a second copy of clamp(92px,30vw,132px) is a second thing to keep in step");
+ok("nothing still reads the unscaled --stickw for a box",
+   !/(width|height|min-height):var\(--stickw\)/.test(html),
+   "a control sized off the pre-scale number ignores the Pad size slider and looks broken");
 const btnCss = (html.match(/#vpad \.vbtn\{[\s\S]*?\}/) || [""])[0];
 ok("every cell clears the 44px touch floor", /min-height:44px/.test(btnCss));
 
@@ -432,6 +456,167 @@ const yawSettled = state.mouse.yaw;
 cv.fire("pointermove", { pointerId: 21, clientX: 400, clientY: 100 });
 ok("a finished drag stops steering", state.mouse.yaw === yawSettled);
 state.cam.mode = "arcade";
+
+/* ======================================================================
+   8b. The camera stick  (VR-132)
+   ======================================================================
+   Jordan, 8/23: "we could also throw up a smaller semi-transparent joystick
+   above the right hand buttons for people to rotate the camera in that view."
+
+   The thing that makes this different from the drag above, and the thing worth
+   proving: it is a RATE, not a delta. A held tilt has to keep turning the camera
+   with no further events arriving, which is a claim about the frame loop rather
+   than about the pointer handler — so it is exercised by ticking, not by moving.
+   ====================================================================== */
+console.log("\n[camera stick]");
+const look = els.vlook, lookKnob = els.vlookknob;
+ok("the pad exposes the stick as its own surface", !!look && !!lookKnob);
+/* Rect is 100x100 → centre (50,50), radius 50, deadzone 22% = 11px. */
+state.cam.mode = "arcade";
+TPAD.syncLook();
+ok("arcade never shows it", !els.vpad.classList.contains("look"),
+   "a fixed camera with a rotate control is a control that does nothing");
+look.fire("pointerdown", { pointerId: 30, clientX: 95, clientY: 50 });
+const arcYaw = state.mouse.yaw;
+TPAD.tickLook(0.1);
+ok("and cannot be driven in arcade even if it is touched", state.mouse.yaw === arcYaw);
+
+state.cam.mode = "third";
+TPAD.syncLook();
+ok("third person shows it", els.vpad.classList.contains("look"));
+look.fire("pointerdown", { pointerId: 31, clientX: 56, clientY: 53 });
+TPAD.tickLook(0.1);
+ok("inside the deadzone turns nothing", state.mouse.yaw === arcYaw, "6px off centre");
+look.fire("pointermove", { pointerId: 31, clientX: 100, clientY: 50 });
+const beforeTick = state.mouse.yaw;
+TPAD.tickLook(0.1);
+const oneTick = state.mouse.yaw;
+ok("a full tilt turns the camera", oneTick !== beforeTick);
+/* THE ASSERTION THE WHOLE DESIGN IS FOR. No pointermove between these two
+   ticks: a delta-drag would sit still here, and sitting still is the behaviour
+   that made third person awkward on a phone in the first place. */
+TPAD.tickLook(0.1);
+ok("and keeps turning while it is held, with no further events",
+   Math.abs(state.mouse.yaw - oneTick - (oneTick - beforeTick)) < 1e-9,
+   "a rate control integrates over time — that is the difference from the swipe");
+ok("the turn is proportional to the frame time",
+   (() => { const a = state.mouse.yaw; TPAD.tickLook(0.2);
+            return Math.abs((state.mouse.yaw - a) - 2 * (oneTick - beforeTick)) < 1e-9; })(),
+   "otherwise the camera turns faster on a faster phone");
+/* One sensitivity for the swipe and the stick, expressed in the swipe's own
+   units. A second constant here is the thing that goes out of step the first
+   time somebody answers "the camera turns too fast". */
+ok("the rate is derived from the drag's own sensitivity",
+   /LOOK\.sens \* LOOK\.stickPx \* dt/.test(m[1]) && typeof sandbox.LOOK.stickPx === "number",
+   "full deflection = dragging " + sandbox.LOOK.stickPx + " px/sec, so one slider governs both");
+look.fire("pointermove", { pointerId: 31, clientX: 50, clientY: -9999 });
+for (let i = 0; i < 40; i++) TPAD.tickLook(0.1);
+ok("pitch stays clamped however long it is held",
+   state.mouse.pitch <= 0.45 && state.mouse.pitch >= -0.55, state.mouse.pitch.toFixed(3));
+look.fire("pointerup", { pointerId: 31 });
+const rested = state.mouse.yaw;
+TPAD.tickLook(0.1);
+ok("letting go stops the turn", state.mouse.yaw === rested);
+
+/* A rate control is the ONE kind of held input that keeps acting after the thumb
+   is gone — a panel opening over a tilted stick would otherwise leave the camera
+   spinning behind it forever. dropHeldInput() is the single function every such
+   panel already calls, so this rides on the fix rather than adding a second one. */
+look.fire("pointerdown", { pointerId: 32, clientX: 100, clientY: 50 });
+TPAD.release();
+const afterRelease = state.mouse.yaw;
+TPAD.tickLook(0.5);
+ok("release() stops a stick that was left at full tilt", state.mouse.yaw === afterRelease,
+   "the failure mode is a camera that spins for the rest of the run behind a settings panel");
+/* Leaving the mode has to stand it down too, and syncCamUI is the one place that
+   knows the mode changed — which is what makes V, the fab and the View row all
+   correct without any of them knowing about this stick. */
+look.fire("pointerdown", { pointerId: 33, clientX: 100, clientY: 50 });
+state.cam.mode = "arcade";
+TPAD.syncLook();
+const afterMode = state.mouse.yaw;
+TPAD.tickLook(0.5);
+ok("changing to arcade mid-tilt stands it down", state.mouse.yaw === afterMode);
+ok("syncCamUI is what tells it, so all three entry points are covered",
+   /function syncCamUI\(\)[\s\S]*?TPAD\.syncLook\(\)/.test(html),
+   "V, the ▣ fab and the View row run through one readout");
+ok("the frame loop is what ticks it", /TPAD\.tickLook\(raw\);/.test(html),
+   "on the real frame time, not the fixed step — it moves the camera, not the sim");
+/* The stick is a SECOND way to do something the arena already does, and the
+   arena's way is untouched. If drag-to-look ever went away, this would be the
+   only camera control on a phone and would need a keyboard story of its own. */
+ok("drag-to-look is still there beside it", /cv\.addEventListener\("pointermove"/.test(m[1]),
+   "the stick supplements the swipe, it does not replace it");
+ok("and the stick says it is a duplicate rather than announcing itself twice",
+   /<div id="vlook" aria-hidden="true">/.test(html));
+
+/* ======================================================================
+   8c. The pad, arranged by whoever is holding it  (VR-132)
+   ======================================================================
+   Two independent single-axis mirrors, which is four combinations. Four
+   hand-listed arrangements would be four chances to transpose a cell, and the
+   combination nobody checks is the one that ships wrong — so the mapping is
+   computed and all four are walked here.
+   ====================================================================== */
+console.log("\n[the pad, arranged]");
+const ord = (h, v) => TPAD.cellOrder(h, v);
+const cells = o => ["exec", "step", "strike", "stalk"].map(k => o[k]);
+ok("the default is the 2x2 VR-112 shipped",
+   JSON.stringify(cells(ord("left", "fillstop"))) === JSON.stringify([1, 2, 3, 4]),
+   "exec, step / strike, stalk");
+ok("every arrangement fills all four cells exactly once",
+   [["left", "fillstop"], ["right", "fillstop"], ["left", "fillsdown"], ["right", "fillsdown"]]
+     .every(([h, v]) => { const c = cells(ord(h, v)).slice().sort().join(""); return c === "1234"; }),
+   "a transposed mirror stacks two verbs in one cell and leaves one empty");
+/* The point of mirroring the columns and not just the pad: the combat pair has
+   to stay under the thumb that is not steering, or handedness makes it worse. */
+const L = ord("left", "fillstop"), R = ord("right", "fillstop");
+ok("stick on the left puts the combat column on the left of the grid",
+   L.exec === 1 && L.strike === 3, "exec above strike, nearest the stick");
+ok("stick on the right mirrors that column, it does not just flip the pad",
+   R.exec === 2 && R.strike === 4, "exec above strike, nearest the thumb");
+ok("the two mobility verbs mirror with them",
+   R.step === 1 && R.stalk === 3);
+const D = ord("left", "fillsdown");
+ok("verb order flips the rows and leaves the columns alone",
+   D.strike === 1 && D.stalk === 2 && D.exec === 3 && D.step === 4);
+ok("the two axes are independent",
+   (() => { const B = ord("right", "fillsdown"); return B.strike === 2 && B.step === 3; })(),
+   "handedness must not quietly undo verb order — this is the combination nobody tests");
+
+TPAD.setLayout({ hand: "right", size: 1.2, verbs: "fillsdown", labels: false, camstick: false });
+ok("the layout reaches the pad", els.vpad.classList.contains("righty") &&
+   els.vpad.classList.contains("nolabels"));
+ok("size is written as a multiplier, not as a second clamp",
+   els.vpad.style["--padscale"] === "1.2",
+   "the stylesheet keeps one definition of clamp(92px,30vw,132px)");
+ok("the order reaches the buttons themselves",
+   btn("strike").style.order === "2" && btn("step").style.order === "3");
+ok("the camera stick setting rides along with the layout",
+   !els.vpad.classList.contains("look"),
+   "one call, so the pad can't end up half-configured");
+state.cam.mode = "third";      // the stick only ever shows in a mode that can turn
+TPAD.setLayout({ hand: "left", size: 1, verbs: "fillstop", labels: true, camstick: true });
+ok("and turning it back on restores it", els.vpad.classList.contains("look") &&
+   !els.vpad.classList.contains("righty") && !els.vpad.classList.contains("nolabels"));
+state.cam.mode = "arcade"; TPAD.syncLook();
+
+/* Ergonomics are not a look, and a preset is a look. Loading somebody else's
+   setup and finding your stick has moved to your other hand mid-run is exactly
+   the thing that kept `map`, `cam` and `mset` out of the spec. */
+ok("none of the controls settings is presettable",
+   !/num\("padsize"/.test(html) && !/pick\("hand"/.test(html) &&
+   !/pick\("verbs"/.test(html) && !/pick\("padlbl"/.test(html) && !/pick\("camstick"/.test(html),
+   "how somebody holds their own phone is not a fact another player's preset gets to assert");
+/* A stored value that is not one of the control's options leaves a <select>
+   blank while the game runs on the default — VR-113 fixed that for the camera by
+   hand, and VR-132 generalised the fix rather than repeating it five times. */
+ok("a corrupt stored layout is corrected in the control, not just in V",
+   /function pin\(key, allowed, id\) \{[\s\S]*?var el = \$\(id\); if \(el\) el\.value = V\[key\];/.test(html) &&
+   /pin\("hand", \["left", "right"\], "t-hand"\)/.test(html));
+ok("and the pad's height is re-measured when it changes size",
+   /what === "pad"[\s\S]{0,900}?applyPixelScale\(\);/.test(html),
+   "--padh is measured off #vpad, and this is the one setting that moves it");
 
 /* ======================================================================
    9. Separation of concerns
@@ -731,8 +916,12 @@ const d = {
   tune: dlgEl("tune"), tunescrim: dlgEl("tunescrim"), tunebody: dlgEl("tunebody"),
   "t-close": dlgEl("t-close"), "t-grab": dlgEl("t-grab"), tunefab: dlgEl("tunefab"),
   "t-back": dlgEl("t-back"), tunetitle: dlgEl("tunetitle"),
-  "btn-pausetune": dlgEl("btn-pausetune")
+  "btn-pausetune": dlgEl("btn-pausetune"),
+  // VR-131 — the container the category tiles are appended into
+  tcats: dlgEl("tcats")
 };
+d.tcats.children = [];
+d.tcats.appendChild = c => { d.tcats.children.push(c); return c; };
 d.tunetitle.textContent = "Settings";
 /* Three controls standing in for the twenty: first, middle, last is all a trap
    can be wrong about. The middle one goes hidden later to prove the trap skips
@@ -752,6 +941,15 @@ doc.createElement = tag => {
   n.appendChild = c => { n.children.push(c); c.parentNode = n; return c; };
   n.insertBefore = (c, before) => { n.children.splice(Math.max(0, n.children.indexOf(before)), 0, c); c.parentNode = n; return c; };
   n.querySelector = sel => n.children.find(c => c._matches && c._matches(sel)) || null;
+  return n;
+};
+/* VR-131 — the tile's icon is an <svg><use>, and an <svg> built through
+   createElement lands in the XHTML namespace and renders as nothing at all.
+   The stub carries the namespaced call so the harness proves the code path the
+   browser actually takes rather than a convenient shortcut around it. */
+doc.createElementNS = (ns, tag) => {
+  const n = doc.createElement(tag);
+  n._ns = ns;
   return n;
 };
 const sheetBox = {
@@ -940,7 +1138,13 @@ rangeRow.nextElementSibling = noteEl;
 const selectRow = stubRow("View", "select", "Arcade (fixed)");
 const colourRow = stubRow("Rim", "color", "#B79CED");
 const rows = [rangeRow, selectRow, colourRow];
-d.tunebody.querySelectorAll = () => rows;
+/* SELECTOR-AWARE from here on. buildStage asks the body for ".trow" and then for
+   ".tsec", and a stub that answers both with the same array would hand the tile
+   builder three sliders and prove nothing. This first pass answers ".tsec" with
+   NOTHING on purpose — it is the no-categories build, and the two-stage sheet
+   VR-114 shipped has to keep working exactly as it did when a section wrapper
+   is missing. The three-stage flow is exercised below, on its own rows. */
+d.tunebody.querySelectorAll = sel => (sel === ".trow" ? rows : []);
 
 sheetBox.buildStage();
 ok("the list stage turns itself on for touch", d.tune.classList.contains("staged"));
@@ -1008,6 +1212,230 @@ ok("the desktop drawer stays one flat list",
    inserted.length === 0 && !d.tune.classList.contains("staged"),
    "twenty rows beside an arena it never covered — staging it is two taps to do what one drag already does");
 sheetBox.STAGED = true;
+
+/* ======================================================================
+   10g. Three stages: categories, then a group, then one control  (VR-131)
+   ======================================================================
+   Jordan, 8/23: "it just feels like a lot on mobile without much easy
+   direction… 6 or however many tiled options up front for different setting
+   categories that open separate menus."
+
+   VR-114 fixed tuning blind. It did not fix ARRIVING: the first thing a thumb
+   met was still a twenty-item scroll with no shape. The tiles are GENERATED from
+   the <section>s, exactly as the row list is generated from the rows, so the
+   things worth proving are the same two: that the generation is faithful, and
+   that the extra stage did not fork the contract the last card established.
+
+   Everything above ran with NO sections, which is the no-categories fallback.
+   This block rebuilds with them.
+   ====================================================================== */
+console.log("\n[three-stage sheet — categories first]");
+
+function stubSec(name, ico, sub, secRows) {
+  const s = dlgEl("sec-" + name);
+  s.className = "tsec";
+  const h = dlgEl("h-" + name); h.tagName = "H3"; h.textContent = name;
+  s.querySelector = sel => (sel === "h3" ? h : null);
+  s.querySelectorAll = sel => (sel === ".trow" ? secRows : []);
+  s._attrsSet["data-ico"] = ico;
+  s._attrsSet["data-sub"] = sub;
+  return s;
+}
+const rowsA = [stubRow("Fog", "range", "0.030"), stubRow("Pixel grid", "select", "4:1")];
+const rowsB = [stubRow("Stick side", "select", "Left — buttons right")];
+const secA = stubSec("Render", "i-cat-render", "Pixel grid, fog, husk models", rowsA);
+const secB = stubSec("Controls", "i-cat-pad", "Which hand, how big, camera stick", rowsB);
+const secs = [secA, secB], allRows = rowsA.concat(rowsB);
+inserted.length = 0;
+d.tcats.children.length = 0;
+d.tunebody.querySelectorAll = sel =>
+  (sel === ".trow" ? allRows : sel === ".tsec" ? secs : []);
+sheetBox.buildStage();
+
+ok("one tile per section, and no more", d.tcats.children.length === secs.length,
+   d.tcats.children.length + " tiles for " + secs.length + " sections");
+ok("every row still gets its list entry", inserted.length === allRows.length,
+   "the rows are collected off the body, so a row outside a section is not silently dropped");
+ok("each tile is a real button", d.tcats.children.every(b => b.tagName === "BUTTON" && b.type === "button"));
+const tileA = d.tcats.children[0];
+ok("a tile is named by its section's own heading",
+   tileA.children.some(c => c.textContent === "Render"),
+   "the same string the title bar shows once you are inside it — a group cannot be called two things");
+ok("and carries the line saying what is in it",
+   tileA.children.some(c => c.textContent === "Pixel grid, fog, husk models"),
+   "'Render' is a guess; 'pixel grid, fog, husk models' is a destination");
+const tileSvg = tileA.children.find(c => c.tagName === "SVG");
+ok("the tile's icon is built in the SVG namespace",
+   !!tileSvg && tileSvg._ns === "http://www.w3.org/2000/svg",
+   "createElement('svg') lands in XHTML and renders as nothing — which looks like a missing file");
+ok("and points at the symbol the section named",
+   !!tileSvg && tileSvg.children[0] && tileSvg.children[0].getAttribute("href") === "#i-cat-render");
+ok("the icon is decorative, since the text names the tile",
+   !!tileSvg && tileSvg.getAttribute("aria-hidden") === "true");
+
+/* --- the walk in --------------------------------------------------------- */
+sheetBox.open(d.tunefab);
+ok("opening now lands on the tiles, not on a twenty-row scroll",
+   d.tune.classList.contains("cats") && !d.tune.classList.contains("detail") &&
+   d.tunetitle.textContent === "Settings");
+ok("there is nothing to go back to from the front door", d["t-back"].hidden === true,
+   "a Back button that closes the panel is a button lying about what it does");
+tileA.fire("click", {});
+ok("a tile opens its group", !d.tune.classList.contains("cats") &&
+   d.tunetitle.textContent === "Render");
+ok("exactly one group is on screen",
+   secs.filter(s => s.classList.contains("tcat-on")).length === 1 && secA.classList.contains("tcat-on"));
+ok("back is offered now that there is a level above",
+   d["t-back"].hidden === false && d["t-grab"].hidden === false);
+ok("focus lands on the group's first row, not on the way out",
+   doc.activeElement === inserted[0],
+   "the tap was a statement about where you wanted to be");
+inserted[1].fire("click", {});
+ok("and a row still drops to the detail stage", d.tune.classList.contains("detail") &&
+   d.tunetitle.textContent === "Pixel grid");
+
+/* --- and the walk back out, one stage per press --------------------------- */
+d.tune.fire("keydown", { key: "Escape", stopPropagation() {} });
+ok("Escape returns to the group, not to the tiles",
+   !d.tune.classList.contains("detail") && !d.tune.classList.contains("cats") &&
+   d.tunetitle.textContent === "Render");
+ok("focus returns to the row you came from", doc.activeElement === inserted[1]);
+d.tune.fire("keydown", { key: "Escape", stopPropagation() {} });
+ok("a second Escape returns to the tiles",
+   d.tune.classList.contains("cats") && d.tunetitle.textContent === "Settings" &&
+   d["t-back"].hidden === true);
+ok("the group is put away with it", secs.every(s => !s.classList.contains("tcat-on")));
+ok("focus returns to the tile you came from", doc.activeElement === tileA,
+   "2.4.3 one level further up — otherwise you tab from the top of the grid every time");
+d.tune.fire("keydown", { key: "Escape", stopPropagation() {} });
+ok("and a third closes the panel", sheetBox.isOpen() === false);
+
+/* The Back button and Escape must be the same unwind, or one of them starts
+   skipping a stage the first time a fourth one is added. */
+sheetBox.open(d.tunefab);
+d.tcats.children[1].fire("click", {});
+ok("the Back button walks the same path Escape does",
+   (() => { d["t-back"].fire("click", {});
+            return d.tune.classList.contains("cats") && d.tunetitle.textContent === "Settings"; })(),
+   "one function, two triggers — neither knows how many stages there are");
+sheetBox.close();
+
+/* --- the stage split is still CSS over ONE control tree ------------------- */
+ok("the grid shows only in the category stage",
+   /#tcats\{display:none/.test(css) && /#tune\.staged\.cats #tcats\{display:grid\}/.test(css));
+ok("one group at a time, and the class is what says which",
+   /#tune\.staged \.tsec\{display:none\}/.test(css) &&
+   /#tune\.staged \.tsec\.tcat-on\{display:block\}/.test(css));
+ok("the desktop drawer shows every group at once",
+   !/#tune \.tsec\{display:none\}/.test(css),
+   "staging the drawer would take away the one thing it is better at");
+ok("section headers are hidden in every staged stage, not just the detail one",
+   /#tune\.staged #tunebody h3\{display:none\}/.test(css) &&
+   !/#tune\.staged\.detail #tunebody h3/.test(css),
+   "two rules saying display:none about the same element is one of them going stale unseen");
+
+/* --- and the markup actually has the structure the stage reads ------------ */
+const secOpen = (sheetBody.match(/<section class="tsec[^"]*"[^>]*>/g) || []);
+ok("the settings body is divided into sections", secOpen.length >= 5, secOpen.length + " sections");
+ok("every section names an icon and a line for its tile",
+   secOpen.every(s => /data-ico="/.test(s) && /data-sub="/.test(s)),
+   "a tile with no icon and no line is a word in a box");
+/* A .trow outside every section gets a list entry and no tile — reachable on a
+   desktop and invisible on a phone, which is the worst of both. */
+const orphanRows = (() => {
+  let depth = 0, orphan = 0;
+  (sheetBody.match(/<section\b|<\/section>|<div class="trow"/g) || []).forEach(t => {
+    if (t === "<\/section>") depth--;
+    else if (t === "<section") depth++;
+    else if (depth === 0) orphan++;
+  });
+  return orphan;
+})();
+ok("no settings row sits outside a section", orphanRows === 0,
+   orphanRows + " row(s) with a list entry and no tile — visible on a desktop, unreachable on a phone");
+/* Sections are the spacing too, not just the grouping. The margin that made the
+   panel feel crowded put a header closer to the group ABOVE it than to its own
+   rows, so proximity said the opposite of what the structure meant. */
+ok("the gap between groups is bigger than the gap inside one",
+   (() => {
+     const secM = +((css.match(/\.tsec\{margin:0 0 (\d+)px\}/) || [])[1] || 0);
+     const hM = +((css.match(/#tune h3\{[^}]*margin:0 0 (\d+)px/) || [])[1] || 999);
+     return secM >= 24 && secM > hM * 2;
+   })(),
+   "18px between groups and 7px under a header is what 'everything feels tight together' was");
+
+/* ======================================================================
+   10h. The icon set  (VR-133)
+   ======================================================================
+   Nine unicode characters became one inline sprite. The failure mode a sprite
+   has that a character does not is a dangling reference: a <use> whose symbol
+   was renamed renders NOTHING, silently, on one button.
+   ====================================================================== */
+console.log("\n[icons]");
+const symbols = (html.match(/<symbol id="([\w-]+)"/g) || []).map(s => s.slice(12, -1));
+const uses = (html.match(/<use[^>]*href="#([\w-]+)"/g) || []).map(s => s.match(/#([\w-]+)/)[1]);
+ok("there is an inline sprite", symbols.length >= 8, symbols.length + " symbols");
+const dangling = uses.filter(u => !symbols.includes(u));
+ok("every <use> in the markup resolves to a symbol", dangling.length === 0,
+   dangling.join(" ") || "no dangling references");
+/* The ids written from JS — the three camera modes and the seven category
+   icons — never appear as markup, so the check above cannot see them. */
+const camIcons = Object.values(
+  (() => { const g = (html.match(/var CAM_GLYPH = \{([^}]*)\}/) || ["", ""])[1];
+           return (g.match(/"[^"]+"/g) || []).map(s => s.slice(1, -1)); })()
+);
+ok("every camera mode's icon exists in the sprite",
+   camIcons.every(i => symbols.includes(i)), camIcons.join(" "));
+const catIcons = (html.match(/data-ico="([\w-]+)"/g) || []).map(s => s.slice(10, -1));
+ok("every category's icon exists in the sprite",
+   catIcons.length >= 5 && catIcons.every(i => symbols.includes(i)), catIcons.join(" "));
+ok("the sprite itself is hidden and out of the accessibility tree",
+   /<svg id="icons" aria-hidden="true"/.test(html) && /#icons\{position:absolute;width:0;height:0/.test(css));
+ok("icons inherit the button's colour rather than carrying their own",
+   /\.ic\{[^}]*stroke:currentColor/.test(css) && /\.ic\{[^}]*fill:none/.test(css),
+   "every hover, dim and ready state the buttons already have comes free");
+/* The camera fab's readout is an attribute swap now, and writing text into it
+   would replace the <svg> with a string. */
+ok("the camera fab swaps its icon rather than its text",
+   /u\.setAttribute\("href", "#" \+ \(CAM_GLYPH\[cam\.mode\]/.test(html) &&
+   !/b\.textContent = CAM_GLYPH/.test(html),
+   "textContent on a button whose child is an <svg> deletes the icon");
+ok("no unicode glyph is left standing in for a control",
+   !/[▣◉◎✦◈★⊹⚙❚]/.test(html.replace(/<!--[\s\S]*?-->/g, "").replace(/\/\*[\s\S]*?\*\//g, "")),
+   "a legend that pictures a button has to be redrawn every time the button is");
+
+/* ======================================================================
+   10i. The start screen is a front door  (VR-132)
+   ====================================================================== */
+console.log("\n[start screen entry points]");
+const startScreen = (html.match(/<div class="screen on" id="s-start">[\s\S]*?\n<\/div>/) || [""])[0];
+ok("the start screen offers How to play and Settings",
+   /id="btn-howto"/.test(startScreen) && /id="btn-starttune"/.test(startScreen));
+ok("Enter the arena is still the primary verb",
+   startScreen.indexOf("btn-start") < startScreen.indexOf("btn-howto") &&
+   /class="btn ghost" id="btn-howto"/.test(startScreen));
+ok("they open the SAME two surfaces the in-run chrome opens",
+   /\$\("btn-howto"\)\.addEventListener\("click", openHelp\)/.test(html) &&
+   /\$\("btn-starttune"\)\.addEventListener\("click", function \(\) \{ TUNE\.open\(\$\("btn-starttune"\)\); \}\)/.test(html),
+   "a start-screen copy of the settings panel is a second control tree");
+ok("settings opens rather than toggles, with its opener named",
+   !/btn-starttune[\s\S]{0,80}TUNE\.toggle/.test(html),
+   "same reason as the pause button: Escape has to hand focus back to the button you pressed");
+/* The guard that used to stop this had a real reason — the legend was inline on
+   the start screen — and that reason is gone on touch, where the legend is
+   hidden so it stops pushing the play button below the fold. */
+ok("help no longer refuses to open from the start screen",
+   !/if \(\$\("s-start"\)\.classList\.contains\("on"\) \|\| \$\("s-over"\)\.classList\.contains\("on"\)\) return;/.test(html));
+ok("and it renders above the screen that opened it",
+   /#s-help\{z-index:22\}/.test(css),
+   "both are .screen at z-index 20, so source order alone decided which won");
+ok("the legend is hidden on touch, not duplicated",
+   /#s-start \.keys\{display:none\}/.test(touchBlock) &&
+   /\$\("help-keys"\)\.innerHTML = document\.querySelector\("#s-start \.keys"\)\.innerHTML;/.test(html),
+   "still one copy of that list, still read from the start screen at boot");
+ok("the back button says where it puts you back",
+   /r\.textContent = \(game\.running && !game\.over\) \? "Back to the fight" : "Back"/.test(html),
+   "'Back to the fight' on the start screen is a promise about a run that hasn't started");
 
 /* --- and the stage split is CSS over one control tree, not two ------------- */
 console.log("\n[two-stage sheet — one control tree]");
@@ -1298,7 +1726,10 @@ ok("the copy-to-clipboard loop is still there",
    /id="t-copy"/.test(html) && /Paste these to Claude and they become the new defaults\./.test(html));
 
 console.log("\n[the preset rows are controls like any other]");
-const presetRows = (html.match(/<h3>Presets<\/h3>[\s\S]*?<h3>Report back<\/h3>/) || [""])[0];
+/* VR-131 folded "Report back" into this section — two buttons is not a category,
+   and every <h3> in the sheet is a tile on a phone now. The slice runs to the
+   section's own close instead of to the heading that used to follow it. */
+const presetRows = (html.match(/<h3>Presets &amp; reset<\/h3>[\s\S]*?<\/section>/) || [""])[0];
 ok("the preset section is in the sheet", !!presetRows);
 ok("every field is labelled",
    /<label for="t-preset">/.test(presetRows) && /<label for="t-pname">/.test(presetRows),

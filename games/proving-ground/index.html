@@ -128,10 +128,42 @@ canvas{display:block}
 @keyframes fnumstill{0%{opacity:0}18%{opacity:1}100%{opacity:0}}
 .fnum.still{animation:fnumstill .7s ease forwards}
 
+/* ---------- icons (VR-133) --------------------------------------------------
+   ONE INLINE <symbol> SPRITE, and nothing else. The chrome shipped as unicode
+   characters — ⚙ ❚❚ ▣ ◉ ◎ ✦ ◈ ★ ⊹ — which is fine until you look at it on three
+   devices: ⊹ is one font fallback away from a tofu box, ◉ and ◎ differ by a
+   single ring at 18px, and none of them can carry a line weight that matches
+   anything else on the screen.
+
+   currentColor throughout, deliberately. Every state this build already has —
+   .sysfab:hover, .vbtn.vdim, .vbtn.on, .runonly — is expressed as a COLOUR
+   change on the button, and an icon painted with currentColor inherits all of
+   them for free. Symbols with baked-in fills would need every one of those
+   states re-declared, which is exactly the drift this file argues against
+   everywhere else.
+
+   Sized in em, so an icon tracks whatever font-size its button already had and
+   the 34px desktop fab and the 44px touch fab keep their own numbers.
+   -------------------------------------------------------------------------- */
+#icons{position:absolute;width:0;height:0;overflow:hidden}
+.ic{width:1.15em;height:1.15em;flex:0 0 auto;display:block;pointer-events:none;
+  fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+/* A knob drawn ON a rail has to occlude it, and the only colour that does that
+   is the surface underneath — not currentColor, which would erase the knob. */
+.ic .knob{fill:var(--ink-2);stroke:currentColor}
+.ic .solid{fill:currentColor;stroke:none}
+.ic .faint{opacity:.45}
+
 /* ---------- Screens ---------- */
 .screen{position:fixed;inset:0;display:none;place-items:center;background:radial-gradient(ellipse at 50% 40%,rgba(35,20,66,.42),rgba(11,8,24,.80));
   backdrop-filter:blur(2px);z-index:20}
 .screen.on{display:grid}
+/* VR-132 — the help overlay is reachable FROM the start screen now, and both are
+   .screen at z-index 20, so source order alone decided which won: s-start sits
+   below s-help in the document, so "How to play" opened a panel *underneath* the
+   screen you tapped it on. One number, rather than moving markup that the
+   legend mirror at boot reads in order. */
+#s-help{z-index:22}
 .panel{width:min(560px,92vw);border:1px solid var(--line);border-radius:16px;background:rgba(14,12,28,.93);
   padding:2rem 2rem 1.6rem;box-shadow:0 20px 70px rgba(0,0,0,.6);text-align:center}
 .panel h1{font-family:var(--font-display);font-size:clamp(2rem,6vw,3.1rem);margin:.2rem 0 .1rem;letter-spacing:.1em;text-transform:uppercase}
@@ -244,10 +276,28 @@ canvas{display:block}
 #t-grab{display:none}
 #tunebody{flex:1 1 auto;min-height:0;overflow-y:auto;padding:14px 14px 40px;
   -webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+/* ---------- sections (VR-131) -----------------------------------------------
+   Jordan, 8/23: *"the headers feel sort of close to the bottoms of the sections
+   above them… everything just feels kinda tight together and somewhat
+   unorganized."*
+
+   That was literally true and it was a margin: `margin:18px 0 7px` put a header
+   18px below the last control of the PREVIOUS group and 7px above the first
+   control of its OWN. The gap that separated two groups was smaller than the gap
+   that joined a header to its rows, so proximity was saying the opposite of what
+   the structure meant, and twenty rows read as one undifferentiated column.
+
+   Fixed at the SECTION rather than on the header: the space now belongs to the
+   group, the header owns only the small gap down to its own first row, and the
+   two can no longer be tuned out of agreement. The <section> wrapper is also
+   what the category stage below is built from — one structure doing both jobs
+   rather than a second list of group names in JS.
+   ------------------------------------------------------------------------- */
+.tsec{margin:0 0 30px}
+.tsec:last-child{margin-bottom:10px}
 #tune h3{font-family:var(--font-display);letter-spacing:.14em;text-transform:uppercase;
-  font-size:.72rem;color:var(--mute);margin:18px 0 7px;border-bottom:1px solid var(--line);padding-bottom:5px}
-#tune h3:first-child{margin-top:0}
-.trow{display:flex;align-items:center;gap:10px;margin:4px 0;min-height:var(--tap)}
+  font-size:.72rem;color:var(--mute);margin:0 0 11px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.trow{display:flex;align-items:center;gap:10px;margin:6px 0;min-height:var(--tap)}
 .trow label{flex:1;color:var(--white);opacity:.86;line-height:1.25}
 /* Hand-rolled rather than `accent-color`: accent-color paints a native thumb
    whose size the page does not control, and on every engine we can measure that
@@ -346,7 +396,11 @@ canvas{display:block}
 #tune.staged .tpick{display:flex}
 #tune.staged #tunebody .trow,#tune.staged #tunebody .tnote-row{display:none}
 #tune.staged.detail .tpick{display:none}
-#tune.staged.detail #tunebody h3,#tune.staged.detail #tunebody .btn,
+/* h3 is not in this list any more — VR-131 hides section headers in EVERY
+   staged stage, because the title bar carries the group name from the moment
+   you enter it. Two rules saying display:none about the same element in
+   overlapping states is one of them going stale unnoticed. */
+#tune.staged.detail #tunebody .btn,
 #tune.staged.detail #tunebody .tbtnrow,
 #tune.staged.detail #tunebody .tnote,#tune.staged.detail #tunecopy{display:none}
 #tune.staged.detail #tunebody .trow.tfocus{display:flex}
@@ -366,6 +420,57 @@ canvas{display:block}
 #tune.staged.detail .trow.tfocus input[type=color]{order:3;flex:0 0 100%;width:100%;height:56px}
 #tune.staged.detail .trow.tfocus input[type=text]{order:3;flex:0 0 100%;min-height:52px;font-size:1rem}
 #tunescrim.clear{background:rgba(6,4,12,.12)}
+
+/* ---------- stage zero: the categories (VR-131, 8/23) -----------------------
+   Jordan, 8/23: *"it just feels like a lot on mobile without much easy
+   direction… 6 or however many tiled options up front for different setting
+   categories that open separate menus."*
+
+   VR-114 turned twenty controls into twenty scannable rows, which fixed tuning
+   blind. It did not fix ARRIVING: the first thing a thumb met was still a
+   twenty-item scroll with no shape, and "where is fog" was answered by reading
+   all of it. A tile grid answers that in one glance instead, and it costs a tap
+   only on the way in — the way back out is the same Back button that was already
+   there for the detail stage.
+
+   THREE STAGES, ONE CLASS EACH, and the absence of both classes IS the middle
+   stage. `.cats` → the grid. neither → one category's rows. `.detail` → one
+   control. That is deliberately the same shape VR-114 shipped with one stage
+   added in front, so Escape, the Back button, the title and the scrim contract
+   all extend rather than fork.
+
+   NO THIRD CONTROL TREE, for the third time. The tiles are GENERATED from the
+   <section> elements that already exist — their <h3> is the tile's name and
+   their data-sub is its line — so a section added later gets a tile without
+   anybody remembering to add one, and a tile can never point at a group that
+   isn't there.
+
+   TOUCH ONLY, gated on `.staged` like the other two stages. The desktop drawer
+   was never the complaint: it shows every group beside an arena it does not
+   cover, and putting a click in front of that would be taking something away.
+   ------------------------------------------------------------------------- */
+#tcats{display:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:2px 0 6px}
+.tcat{display:flex;flex-direction:column;align-items:flex-start;gap:8px;
+  min-height:96px;padding:12px 12px 13px;cursor:pointer;
+  border:1px solid var(--line-hi);border-radius:14px;background:rgba(18,18,36,.6);
+  color:var(--white);font-family:inherit;font-size:.86rem;text-align:left}
+.tcat:hover{background:rgba(60,52,92,.45);border-color:var(--accent)}
+.tcat .ic{width:22px;height:22px;color:var(--violet-lt)}
+.tcatn{font-family:var(--font-display);letter-spacing:.11em;text-transform:uppercase;
+  font-size:.74rem;line-height:1.1}
+/* The tile's second line is what makes it a destination rather than a label:
+   "Fog, pixel grid, husk models" is findable, "Graphics" is a guess. */
+.tcatd{color:var(--mute);font-size:.7rem;line-height:1.3;margin-top:-2px}
+#tune.staged.cats #tcats{display:grid}
+/* One group at a time once you are past the grid. Cleared on the way back, so
+   the grid stage needs no rule of its own to hide them. */
+#tune.staged .tsec{display:none}
+#tune.staged .tsec.tcat-on{display:block}
+/* The group's name is in the title bar the moment you are inside it, and a
+   header repeating the title directly under the title is the crowding this card
+   was opened about. Desktop keeps every header — that is what makes it scannable
+   without a grid in front of it. */
+#tune.staged #tunebody h3{display:none}
 
 /* ---------- touch layout + pad (VR-79 mobile pass, reshaped by VR-112) ------
    Deliberately shaped like the 2D track's controller (games/_engine/engine.js
@@ -405,7 +510,17 @@ canvas{display:block}
      Pause button doing that job. The camera tag stays: it's the only thing
      telling you which of the three views you're in. */
   #pausehint{display:none}
-  #camtag{bottom:calc(var(--padh) + 8px);font-size:.6rem}
+  /* VR-132 — moved to the LEFT corner on touch. The camera stick now floats
+     just above the pad's button grid, which is the bottom-right corner, and a
+     toast that says "third person" underneath the control you just used it with
+     is a toast sitting on top of your thumb. #pausehint is display:none here,
+     so the left corner is empty and free. */
+  #camtag{bottom:calc(var(--padh) + 8px);left:14px;right:auto;font-size:.6rem}
+  /* …and back to the right when the pad is mirrored, because the camera stick
+     goes with the BUTTONS and the toast has to stay off it. Found by rendering
+     a right-handed pad, not by reading: the first version pinned the toast to
+     the left corner and the stick landed on top of it. */
+  #vpad.righty ~ #camtag{left:auto;right:18px}
   #fps{display:none}
   #vpad{display:flex}
   .touchonly{display:block}
@@ -474,6 +589,15 @@ canvas{display:block}
   .hud-b{display:none}
   #shroudlbl{bottom:calc(var(--padh) + 24px)}
   .panel{max-height:88vh;overflow-y:auto}
+  /* VR-132 — the start screen's eight-row legend is hidden on touch, not
+     deleted: it is still the ONE copy of that list, still read from here at
+     boot and mirrored into s-help, and "How to play" on this screen opens
+     exactly that. What it stops doing is filling a phone's first screen with a
+     scroll, which is what pushed "Enter the arena" below the fold. */
+  #s-start .keys{display:none}
+  /* The tiles want the sheet's full width on a narrow phone, and 96px of tile
+     is enough for an icon, a name and its line without the name wrapping. */
+  #tcats{gap:9px}
 }
 
 /* VR-114 — the sheet respects reduced motion (WCAG 2.3.3, and the same request
@@ -497,13 +621,23 @@ canvas{display:block}
    That is where VR-112's bigger buttons come from — two rows across the stick's
    diameter, and the full remaining width, rather than three narrow columns.
    Nothing here makes the pad taller, so the gameplay window is unchanged. */
-#vpad{--stickw:clamp(92px,30vw,132px);
+/* VR-132 — --stickw is still the ONE number, and --stick is that number after
+   the player's own size setting. Everything that used to read --stickw reads
+   --stick now, so the stick and the grid still can't drift apart; what changed
+   is that one multiply sits between the clamp and the two consumers instead of
+   the scale being applied twice, in two places, by hand. --padscale is written
+   from TUNE.apply("pad") and is 1 until somebody moves the slider. */
+#vpad{--stickw:clamp(92px,30vw,132px);--padscale:1;--stick:calc(var(--stickw) * var(--padscale));
+  --lookw:clamp(62px,17vw,86px);
+  /* the camera stick floats ABOVE the pad, over the arena's bottom corner, so
+     the pad is its positioning context rather than the viewport */
+  position:relative;
   flex:0 0 auto;width:100%;justify-content:space-between;align-items:center;gap:10px;
   padding:8px 10px calc(8px + env(safe-area-inset-bottom));user-select:none;-webkit-user-select:none;
   background:rgba(8,6,15,.55);border-top:1px solid var(--line);touch-action:none;box-sizing:border-box;
   z-index:16}
 /* left analog stick — drag or tap a direction */
-#vpad .vstick{position:relative;flex:0 0 auto;width:var(--stickw);aspect-ratio:1/1;border-radius:50%;
+#vpad .vstick{position:relative;flex:0 0 auto;width:var(--stick);aspect-ratio:1/1;border-radius:50%;
   background:radial-gradient(circle at 50% 42%,rgba(42,36,66,.92),rgba(15,12,28,.92));
   border:1px solid var(--line);touch-action:none}
 #vpad .vstick .varrow{position:absolute;color:#8f89a8;font-size:13px;line-height:1;pointer-events:none}
@@ -522,7 +656,7 @@ canvas{display:block}
    The 520px cap only bites on a tablet, where four half-screen buttons would be
    absurd rather than generous. */
 #vpad .vgrid{flex:1 1 auto;min-width:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
-  grid-template-rows:repeat(2,minmax(44px,1fr));gap:8px;max-width:520px;min-height:var(--stickw)}
+  grid-template-rows:repeat(2,minmax(44px,1fr));gap:8px;max-width:520px;min-height:var(--stick)}
 #vpad .vbtn{position:relative;border-radius:12px;background:rgba(30,26,52,.85);border:1px solid var(--line);
   color:var(--white);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
   min-height:44px;touch-action:none;text-align:center;line-height:1.05;
@@ -545,9 +679,170 @@ canvas{display:block}
 #vpad .vbtn.vdim .ico,#vpad .vbtn.vdim .lbl{opacity:.42}
 #vpad .vbtn.refund{animation:refundpulse .45s ease}
 
+/* ---------- the pad, arranged by whoever is holding it (VR-132) -------------
+   Jordan, 8/23: *"if we allowed people to move things around and change certain
+   settings. Like if the buttons switch places or orientations per a user's own
+   personal settings."*
+
+   Two axes, both of them things a left-handed player or a small phone actually
+   needs, and neither of them a drag-and-drop editor. HANDEDNESS mirrors the
+   whole pad — and mirrors the grid's columns with it, or a right-handed player
+   gets the combat column under the wrong thumb, which is worse than not moving
+   anything. SIZE scales the one number the whole pad is measured from.
+
+   THE CELL ORDER IS WRITTEN FROM JS, not from CSS. Handedness and verb order are
+   independent, so as CSS they are four combinations and sixteen rules, and the
+   two that nobody tests are the two that are wrong. One function computes an
+   `order` per button from both settings, `_touch.js` runs it and checks the four
+   combinations, and this stylesheet stays out of it.
+
+   NOTHING HERE CHANGES THE PAD'S HEIGHT BUDGET beyond --padscale, which is
+   measured into --padh by applyPixelScale() on the same resize path the pad
+   already used — so the gameplay window stays correct at every size. */
+#vpad.righty{flex-direction:row-reverse}
+/* Icons only. The labels are the right default — "Veilstep" is not guessable
+   from any glyph — but they are also the thing a player stops reading after the
+   first run, and taking them out is what buys the icon room on a small phone. */
+#vpad.nolabels .vbtn .lbl{display:none}
+#vpad.nolabels .vbtn .ico{font-size:clamp(26px,7.6vw,34px)}
+
+/* ---------- the camera stick (VR-132) ---------------------------------------
+   Jordan, 8/23: *"I was also thinking about third person mode, and how to handle
+   the walking direction and camera stuff when on mobile… we could also throw up
+   a smaller semi-transparent joystick above the right hand buttons for people to
+   rotate the camera in that view."*
+
+   Drag-to-look already works and stays — this does not replace it. What it fixes
+   is the case that made third person awkward on a phone in the first place: the
+   left thumb is on the movement stick, so the only hand left to rotate the
+   camera with is the one holding the strike button, and letting go of the arena
+   to swipe it is a beat you spend not fighting. A second stick means both hands
+   stay where they are.
+
+   FLOATS ABOVE THE PAD, over the arena's bottom corner, rather than inside it.
+   The pad is a split, not an overlay (see the layout note above) and taking a
+   cell for the camera would shrink four gameplay buttons to pay for a system
+   verb — which is precisely what VR-112 undid. It is deliberately small and
+   deliberately faint until touched, because for most of a run it is furniture.
+
+   ARCADE NEVER SHOWS IT. Its camera is fixed by design and that fixed angle is
+   load-bearing — the sprite atlas ships 4 facings because the view never
+   rotates. A camera stick in arcade would be a control that does nothing, which
+   is worse than no control at all. `#vpad.look` is written from the same one
+   place that decides whether the look path is live. */
+#vlook{display:none;position:absolute;right:12px;bottom:calc(100% + 12px);
+  /* scaled by the same multiplier as the rest of the pad — "Pad size" that
+     resizes three controls out of four is a slider you have to explain */
+  width:calc(var(--lookw) * var(--padscale));height:calc(var(--lookw) * var(--padscale));border-radius:50%;
+  align-items:center;justify-content:center;
+  border:1px solid rgba(140,128,180,.55);color:var(--violet-lt);
+  background:radial-gradient(circle at 50% 42%,rgba(42,36,66,.52),rgba(15,12,28,.44));
+  opacity:.46;touch-action:none;z-index:17;transition:opacity .2s ease}
+#vpad.look #vlook{display:flex}
+/* It follows the buttons, not the movement stick — the whole point is that it
+   sits under the hand that is NOT steering. */
+#vpad.righty #vlook{right:auto;left:12px}
+#vlook.on{opacity:1;border-color:rgba(183,156,237,.85)}
+#vlook .ic{width:44%;height:44%;opacity:.5}
+#vlook.on .ic{opacity:.22}
+#vlook .vknob{position:absolute;left:50%;top:50%;width:40%;height:40%;margin:-20% 0 0 -20%;
+  border-radius:50%;background:rgba(150,90,230,.3);border:1px solid rgba(183,156,237,.7);
+  transition:transform .04s linear;pointer-events:none}
+#vlook.on .vknob{background:rgba(150,90,230,.55)}
+
 </style>
 </head>
 <body>
+<!-- VR-133 — the icon sprite. Inline rather than an external .svg on purpose:
+     this game is a standalone single file with no build step, and an icon set
+     that 404s would take the meaning of every button with it — the same
+     "a missing asset must never mean a broken game" rule the model loaders
+     follow, applied to the one asset class that can't fall back to a primitive.
+
+     Drawn on a 24 grid at a 1.6 stroke, which is the weight the panel's borders
+     and the HUD's hairlines already use, so the chrome finally reads as one set
+     rather than as nine characters borrowed from nine typefaces. -->
+<svg id="icons" aria-hidden="true" focusable="false"><defs>
+  <symbol id="i-help" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="8.6"/>
+    <path d="M9.4 9.5a2.7 2.7 0 1 1 3.4 2.9c-.6.2-.9.7-.9 1.3v.7"/>
+    <path d="M11.9 17.1h.2" stroke-width="2.2"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24">
+    <path d="M9.4 5.6v12.8M14.6 5.6v12.8" stroke-width="2.2"/></symbol>
+  <!-- Settings is three rails and three knobs, not a cog. The cog is the
+       convention, but this panel IS sliders, and at 18px a cog's teeth are mud
+       while a rail-and-knob is still legible. -->
+  <symbol id="i-tune" viewBox="0 0 24 24">
+    <path d="M4 7h16M4 12h16M4 17h16"/>
+    <circle class="knob" cx="15.4" cy="7" r="2.4"/>
+    <circle class="knob" cx="8.4" cy="12" r="2.4"/>
+    <circle class="knob" cx="16.6" cy="17" r="2.4"/></symbol>
+  <!-- The three camera modes. They have to differ in SHAPE, not in ring count:
+       ◉ and ◎ were one hairline apart at 18px, which is a toggle you press three
+       times to read — the exact failure VR-113's glyph assertion was written
+       about, arriving through the glyphs themselves. -->
+  <symbol id="i-cam-arcade" viewBox="0 0 24 24">
+    <path d="M12 4.4 20.4 12 12 19.6 3.6 12z"/>
+    <circle class="solid" cx="12" cy="12" r="2.1"/></symbol>
+  <symbol id="i-cam-third" viewBox="0 0 24 24">
+    <circle class="solid" cx="12" cy="4.9" r="1.7"/>
+    <path d="M4.4 10.4a9.6 9.6 0 0 1 15.2 0"/>
+    <circle cx="12" cy="14.2" r="2.5"/>
+    <path d="M6.9 20.1c1.1-2.2 3-3.3 5.1-3.3s4 1.1 5.1 3.3"/></symbol>
+  <symbol id="i-cam-first" viewBox="0 0 24 24">
+    <path d="M2.9 12S6.6 6.4 12 6.4 21.1 12 21.1 12 17.4 17.6 12 17.6 2.9 12 2.9 12z"/>
+    <circle cx="12" cy="12" r="2.6"/></symbol>
+  <!-- The four verbs. Each one draws what the ability DOES, which is the only
+       reason to replace a glyph that was at least unambiguous. -->
+  <symbol id="i-strike" viewBox="0 0 24 24">
+    <path d="M4.4 19.6C4.4 11.2 11.2 4.4 19.6 4.4"/>
+    <path d="M19.6 4.4 15 5.6M19.6 4.4l-1.2 4.6"/>
+    <path class="faint" d="M9.2 19.6c0-5.7 4.7-10.4 10.4-10.4"/></symbol>
+  <symbol id="i-exec" viewBox="0 0 24 24">
+    <path d="M12 3.6v10.9"/>
+    <path d="m7.6 10.4 4.4 4.4 4.4-4.4"/>
+    <path d="M5 19.4h14"/></symbol>
+  <symbol id="i-step" viewBox="0 0 24 24">
+    <path d="M3.6 12h3.2M10 12h3.2"/>
+    <path d="M16.4 12h4"/>
+    <path d="m16.6 7.6 4.4 4.4-4.4 4.4"/></symbol>
+  <symbol id="i-stalk" viewBox="0 0 24 24">
+    <path d="M3.4 10.6S6.9 5.6 12 5.6s8.6 5 8.6 5"/>
+    <circle cx="12" cy="10.4" r="2.3"/>
+    <path d="M3.4 16.4c2.1-1.5 4.2-1.5 6.3 0s4.2 1.5 6.3 0 2.9-1.2 4-.7"/>
+    <path class="faint" d="M3.4 20c2.1-1.5 4.2-1.5 6.3 0s4.2 1.5 6.3 0 2.9-1.2 4-.7"/></symbol>
+  <!-- Rotate-the-view, for the camera stick's own face. -->
+  <symbol id="i-look" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="3.6"/>
+    <ellipse cx="12" cy="12" rx="9.4" ry="4.3" transform="rotate(-26 12 12)"/></symbol>
+  <!-- Settings categories (VR-131). Same grid, same weight — the tiles are the
+       first screen of the panel and a set of mismatched marks there is the
+       "unorganized" the card was opened about, drawn instead of laid out. -->
+  <symbol id="i-cat-arena" viewBox="0 0 24 24">
+    <path d="M12 3.8 20.2 12 12 20.2 3.8 12z"/>
+    <path d="M8.6 12.7 11 10.1l1.7 3 2.4-2.3"/></symbol>
+  <symbol id="i-cat-camera" viewBox="0 0 24 24">
+    <path d="M3.6 8.4h2.9l1.5-2.1h6l1.5 2.1h2.9a1.6 1.6 0 0 1 1.6 1.6v7a1.6 1.6 0 0 1-1.6 1.6H3.6A1.6 1.6 0 0 1 2 17v-7a1.6 1.6 0 0 1 1.6-1.6z"/>
+    <circle cx="12" cy="13.2" r="3.1"/></symbol>
+  <symbol id="i-cat-pad" viewBox="0 0 24 24">
+    <path d="M8.3 8.6h7.4a4.5 4.5 0 0 1 4.4 3.7l.6 3.3a2.1 2.1 0 0 1-3.8 1.6L15 15H9l-1.9 2.2a2.1 2.1 0 0 1-3.8-1.6l.6-3.3a4.5 4.5 0 0 1 4.4-3.7z"/>
+    <path d="M6.7 11.3v2.3M5.6 12.4h2.3"/>
+    <circle class="solid" cx="16.1" cy="11.9" r="1"/>
+    <circle class="solid" cx="18" cy="13.6" r="1"/></symbol>
+  <symbol id="i-cat-render" viewBox="0 0 24 24">
+    <rect x="3.2" y="4.8" width="17.6" height="12.2" rx="1.6"/>
+    <path d="M3.2 10.4h17.6M9.4 4.8v12.2"/>
+    <path d="M9 20.2h6M12 17v3.2"/></symbol>
+  <symbol id="i-cat-shroud" viewBox="0 0 24 24">
+    <path d="M12 3.6c4.3 0 7.4 3.3 7.4 7.7v6.3c0 1.3-1.9 1.6-2.5.5s-1.9-1-2.5 0-1.9 1-2.5 0-1.9-1-2.5 0-2.5.8-2.5-.5v-6.3c0-4.4 3.1-7.7 7.4-7.7z"/>
+    <path d="M9.8 10.6h.2M14 10.6h.2" stroke-width="2.2"/></symbol>
+  <symbol id="i-cat-motion" viewBox="0 0 24 24">
+    <circle cx="15.4" cy="12" r="3.4"/>
+    <path d="M3 8.2h6.4M2 12h5.2M3 15.8h6.4"/></symbol>
+  <symbol id="i-cat-preset" viewBox="0 0 24 24">
+    <path d="M6.6 3.9h10.8a1 1 0 0 1 1 1v15.2l-6.4-3.9-6.4 3.9V4.9a1 1 0 0 1 1-1z"/></symbol>
+</defs></svg>
+
 <div id="stage"></div>
 
 <!-- Touch pad (VR-79 mobile pass, reshaped to 2x2 by VR-112). Present in the DOM
@@ -572,11 +867,21 @@ canvas{display:block}
   </div>
   <div class="vgrid">
     <button class="vbtn" data-k="exec" id="vb-exec"><span class="vfills"><i class="vfill" id="vf-exec"></i></span>
-      <span class="ico">◈</span><span class="lbl">Execute</span></button>
+      <span class="ico"><svg class="ic" viewBox="0 0 24 24"><use href="#i-exec"/></svg></span><span class="lbl">Execute</span></button>
     <button class="vbtn" data-k="step" id="vb-step"><span class="vfills"><i class="vfill" id="vf-step0"></i><i class="vfill" id="vf-step1"></i></span>
-      <span class="ico">★</span><span class="lbl">Veilstep</span></button>
-    <button class="vbtn" data-k="strike" id="vb-strike"><span class="ico">✦</span><span class="lbl">Strike</span></button>
-    <button class="vbtn" data-k="stalk" id="vb-stalk"><span class="ico">⊹</span><span class="lbl">Stalk</span></button>
+      <span class="ico"><svg class="ic" viewBox="0 0 24 24"><use href="#i-step"/></svg></span><span class="lbl">Veilstep</span></button>
+    <button class="vbtn" data-k="strike" id="vb-strike"><span class="ico"><svg class="ic" viewBox="0 0 24 24"><use href="#i-strike"/></svg></span><span class="lbl">Strike</span></button>
+    <button class="vbtn" data-k="stalk" id="vb-stalk"><span class="ico"><svg class="ic" viewBox="0 0 24 24"><use href="#i-stalk"/></svg></span><span class="lbl">Stalk</span></button>
+  </div>
+  <!-- VR-132 — the camera stick. aria-hidden because it is a SECOND way to do
+       something the arena already does: dragging the gameplay window rotates the
+       same camera through the same two variables, and that path is unchanged.
+       Announcing a duplicate affordance twice is noise, and this one is a thumb
+       target with no keyboard equivalent to offer anyway. Shown only when the
+       pad carries `.look`, which only third and first person ever set. -->
+  <div id="vlook" aria-hidden="true">
+    <svg class="ic" viewBox="0 0 24 24"><use href="#i-look"/></svg>
+    <div class="vknob" id="vlookknob"></div>
   </div>
 </div>
 
@@ -625,16 +930,27 @@ canvas{display:block}
      you start as much as during a run, and the start screen is exactly where a
      phone player wants to pick arcade. -->
 <div id="sysfabs">
-  <button class="sysfab runonly" id="helpfab" aria-label="Controls and abilities" title="Controls and abilities (H)">?</button>
-  <button class="sysfab runonly" id="pausefab" aria-label="Pause the run" title="Pause (Esc)">❚❚</button>
-  <button class="sysfab" id="camfab" aria-label="Camera view — arcade (fixed). Change view" title="Camera view (V)">▣</button>
-  <button class="sysfab" id="tunefab" aria-label="Settings" title="Settings  (\ key)">⚙</button>
+  <button class="sysfab runonly" id="helpfab" aria-label="How to play, controls and abilities" title="How to play (H)"><svg class="ic" viewBox="0 0 24 24"><use href="#i-help"/></svg></button>
+  <button class="sysfab runonly" id="pausefab" aria-label="Pause the run" title="Pause (Esc)"><svg class="ic" viewBox="0 0 24 24"><use href="#i-pause"/></svg></button>
+  <!-- VR-133 — the camera fab's icon is now a <use> swap rather than a text
+       node. syncCamUI() rewrites the href from cam.mode exactly as it rewrote
+       textContent, so the three entry points still share one readout; what
+       changed is that the three modes differ by SHAPE instead of by ring count,
+       which is what the 44px target could never carry. -->
+  <button class="sysfab" id="camfab" aria-label="Camera view — arcade (fixed). Change view" title="Camera view (V)"><svg class="ic" viewBox="0 0 24 24"><use id="camuse" href="#i-cam-arcade"/></svg></button>
+  <button class="sysfab" id="tunefab" aria-label="Settings" title="Settings  (\ key)"><svg class="ic" viewBox="0 0 24 24"><use href="#i-tune"/></svg></button>
 </div>
 
 <div class="screen" id="s-help">
   <div class="panel">
     <div class="eyebrow">Veilrun · Proving Ground</div>
-    <h1 style="font-size:clamp(1.5rem,4vw,2.2rem)">Controls</h1>
+    <!-- VR-132 — retitled. It was called "Controls" and it was only ever
+         reachable mid-run, which meant the one screen explaining the game was
+         behind a run you had to start without the explanation. It is an entry
+         point on the start screen now, so it has to answer "what am I doing"
+         before it answers "which button". -->
+    <h1 style="font-size:clamp(1.5rem,4vw,2.2rem)">How to play</h1>
+    <div class="sub" style="margin-bottom:.7rem">Waves come through the seam and do not stop. Wound them, then <b>Execute</b> &mdash; a finisher refunds a Veilstep, so kills feed the next kill. Every Execute thins the floor where it lands, and husks move faster over thin ground: the score and the danger come from the same place.</div>
     <div class="who"><span class="nm">Vesper</span><span class="rl">Phantom assassin · Ramon</span></div>
     <!-- filled at boot from the start screen, so there is only one copy of this list to maintain -->
     <div class="keys" id="help-keys"></div>
@@ -661,10 +977,24 @@ canvas{display:block}
     <button class="ticon" id="t-close" aria-label="Close settings">&#10005;</button>
   </div>
   <div id="tunebody">
+  <!-- VR-131 — the tiles are GENERATED into here from the <section>s below, at
+       boot, by the same argument that generates the row list: a hand-written
+       grid of seven names beside seven hand-written sections is seven chances
+       for the two to drift, and the drift is silent. Empty in the markup on
+       purpose. Touch only; the desktop drawer never shows it. -->
+  <div id="tcats"></div>
+
+  <!-- Every group is a <section> carrying its own tile copy. data-ico names a
+       symbol in the sprite; data-sub is the line under the tile name, and it
+       lists what is actually inside rather than restating the name — "Graphics"
+       is a guess, "Fog, pixel grid, husk models" is a destination. -->
+  <section class="tsec" data-ico="i-cat-arena" data-sub="Which map you fight on">
   <h3>Arena</h3>
   <div class="trow"><label for="t-map">Map</label><select id="t-map"></select></div>
   <div class="tnote" id="t-mapnote"></div>
+  </section>
 
+  <section class="tsec" data-ico="i-cat-camera" data-sub="View, angle, distance, how much fits">
   <h3>Camera</h3>
   <div class="trow"><label for="t-cam">View</label><select id="t-cam">
     <option value="arcade">Arcade (fixed)</option><option value="third">Third person</option>
@@ -672,15 +1002,41 @@ canvas{display:block}
   <div class="trow"><label for="t-pitch">Angle</label><input type="range" id="t-pitch" min="10" max="70" step="1"><output class="tval" id="t-pitchv" for="t-pitch"></output></div>
   <div class="trow"><label for="t-dist">Distance</label><input type="range" id="t-dist" min="6" max="24" step="0.5"><output class="tval" id="t-distv" for="t-dist"></output></div>
   <div class="trow"><label for="t-fov">Zoom (FOV)</label><input type="range" id="t-fov" min="24" max="80" step="1"><output class="tval" id="t-fovv" for="t-fov"></output></div>
-
+  <!-- Framing, not input, so it stays with the camera rather than moving to
+       Controls with the rest of the touch rows. Wrapped rather than sectioned:
+       a whole tile that only ever holds one slider is a tile you tap once. -->
   <div class="touchonly">
-    <h3>Touch</h3>
     <div class="trow"><label for="t-fit">Fit to screen</label><input type="range" id="t-fit" min="0" max="1" step="0.05"><output class="tval" id="t-fitv" for="t-fit"></output></div>
     <div class="tnote">A phone's window is nearly square, so the arena crops at the sides. 0 keeps the tuned telephoto and the biggest character; 1 widens the lens until you see as much arena as a desktop does.</div>
-    <div class="trow"><label for="t-look">Look speed</label><input type="range" id="t-look" min="0.001" max="0.014" step="0.0005"><output class="tval" id="t-lookv" for="t-look"></output></div>
-    <div class="tnote">Drag the gameplay window to aim. Arcade ignores it &mdash; its camera is fixed on purpose.</div>
   </div>
+  </section>
 
+  <!-- VR-132 — Controls. Touch only, because on a desktop this group would be a
+       keyboard remapper, which is a different card and a much larger one. Every
+       row here is ergonomics rather than look-and-feel, which is also why none
+       of them is in the preset spec: how you hold your phone is not a fact
+       somebody else's saved setup gets to assert about you. -->
+  <section class="tsec touchonly" data-ico="i-cat-pad" data-sub="Which hand, how big, camera stick">
+  <h3>Controls</h3>
+  <div class="trow"><label for="t-hand">Stick side</label><select id="t-hand">
+    <option value="left">Left &mdash; buttons right</option>
+    <option value="right">Right &mdash; buttons left</option></select></div>
+  <div class="tnote">Mirrors the whole pad, and mirrors the button columns with it, so Strike and Execute stay under the thumb that is not steering.</div>
+  <div class="trow"><label for="t-padsize">Pad size</label><input type="range" id="t-padsize" min="0.8" max="1.35" step="0.05"><output class="tval" id="t-padsizev" for="t-padsize"></output></div>
+  <div class="tnote">Scales the whole pad together &mdash; stick, buttons and the camera stick. Bigger targets cost arena: the gameplay window is whatever the pad leaves.</div>
+  <div class="trow"><label for="t-verbs">Button order</label><select id="t-verbs">
+    <option value="fillstop">Execute &amp; Veilstep on top</option>
+    <option value="fillsdown">Strike &amp; Stalk on top</option></select></div>
+  <div class="trow"><label for="t-padlbl">Button labels</label><select id="t-padlbl">
+    <option value="1">Name and icon</option><option value="0">Icon only &mdash; bigger</option></select></div>
+  <div class="trow"><label for="t-camstick">Camera stick</label><select id="t-camstick">
+    <option value="1">On &mdash; third and first person</option><option value="0">Off</option></select></div>
+  <div class="tnote">A small stick above the buttons that turns the camera, so you can steer and look at the same time. Dragging the arena still works and is unchanged. Arcade never shows it &mdash; that view's camera is fixed on purpose.</div>
+  <div class="trow"><label for="t-look">Look speed</label><input type="range" id="t-look" min="0.001" max="0.014" step="0.0005"><output class="tval" id="t-lookv" for="t-look"></output></div>
+  <div class="tnote">Drives the drag and the camera stick together, so one number is the answer to "the camera turns too fast".</div>
+  </section>
+
+  <section class="tsec" data-ico="i-cat-render" data-sub="Pixel grid, fog, husk models">
   <h3>Render</h3>
   <div class="trow"><label for="t-pixel">Pixel grid</label><select id="t-pixel">
     <option value="1">Off</option><option value="2">2:1</option><option value="3">3:1</option>
@@ -692,7 +1048,9 @@ canvas{display:block}
   <div class="tnote">A skinned husk is real CPU, which is why they were cards. Auto starts at 6 and only adds more once the measured 95th-percentile frame time proves there is room.</div>
   <button class="btn ghost" id="t-bench">Measure frame rate</button>
   <div class="tnote">Runs the same 26-husk load twice &mdash; once as meshes, once as cards &mdash; and reports percentiles, so the cost of the models is a number instead of an impression. Keep the window in front or the run invalidates itself.</div>
+  </section>
 
+  <section class="tsec" data-ico="i-cat-shroud" data-sub="Colours, and how the veil reads">
   <h3>Shroud</h3>
   <div class="trow"><label for="t-glass">Glass body</label><input type="color" id="t-glass"><output class="tval thex" id="t-glassv" for="t-glass"></output></div>
   <div class="trow"><label for="t-rim">Rim</label><input type="color" id="t-rim"><output class="tval thex" id="t-rimv" for="t-rim"></output></div>
@@ -700,7 +1058,9 @@ canvas{display:block}
   <div class="trow"><label for="t-amin">Visible face-on</label><input type="range" id="t-amin" min="0" max="0.9" step="0.01"><output class="tval" id="t-aminv" for="t-amin"></output></div>
   <div class="trow"><label for="t-amax">Visible at edge</label><input type="range" id="t-amax" min="0" max="1" step="0.01"><output class="tval" id="t-amaxv" for="t-amax"></output></div>
   <div class="trow"><label for="t-lift">Rim strength</label><input type="range" id="t-lift" min="0" max="3" step="0.05"><output class="tval" id="t-liftv" for="t-lift"></output></div>
+  </section>
 
+  <section class="tsec" data-ico="i-cat-motion" data-sub="How much the screen moves">
   <h3>Motion</h3>
   <div class="tnote" id="t-mnote"></div>
   <button class="btn ghost" id="t-motion">Reduce all motion</button>
@@ -710,12 +1070,19 @@ canvas{display:block}
   <div class="trow"><label for="t-mghost">Afterimages</label><input type="range" id="t-mghost" min="0" max="1" step="0.05"><output class="tval" id="t-mghostv" for="t-mghost"></output></div>
   <div class="trow"><label for="t-mbanner">Banner &amp; number pops</label><input type="range" id="t-mbanner" min="0" max="1" step="0.05"><output class="tval" id="t-mbannerv" for="t-mbanner"></output></div>
   <div class="tnote">Nothing here changes the fight &mdash; only how much it moves. The hit vignette never turns off completely, because it is the only full-screen sign that something got through. Impact freeze is deliberately left alone: it is the absence of movement, and it is what tells you a hit landed once the shake is gone.</div>
+  </section>
 
   <!-- VR-113 — presets, tier one: this device, by name. The clipboard hook below
        is deliberately LEFT ALONE rather than replaced. It is how tuning feedback
        currently reaches the project, and a save-slot is a different job from a
-       paste that a person reads: one restores, the other reports. -->
-  <h3>Presets</h3>
+       paste that a person reads: one restores, the other reports.
+
+       VR-131 folded "Report back" in here rather than leaving it as a section of
+       its own. Two buttons is not a category, and a tile you tap to find one
+       clipboard hook is the crowding this card exists to remove — a tile per
+       <h3> is only a good rule while every <h3> is worth a destination. -->
+  <section class="tsec" data-ico="i-cat-preset" data-sub="Save a setup, report one, start over">
+  <h3>Presets &amp; reset</h3>
   <div class="trow"><label for="t-preset">Saved</label><select id="t-preset"></select></div>
   <div class="trow"><label for="t-pname">Name</label><input type="text" id="t-pname" maxlength="24" autocomplete="off" spellcheck="false" placeholder="My setup"><output class="tval" id="t-pnamev" for="t-pname"></output></div>
   <div class="tbtnrow">
@@ -726,12 +1093,11 @@ canvas{display:block}
   <!-- role=status so the outcome of Save / Load / Delete is announced. Every one
        of the three is a change with no visible consequence on this screen. -->
   <div class="tnote tpstatus" id="t-pstatus" role="status" aria-live="polite"></div>
-  <div class="tnote" id="t-pnote">A preset remembers how the game looks and feels &mdash; camera framing, fog, the pixel grid, the Shroud colours, the motion sliders. It deliberately does <b>not</b> remember the map or which view you are in, so loading one never moves you somewhere you did not ask to be.</div>
-
-  <h3>Report back</h3>
+  <div class="tnote" id="t-pnote">A preset remembers how the game looks and feels &mdash; camera framing, fog, the pixel grid, the Shroud colours, the motion sliders. It deliberately does <b>not</b> remember the map, which view you are in, or how your pad is laid out, so loading one never moves you somewhere you did not ask to be.</div>
   <button class="btn ghost" id="t-copy">Copy settings to clipboard</button>
   <div id="tunecopy">Paste these to Claude and they become the new defaults.</div>
   <button class="btn ghost" id="t-reset">Reset to defaults</button>
+  </section>
   </div>
 </div>
 <div class="screen on" id="s-start">
@@ -746,10 +1112,27 @@ canvas{display:block}
       <b>Left click</b><span>Strike — chains into a three-hit combo</span>
       <b>Right click</b><span>Execute — finishes the wounded, refunds a Veilstep</span>
       <b>Shift / Space</b><span>Veilstep — blink through anything, two charges</span>
-      <b>V or ▣</b><span>Change view — cycles arcade, third person, first person</span>
+      <!-- VR-133 — the glyph is gone from this sentence on purpose. It used to
+           read "V or ▣", which was a lookup table between a legend and a button
+           and stopped being true the moment the button became a drawing that
+           changes with the mode. Naming the button beats picturing it. -->
+      <b>V</b><span>Change view — cycles arcade, third person, first person. The camera button, top right, does the same</span>
       <span class="hint">Stand perfectly still for a moment and the Shroud takes you — they lose you, and your next strike kills outright. Standing still is also how you die.</span>
     </div>
     <button class="btn" id="btn-start">Enter the arena</button>
+    <!-- VR-132 — the two other things this screen can be for, alongside the one
+         thing it already was. Jordan, 8/23: *"could even include controls and
+         how to play as options on the home screen to tie it all together."*
+
+         They open the SAME two surfaces the in-run chrome opens — s-help and the
+         settings dialog — rather than start-screen copies of them. A phone
+         player picking arcade and sizing their pad before their first run is
+         exactly who this is for, and until now the only route to either was to
+         start a run first and find a 34px button in the corner. -->
+    <div class="row">
+      <button class="btn ghost" id="btn-howto">How to play</button>
+      <button class="btn ghost" id="btn-starttune">Settings</button>
+    </div>
     <div class="foot">Prototype v0 — one character, endless waves. Desktop, mouse and keyboard.</div>
   </div>
 </div>
@@ -1278,7 +1661,12 @@ var FIT = { comp: 0.5 };
    inside the pad so the tuning panel can reach it — "the camera swings too fast"
    is the single most likely note back from a phone, and it should be a slider
    Jordan drags on the device, not a number guessed on a desktop. */
-var LOOK = { sens: 0.0055 };
+/* VR-132 — `stickPx` is how the camera stick borrows this same sensitivity
+   rather than growing one of its own: full deflection turns the camera as fast
+   as dragging 460 pixels a second would. Expressing the rate in the DRAG's units
+   is what makes one slider govern both, so "the camera turns too fast" has one
+   answer instead of two that have to be kept in step by hand. */
+var LOOK = { sens: 0.0055, stickPx: 460 };
 function framedFov(vfov, aspect) {
   if (!TOUCH || !aspect || aspect >= DESIGN_ASPECT || FIT.comp <= 0) return vfov;
   var D2R = Math.PI / 180;
@@ -1752,7 +2140,7 @@ window.addEventListener("keydown", function (e) {
   if (e.repeat) return;   // auto-repeat must not re-fire abilities
   if (k === " " || k === "shift") pressed.step = true;
   if (k === "q") pressed.exec = true;
-  if (k === "v") cycleCam();   // VR-113 — the key and the ▣ fab are one path
+  if (k === "v") cycleCam();   // VR-113 — the key and the camera fab are one path
   if (k === "h") toggleHelp();
   if (k === "escape") { if (helpOpen()) { closeHelp(); return; }
     if (cam.mode === "arcade") { if (game.running && !game.over) setPaused(!game.paused); return; }
@@ -1763,8 +2151,18 @@ window.addEventListener("keydown", function (e) {
 function helpOpen() { return $("s-help").classList.contains("on"); }
 function openHelp() {
   if (helpOpen()) return;
-  if ($("s-start").classList.contains("on") || $("s-over").classList.contains("on")) return; // already readable there
+  /* VR-132 — the "already readable there" guard is gone, and it had to be. It
+     was true while the start screen carried the whole legend inline; on touch it
+     no longer does (an eight-row list pushed "Enter the arena" below the fold),
+     and this panel now answers "what am I doing" as well as "which button", which
+     the start screen never did. So it opens from anywhere — s-help sits above the
+     other screens at z-index 22, which is what makes that safe. */
   if (mouse.locked) document.exitPointerLock();   // pointerlockchange pauses the run for us
+  /* The button says where it puts you back, and where that is depends on what
+     is underneath. "Back to the fight" on the start screen is a promise about a
+     run that hasn't started. */
+  var r = $("btn-resume");
+  if (r) r.textContent = (game.running && !game.over) ? "Back to the fight" : "Back";
   $("s-help").classList.add("on");
 }
 function closeHelp() {
@@ -1836,10 +2234,19 @@ if (window.visualViewport) window.visualViewport.addEventListener("resize", appl
    -------------------------------------------------------------------------- */
 var TPAD = (function () {
   var stalk = false;
+  /* Every no-op here is a contract with a DESKTOP boot, which returns early two
+     lines down. syncLook/setLook/setLayout/tickLook are called from syncCamUI,
+     TUNE.apply("pad") and the frame loop respectively — none of which know or
+     should know whether this is a phone. A missing stub is a TypeError on a
+     desktop, thrown from a mobile feature. */
   var api = {
     stalking: function () { return stalk; },
     refresh: function () {},
-    release: function () {}
+    release: function () {},
+    syncLook: function () {},
+    setLook: function () {},
+    setLayout: function () {},
+    tickLook: function () {}
   };
   if (!TOUCH) return api;
 
@@ -1964,6 +2371,124 @@ var TPAD = (function () {
      and a camera change is not a reason to disarm an ability somebody armed. */
   api.endLook = function () { lookId = null; };
 
+  /* ---- the camera stick (VR-132) ----------------------------------------
+     Jordan, 8/23: *"we could also throw up a smaller semi-transparent joystick
+     above the right hand buttons for people to rotate the camera in that view."*
+
+     RATE CONTROL, not delta-drag, and that is the whole design. The canvas drag
+     above is a delta: it moves the camera by however far your finger travelled,
+     which is right for a swipe and useless for holding an angle — you run out of
+     screen. A stick is displacement, so a held tilt keeps turning, and the thumb
+     never has to reset. It is also why this needs the frame loop: a rate has to
+     be integrated over time, and the pointermove events stop arriving the moment
+     the thumb stops moving even though the camera should still be turning.
+
+     ONE SENSITIVITY FOR BOTH. `stickPx` says what full deflection is worth in
+     the drag's own units — pixels per second — so LOOK.sens governs the stick
+     and the swipe together and "the camera turns too fast" has one answer.
+
+     The deadzone is deliberately SMALLER than the movement stick's 30%. That one
+     is 30% because Shroud is gated on standing still, so a resting thumb must
+     read as zero or the veil quietly becomes unreachable. Nothing is gated on
+     the camera being still; what matters here is fine aim, and a wide deadzone
+     costs precision for a problem this stick does not have. */
+  var look = $("vlook"), lookKnob = $("vlookknob");
+  var camOn = true, camId = null, camX = 0, camY = 0;
+  function lookLive() { return camOn && cam.mode !== "arcade"; }
+  function clearLook() {
+    camX = camY = 0;
+    if (lookKnob) lookKnob.style.transform = "translate(0px,0px)";
+    if (look) look.classList.remove("on");
+  }
+  /* Written from syncCamUI, which is the ONE place that knows the mode changed —
+     the V key, the ▣ fab and the View row all run through it, so the stick
+     cannot appear in arcade by any of the three routes. */
+  api.syncLook = function () {
+    pad.classList.toggle("look", lookLive());
+    if (!lookLive()) { camId = null; clearLook(); }
+  };
+  api.setLook = function (on) { camOn = !!on; api.syncLook(); };
+  api.lookAxis = function () { return { x: camX, y: camY }; };
+  api.tickLook = function (dt) {
+    if (!camX && !camY) return;
+    if (!live() || !lookLive()) { clearLook(); return; }
+    var k = LOOK.sens * LOOK.stickPx * dt;
+    mouse.yaw -= camX * k;
+    mouse.pitch = clamp(mouse.pitch - camY * k, -0.55, 0.45);
+  };
+  if (look) {
+    var applyLook = function (cx, cy) {
+      var r = look.getBoundingClientRect(), R = r.width / 2;
+      var dx = cx - (r.left + R), dy = cy - (r.top + R), dead = R * 0.22;
+      var mag = Math.hypot(dx, dy);
+      if (mag < dead) { camX = camY = 0; }
+      else {
+        // rescaled from the deadzone edge, so the first degree of travel past
+        // the deadzone is a slow turn rather than a jump to 22% speed
+        var t = Math.min(1, (mag - dead) / (R - dead)) / mag;
+        camX = dx * t; camY = dy * t;
+      }
+      var vis = Math.min(1, mag / R);
+      lookKnob.style.transform = "translate(" + (dx / (mag || 1) * vis * R * 0.42) + "px," +
+                                 (dy / (mag || 1) * vis * R * 0.42) + "px)";
+    };
+    look.addEventListener("pointerdown", function (e) {
+      e.preventDefault();
+      if (!live() || !lookLive()) return;
+      camId = e.pointerId;
+      try { look.setPointerCapture(e.pointerId); } catch (_) {}
+      look.classList.add("on");
+      applyLook(e.clientX, e.clientY);
+    });
+    look.addEventListener("pointermove", function (e) {
+      if (e.pointerId !== camId) return;
+      e.preventDefault();
+      applyLook(e.clientX, e.clientY);
+    });
+    var endCam = function (e) { if (e.pointerId !== camId) return; camId = null; clearLook(); };
+    look.addEventListener("pointerup", endCam);
+    look.addEventListener("pointercancel", endCam);
+    look.addEventListener("lostpointercapture", function () {
+      if (camId != null) { camId = null; clearLook(); }
+    });
+  }
+
+  /* ---- the pad, arranged (VR-132) ---------------------------------------
+     GRID is the default 2x2 as [column, row], and the two settings are each a
+     single-axis MIRROR of it. Written this way rather than as four hand-listed
+     arrangements because there are four combinations of two booleans and the
+     one nobody lists is the one that ships wrong — `_touch.js` walks all four.
+
+     Handedness flips the column so the combat pair (Strike, Execute) stays under
+     the thumb that is not steering; verb order flips the row. Neither one knows
+     about the other, which is the point. */
+  var GRID = { exec: [0, 0], step: [1, 0], strike: [0, 1], stalk: [1, 1] };
+  function cellOrder(hand, verbs) {
+    var out = {};
+    for (var k in GRID) {
+      var c = GRID[k][0], r = GRID[k][1];
+      if (hand === "right") c = 1 - c;
+      if (verbs === "fillsdown") r = 1 - r;
+      out[k] = r * 2 + c + 1;      // 1-based so a missing value reads as 0, not as cell one
+    }
+    return out;
+  }
+  api.cellOrder = cellOrder;
+  var padBtns = pad.querySelectorAll(".vgrid .vbtn");
+  api.setLayout = function (o) {
+    pad.classList.toggle("righty", o.hand === "right");
+    pad.classList.toggle("nolabels", !o.labels);
+    // an inline custom property, so the stylesheet keeps ONE definition of the
+    // clamp and this only ever supplies the multiplier
+    pad.style.setProperty("--padscale", String(o.size));
+    var ord = cellOrder(o.hand, o.verbs);
+    padBtns.forEach(function (b) {
+      var k = b.getAttribute("data-k");
+      if (ord[k]) b.style.order = String(ord[k]);
+    });
+    api.setLook(o.camstick);
+  };
+
   /* ---- state the pad shows back -----------------------------------------
      The cooldown IS the button now (VR-112). These read execFill()/stepFill() —
      the same two functions updateHUD() uses for the pips — so the pad cannot
@@ -1988,6 +2513,12 @@ var TPAD = (function () {
     mouse.l = false;
     stalk = false; bStalk.classList.remove("on");
     clearMove();
+    /* VR-132 — the camera stick is held input like any other, and it is the one
+       kind that keeps ACTING after the thumb is gone: a rate control left at
+       full deflection turns the camera forever. A panel opening over a tilted
+       stick used to be the one place this could happen, and dropHeldInput() is
+       the single function every such panel already calls. */
+    camId = null; clearLook();
   };
   return api;
 })();
@@ -2048,8 +2579,16 @@ var CAM_LABEL = { arcade: "arcade (fixed)", third: "third person", first: "first
    just change it. A 34px button holds one character, so the words live in the
    accessible name and in the toast and the glyph is the at-a-glance cue: a
    fixed frame, a figure, an eye. Nothing here is load-bearing on its own — a
-   player who cannot read the glyph still gets the sentence. */
-var CAM_GLYPH = { arcade: "▣", third: "◉", first: "◎" };
+   player who cannot read the glyph still gets the sentence.
+
+   VR-133 — the three glyphs are SYMBOL IDS now, not characters. ◉ and ◎ were
+   one hairline apart at 18px, which is a toggle you press three times to read:
+   the very failure this constant was written to prevent, arriving through the
+   characters chosen to prevent it. The three drawings differ in shape — a
+   diamond ground plane, a figure under an arc, an eye — so the mode is legible
+   at the size the button actually is. Everything else about the contract is
+   unchanged: one entry per mode, all distinct, rewritten from cam.mode. */
+var CAM_GLYPH = { arcade: "i-cam-arcade", third: "i-cam-third", first: "i-cam-first" };
 function resumeFromPause() {
   if (!wantsLock()) { setPaused(false); return; }
   renderer.domElement.requestPointerLock();
@@ -2072,12 +2611,19 @@ function toggleCam() {
    changed it, so the fab is right no matter which of the three entry points ran
    — V, the fab, or the View row in Settings. */
 function syncCamUI() {
-  var b = $("camfab");
+  var b = $("camfab"), u = $("camuse");
+  /* The <use> href, not textContent: the button's child is an <svg> now, and
+     writing text into it would replace the icon with a string. One node, one
+     attribute, same single readout. */
+  if (u) u.setAttribute("href", "#" + (CAM_GLYPH[cam.mode] || CAM_GLYPH.arcade));
   if (b) {
-    b.textContent = CAM_GLYPH[cam.mode] || "▣";
     b.setAttribute("aria-label", "Camera view — " + CAM_LABEL[cam.mode] + ". Change view");
     b.title = "Camera view: " + CAM_LABEL[cam.mode] + (TOUCH ? "" : "  (V)");
   }
+  /* VR-132 — the camera stick belongs to the two modes that can turn, and this
+     is the one place that knows the mode changed. Arcade's camera is fixed by
+     design, so a stick there would be a control that does nothing. */
+  if (typeof TPAD !== "undefined" && TPAD.syncLook) TPAD.syncLook();
 }
 /* THE VERB. What a person pressing V or tapping ▣ actually means, and the only
    place the side effects of LEAVING a mode live.
@@ -3115,24 +3661,39 @@ $("btn-back").addEventListener("click", function () { window.location.href = "..
    error VR-91 shipped when the dropdown described v1 as worse than v0 — the
    controls are right and the words in front of them are wrong. */
 if (TOUCH) {
+  /* VR-133 — the ✦ ◈ ★ ⊹ ❚❚ ⚙ prefixes are gone from this list. They were a
+     lookup table between a sentence and a button, and the buttons are drawings
+     now: a legend that pictures the control has to be redrawn every time the
+     control is, while one that NAMES it never goes stale. The pad already
+     carries the same four words under the same four icons, which is the join
+     these characters were standing in for. */
   document.querySelector("#s-start .keys").innerHTML =
     '<b>Stick</b><span>Move</span>' +
-    '<b>✦ Strike</b><span>Chains into a three-hit combo — hold to keep the chain going</span>' +
-    '<b>◈ Execute</b><span>Finishes the wounded, refunds a Veilstep</span>' +
-    '<b>★ Veilstep</b><span>Blink through anything, two charges</span>' +
-    '<b>⊹ Stalk</b><span>A creep slow enough to keep the Shroud — tap on, tap off</span>' +
-    '<b>Drag</b><span>Look and aim, in third and first person</span>' +
-    '<b>❚❚ · ⚙</b><span>Top right — pause the arena, or change camera view, how much arena fits and look speed</span>' +
+    '<b>Strike</b><span>Chains into a three-hit combo — hold to keep the chain going</span>' +
+    '<b>Execute</b><span>Finishes the wounded, refunds a Veilstep</span>' +
+    '<b>Veilstep</b><span>Blink through anything, two charges</span>' +
+    '<b>Stalk</b><span>A creep slow enough to keep the Shroud — tap on, tap off</span>' +
+    '<b>Drag</b><span>Look and aim, in third and first person — or use the small camera stick above the buttons</span>' +
+    '<b>Top right</b><span>Pause the arena, change the camera view, or open Settings — where the pad can move to your other hand and change size</span>' +
     '<span class="hint">Stand perfectly still for a moment and the Shroud takes you — they lose you, and your next strike kills outright. Standing still is also how you die.</span>';
   var foot = document.querySelector("#s-start .foot");
   if (foot) foot.textContent = "Prototype v0 — one character, endless waves. Touch controls, all three camera views.";
   var hfoot = document.querySelector("#s-help .foot");
-  if (hfoot) hfoot.textContent = "? — open this any time · ❚❚ top right freezes the arena";
+  if (hfoot) hfoot.textContent = "The ? button opens this any time · pause, top right, freezes the arena";
 }
 // Single source of truth for the legend: mirror the start screen's list into the help overlay.
 $("help-keys").innerHTML = document.querySelector("#s-start .keys").innerHTML;
 $("helpfab").addEventListener("click", openHelp);
 $("btn-resume").addEventListener("click", closeHelp);
+/* VR-132 — the start screen's two other doors. Both open the SAME surface the
+   in-run chrome opens, deliberately: a start-screen copy of the settings panel
+   would be a second control tree, which is the thing this file has argued
+   against in three separate cards now. TUNE.open() rather than toggle() and with
+   the opener passed, for the reason the pause button already does it — Escape
+   has to hand focus back to the button you pressed, not to a 34px fab in a
+   corner the sheet is currently covering. */
+$("btn-howto").addEventListener("click", openHelp);
+$("btn-starttune").addEventListener("click", function () { TUNE.open($("btn-starttune")); });
 
 
 /* ======================= sprite billboard layer (VR-91) ==================
@@ -4366,6 +4927,13 @@ var TUNE = (function () {
        desktop each keep their own tuned distance rather than fighting over one. */
     dist: TOUCH ? 11 : ARC.dist,
     fov: ARC.fov, fit: FIT.comp, look: LOOK.sens,
+    /* --- controls (VR-132). Ergonomics, not look-and-feel: which hand you hold
+       the phone in, how big your thumbs are, whether you still need the labels.
+       Persisted per device like everything else here, and deliberately absent
+       from the preset spec below for the same reason `mset` is — how somebody
+       holds their own phone is not a fact another player's saved setup gets to
+       assert on their behalf. */
+    hand: "left", padsize: 1, verbs: "fillstop", padlbl: "1", camstick: "1",
     pixel: PIXEL, fog: 0.030, husks: String(HUSKLOD.mode),
     glass: "#" + VEIL_GLASS.toString(16).padStart(6, "0"),
     rim:   "#" + VEIL_RIM.toString(16).padStart(6, "0"),
@@ -4385,6 +4953,17 @@ var TUNE = (function () {
   } catch (e) {}
 
   function save() { try { localStorage.setItem(LSK, JSON.stringify(V)); } catch (e) {} }
+
+  /* VR-132 — the generalised form of the correction VR-113 had to make by hand
+     for the camera mode. A stored value that is not one of the control's options
+     leaves a <select> showing "" while the game runs on the default, and that
+     reads as a broken setting rather than as an ignored one. One helper, so the
+     next pick row added here inherits the fix instead of rediscovering it. */
+  function pin(key, allowed, id) {
+    if (allowed.indexOf(V[key]) >= 0) return;
+    V[key] = DEF[key];
+    var el = $(id); if (el) el.value = V[key];
+  }
 
   function apply(what) {
     if (!what || what === "map") {
@@ -4412,6 +4991,29 @@ var TUNE = (function () {
     if (!what || what === "arc") {
       ARC.pitch = V.pitch * Math.PI / 180; ARC.dist = +V.dist; ARC.fov = +V.fov;
       if (cam.mode === "arcade") cam.fovTarget = ARC.fov;
+    }
+    /* VR-132 — the pad's own shape. Bounded the way the camera mode is, and for
+       the same reason: V is rehydrated from localStorage, which is untrusted the
+       moment anything can write a settings blob into it. A bad `hand` cannot
+       hang anything here — cellOrder mirrors on equality, so an unknown value
+       simply reads as the default — but it WOULD leave the select showing blank
+       while the pad sat in its default arrangement, which is the
+       panel-disagrees-with-the-game bug VR-113 fixed for the camera. So the
+       correction reaches the control, not just V. */
+    if (!what || what === "pad") {
+      pin("hand", ["left", "right"], "t-hand");
+      pin("verbs", ["fillstop", "fillsdown"], "t-verbs");
+      pin("padlbl", ["0", "1"], "t-padlbl");
+      pin("camstick", ["0", "1"], "t-camstick");
+      var ps = clamp(+V.padsize, 0.8, 1.35);
+      if (!isFinite(ps)) ps = DEF.padsize;
+      V.padsize = ps;
+      TPAD.setLayout({ hand: V.hand, size: ps, verbs: V.verbs,
+                       labels: V.padlbl !== "0", camstick: V.camstick !== "0" });
+      /* --padh is measured off #vpad's height, and this is the only setting that
+         changes that height — so the gameplay window has to be re-measured or
+         the HUD's pips end up behind a pad that just grew. */
+      applyPixelScale();
     }
     if (!what || what === "touch") {
       FIT.comp = +V.fit; LOOK.sens = +V.look;
@@ -4550,6 +5152,16 @@ var TUNE = (function () {
     for (i = 0; i < MOTION_KEYS.length; i++) num("m" + MOTION_KEYS[i], "t-m" + MOTION_KEYS[i]);
     pick("pixel", "t-pixel"); pick("husks", "t-husks");
     S.glass = { t: "hex" }; S.rim = { t: "hex" }; S.burn = { t: "hex" };
+    /* NOT HERE, deliberately: hand, padsize, verbs, padlbl and camstick
+       (VR-132), joining the motion-preference flag on the list of things a
+       preset may not carry. A preset is a LOOK — camera framing, fog, colour,
+       how much the screen moves — and it travels between devices and between
+       people. How somebody holds their own phone does not. Loading a friend's
+       setup and finding your stick has moved to your other hand mid-run is the
+       kind of thing you undo before you can judge anything else in it, which is
+       exactly the argument that kept `map` and `cam` out. Absent by
+       construction: with no key in the spec, a preset has nothing to write them
+       through. */
     return S;
   }
 
@@ -4659,6 +5271,13 @@ var TUNE = (function () {
     bindRange("t-fov", "fov", "arc");
     bindRange("t-fit", "fit", "touch", function (v) { return (+v).toFixed(2); });
     bindRange("t-look", "look", "touch", function (v) { return (+v * 1000).toFixed(1); });
+    /* VR-132 — the Controls group. All five write through apply("pad"), which is
+       the only thing in this file that touches the pad's shape. */
+    bindPick("t-hand", "hand", "pad");
+    bindPick("t-verbs", "verbs", "pad");
+    bindPick("t-padlbl", "padlbl", "pad");
+    bindPick("t-camstick", "camstick", "pad");
+    bindRange("t-padsize", "padsize", "pad", function (v) { return Math.round(+v * 100) + "%"; });
     bindRange("t-fog", "fog", "fog", function (v) { return (+v).toFixed(3); });
     bindPick("t-husks", "husks", "husks");
     $("t-bench").addEventListener("click", function () { BENCH.start(); });
@@ -4870,7 +5489,12 @@ var TUNE = (function () {
        Rendering carries on, which is what makes fog, the pixel grid and the
        three Shroud colours visibly change under your thumb. */
     freezeArena(true);
-    toList();
+    /* VR-131 — the panel always opens at its own front door. Which door that is
+       depends on whether this build has category sections: with them it is the
+       tile grid, without them the flat list VR-114 shipped. Never wherever it
+       was left — reopening into somebody's last slider is a panel that has lost
+       its place, and that assertion predates the categories. */
+    stageHome();
     edgeFade();
     var f = focusables();
     (f[0] || el).focus();
@@ -4921,9 +5545,11 @@ var TUNE = (function () {
     el.addEventListener("keydown", function (e) {
       /* Escape unwinds one stage at a time. Dumping you out of the panel
          because you wanted out of one slider is the kind of thing that makes
-         people stop pressing Escape at all. */
+         people stop pressing Escape at all. VR-131 added a stage in front, so
+         this is three presses deep on touch now — and it is still one rule,
+         because Escape and the Back button run the same unwind. */
       if (e.key === "Escape") { e.stopPropagation();
-        if ($("tune").classList.contains("detail")) toList(); else close(); return; }
+        if (!back()) close(); return; }
       if (e.key !== "Tab") return;
       var f = focusables();
       if (!f.length) return;
@@ -4957,7 +5583,7 @@ var TUNE = (function () {
       g.addEventListener("pointerup", endDrag);
       g.addEventListener("pointercancel", endDrag);
     }
-    $("t-back").addEventListener("click", toList);
+    $("t-back").addEventListener("click", function () { back(); });
     /* One delegated listener rather than a hook in each of the four binders: the
        list's value column has to agree with the control the moment the control
        moves, and a binder that forgets to call back is a row that lies. */
@@ -4972,6 +5598,7 @@ var TUNE = (function () {
      and the drift is silent: a row whose list entry points at the wrong control
      looks exactly like a row that works. */
   var picks = [], lastPick = null;
+  var cats = [], curCat = null, lastCat = null;
   function labelOf(row) { var l = row.querySelector("label"); return l ? l.textContent : "Setting"; }
   function controlOf(row) { return row.querySelector("select,input"); }
   function valueOf(row) {
@@ -5028,28 +5655,122 @@ var TUNE = (function () {
     var c = controlOf(row); if (c) c.focus();
     edgeFade();
   }
-  function toList() {
-    var el = $("tune");
-    if (!el.classList.contains("staged")) return;
-    el.classList.remove("detail");
+  function clearFocusRows() {
     for (var i = 0; i < picks.length; i++) {
       picks[i].row.classList.remove("tfocus");
       if (picks[i].row._note) picks[i].row._note.classList.remove("tfocus-note");
     }
+  }
+  function toList(focusBack) {
+    var el = $("tune");
+    if (!el.classList.contains("staged")) return;
+    el.classList.remove("detail");
+    el.classList.remove("cats");
+    clearFocusRows();
+    /* Back is offered at this level only when there is a level ABOVE it. In a
+       build with no category sections this IS the front door, and a Back button
+       on the front door is a button that closes the panel while claiming not to.
+       curCat is null in exactly that case. */
+    $("t-back").hidden = !curCat;
+    $("t-grab").hidden = false;
+    $("tunetitle").textContent = curCat ? curCat.name : "Settings";
+    $("tunescrim").classList.remove("clear");
+    refreshPicks();
+    if (focusBack && lastPick) lastPick.focus();
+    edgeFade();
+  }
+
+  /* ------------------- stage zero: the categories (VR-131) ------------------
+     The grid, and the two moves in and out of it. Everything here is a third
+     stage bolted onto VR-114's two rather than a rewrite of them: toList is the
+     same function it was, toDetail is untouched, and the scrim/title/focus
+     contract extends instead of forking. */
+  function toCats(focusBack) {
+    var el = $("tune");
+    if (!el.classList.contains("staged")) return;
+    el.classList.remove("detail");
+    el.classList.add("cats");
+    clearFocusRows();
+    for (var i = 0; i < cats.length; i++) cats[i].sec.classList.remove("tcat-on");
+    curCat = null;
     $("t-back").hidden = true;
     $("t-grab").hidden = false;
     $("tunetitle").textContent = "Settings";
     $("tunescrim").classList.remove("clear");
     refreshPicks();
-    if (lastPick) lastPick.focus();
+    if (focusBack && lastCat) lastCat.focus();
     edgeFade();
+  }
+  function openCat(cat) {
+    curCat = cat;
+    for (var i = 0; i < cats.length; i++) cats[i].sec.classList.toggle("tcat-on", cats[i] === cat);
+    toList(false);
+    /* Land on the first row of the group, not on Back. The tap was a statement
+       about where you wanted to be; starting the tab order at the way out
+       undoes it. */
+    if (cat.first) cat.first.focus();
+  }
+  /* ONE unwind, two triggers — the Back button and Escape. Returns false at the
+     front door, which is the caller's cue to close. The alternative is each
+     trigger knowing how many stages there are, and that number just changed. */
+  function back() {
+    var el = $("tune");
+    if (el.classList.contains("detail")) { toList(true); return true; }
+    if (cats.length && !el.classList.contains("cats")) { toCats(true); return true; }
+    return false;
+  }
+  function stageHome() { if (cats.length) toCats(false); else toList(false); }
+
+  var SVGNS = "http://www.w3.org/2000/svg";
+  function makeTile(sec, first) {
+    var h = sec.querySelector("h3");
+    var cat = { sec: sec, name: h ? h.textContent : "Settings", first: first || null };
+    var b = document.createElement("button");
+    b.className = "tcat"; b.type = "button";
+    /* The icon is decorative; the tile is NAMED by the section's own <h3>, which
+       is the same string the title bar shows once you are inside — so a group
+       can't be called one thing on its tile and another at the top of the sheet.
+       createElementNS rather than an innerHTML string: an <svg> built through
+       createElement lands in the XHTML namespace and renders as nothing at all,
+       which looks like a missing file rather than like a wrong constant. */
+    var ico = sec.getAttribute("data-ico");
+    if (ico && document.createElementNS) {
+      var svg = document.createElementNS(SVGNS, "svg");
+      svg.setAttribute("class", "ic");
+      svg.setAttribute("viewBox", "0 0 24 24");
+      svg.setAttribute("aria-hidden", "true");
+      var use = document.createElementNS(SVGNS, "use");
+      use.setAttribute("href", "#" + ico);
+      svg.appendChild(use);
+      b.appendChild(svg);
+    }
+    b.appendChild(span("tcatn", cat.name));
+    var sub = sec.getAttribute("data-sub");
+    if (sub) b.appendChild(span("tcatd", sub));
+    b.addEventListener("click", function () { lastCat = b; openCat(cat); });
+    $("tcats").appendChild(b);
+    cats.push(cat);
+  }
+  function pickFor(row) {
+    for (var i = 0; i < picks.length; i++) if (picks[i].row === row) return picks[i].btn;
+    return null;
   }
   /* Called after build() has filled the controls, so the list's value column is
      right on the first open rather than one interaction behind. */
   function buildStage() {
     if (!STAGED) return;                 // the desktop drawer stays one flat list
-    var rows = $("tunebody").querySelectorAll(".trow");
+    var body = $("tunebody");
+    /* Rows first, and off the BODY rather than per-section, so a row that ends
+       up outside a section still gets its list entry instead of silently losing
+       its control. `_touch.js` asserts separately that no row is in that state:
+       the belt is here, the braces are in the harness. */
+    var rows = body.querySelectorAll(".trow");
     for (var i = 0; i < rows.length; i++) makePick(rows[i]);
+    var secs = body.querySelectorAll(".tsec");
+    for (var s = 0; s < secs.length; s++) {
+      var srows = secs[s].querySelectorAll(".trow");
+      makeTile(secs[s], srows.length ? pickFor(srows[0]) : null);
+    }
     $("tune").classList.add("staged");
     refreshPicks();
   }
@@ -5426,6 +6147,14 @@ function frame(now) {
     while (acc >= STEP && n < MAXSTEPS) { step(STEP); acc -= STEP; n++; }
     if (n === MAXSTEPS) acc = 0;
   }
+
+  /* VR-132 — the camera stick is a RATE, so it has to be integrated somewhere
+     and pointermove is not that place: events stop arriving the moment the thumb
+     stops moving, while a held tilt is exactly the case where the camera should
+     still be turning. On `raw` rather than the fixed step, because it moves the
+     camera and not the simulation — the same reason poseVesper and updateCamera
+     are on this side of the line. A no-op on desktop and in arcade. */
+  TPAD.tickLook(raw);
 
   // presentation runs on the real frame time
   poseVesper(raw, gameTime);

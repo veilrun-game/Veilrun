@@ -107,6 +107,15 @@ in the folder before assuming:
   that the `matchMedia` string in the script and the `@media` query in the stylesheet are
   **character-identical**: CSS decides whether the pad is on screen, JS decides whether it's wired,
   and a mismatch reads as "mobile is broken" rather than as a one-character typo.
+  It has since grown to **328 checks and executes three of the file's marked blocks** — `TOUCH`,
+  `SHEET` and `PRESET` — so it is the harness that covers the settings dialog's focus contract and
+  its stages as well as the pad. **VR-131/132/133 (8/23) added:** the three-stage sheet walked
+  end to end (tiles → group → control → back out), a markup check that **no `.trow` sits outside a
+  `<section class="tsec">`** (such a row gets a list entry and no tile — fine on desktop,
+  unreachable on a phone), all four combinations of the pad's handedness/verb-order mirrors, the
+  camera stick proven to be a **rate** by ticking it with no further pointer events, and every
+  `<use href="#…">` in the file resolved against the inline icon sprite — a dangling one renders
+  *nothing*, silently, on one button.
   **`_shroud.js` (added 8/23 with VR-130) is the only harness that RENDERS.** It lifts the veil
   shader out of `index.html` — never a retyped copy — compiles it in a real GL context, draws
   the whole Shroud transition and **counts pixels**, so it can assert that skin, glass and the
