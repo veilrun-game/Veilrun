@@ -42,7 +42,33 @@ while a Backlog card ("Vesper model fidelity") already held that number.** Resol
 Jordan's call: **the shipped card keeps VR-120 and the Backlog card became VR-128** — because the
 commit is permanent and the card is not, so *the commit wins and the card moves*. That is the
 general rule. Cited VR-120s written before 8/23 mean the Game Reference clamp.
-So: **before putting a `VR-##` in a commit subject, check the board for that number.**
+**It happened again on 8/24** — `913abcb` shipped citing VR-135/136/137 while a *Prompt Forge* card
+already held 135 and a *Community image forge* card held 136. Same rule applied: the commits kept the
+numbers, the two cards became **VR-141** and **VR-142**. Twice in two days is a process failure, not bad
+luck, so there is now a protocol.
+
+### THE NUMBER PROTOCOL — follow it before opening any card or writing any `VR-##`
+
+**The board's `📌 Board guide` list holds a card titled `🔢 NEXT CARD NUMBER → VR-###`. That title IS
+the register.** It is a title and not a description on purpose: you can read the next free number off the
+board without opening anything.
+
+1. **CLAIM FIRST, WORK SECOND.** Read the counter card's title. That number is yours.
+2. **Bump the counter IMMEDIATELY** — rename it to the next number *before* you create the card or write
+   a line of code. A number you are 'about to use' is not claimed.
+3. **Then** create the card, or write the commit subject.
+4. **A commit subject may only cite a number that already exists as a card.** This is the actual root
+   cause of both collisions: work shipped citing a number nobody had claimed on the board. If you are
+   shipping something with no card, open the card first — it takes ten seconds and it is the whole fix.
+5. **Claimed but abandoned? Leave the number burned.** Do not recycle it back into the counter. Gaps are
+   free; collisions are not.
+6. **If the counter is ever behind the real highest card** (someone opened one by hand), fix the counter
+   to `highest + 1` and say so — do not assume the counter is right just because it exists.
+
+**Why this beats 'check the board first':** checking is a scan of ~130 cards that a thread does once and
+then trusts for the rest of a long session, while another thread ships. The counter is a single value
+that gets *mutated on claim*, so two threads racing collide on the counter rather than silently on the
+number.
 
 **Three waiting states, and the distinction is who owns the next step:** `⏸️ Parked` = a
 person (crew playtest, a vote, Jordan's call); `🚧 Blocked` = another card; `🔵 To do` =
