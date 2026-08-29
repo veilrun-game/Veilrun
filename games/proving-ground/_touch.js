@@ -759,6 +759,19 @@ function readRules(text, inTouch) {
   return out;
 }
 const touchBlock = (css.match(/@media \(hover:none\),\(pointer:coarse\)\{([\s\S]*?)\n\}/) || ["", ""])[1];
+/* VR-139 — the sheet's rules left the pointer media query and became a class
+   block. `TOUCH` is a pointer question and the panel's layout is a width one,
+   and a desktop window dragged narrow answers those two differently — which is
+   the bug this card is about. Sliced on markers rather than on a media query,
+   which is also why the old "every closing brace indented" rule could go.
+   Treated as touch=true below because `.vr-compact` is a superset of touch:
+   every touch device matches it, so anything asserted for a phone must hold
+   here. */
+const compactBlock = (css.match(/COMPACT:BEGIN[\s\S]*?-+ \*\/([\s\S]*?)\/\* COMPACT:END/) || ["", ""])[1];
+const drawerBlock = (css.match(/DRAWER:BEGIN[\s\S]*?-+ \*\/([\s\S]*?)\/\* DRAWER:END/) || ["", ""])[1];
+ok("the sheet's rules are findable as a block", compactBlock.length > 1000,
+   compactBlock.length + " chars");
+ok("and so are the drawer's", drawerBlock.length > 500, drawerBlock.length + " chars");
 const rules = readRules(css.replace(touchBlock, ""), false).concat(readRules(touchBlock, true));
 
 function decls(selectors, touch) {
@@ -831,17 +844,18 @@ ok("no control in the sheet declares a box under the floor", undersized.length =
 console.log("\n[settings sheet — bottom sheet on touch, drawer on desktop]");
 ok("desktop still slides in from the right",
    /#tune\{[\s\S]*?transform:translateX\(100%\)/.test(css) && /#tune\.on\{transform:translateX\(0\)/.test(css));
-ok("touch slides up from the bottom instead",
-   /transform:translateY\(100%\)/.test(touchBlock) && /#tune\.on\{transform:translateY\(0\)/.test(touchBlock));
-ok("the sheet is anchored to the bottom edge on touch",
-   /top:auto;left:0;right:0;bottom:0/.test(touchBlock));
+ok("a compact window slides the sheet up from the bottom instead",
+   /transform:translateY\(100%\)/.test(compactBlock) &&
+   /\.vr-compact #tune\.on\{transform:translateY\(0\)/.test(compactBlock));
+ok("the sheet is anchored to the bottom edge",
+   /top:auto;left:0;right:0;bottom:0/.test(compactBlock));
 /* VR-136 INVERTED THIS. VR-114 opened at 62vh so the arena stayed visible;
    VR-131 changed what "opening" means — you land on a grid of tiles, and there
    is nothing to watch behind a grid of tiles. So the sheet opens FULL and the
    only named detent is the small one. The arena argument moved to where it was
    always really about: `.detail`, one control being watched, still peeks. */
-const sheetOpen = +(touchBlock.match(/--sheeth:(\d+)vh/) || [])[1];
-const sheetShort = +(touchBlock.match(/#tune\.short\{--sheeth:(\d+)vh\}/) || [])[1];
+const sheetOpen = +(compactBlock.match(/--sheeth:(\d+)vh/) || [])[1];
+const sheetShort = +(compactBlock.match(/#tune\.short\{--sheeth:(\d+)vh\}/) || [])[1];
 ok("it opens full rather than at a half detent", sheetOpen >= 90, sheetOpen + "vh");
 ok("and the small detent is still reachable by hand", sheetShort > 0 && sheetShort < sheetOpen,
    sheetShort + "vh — the arena is behind ONE control, not behind a grid of tiles");
@@ -851,19 +865,19 @@ ok("no `.tall` class survives the inversion", !/#tune\.tall\{/.test(css),
    1:1 drag "needs a velocity model and a rubber band to feel right, and half of
    one feels worse than none". All three, or none. */
 ok("the sheet is not animated while a finger is on it",
-   /#tune\.dragging\{transition:none;max-height:none\}/.test(touchBlock),
+   /#tune\.dragging\{transition:none;max-height:none\}/.test(compactBlock),
    "an eased height under a 1:1 drag is exactly the lag that makes a sheet feel cheap");
 ok("and the cap does not clamp the rubber band into a hard stop",
-   /#tune\.dragging\{[^}]*max-height:none/.test(touchBlock),
+   /#tune\.dragging\{[^}]*max-height:none/.test(compactBlock),
    "a drag writes an inline height; a live max-height turns the give back into a wall");
 ok("the sheet is content-height under a cap, not a fixed pane",
-   /#tune\{[\s\S]*?height:auto;max-height:var\(--sheeth\)/.test(touchBlock),
+   /#tune\{[\s\S]*?height:auto;max-height:var\(--sheeth\)/.test(compactBlock),
    "a six-row group in a fixed pane is six rows and a scrollbar with nothing to scroll");
 ok("and it settles on a curve rather than on `ease`",
-   /transition:transform [\d.]+s cubic-bezier/.test(touchBlock),
+   /transition:transform [\d.]+s cubic-bezier/.test(compactBlock),
    "symmetric easing reads as mechanical at this size");
 ok("there is a scroll affordance at the edge",
-   /#tune::after\{/.test(touchBlock) && /#tune\.atend::after\{opacity:0\}/.test(touchBlock),
+   /#tune::after\{/.test(compactBlock) && /#tune\.atend::after\{opacity:0\}/.test(compactBlock),
    "twenty rows and nothing saying so");
 ok("the grab handle is a real button, not a decorative bar",
    /<button class="ticon touchonly" id="t-grab"[^>]*aria-label=/.test(html) &&
@@ -872,8 +886,23 @@ ok("the grab handle is a real button, not a decorative bar",
 /* The invariant from §1, restated for the sheet: CSS decides where the sheet
    comes from, JS never does. If the sheet ever gets a JS branch on device type,
    that branch and this media query are the next thing to fall out of step. */
-ok("no second media query decides where the sheet comes from",
-   (css.match(/@media \(hover:none\),\(pointer:coarse\)/g) || []).length === 1);
+/* VR-139 restates this, and strengthens it. The claim used to be "there is
+   only one pointer media query". It is now "NO media query decides the sheet
+   at all" — the layout question lives in exactly one string, in `LAYOUT`, and
+   the stylesheet reads the class it writes. Comments are stripped first: this
+   is a claim about rules, and the prose explaining the change quotes the query
+   it replaced. */
+const cssRules = css.replace(/\/\*[\s\S]*?\*\//g, "");
+ok("there is still exactly one pointer media query",
+   (cssRules.match(/@media \(hover:none\),\(pointer:coarse\)/g) || []).length === 1);
+ok("and no media query decides where the sheet comes from any more",
+   !/@media[^{]*\{[^}]*#tune[^}]*(translateY|--sheeth)/.test(cssRules) &&
+   /\.vr-compact #tune\{/.test(cssRules),
+   "a second @media string would be a second thing to keep in step with the JS");
+ok("the layout question is asked in exactly one place",
+   (html.match(/\(max-width:820px\)/g) || []).length === 1 &&
+   (html.match(/\(min-width:1280px\)/g) || []).length === 1,
+   "one string per question — the CSS reads the class LAYOUT writes");
 
 /* ======================================================================
    10c. Contrast, recomputed (WCAG 1.4.3 / 1.4.11)
@@ -1282,15 +1311,20 @@ ok("focus returns to the row you came from", doc.activeElement === inserted[0],
 d.tune.fire("keydown", { key: "Escape", stopPropagation() {} });
 ok("a second Escape does close it", sheetBox.isOpen() === false);
 
-/* --- the desktop drawer is not staged ------------------------------------- */
-sheetBox.STAGED = false;
-d.tune.classList.remove("staged");
-inserted.length = 0;
-sheetBox.buildStage();
-ok("the desktop drawer stays one flat list",
-   inserted.length === 0 && !d.tune.classList.contains("staged"),
+/* --- the desktop drawer is still not staged (VR-139: by class, not by build) -
+   VR-131's reasoning was re-tested at the new width and did not change: the
+   drawer shows every group beside an arena it never covers, and staging it
+   would take that away. What changed is HOW: the picks are always built, so a
+   window dragged narrow has a sheet with something in it, and the class decides
+   whether they are shown. The claim is the same, the mechanism survives a
+   resize. */
+sheetBox.setCompact(false);
+ok("the desktop drawer stays one flat list", !d.tune.classList.contains("staged"),
    "twenty rows beside an arena it never covered — staging it is two taps to do what one drag already does");
-sheetBox.STAGED = true;
+ok("and its list entries exist anyway, hidden by CSS",
+   inserted.length > 0 && /\.tpick\{display:none/.test(css) && /#tune\.staged \.tpick\{display:flex\}/.test(css),
+   "a window dragged narrow becomes a sheet, and a sheet with no list entries is a sheet with nothing in it");
+sheetBox.setCompact(true);
 
 /* ======================================================================
    10g. Three stages: categories, then a group, then one control  (VR-131)
@@ -1464,10 +1498,10 @@ ok("and it comes back down on the way out", !d.tune.classList.contains("watchtop
 sheetBox.close();
 ok("closing clears it too", !d.tune.classList.contains("watchtop"));
 ok("the top-anchored peek is a real reposition in CSS, not a taller sheet",
-   /#tune\.detail\.watchtop\{top:0;bottom:auto/.test(touchBlock) &&
-   /#tune\.detail\.watchtop\.on\{transform:translateY\(0\)/.test(touchBlock));
+   /#tune\.detail\.watchtop\{top:0;bottom:auto/.test(compactBlock) &&
+   /#tune\.detail\.watchtop\.on\{transform:translateY\(0\)/.test(compactBlock));
 ok("it announces itself with a drop rather than teleporting",
-   /@keyframes sheetdrop\{/.test(css) && /animation:sheetdrop/.test(touchBlock),
+   /@keyframes sheetdrop\{/.test(css) && /animation:sheetdrop/.test(compactBlock),
    "top and bottom cannot be transitioned between — a frame-drop and a move look identical without this");
 
 /* ======================================================================
@@ -1588,6 +1622,222 @@ ok("the option says what auto does", /Auto &mdash; models first/.test(html),
    "\"Auto\" alone reads as \"we decided not to show you the models\"");
 
 /* ======================================================================
+   10g2. The layout question, executed  (VR-139)
+   ======================================================================
+   THE BUG THIS CARD IS ABOUT WAS INVISIBLE TO EVERY ASSERTION IN THIS FILE,
+   because every one of them checked a static string. `(hover:none),(pointer:
+   coarse)` is character-identical in the CSS and the JS — it always was — and
+   the panel was still broken at 375px on a desktop, because the two agreed on
+   the WRONG QUESTION. So the module is extracted and RUN here against a fake
+   matchMedia, and the assertions below are the result of actually crossing the
+   breakpoint.
+   ====================================================================== */
+console.log("\n[the layout question]");
+const lm = html.match(/LAYOUT:BEGIN[\s\S]*?-+ \*\/([\s\S]*?)\/\* LAYOUT:END/);
+ok("the LAYOUT block is marked and findable", !!lm);
+if (lm) {
+  /* A fake matchMedia whose answers we control, so "drag the window" is a
+     variable and not a browser. */
+  const media = { compact: false, wide: false };
+  const mqs = [];
+  const fakeRoot = { _c: new Set() };
+  fakeRoot.classList = {
+    toggle: (c, on) => { on ? fakeRoot._c.add(c) : fakeRoot._c.delete(c); },
+    contains: c => fakeRoot._c.has(c)
+  };
+  const lbox = {
+    window: {
+      matchMedia(q) {
+        const m = { _q: q, matches: /max-width/.test(q) ? media.compact : media.wide,
+                    listeners: [], addEventListener(t, fn) { m.listeners.push(fn); } };
+        mqs.push(m); return m;
+      }
+    },
+    document: { documentElement: fakeRoot },
+    console, Math
+  };
+  vm.createContext(lbox);
+  let lclean = true, lerr = "";
+  try { new vm.Script(lm[1], { filename: "index.html#LAYOUT" }).runInContext(lbox); }
+  catch (e) { lclean = false; lerr = e.message; }
+  ok("it boots against a stub", lclean, lerr || "no missing refs");
+
+  const sizeTo = w => {
+    media.compact = w <= 820; media.wide = w >= 1280;
+    mqs.forEach(m => { m.matches = /max-width/.test(m._q) ? media.compact : media.wide; });
+    mqs.forEach(m => m.listeners.forEach(fn => fn()));
+  };
+  const seen = [];
+  lbox.LAYOUT.start((c, w) => seen.push([c, w]));
+
+  /* THE REGRESSION THIS ASSERTION EXISTS FOR, and it shipped once: the first
+     resolve was forced by pre-flipping the cached state, which works only when
+     the window DISAGREES with the seed. Load already narrow and the very first
+     call short-circuited — no classes at all, and a 375px window rendered the
+     drawer. Every static assertion in this file passed. Found by rendering.
+     So: a fresh module, started while already compact, must still write. */
+  {
+    const m2 = { compact: true, wide: false }, mqs2 = [];
+    const root2 = { _c: new Set() };
+    root2.classList = { toggle: (c, on) => { on ? root2._c.add(c) : root2._c.delete(c); },
+                        contains: c => root2._c.has(c) };
+    const box2 = {
+      window: { matchMedia(q) {
+        const m = { _q: q, matches: /max-width/.test(q) ? m2.compact : m2.wide,
+                    listeners: [], addEventListener(t, fn) { m.listeners.push(fn); } };
+        mqs2.push(m); return m; } },
+      document: { documentElement: root2 }, console, Math
+    };
+    vm.createContext(box2);
+    new vm.Script(lm[1], { filename: "index.html#LAYOUT2" }).runInContext(box2);
+    let told = 0;
+    box2.LAYOUT.start(() => { told++; });
+    ok("a page that LOADS narrow is compact from the first frame",
+       root2.classList.contains("vr-compact") && told === 1,
+       "the first resolve must run even when the window already agrees with the zero value");
+  }
+
+  /* The two strings are the only place either threshold is written, and the
+     compact one deliberately keeps the pointer clauses: a phone is compact at
+     any width, which is what stops a 900px tablet getting a mouse-sized drawer. */
+  ok("the compact query is a layout question that still answers for touch",
+     /max-width/.test(lbox.LAYOUT.COMPACT_Q) && /pointer:coarse/.test(lbox.LAYOUT.COMPACT_Q),
+     lbox.LAYOUT.COMPACT_Q);
+  ok("and it is NOT the string TOUCH reads",
+     lbox.LAYOUT.COMPACT_Q !== jsQuery,
+     "widening TOUCH would give a narrow desktop window a thumbpad and take its pointer lock");
+
+  const at = w => { sizeTo(w); return [...fakeRoot._c].sort().join(" "); };
+  ok("375 is a sheet", at(375) === "vr-compact");
+  ok("768 is a sheet", at(768) === "vr-compact");
+  ok("1024 is a drawer with no rail", at(1024) === "vr-drawer");
+  ok("1280 is a drawer with a rail", at(1280) === "vr-drawer vr-wide");
+  ok("the three classes are complements, never a contradiction",
+     [375, 768, 900, 1024, 1279, 1280, 1600].every(w => {
+       const c = at(w).split(" ").filter(Boolean);
+       return c.includes("vr-compact") !== c.includes("vr-drawer") &&
+              (!c.includes("vr-wide") || c.includes("vr-drawer"));
+     }),
+     "derived together in one function, so they cannot disagree");
+
+  /* THE CASE THE CARD WAS OPENED ABOUT. A static check at each width would pass
+     on a build with no listener at all — the panel would simply never be told. */
+  seen.length = 0;
+  sizeTo(1280); sizeTo(400); sizeTo(1280);
+  ok("dragging a window across the breakpoint notifies the panel, live",
+     seen.length >= 2 && seen.some(x => x[0] === true) && seen.some(x => x[0] === false),
+     seen.length + " transitions seen, both directions — a media query alone re-styles, but nothing hands the panel back its front door");
+  seen.length = 0;
+  sizeTo(1300); sizeTo(1400);
+  ok("and it does not fire on a resize that changes nothing", seen.length === 0,
+     "every callback resets the panel's stage; firing per pixel would fight the person using it");
+
+  /* A tablet at 1280 is touch AND wide. It must not get the cursor-sized rail. */
+  media.compact = true; media.wide = true;
+  mqs.forEach(m => { m.matches = true; });
+  mqs.forEach(m => m.listeners.forEach(fn => fn()));
+  ok("a wide touch device is a sheet, never a railed drawer",
+     fakeRoot.classList.contains("vr-compact") && !fakeRoot.classList.contains("vr-wide"),
+     "wide is `!compact && ...` on purpose");
+}
+/* And the panel's own stage is reset by that callback, not left mid-flight. */
+ok("crossing the breakpoint hands the panel back its front door",
+   /function setCompact\(on\) \{[\s\S]{0,400}?resetStage\(\)/.test(html) &&
+   /LAYOUT\.start\(function \(compact\) \{ TUNE\.setCompact\(compact\); \}\)/.test(html),
+   "cross it mid-detail and a drawer would show exactly one row, with a Back button to a list that is gone");
+sheetBox.open(d.tunefab);
+sheetBox.setCompact(false);
+ok("and it really does clear the stage",
+   !d.tune.classList.contains("detail") && !d.tune.classList.contains("cats") &&
+   !d.tune.classList.contains("watchtop") && !d.tune.classList.contains("short") &&
+   d.tune.style.height === "" && d.tunetitle.textContent === "Settings");
+sheetBox.setCompact(true);
+sheetBox.close();
+
+/* ======================================================================
+   10g3. A width worth having  (VR-139)
+   ====================================================================== */
+console.log("\n[the drawer's width]");
+ok("the hardcoded 290px is gone", !/#tune\{[^}]*width:290px/.test(cssRules),
+   "not a token, not responsive, not adjustable — the card's second item");
+const wClamp = (css.match(/--tunew:clamp\((\d+)px,(\d+)vw,(\d+)px\)/) || []).slice(1).map(Number);
+ok("it is a clamp that grows with the window", wClamp.length === 3, wClamp.join(" / "));
+ok("and it never takes more than a third of the arena", wClamp[1] <= 34,
+   wClamp[1] + "vw — past that the arena stops being something you can judge a colour against");
+ok("with a floor where the drawer hands over to the sheet", wClamp[0] >= 300,
+   wClamp[0] + "px floor vs the " + (lm ? "820" : "?") + "px sheet threshold");
+ok("a user-set width still cannot cover the game",
+   /width:min\(var\(--tunew\),\d+vw\)/.test(css),
+   "a width dragged wide at 1920 and reopened at 900 has to fall back on its own");
+/* The grip: recommended AS A SPLITTER, which is the half that matters. */
+ok("the grip is a splitter, not only a drag",
+   /<div id="tunegrip" role="separator"[^>]*aria-orientation="vertical"/.test(html) &&
+   /tabindex="0"/.test((html.match(/<div id="tunegrip"[^>]*>/) || [""])[0]),
+   "a control whose only affordance is a drag is a control some people do not have");
+ok("arrows, Home and End all move it",
+   /k === "ArrowLeft"/.test(html) && /k === "ArrowRight"/.test(html) &&
+   /k === "Home"/.test(html) && /k === "End"/.test(html));
+ok("and its keys stop at the dialog rather than reaching the focus trap",
+   /e\.stopPropagation\(\);\s*\/\/ Home\/End must not reach the dialog's Tab trap/.test(html));
+ok("the stored default is 0, not a number",
+   /tunew: 0,/.test(html) && /if \(!isFinite\(w\) \|\| w <= 0\) pel\.style\.removeProperty\("--tunew"\)/.test(html),
+   "a saved 290 would pin the panel at a phone-era width on a 4K monitor forever");
+ok("there is a way back to the responsive default",
+   /addEventListener\("dblclick", function \(\) \{ V\.tunew = 0;/.test(html),
+   "a stored width is the one setting that can make the panel unusable at a size you did not store it at");
+ok("the width is not presettable",
+   !/num\("tunew"/.test(html) && !/pick\("tunew"/.test(html),
+   "device ergonomics, like the pad keys — see VR-132");
+ok("the grip is last in the panel, not first",
+   (html.indexOf('id="tunegrip"') > html.indexOf('id="tunebody"')),
+   "as the first child it was what open() moved focus to — you would land on the panel's furniture");
+
+/* ======================================================================
+   10g4. The rail  (VR-139)
+   ====================================================================== */
+console.log("\n[the desktop rail]");
+ok("the rail is the tiles, not a second list",
+   (html.match(/\$\("tcats"\)\.appendChild/g) || []).length === 1 &&
+   /\.vr-wide #tcats\{/.test(drawerBlock),
+   "two lists of seven category names is the drift this file has argued against three cards running");
+ok("one click, two meanings, one function",
+   /function openCat\(cat\) \{[\s\S]*?if \(!el\.classList\.contains\("staged"\)\) \{[\s\S]*?scrollIntoView/.test(html),
+   "a sheet opens a group; a drawer scrolls to one that was already on screen");
+ok("nothing is hidden to honour a rail click",
+   !/openCat[\s\S]{0,600}?tcat-on[\s\S]{0,80}?scrollIntoView/.test(html) &&
+   /\.vr-wide #tunesecs\{flex:1 1 auto/.test(drawerBlock),
+   "hiding the other six would be staging the drawer, which this card re-tested and kept deciding against");
+ok("the rail says where you are as you scroll",
+   /function spyRail\(\)/.test(html) && /body\.addEventListener\("scroll", spyRail\)/.test(html) &&
+   /aria-current/.test(html));
+ok("and it sticks for the whole scroll, not just its own height",
+   /\.vr-wide #tcats\{[^}]*align-self:stretch/.test(drawerBlock) &&
+   /\.vr-wide #tcats\{[^}]*position:sticky/.test(drawerBlock),
+   "a content-height flex item stops sticking the moment you scroll past its bottom");
+ok("group headers are sticky in the drawer, where 'which group is this' is still a question",
+   /\.vr-drawer #tune h3\{[^}]*position:sticky/.test(drawerBlock),
+   "the sheet hides its headers — the title bar carries the name once you are inside a group");
+ok("the rail only appears where a slider still has room to be a slider",
+   /\.vr-wide #tune\{--tunew:clamp\((\d+)px/.test(drawerBlock) &&
+   +(drawerBlock.match(/\.vr-wide #tune\{--tunew:clamp\((\d+)px/) || [])[1] >= 400,
+   "150px of rail out of a 340px drawer is a rail and no settings");
+ok("rail rows still clear the target floor",
+   /\.vr-wide \.tcat\{[^}]*min-height:var\(--tap\)/.test(drawerBlock));
+/* Found by rendering the rail at 1280, not by reading it: the Controls group is
+   `.touchonly` — it configures a pad — so on a desktop its section is hidden,
+   and a tile for it opened nothing. Worse, a zero-height section reports top:0,
+   which is above the scroll line, so it also beat every real group to "current"
+   and the rail insisted you were in Controls on a machine with no pad. */
+ok("a tile is hidden wherever its section is",
+   /\.tcat-touchonly\{display:none\}/.test(cssRules) &&
+   /\.tcat-touchonly\{display:flex\}/.test(touchBlock) &&
+   /sec\.classList\.contains\("touchonly"\)\) b\.className \+= " tcat-touchonly"/.test(html),
+   "and it is gated on the POINTER query — 'is there a pad' is not a width question");
+ok("the scroll-spy ignores a group this layout does not render",
+   /if \(!r\.height\) continue;/.test(html),
+   "a hidden section reports top:0 and wins 'last one above the line' outright");
+
+/* ======================================================================
    10h. The icon set  (VR-133)
    ======================================================================
    Nine unicode characters became one inline sprite. The failure mode a sprite
@@ -1653,7 +1903,7 @@ ok("and it renders above the screen that opened it",
    /#s-help\{z-index:22\}/.test(css),
    "both are .screen at z-index 20, so source order alone decided which won");
 ok("the legend is hidden on touch, not duplicated",
-   /#s-start \.keys\{display:none\}/.test(touchBlock) &&
+   /\.vr-compact #s-start \.keys\{display:none\}/.test(compactBlock) &&
    /\$\("help-keys"\)\.innerHTML = document\.querySelector\("#s-start \.keys"\)\.innerHTML;/.test(html),
    "still one copy of that list, still read from the start screen at boot");
 ok("the back button says where it puts you back",
@@ -1670,11 +1920,21 @@ ok("the list hides the rows and the detail hides the list",
 ok("the detail stage shows the SAME control the list hides",
    !/id="t-pitch"[\s\S]*id="t-pitch"/.test(sheetHtml),
    "nothing is cloned — a duplicate control is how a setting ends up dead in one stage");
-ok("staging is gated on the same TOUCH constant as everything else",
-   /var STAGED = TOUCH;/.test(html) && /if \(!STAGED\) return;/.test(sm[1]),
-   "a third reading of 'is this a phone' is a third thing that can fall out of step");
+/* VR-139 — this used to read `var STAGED = TOUCH`, and the reasoning was that a
+   third reading of "is this a phone" is a third thing that can drift. Still
+   true, and still honoured: there is no third reading. What changed is that the
+   answer is no longer fixed at boot — a window can be dragged across the
+   breakpoint — so the ONE layout answer is a live class rather than a constant,
+   and `STAGED` is gone rather than made to lie about being static. */
+ok("staging is no longer a boot-time constant",
+   !/var STAGED = TOUCH;/.test(html) && !/if \(!STAGED\) return;/.test(sm[1]),
+   "a constant cannot answer a question whose answer changes while the page is open");
+ok("it is the layout resolver that stages the panel, and only it",
+   (html.match(/classList\.toggle\("staged"/g) || []).length === 1 &&
+   /function setCompact\(on\) \{[\s\S]{0,200}?classList\.toggle\("staged", !!on\)/.test(html),
+   "one writer, so the panel's stage and the window's width cannot disagree");
 ok("the peek detent is content-height and capped",
-   /#tune\.detail\{height:auto;max-height:\d+vh\}/.test(touchBlock),
+   /#tune\.detail\{height:auto;max-height:\d+vh\}/.test(compactBlock),
    "as much arena above it as the one control leaves");
 /* The freeze, and the reason the pause panel is withheld rather than the pause. */
 console.log("\n[the quiet freeze]");

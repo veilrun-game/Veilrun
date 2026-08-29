@@ -302,7 +302,25 @@ body.tuning .screen.on{opacity:0;pointer-events:none;transition:opacity .18s eas
    asserts that nothing in the sheet is declared smaller.
    ------------------------------------------------------------------------- */
 #tune{--tap:44px;
-  position:fixed;top:0;right:0;bottom:0;width:290px;background:rgba(8,6,16,.94);
+  /* ---- THE WIDTH (VR-139) -------------------------------------------------
+     It was `width:290px`. Not a token, not responsive, not adjustable — Jordan,
+     8/24: *"you can't change the width of the desktop settings panel, it's just
+     narrow as is and unadjustable."*
+
+     `clamp(300px, 33vw, 560px)` grows with the window and stops before it can
+     eat the fight. A third of the width is the line: past that the arena stops
+     being something you can judge a colour against, and **not covering the
+     arena is the drawer's entire advantage over the sheet** — the moment it
+     does, the sheet is the better answer, which is what the compact block below
+     is for. The 300px floor is where the drawer hands over.
+
+     `min(..., 55vw)` is not for the clamp — which already respects the
+     viewport — it is for the USER-SET width the grip writes as an inline
+     custom property. A width dragged wide at 1920 and then reopened in a 900px
+     window has to fall back on its own, or the panel covers the game and the
+     only thing that can fix it is the panel. */
+  --tunew:clamp(300px,33vw,560px);
+  position:fixed;top:0;right:0;bottom:0;width:min(var(--tunew),55vw);background:rgba(8,6,16,.94);
   border-left:1px solid var(--line);z-index:43;padding:0;
   display:flex;flex-direction:column;
   transform:translateX(100%);font-size:.86rem;
@@ -554,6 +572,13 @@ body.tuning .screen.on{opacity:0;pointer-events:none;transition:opacity .18s eas
   border:1px solid var(--line-hi);border-radius:14px;background:rgba(18,18,36,.6);
   color:var(--white);font-family:inherit;font-size:.86rem;text-align:left}
 .tcat:hover{background:rgba(60,52,92,.45);border-color:var(--accent)}
+/* VR-139 — a tile for a group this device does not have is a tile that opens
+   nothing. Controls is `.touchonly` (it configures a pad), so on a desktop —
+   at ANY width, sheet or drawer — its tile goes with it. Declared after `.tcat`
+   and re-declared inside the pointer query, which is the honest place for it:
+   "is there a pad" is a pointer question, not a layout one. Caught by rendering
+   the rail at 1280, where a hidden section was also winning the scroll-spy. */
+.tcat-touchonly{display:none}
 .tcat .ic{width:22px;height:22px;color:var(--violet-lt)}
 .tcatn{font-family:var(--font-display);letter-spacing:.11em;text-transform:uppercase;
   font-size:.74rem;line-height:1.1}
@@ -617,112 +642,7 @@ body.tuning .screen.on{opacity:0;pointer-events:none;transition:opacity .18s eas
   #fps{display:none}
   #vpad{display:flex}
   .touchonly{display:block}
-  /* VR-114 — the drawer becomes a bottom sheet. Every closing brace in here is
-     INDENTED on purpose: _touch.js extracts this media query up to the first
-     column-zero `}`, so a nested rule that closes at column zero silently cuts
-     the harness's view of everything below it.
-
-     VR-136 — THE SHEET OPENS FULL NOW, and the detents inverted with it.
-     Jordan, 8/23: *"lets also open the window sheet to the full to start, I'm
-     actually wondering if we even need the scroll in there or if we just allow
-     the scroll to continue down as needed."*
-
-     VR-114's 62vh was the right default for a flat list of twenty controls you
-     were tuning against a live arena. VR-131 changed what "opening" means: you
-     land on a grid of tiles, and there is nothing to watch behind a grid of
-     tiles. So `--sheeth` starts at 94vh — the sheet IS the screen, the content
-     scrolls the way a page does, and the internal scrollbar stops reading as a
-     little window inside a little window.
-
-     The arena argument did not go away; it moved to where it was always really
-     about. `.detail` — one control, being watched — still drops to a peek, and
-     `.short` is the same peek reachable by hand at any stage. The old `.tall`
-     is gone rather than renamed: it meant "bigger than default" and the default
-     is now the big one, so keeping the word would have inverted its meaning
-     while the class name went on claiming otherwise. */
-  #tune{
-    --sheeth:94vh;
-    /* CONTENT HEIGHT, CAPPED — the other half of Jordan's note (*"wondering if
-       we even need the scroll in there"*). A fixed `height` meant a six-row
-       group rendered as six rows and forty percent of a screen of nothing, with
-       a scrollbar that had nothing to scroll. `height:auto` under a cap means
-       the sheet is exactly as tall as it needs to be, up to full: short groups
-       simply do not scroll, and only the ones that genuinely overflow do.
-       The cap is what animates, which is fine because it is the only thing that
-       moves when there is more content than screen. */
-    top:auto;left:0;right:0;bottom:0;width:auto;height:auto;max-height:var(--sheeth);
-    border-left:none;border-top:1px solid var(--line-hi);
-    border-radius:18px 18px 0 0;
-    transform:translateY(100%);
-    box-shadow:0 -18px 50px rgba(0,0,0,.55);
-    /* The sheet curve, not `ease`. Fast out of the gate and a long settle is
-       what makes a panel feel like it has weight rather than like a div whose
-       height changed; `ease` is symmetric and reads as mechanical at this size.
-       Jordan, 8/23: *"make the sheet feel more fluid with its motion."* */
-    transition:transform .34s cubic-bezier(.32,.72,0,1),
-               max-height .34s cubic-bezier(.32,.72,0,1),
-               visibility 0s linear .34s;
-  }
-  #tune.on{transform:translateY(0);
-    transition:transform .34s cubic-bezier(.32,.72,0,1),
-               max-height .34s cubic-bezier(.32,.72,0,1),
-               visibility 0s}
-  #tune.short{--sheeth:52vh}
-  /* WHILE A FINGER IS ON IT, nothing is animated — the sheet IS the finger.
-     A transition during a 1:1 drag is the thing that makes a sheet feel like it
-     is lagging behind your thumb, and it is why VR-114 shipped a thresholded
-     drag instead: half a proportional drag feels worse than none. This is the
-     other half. */
-  /* max-height:none as well as no transition — a drag writes an inline HEIGHT,
-     and the cap would quietly clamp the rubber band into a hard stop, which is
-     the exact feel the rubber band exists to avoid. */
-  #tune.dragging{transition:none;max-height:none}
-  /* The peek. Content-height rather than a detent, capped, so a colour picker
-     and a slider both sit at the bottom edge with as much arena above them as
-     each needs to leave. This is the whole point of the detail stage. */
-  #tune.detail{height:auto;max-height:52vh}
-  #tune.detail::after{display:none}
-  /* ---- and the one row group that is watched at the BOTTOM ----------------
-     Jordan, 8/23: *"the stick side setting covers the controls on the bottom,
-     so that should maybe move up to show the controls."*
-
-     Exactly right, and it is not a height problem: a bottom sheet always covers
-     the pad, at every detent, because they are anchored to the same edge. So
-     for a group whose section declares `data-watch="pad"`, the detail stage
-     goes to the OTHER edge. The sheet's whole justification is that you can see
-     the thing you are changing; when the thing you are changing is the pad,
-     that means getting off the bottom of the screen. */
-  #tune.detail.watchtop{top:0;bottom:auto;
-    border-top:none;border-bottom:1px solid var(--line-hi);
-    border-radius:0 0 18px 18px;
-    box-shadow:0 18px 50px rgba(0,0,0,.55);
-    transform:translateY(-100%)}
-  #tune.detail.watchtop.on{transform:translateY(0);animation:sheetdrop .22s cubic-bezier(.32,.72,0,1)}
-  #tune.watchtop #t-grab{display:none}
-  #tune.watchtop #tunehead{border-radius:0}
-  /* The handle is a real button, not a decorative bar: dragging it is the
-     gesture, but a gesture is not an affordance an assistive technology can
-     reach, so the same element toggles the detent on click/Enter and carries
-     aria-expanded. 44px tall with the grip drawn inside it. */
-  #t-grab{display:flex;order:-1;width:100%;flex:0 0 100%;height:var(--tap);
-    background:none;border:none;justify-content:center;touch-action:none;border-radius:18px 18px 0 0}
-  #t-grab::before{content:"";width:40px;height:5px;border-radius:3px;background:var(--line-hi)}
-  #t-grab:hover::before,#t-grab:focus-visible::before{background:var(--violet-lt)}
-  #t-grab:focus-visible{outline-offset:-4px}
-  #tunehead{flex-wrap:wrap;padding:0 10px 8px 14px;border-radius:18px 18px 0 0}
-  #tunebody{padding:12px 14px calc(34px + env(safe-area-inset-bottom))}
-  /* Twenty rows and no edge told you there were twenty rows. The fade is the
-     affordance; it is removed at the end of the scroll so it never claims there
-     is more when there isn't. pointer-events:none or it eats the last button. */
-  #tune::after{content:"";position:absolute;left:0;right:0;bottom:0;height:38px;
-    pointer-events:none;border-radius:0 0 18px 18px;
-    background:linear-gradient(to top,rgba(8,6,16,.96),rgba(8,6,16,0));
-    opacity:1;transition:opacity .18s ease}
-  #tune.atend::after{opacity:0}
-  /* Rows get the width back that the drawer never had, so the label stops
-     wrapping next to a 44px control. */
-  .trow{gap:12px}
-  .trow input[type=range]{flex:1.3}
+  .tcat-touchonly{display:flex}
   /* These are thumb targets on touch, not cursor targets. They shipped at 38px,
      which is under the 44x44 floor every touch guideline agrees on — fixed here
      with VR-112, which is also what moved Pause up into this cluster. */
@@ -739,17 +659,233 @@ body.tuning .screen.on{opacity:0;pointer-events:none;transition:opacity .18s eas
   .hud-b{display:none}
   /* #shroudlbl needs no rule of its own here any more — VR-135 put it in
      #msgbar, which is already measured off --padh on both devices. */
-  .panel{max-height:88vh;overflow-y:auto}
-  /* VR-132 — the start screen's eight-row legend is hidden on touch, not
-     deleted: it is still the ONE copy of that list, still read from here at
-     boot and mirrored into s-help, and "How to play" on this screen opens
-     exactly that. What it stops doing is filling a phone's first screen with a
-     scroll, which is what pushed "Enter the arena" below the fold. */
-  #s-start .keys{display:none}
-  /* The tiles want the sheet's full width on a narrow phone, and 96px of tile
-     is enough for an icon, a name and its line without the name wrapping. */
-  #tcats{gap:9px}
 }
+
+/* ---------- the layout question, asked separately (VR-139) ------------------
+   COMPACT:BEGIN
+   Jordan, 8/24: *"Settings doesn't switch to mobile in smaller screens on
+   desktop responsively."*
+
+   THE BUG WAS THE QUESTION, NOT THE THRESHOLD. Every one of these rules used to
+   live inside `@media (hover:none),(pointer:coarse)` — which asks *is there a
+   thumb*. **A desktop window dragged to 375px still has a mouse**, so it never
+   fired and the 290px drawer stayed, beside 85px of arena.
+
+   The fix is NOT to widen that query. `TOUCH` also gates the on-screen pad,
+   `wantsLock()` (pointer lock), `framedFov()` and the whole Controls group —
+   widen it and a narrow desktop window sprouts a thumbpad and loses its cursor.
+   **Two questions, two answers: `TOUCH` stays a pointer question, and the panel
+   gets a layout one.**
+
+   WRITTEN AS A CLASS, NOT A SECOND MEDIA QUERY, and that is the load-bearing
+   choice. A second `@media` string would be a second thing to keep in step with
+   the JS — the exact drift `_touch.js` already asserts against for the pointer
+   query, reintroduced one line down. Instead `LAYOUT` owns ONE string, and this
+   stylesheet reads the class it writes. There is no second string to disagree
+   with, and the `change` listener is what makes dragging a window across the
+   breakpoint work at all — a media query alone re-styles, but nothing tells the
+   panel to leave the stage it was on.
+
+   Every selector here is prefixed with a CLASS, never `html.vr-compact`: that
+   keeps `.vr-compact #tune` at the same specificity `#tune` had inside the
+   media query, so `#tune.noanim` still outranks it and reduced motion still
+   wins. A type selector in the prefix would have silently un-fixed VR-114.
+   ------------------------------------------------------------------------- */
+/* VR-114 — the drawer becomes a bottom sheet. (VR-139 moved these rules out of
+   the pointer media query and onto the `.vr-compact` class; the indentation
+   rule they used to carry — every closing brace indented, or the harness's
+   extraction stopped early — died with the media query. `_touch.js` now slices
+   this block on the COMPACT:BEGIN/END markers, like every other marked block
+   in this file.)
+
+   VR-136 — THE SHEET OPENS FULL NOW, and the detents inverted with it.
+   Jordan, 8/23: *"lets also open the window sheet to the full to start, I'm
+   actually wondering if we even need the scroll in there or if we just allow
+   the scroll to continue down as needed."*
+
+   VR-114's 62vh was the right default for a flat list of twenty controls you
+   were tuning against a live arena. VR-131 changed what "opening" means: you
+   land on a grid of tiles, and there is nothing to watch behind a grid of
+   tiles. So `--sheeth` starts at 94vh — the sheet IS the screen, the content
+   scrolls the way a page does, and the internal scrollbar stops reading as a
+   little window inside a little window.
+
+   The arena argument did not go away; it moved to where it was always really
+   about. `.detail` — one control, being watched — still drops to a peek, and
+   `.short` is the same peek reachable by hand at any stage. The old `.tall`
+   is gone rather than renamed: it meant "bigger than default" and the default
+   is now the big one, so keeping the word would have inverted its meaning
+   while the class name went on claiming otherwise. */
+.vr-compact #tune{
+  --sheeth:94vh;
+  /* CONTENT HEIGHT, CAPPED — the other half of Jordan's note (*"wondering if
+     we even need the scroll in there"*). A fixed `height` meant a six-row
+     group rendered as six rows and forty percent of a screen of nothing, with
+     a scrollbar that had nothing to scroll. `height:auto` under a cap means
+     the sheet is exactly as tall as it needs to be, up to full: short groups
+     simply do not scroll, and only the ones that genuinely overflow do.
+     The cap is what animates, which is fine because it is the only thing that
+     moves when there is more content than screen. */
+  top:auto;left:0;right:0;bottom:0;width:auto;height:auto;max-height:var(--sheeth);
+  border-left:none;border-top:1px solid var(--line-hi);
+  border-radius:18px 18px 0 0;
+  transform:translateY(100%);
+  box-shadow:0 -18px 50px rgba(0,0,0,.55);
+  /* The sheet curve, not `ease`. Fast out of the gate and a long settle is
+     what makes a panel feel like it has weight rather than like a div whose
+     height changed; `ease` is symmetric and reads as mechanical at this size.
+     Jordan, 8/23: *"make the sheet feel more fluid with its motion."* */
+  transition:transform .34s cubic-bezier(.32,.72,0,1),
+             max-height .34s cubic-bezier(.32,.72,0,1),
+             visibility 0s linear .34s;
+}
+.vr-compact #tune.on{transform:translateY(0);
+  transition:transform .34s cubic-bezier(.32,.72,0,1),
+             max-height .34s cubic-bezier(.32,.72,0,1),
+             visibility 0s}
+.vr-compact #tune.short{--sheeth:52vh}
+/* WHILE A FINGER IS ON IT, nothing is animated — the sheet IS the finger.
+   A transition during a 1:1 drag is the thing that makes a sheet feel like it
+   is lagging behind your thumb, and it is why VR-114 shipped a thresholded
+   drag instead: half a proportional drag feels worse than none. This is the
+   other half. */
+/* max-height:none as well as no transition — a drag writes an inline HEIGHT,
+   and the cap would quietly clamp the rubber band into a hard stop, which is
+   the exact feel the rubber band exists to avoid. */
+.vr-compact #tune.dragging{transition:none;max-height:none}
+/* The peek. Content-height rather than a detent, capped, so a colour picker
+   and a slider both sit at the bottom edge with as much arena above them as
+   each needs to leave. This is the whole point of the detail stage. */
+.vr-compact #tune.detail{height:auto;max-height:52vh}
+.vr-compact #tune.detail::after{display:none}
+/* ---- and the one row group that is watched at the BOTTOM ----------------
+   Jordan, 8/23: *"the stick side setting covers the controls on the bottom,
+   so that should maybe move up to show the controls."*
+
+   Exactly right, and it is not a height problem: a bottom sheet always covers
+   the pad, at every detent, because they are anchored to the same edge. So
+   for a group whose section declares `data-watch="pad"`, the detail stage
+   goes to the OTHER edge. The sheet's whole justification is that you can see
+   the thing you are changing; when the thing you are changing is the pad,
+   that means getting off the bottom of the screen. */
+.vr-compact #tune.detail.watchtop{top:0;bottom:auto;
+  border-top:none;border-bottom:1px solid var(--line-hi);
+  border-radius:0 0 18px 18px;
+  box-shadow:0 18px 50px rgba(0,0,0,.55);
+  transform:translateY(-100%)}
+.vr-compact #tune.detail.watchtop.on{transform:translateY(0);animation:sheetdrop .22s cubic-bezier(.32,.72,0,1)}
+.vr-compact #tune.watchtop #t-grab{display:none}
+.vr-compact #tune.watchtop #tunehead{border-radius:0}
+/* The handle is a real button, not a decorative bar: dragging it is the
+   gesture, but a gesture is not an affordance an assistive technology can
+   reach, so the same element toggles the detent on click/Enter and carries
+   aria-expanded. 44px tall with the grip drawn inside it. */
+.vr-compact #t-grab{display:flex;order:-1;width:100%;flex:0 0 100%;height:var(--tap);
+  background:none;border:none;justify-content:center;touch-action:none;border-radius:18px 18px 0 0}
+.vr-compact #t-grab::before{content:"";width:40px;height:5px;border-radius:3px;background:var(--line-hi)}
+.vr-compact #t-grab:hover::before,.vr-compact #t-grab:focus-visible::before{background:var(--violet-lt)}
+.vr-compact #t-grab:focus-visible{outline-offset:-4px}
+.vr-compact #tunehead{flex-wrap:wrap;padding:0 10px 8px 14px;border-radius:18px 18px 0 0}
+.vr-compact #tunebody{padding:12px 14px calc(34px + env(safe-area-inset-bottom))}
+/* Twenty rows and no edge told you there were twenty rows. The fade is the
+   affordance; it is removed at the end of the scroll so it never claims there
+   is more when there isn't. pointer-events:none or it eats the last button. */
+.vr-compact #tune::after{content:"";position:absolute;left:0;right:0;bottom:0;height:38px;
+  pointer-events:none;border-radius:0 0 18px 18px;
+  background:linear-gradient(to top,rgba(8,6,16,.96),rgba(8,6,16,0));
+  opacity:1;transition:opacity .18s ease}
+.vr-compact #tune.atend::after{opacity:0}
+/* Rows get the width back that the drawer never had, so the label stops
+   wrapping next to a 44px control. */
+.vr-compact .trow{gap:12px}
+.vr-compact .trow input[type=range]{flex:1.3}
+
+/* These three were in the pointer query and are width statements, not thumb
+   statements: a 375px desktop window overflows a panel and buries the play
+   button exactly as a phone does. */
+.vr-compact #s-start .keys{display:none}
+.vr-compact #tcats{gap:9px}
+/* Unconditional, not compact-only — a SHORT window overflows a panel at any
+   width, and there was never a reason for a desktop to be exempt. */
+.panel{max-height:88vh;overflow-y:auto}
+/* COMPACT:END */
+
+/* ---------- the drawer, at a width worth having (VR-139) --------------------
+   DRAWER:BEGIN
+   VR-131 scoped the three-stage flow to touch and said why: *"the desktop
+   drawer shows every group at once beside an arena it never covered — staging
+   it would be two taps to do what one drag already does."* **That reasoning was
+   sound at 290px and it is still sound at 460.** Re-tested rather than assumed,
+   which is what the card asked for, and the answer did not change: staging the
+   drawer would take away the one thing it is better at.
+
+   So the middle option, which is what a wide drawer actually earns: **every
+   group stays visible, and a rail is added beside them.** Navigation without
+   losing the at-a-glance view — click a category to jump to it, scroll past it
+   and the rail says where you are. Nothing is hidden, nothing costs a click
+   that did not cost one before.
+
+   THE RAIL IS THE TILES. Same `#tcats`, same buttons, same `cats` array, laid
+   out as a column instead of a grid — because two lists of seven category names
+   is the drift this file has argued against three cards running. What differs
+   is what a click MEANS, and that is one branch in `openCat`, not a second
+   control tree.
+
+   Only above 1280, where the drawer is wide enough that a 150px rail still
+   leaves a slider room to be a slider. Below that it is the plain scroll it
+   always was, which is fine — seven headers in a 340px column is not a
+   navigation problem.
+   ------------------------------------------------------------------------- */
+#tunegrip{display:none}
+#tunesecs{display:block}
+/* Sticky headers, drawer only. The compact sheet hides its headers entirely
+   (the title bar carries the group name once you are inside one), so this is
+   the one layout where "which group am I in" is still a live question. */
+.vr-drawer #tune h3{position:sticky;top:0;z-index:2;
+  background:linear-gradient(to bottom,rgba(8,6,16,.99) 72%,rgba(8,6,16,0));
+  padding-top:6px;margin-top:-6px}
+.vr-wide #tune{--tunew:clamp(420px,36vw,640px);--railw:150px}
+.vr-wide #tunebody{display:flex;align-items:flex-start;gap:16px}
+/* align-self:stretch is what makes `position:sticky` work for the whole scroll:
+   a content-height flex item stops sticking the moment you scroll past its own
+   bottom, which reads as the rail falling off the top of the panel. */
+.vr-wide #tcats{display:flex;flex:0 0 var(--railw);align-self:stretch;
+  flex-direction:column;gap:2px;position:sticky;top:0;padding:0}
+.vr-wide #tunesecs{flex:1 1 auto;min-width:0}
+.vr-wide .tcat{flex-direction:row;align-items:center;gap:10px;min-height:var(--tap);
+  padding:6px 10px;border-color:transparent;background:none;border-radius:9px}
+.vr-wide .tcat .ic{width:18px;height:18px}
+.vr-wide .tcatn{font-size:.67rem}
+/* The tile's second line is what makes a TILE a destination; in a rail the
+   name is already the whole target and the line would just wrap. */
+.vr-wide .tcatd{display:none}
+.vr-wide .tcat:hover{background:rgba(60,52,92,.42);border-color:transparent}
+.vr-wide .tcat[aria-current="true"]{background:rgba(60,52,92,.6);
+  border-color:var(--line-hi);color:var(--white)}
+.vr-wide .tcat[aria-current="true"] .tcatn{color:var(--white)}
+
+/* ---- the grip (VR-139) ----------------------------------------------------
+   A 10px strip down the panel's left edge. `role="separator"` with
+   aria-orientation, valuemin/max/now is the ARIA **window splitter** pattern,
+   and it is the reason this is not just a drag: a drag has no keyboard, and a
+   control whose only affordance is a drag is a control some people simply do
+   not have. Arrows nudge, Home/End go to the bounds, double-click hands it back
+   to the responsive default.
+
+   LAST IN THE DOM, positioned to the left edge. It was first, which put the
+   resize handle at the front of the tab order and made it the thing `open()`
+   focused — you would open Settings and land on the panel's own furniture. */
+.vr-drawer #tunegrip{display:block;position:absolute;left:0;top:0;bottom:0;width:10px;
+  margin-left:-5px;cursor:col-resize;z-index:3;touch-action:none;background:none;border:0;padding:0}
+.vr-drawer #tunegrip::before{content:"";position:absolute;left:4px;top:0;bottom:0;width:2px;
+  background:transparent;transition:background .15s}
+.vr-drawer #tunegrip:hover::before,.vr-drawer #tunegrip:focus-visible::before{background:var(--violet-lt)}
+.vr-drawer #tunegrip:focus-visible{outline:none}
+/* While a pointer is on the grip, nothing on the page may select or animate —
+   the same rule the sheet's own drag follows, for the same reason. */
+.vr-gripping{cursor:col-resize;user-select:none;-webkit-user-select:none}
+.vr-gripping #tune{transition:none}
+/* DRAWER:END */
 
 /* VR-114 — the sheet respects reduced motion (WCAG 2.3.3, and the same request
    VR-103 answered for the arena). The panel still APPEARS and still disappears —
@@ -1144,6 +1280,15 @@ body.noanim.tuning .screen.on{transition:none}
        purpose. Touch only; the desktop drawer never shows it. -->
   <div id="tcats"></div>
 
+  <!-- VR-139 — the sections get a wrapper so the wide drawer can put the rail
+       beside them as ONE flex sibling. Without it the rail and seven sections
+       are eight siblings and the rail can only be made to span them with a
+       grid-row trick that invents 999 implicit rows. Every selector that
+       reaches a section is a descendant selector (`#tune.staged .tsec`,
+       `#tunebody .trow`), and buildStage queries the body, so nothing else
+       notices this element exists. -->
+  <div id="tunesecs">
+
   <!-- Every group is a <section> carrying its own tile copy. data-ico names a
        symbol in the sprite; data-sub is the line under the tile name, and it
        lists what is actually inside rather than restating the name — "Graphics"
@@ -1278,6 +1423,13 @@ body.noanim.tuning .screen.on{transition:none}
   <button class="btn ghost" id="t-reset">Reset to defaults</button>
   </section>
   </div>
+  </div>
+  <!-- VR-139 — the resize grip. `role="separator"` + aria-orientation +
+       valuemin/max/now is the ARIA window-splitter pattern; the arrow-key
+       handling is what makes it a control rather than a gesture. Deliberately
+       the LAST child: as the first, it was what open() moved focus to. -->
+  <div id="tunegrip" role="separator" tabindex="0" aria-orientation="vertical"
+       aria-label="Settings panel width" aria-valuemin="300" aria-valuemax="680"></div>
 </div>
 <div class="screen on" id="s-start">
   <div class="panel">
@@ -1738,12 +1890,82 @@ var stage = $("stage");
    Everything downstream of this flag is INPUT and LAYOUT only. It does not reach
    the BALANCE block, and _billboard.js asserts that it can't. -------------- */
 var TOUCH = !!(window.matchMedia && window.matchMedia("(hover:none),(pointer:coarse)").matches);
-/* VR-114 — the two-stage sheet is a touch behaviour, and it is gated on the SAME
-   constant as everything else touch-shaped on this page rather than on a second
-   media query. One query in the JS, one in the CSS, character-identical, is the
-   invariant _touch.js has asserted since VR-79; a third reading of "is this a
-   phone" is a third thing that can fall out of step with the other two. */
-var STAGED = TOUCH;
+/* ==========================================================================
+   LAYOUT:BEGIN — the layout question, which is NOT the pointer question
+   ==========================================================================
+   `TOUCH` above answers *is there a thumb*. It gates the on-screen pad,
+   `wantsLock()`, `framedFov()` and the Controls group, and it must go on
+   answering only that: widen it and a narrow desktop window sprouts a thumbpad
+   and loses its cursor.
+
+   What the panel needs is a different question — *is there room for a drawer* —
+   and until VR-139 it was never asked. A desktop window dragged to 375px still
+   has a mouse, so `(hover:none),(pointer:coarse)` stayed false and the 290px
+   drawer sat beside 85px of arena. **That is the bug: not the threshold, the
+   question.**
+
+   ONE STRING PER QUESTION, AND THE STYLESHEET READS A CLASS. A second `@media`
+   in the CSS would be a second string to keep in step with this one — the exact
+   drift `_touch.js` asserts against for the pointer query, reintroduced. So
+   this module owns the strings, writes three classes on <html>, and the
+   stylesheet has no layout query of its own at all.
+
+   THE `change` LISTENER IS THE POINT. A media query alone would re-style a
+   dragged window but nothing would tell the panel it is no longer on a stage
+   that exists — you would cross the breakpoint mid-`.detail` and land on a
+   drawer showing one row. `onChange` is what hands the panel back to its own
+   front door, and the live drag is the case this card was opened about.
+
+   Three classes rather than two so the CSS never has to write `:not()`:
+   `vr-compact` (sheet) and `vr-drawer` are complements, `vr-wide` is a drawer
+   wide enough for a rail. They are derived together, here, so they cannot
+   disagree — and `wide` is `!compact && …` on purpose, which is what stops a
+   1280-wide tablet in landscape from getting a cursor-sized rail.
+   ------------------------------------------------------------------------ */
+var LAYOUT = (function () {
+  /* The drawer stops earning its keep at about a third of the window; below
+     ~820 a 300px floor is more than that, so the sheet takes over. 1280 is
+     where the drawer is wide enough that a 150px rail still leaves a slider
+     room to be a slider. Both are layout facts, and neither belongs in TOUCH. */
+  var COMPACT_Q = "(hover:none),(pointer:coarse),(max-width:820px)";
+  var WIDE_Q = "(min-width:1280px)";
+  var mqC = null, mqW = null, cb = null, primed = false;
+  var state = { compact: false, wide: false };
+  function resolve() {
+    var compact = !!(mqC && mqC.matches);
+    var wide = !compact && !!(mqW && mqW.matches);
+    /* The early return is what stops a per-pixel resize from resetting the
+       panel's stage under somebody's hand — every callback sends it home. It
+       needs an explicit `primed` flag rather than a seeded state: the very
+       first resolve has to run even when the window already agrees with the
+       zero value, and faking that by pre-flipping `state` silently skipped the
+       whole first call on any narrow load. Found by rendering at 375, not by
+       reading — the classes simply were not there. */
+    if (primed && compact === state.compact && wide === state.wide) return;
+    primed = true;
+    state.compact = compact; state.wide = wide;
+    var r = document.documentElement.classList;
+    r.toggle("vr-compact", compact);
+    r.toggle("vr-drawer", !compact);
+    r.toggle("vr-wide", wide);
+    if (cb) cb(compact, wide);
+  }
+  function start(onChange) {
+    cb = onChange;
+    try {
+      mqC = window.matchMedia(COMPACT_Q);
+      mqW = window.matchMedia(WIDE_Q);
+      [mqC, mqW].forEach(function (m) {
+        if (m.addEventListener) m.addEventListener("change", resolve);
+        else if (m.addListener) m.addListener(resolve);   // Safari < 14
+      });
+    } catch (e) {}
+    resolve();
+  }
+  return { start: start, resolve: resolve, isCompact: function () { return state.compact; },
+           COMPACT_Q: COMPACT_Q, WIDE_Q: WIDE_Q };
+})();
+/* LAYOUT:END */
 
 /* The canvas is no longer the whole window on touch — it's the stage, which is
    the window ABOVE the pad. Every place that used to reach for window.innerWidth
@@ -5136,6 +5358,12 @@ var TUNE = (function () {
        holds their own phone is not a fact another player's saved setup gets to
        assert on their behalf. */
     hand: "left", padsize: 1, verbs: "fillstop", padlbl: "1", camstick: "1",
+    /* VR-139 — the drawer's width, in px, or 0 for "use the responsive
+       default". Zero rather than a number so the clamp stays authoritative
+       until somebody actually disagrees with it: a saved 290 would pin the
+       panel at a phone-era width on a 4K monitor forever. Device ergonomics
+       like the pad keys, so absent from the preset spec for the same reason. */
+    tunew: 0,
     pixel: PIXEL, fog: 0.030, husks: String(HUSKLOD.mode),
     glass: "#" + VEIL_GLASS.toString(16).padStart(6, "0"),
     rim:   "#" + VEIL_RIM.toString(16).padStart(6, "0"),
@@ -5222,6 +5450,24 @@ var TUNE = (function () {
          changes that height — so the gameplay window has to be re-measured or
          the HUD's pips end up behind a pad that just grew. */
       applyPixelScale();
+    }
+    /* VR-139 — the panel's own geometry. An inline custom property, so the
+       stylesheet keeps ONE definition of the responsive clamp and this only
+       ever supplies an override. Removing the property (rather than writing a
+       number) is what hands control back to it. */
+    if (!what || what === "panel") {
+      var pel = $("tune");
+      if (pel) {
+        var w = +V.tunew;
+        if (!isFinite(w) || w <= 0) pel.style.removeProperty("--tunew");
+        else pel.style.setProperty("--tunew", clamp(w, PANEL_MIN, PANEL_MAX) + "px");
+        var g = $("tunegrip");
+        if (g) {
+          g.setAttribute("aria-valuenow", String(Math.round(gripWidth())));
+          g.setAttribute("aria-valuetext", (w > 0 ? Math.round(gripWidth()) + " pixels"
+                                                 : "Automatic, " + Math.round(gripWidth()) + " pixels"));
+        }
+      }
     }
     if (!what || what === "touch") {
       FIT.comp = +V.fit; LOOK.sens = +V.look;
@@ -5844,6 +6090,7 @@ var TUNE = (function () {
     $("t-close").addEventListener("click", close);
     $("tunescrim").addEventListener("click", close);
     body.addEventListener("scroll", edgeFade);
+    body.addEventListener("scroll", spyRail);
     window.addEventListener("resize", edgeFade);
 
     el.addEventListener("keydown", function (e) {
@@ -5928,11 +6175,86 @@ var TUNE = (function () {
       g.addEventListener("lostpointercapture", endDrag);
     }
     $("t-back").addEventListener("click", function () { back(); });
+    wireGrip();
     /* One delegated listener rather than a hook in each of the four binders: the
        list's value column has to agree with the control the moment the control
        moves, and a binder that forgets to call back is a row that lies. */
     body.addEventListener("input", refreshPicks);
     body.addEventListener("change", refreshPicks);
+  }
+
+  /* ---------------- the grip: a drawer you can resize (VR-139) --------------
+     Jordan, 8/24: *"you can't change the width of the desktop settings panel."*
+
+     RECOMMENDED AND BUILT, and the recommendation is the shape rather than the
+     yes: **a splitter, not only a drag.** A draggable edge with no keyboard is a
+     control some people simply do not have — and `role="separator"` with
+     aria-orientation and valuemin/max/now is a pattern browsers and screen
+     readers already know, so arrows, Home and End come almost free. The drag is
+     then sugar on a control that works without it.
+
+     The trade-off, recorded because it is the reason this could have gone the
+     other way: this is the file's THIRD drag surface (the sheet's grab handle,
+     the camera stick, now this), and every one of them is a place a pointer can
+     get stuck. It earns its place because the responsive clamp cannot know that
+     one person wants Shroud colours at 600px and another wants the arena back —
+     a default can be right on average and wrong for everybody.
+
+     Double-click hands it back to the clamp. That is the escape hatch for the
+     case a stored width is the problem, and it is why the stored value is 0
+     rather than a number. */
+  var PANEL_MIN = 300, PANEL_MAX = 680, GRIP_STEP = 16;
+  function gripWidth() {
+    var el = $("tune");
+    return (el && el.getBoundingClientRect) ? el.getBoundingClientRect().width : 0;
+  }
+  function setWidth(px) {
+    V.tunew = clamp(Math.round(px), PANEL_MIN, PANEL_MAX);
+    apply("panel"); save();
+  }
+  function wireGrip() {
+    var g = $("tunegrip"), el = $("tune");
+    if (!g || !el) return;
+    var gx = null, gw = 0;
+    g.addEventListener("pointerdown", function (e) {
+      /* Only in a drawer. In compact the grip is display:none and cannot be hit,
+         but a stray synthesised pointer on a tablet should not start a resize
+         of a panel that has no left edge. */
+      if (document.documentElement.classList.contains("vr-compact")) return;
+      e.preventDefault();
+      gx = e.clientX; gw = gripWidth();
+      document.documentElement.classList.add("vr-gripping");
+      try { g.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    g.addEventListener("pointermove", function (e) {
+      if (gx === null) return;
+      e.preventDefault();
+      // the panel is pinned to the RIGHT edge, so dragging left grows it
+      setWidth(gw + (gx - e.clientX));
+    });
+    var endGrip = function () {
+      if (gx === null) return;
+      gx = null;
+      document.documentElement.classList.remove("vr-gripping");
+    };
+    g.addEventListener("pointerup", endGrip);
+    g.addEventListener("pointercancel", endGrip);
+    g.addEventListener("lostpointercapture", endGrip);
+    /* Back to the responsive default. A stored width is the one setting that
+       can make the panel unusable at a size you did not store it at, so the way
+       out has to be on the control itself and not buried in a settings row. */
+    g.addEventListener("dblclick", function () { V.tunew = 0; apply("panel"); save(); });
+    g.addEventListener("keydown", function (e) {
+      var k = e.key, w = gripWidth();
+      if (k === "ArrowLeft") setWidth(w + GRIP_STEP);
+      else if (k === "ArrowRight") setWidth(w - GRIP_STEP);
+      else if (k === "Home") setWidth(PANEL_MAX);
+      else if (k === "End") setWidth(PANEL_MIN);
+      else if (k === "Enter" || k === " ") { V.tunew = 0; apply("panel"); save(); }
+      else return;
+      e.preventDefault();
+      e.stopPropagation();     // Home/End must not reach the dialog's Tab trap
+    });
   }
 
   /* ------------------- stage one: the list (VR-114, 8/22) -------------------
@@ -6078,6 +6400,22 @@ var TUNE = (function () {
     edgeFade();
   }
   function openCat(cat) {
+    var el = $("tune");
+    /* VR-139 — TWO MEANINGS, ONE CONTROL. On a sheet the groups are hidden and
+       a tile OPENS one. In a drawer every group is already on screen, so the
+       same button SCROLLS to one: hiding the other six to honour a click would
+       be staging the drawer, which is the thing this card re-tested and kept
+       deciding against. Focus deliberately stays on the rail item — a nav
+       control that throws focus into the page is one you cannot use twice. */
+    if (!el.classList.contains("staged")) {
+      curCat = cat;
+      markRail(cat);
+      if (cat.sec.scrollIntoView) {
+        try { cat.sec.scrollIntoView({ block: "start", behavior: reducedNow() ? "auto" : "smooth" }); }
+        catch (e) { cat.sec.scrollIntoView(); }
+      }
+      return;
+    }
     curCat = cat;
     for (var i = 0; i < cats.length; i++) cats[i].sec.classList.toggle("tcat-on", cats[i] === cat);
     toList(false);
@@ -6086,6 +6424,10 @@ var TUNE = (function () {
        undoes it. */
     if (cat.first) cat.first.focus();
   }
+  /* Smooth scrolling is motion, and this panel already has a ruling on motion:
+     an explicit choice on this device outranks the OS flag. Read off the same
+     `.noanim` class apply("a11y") writes, so there is one answer. */
+  function reducedNow() { return $("tune").classList.contains("noanim"); }
   /* ONE unwind, two triggers — the Back button and Escape. Returns false at the
      front door, which is the caller's cue to close. The alternative is each
      trigger knowing how many stages there are, and that number just changed. */
@@ -6095,7 +6437,14 @@ var TUNE = (function () {
     if (cats.length && !el.classList.contains("cats")) { toCats(true); return true; }
     return false;
   }
-  function stageHome() { if (cats.length) toCats(false); else toList(false); }
+  /* The panel's front door, whichever layout it is in. On a sheet that is the
+     tile grid; in a drawer there is no stage to be on, so it is simply the
+     whole list with the rail told where the scroll is. */
+  function stageHome() {
+    var el = $("tune");
+    if (!el.classList.contains("staged")) { resetStage(); refreshPicks(); spyRail(); edgeFade(); return; }
+    if (cats.length) toCats(false); else toList(false);
+  }
 
   var SVGNS = "http://www.w3.org/2000/svg";
   function makeTile(sec, first) {
@@ -6103,6 +6452,8 @@ var TUNE = (function () {
     var cat = { sec: sec, name: h ? h.textContent : "Settings", first: first || null };
     var b = document.createElement("button");
     b.className = "tcat"; b.type = "button";
+    // the tile lives and dies with its section — see .tcat-touchonly
+    if (sec.classList && sec.classList.contains("touchonly")) b.className += " tcat-touchonly";
     /* The icon is decorative; the tile is NAMED by the section's own <h3>, which
        is the same string the title bar shows once you are inside — so a group
        can't be called one thing on its tile and another at the top of the sheet.
@@ -6124,6 +6475,7 @@ var TUNE = (function () {
     var sub = sec.getAttribute("data-sub");
     if (sub) b.appendChild(span("tcatd", sub));
     b.addEventListener("click", function () { lastCat = b; openCat(cat); });
+    cat.btn = b;                        // the rail marks the current one on this
     $("tcats").appendChild(b);
     cats.push(cat);
   }
@@ -6131,10 +6483,77 @@ var TUNE = (function () {
     for (var i = 0; i < picks.length; i++) if (picks[i].row === row) return picks[i].btn;
     return null;
   }
+
+  /* ------------------- the drawer's rail (VR-139) ---------------------------
+     The SAME buttons the compact tile grid is made of, laid out as a column.
+     What changes is what a click means, and that is the branch in openCat: on a
+     sheet it opens a stage, in a drawer it scrolls to a group that was already
+     on screen. Two lists of seven category names would be the drift; two
+     meanings for one click is just the control doing its job in two layouts. */
+  function markRail(cat) {
+    for (var i = 0; i < cats.length; i++) {
+      if (cats[i].btn) cats[i].btn.setAttribute("aria-current", cats[i] === cat ? "true" : "false");
+    }
+  }
+  /* Which group the top of the scrollport is inside. Last-one-above rather than
+     nearest-to-top: nearest flips to the next group while its heading is still
+     half on screen, which reads as the rail guessing. */
+  function spyRail() {
+    var el = $("tune"); if (!el || el.classList.contains("staged") || !cats.length) return;
+    var body = $("tunebody");
+    if (!body || !body.getBoundingClientRect || !cats[0].sec.getBoundingClientRect) return;
+    var line = body.getBoundingClientRect().top + 12, best = null;
+    for (var i = 0; i < cats.length; i++) {
+      var r = cats[i].sec.getBoundingClientRect();
+      /* A section this layout hides reports top:0 — which is above the line,
+         and therefore beat every real group to "last one above". The rail spent
+         a whole render insisting you were in Controls on a desktop that has no
+         pad. Height is the test, not the class, so it holds for any reason a
+         group is off screen. */
+      if (!r.height) continue;
+      if (!best || r.top <= line) best = cats[i];
+      if (r.top > line) break;
+    }
+    if (best) markRail(best);
+  }
+  /* Every transient piece of stage state, in one place. Called when the layout
+     changes under an open panel: crossing the breakpoint mid-`.detail` would
+     otherwise leave a drawer showing exactly one row, with a Back button that
+     goes to a list that no longer exists. */
+  function resetStage() {
+    var el = $("tune");
+    el.classList.remove("detail"); el.classList.remove("cats");
+    el.classList.remove("watchtop"); el.classList.remove("short");
+    el.classList.remove("dragging");
+    el.style.height = "";
+    clearFocusRows();
+    for (var i = 0; i < cats.length; i++) cats[i].sec.classList.remove("tcat-on");
+    curCat = null;
+    $("t-back").hidden = true;
+    $("t-grab").hidden = false;
+    $("tunetitle").textContent = "Settings";
+    $("tunescrim").classList.remove("clear");
+  }
+  /* The layout resolver's one call into the panel. */
+  function setCompact(on) {
+    var el = $("tune"); if (!el) return;
+    el.classList.toggle("staged", !!on);
+    resetStage();
+    if (on && cats.length) toCats(false);
+    refreshPicks();
+    spyRail();
+    edgeFade();
+  }
   /* Called after build() has filled the controls, so the list's value column is
      right on the first open rather than one interaction behind. */
   function buildStage() {
-    if (!STAGED) return;                 // the desktop drawer stays one flat list
+    /* VR-139 — ALWAYS BUILDS NOW. It used to return early off `STAGED` (which
+       was `TOUCH`), which was correct while the layout could not change after
+       boot. It can: a window dragged narrow becomes a sheet, and a sheet with no
+       tiles and no list entries is a sheet with nothing in it. So the picks and
+       the tiles are built once, and `.staged` — written by the layout resolver —
+       decides whether they are shown. About forty hidden buttons on a wide
+       desktop, which is the price of the panel surviving a resize. */
     var body = $("tunebody");
     var secs = body.querySelectorAll(".tsec"), s, j;
     /* Stamp each section's watch target onto its rows BEFORE the picks are
@@ -6162,6 +6581,7 @@ var TUNE = (function () {
   return { build: build, toggle: toggle, apply: apply,
            open: open, close: close, isOpen: isOpen,
            wireDialog: wireDialog, buildStage: buildStage,
+           setCompact: setCompact, gripWidth: gripWidth,
            setCam: setCam, camMode: camMode };
 })();
 TUNE.wireDialog();
@@ -6575,6 +6995,12 @@ TUNE.build();
 /* After build(), never before: the list column shows each setting's CURRENT
    value, and before build() every control still holds its markup default. */
 TUNE.buildStage();
+/* VR-139 — and after buildStage(), never before: the resolver's first call
+   lands on `setCompact`, which sends the panel to whichever front door this
+   layout has, and there is no front door until the tiles exist. Every later
+   call is a window crossing the breakpoint — which is the whole reason this is
+   a listener and not a boot-time constant. */
+LAYOUT.start(function (compact) { TUNE.setCompact(compact); });
 $("tunefab").addEventListener("click", function () { TUNE.toggle(); });
 /* VR-114 — the pause-screen entry point. TUNE.open() rather than toggle() so a
    second tap can never close a sheet you just asked for, and the opener is
