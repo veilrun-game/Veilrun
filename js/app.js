@@ -1313,17 +1313,40 @@ window.VApp = (function () {
     else { likeMine.delete(src); likeCounts[src] = Math.max(0, (likeCounts[src] || 0) - 1); if (!likeCounts[src]) likeAll.delete(src); localStorage.removeItem(likeKey(src)); }
   }
 
-  /* ---- Lab votes (one up-vote per person per idea, counted group-wide) ---- */
-  let voteMine = new Set(), voteCounts = {};
+  /* ---- Lab votes (one up-vote per person per idea, counted group-wide) ----
+     The Loom (VR-99) votes DOWN as well as up, on the same `votes` table and with no
+     new SQL — the `choice` column has been there since the table was created. Down-votes
+     are counted in their own map on purpose: a Lab idea's count is an up-count, and a
+     Loom down-vote must never be able to dent one. `voteChoiceMine` is what makes a vote
+     flippable (up → down) rather than only on/off. */
+  let voteMine = new Set(), voteCounts = {}, voteDownCounts = {}, voteChoiceMine = {};
   const voteKey = (poll) => "vr_vote:" + poll;
-  const iVoted = (poll) => voteMine.has(poll) || localStorage.getItem(voteKey(poll)) === "1";
+  // Loom polls store "up"/"down" under the same key shape; "1" is the pre-VR-99 Lab value
+  // and still has to read as an up-vote or every existing local vote silently unsticks.
+  const iVoted = (poll) => { const v = localStorage.getItem(voteKey(poll)); return voteMine.has(poll) || v === "1" || v === "up"; };
   const voteCount = (poll) => voteCounts[poll] || 0;
+  const voteDownCount = (poll) => voteDownCounts[poll] || 0;
   async function hydrateVotes() {
     if (!window.VBackend) return;
     const rows = await window.VBackend.loadVotes();
-    voteMine = new Set(); voteCounts = {};
+    voteMine = new Set(); voteCounts = {}; voteDownCounts = {}; voteChoiceMine = {};
     const who = myWho();
-    rows.forEach(r => { voteCounts[r.poll] = (voteCounts[r.poll] || 0) + 1; if (r.who === who) voteMine.add(r.poll); });
+    rows.forEach(r => {
+      const ch = r.choice === "down" ? "down" : "up";   // legacy rows have no choice at all
+      if (ch === "down") voteDownCounts[r.poll] = (voteDownCounts[r.poll] || 0) + 1;
+      else voteCounts[r.poll] = (voteCounts[r.poll] || 0) + 1;
+      if (r.who === who) { voteChoiceMine[r.poll] = ch; if (ch === "up") voteMine.add(r.poll); }
+    });
+  }
+  // Apply one up/down/none locally so the panel responds before the round trip lands.
+  function applyLoomVoteLocal(poll, choice) {
+    const prev = voteChoiceMine[poll] || null;
+    if (prev === "up") { voteCounts[poll] = Math.max(0, (voteCounts[poll] || 0) - 1); voteMine.delete(poll); }
+    if (prev === "down") voteDownCounts[poll] = Math.max(0, (voteDownCounts[poll] || 0) - 1);
+    if (choice === "up") { voteCounts[poll] = (voteCounts[poll] || 0) + 1; voteMine.add(poll); }
+    if (choice === "down") voteDownCounts[poll] = (voteDownCounts[poll] || 0) + 1;
+    if (choice) { voteChoiceMine[poll] = choice; localStorage.setItem(voteKey(poll), choice); }
+    else { delete voteChoiceMine[poll]; localStorage.removeItem(voteKey(poll)); }
   }
   function applyVoteLocal(poll, voted) {
     if (voted) { voteMine.add(poll); voteCounts[poll] = (voteCounts[poll] || 0) + 1; localStorage.setItem(voteKey(poll), "1"); }
@@ -2278,20 +2301,170 @@ window.VApp = (function () {
     if (btn && btn.setAttribute) btn.setAttribute("aria-expanded", String(open));
   }
 
-  // The Loom (VR-99) isn't built yet. Its empty state ships now on purpose: it's the one
-  // panel here allowed to render before it has data, because it explains a feature that
-  // doesn't exist and names the exact thing that switches it on. That's a recruitment
-  // surface on a page whose whole job is getting dormant crew to contribute once.
-  function loomPanel(notes) {
+  /* ---------------------------------------------------------------- THE LOOM (VR-99)
+     A panel above the reference list that reads every take and hands back three
+     DIVERGENT Veilrun game concepts. Three ideas that don't fit together is a good
+     week — they are three catalogue candidates, not one compromise.
+
+     THE CITATION FLOOR IS THE ANTI-SLOP MECHANISM, and it is enforced here rather
+     than trusted upstream: an idea carrying fewer than LOOM_MIN_CITATIONS real takes
+     (a `who` AND a `quote`) is DROPPED before it reaches the page. A generator having
+     a bad week produces a short panel, never a confident invented one. If every idea
+     fails the floor the panel renders nothing at all.
+
+     FOUR STATES, and only the first one is allowed to render on empty:
+       1 · Empty — below the gate (8 takes across 3+ people). Renders and explains
+           itself. This DELIBERATELY REVERSES VR-97A's render-nothing rule: the weekly
+           hero hides because a stale summary tells a confident wrong story, but this
+           empty state tells no story — it explains a feature that doesn't exist yet
+           and names the exact thing that switches it on. That's a recruitment surface
+           on a page whose whole job is getting dormant crew to contribute once.
+       2 · Live — three ideas, each with pitch, cited takes, gripes avoided, crew fit.
+       3 · Promoted-but-current-week — a promoted idea STAYS in the panel, restyled,
+           holding its slot until the next batch. Seeing your vote turn into something
+           is the reward loop; yanking the idea off the page at the moment it succeeds
+           throws that away.
+       4 · Stale/absent — past 21 days, or no valid batch, the panel removes itself.
+           Same silent-fallback discipline as the weekly hero.
+
+     Every state is proven headlessly in _grefcheck.js §9. */
+  const LOOM_MAX_AGE_DAYS = 21;
+  const LOOM_GATE = { takes: 8, people: 3 };
+  const LOOM_MIN_CITATIONS = 3;
+  /* THE THRESHOLDS LIVE HERE AND NOWHERE ELSE. Also written down in
+     _Project Knowledge/ — if you change one, change both in the same commit.
+     The −3/−5 gap is deliberate and is the whole point: three people disliking
+     something is a signal, not a verdict, especially in a crew where the same three
+     are the most active and their taste is therefore over-represented. Deprioritising
+     is cheap and reversible; archiving takes a clear majority of ten. The asymmetry
+     with +3 is deliberate too — promotion is cheap to undo, losing an idea isn't.
+     Archived NEVER means deleted: it leaves the panel and is recorded in the VR-99
+     doc with the week it came from and its final score. */
+  const LOOM_THRESHOLDS = { promote: 3, deprioritise: -3, archive: -5 };
+
+  const loomPoll = (weekOf, i) => "loom-" + weekOf + "-" + (i + 1);
+  // Net score for one idea. Reads the same vote store the Lab uses; down-votes are
+  // counted separately so a Lab up-vote count can never be dented by a Loom down-vote.
+  const loomNet = (poll) => (voteCount(poll) - voteDownCount(poll));
+
+  // One idea, validated. Returns null when it can't cite — which is a drop, not an error.
+  function loomIdea(raw, i, weekOf) {
+    if (!raw || typeof raw !== "object") return null;
+    const title = weeklyStr(raw.title), pitch = weeklyStr(raw.pitch);
+    if (!title || !pitch) return null;
+    const cites = (Array.isArray(raw.builtFrom) ? raw.builtFrom : [])
+      .filter(c => c && weeklyStr(c.who) && weeklyStr(c.quote));
+    if (cites.length < LOOM_MIN_CITATIONS) return null;   // the floor. No exceptions.
+    const poll = loomPoll(weekOf, i);
+    return {
+      title, pitch, poll, cites,
+      avoids: (Array.isArray(raw.avoids) ? raw.avoids : []).filter(weeklyStr),
+      fits: weeklyStr(raw.fits),
+      promoted: (raw.promoted && weeklyStr(raw.promoted.label)) ? raw.promoted : null,
+      net: loomNet(poll)
+    };
+  }
+
+  function loomIdeaHtml(idea) {
+    const dim = idea.net <= LOOM_THRESHOLDS.deprioritise && !idea.promoted;
+    // Credited through the SAME identity collapse the reference cards use (canonicalWho),
+    // deliberately. The generator writes the raw `who` off the table; the page resolves it.
+    // If the Loom said "BipolarCrayons" while the card three inches below said "Temper",
+    // one person quoted twice would read as two people agreeing — which quietly inflates
+    // exactly the consensus this panel is claiming to have found.
+    const cites = idea.cites.map(c => `<li class="loom-cite">
+        <span class="loom-who">${C.esc(canonicalWho(c.who.trim()))}${weeklyStr(c.game) ? ` <span class="mute">on ${C.esc(c.game.trim())}</span>` : ""}</span>
+        <span class="loom-quote">${C.esc(c.quote.trim())}</span>
+      </li>`).join("");
+    const avoids = idea.avoids.length
+      ? `<div class="loom-block"><h5>Avoids</h5><ul class="loom-avoids">${idea.avoids.map(a => `<li>${C.esc(a.trim())}</li>`).join("")}</ul></div>` : "";
+    const fits = idea.fits
+      ? `<div class="loom-block"><h5>Fits</h5><p class="loom-fits">${C.esc(idea.fits)}</p></div>` : "";
+    // State 3: a promoted idea keeps its slot and swaps its vote row for the way in.
+    const foot = idea.promoted
+      ? `<div class="loom-foot"><a class="btn ghost loom-lablink" href="${C.esc(weeklyStr(idea.promoted.href) || "#lab")}">${C.esc(idea.promoted.label.trim())} — open it in the Lab →</a></div>`
+      : `<div class="loom-foot">
+           <button type="button" class="votebtn loom-vote" data-loom="${C.esc(idea.poll)}" data-dir="up"
+             onclick="VApp.loomVote('${C.esc(idea.poll)}','up')" aria-label="Build this">▲ Build this <span class="vc">${voteCount(idea.poll)}</span></button>
+           <button type="button" class="votebtn loom-vote loom-down" data-loom="${C.esc(idea.poll)}" data-dir="down"
+             onclick="VApp.loomVote('${C.esc(idea.poll)}','down')" aria-label="Not it">▼ Not it <span class="vc">${voteDownCount(idea.poll)}</span></button>
+           <span class="loom-net mute">net ${idea.net > 0 ? "+" : ""}${idea.net}</span>
+         </div>`;
+    return `<li class="loom-idea${dim ? " loom-dim" : ""}${idea.promoted ? " loom-promoted" : ""}">
+      ${idea.promoted ? `<p class="loom-badge">✓ IN THE LAB</p>` : ""}
+      ${dim ? `<p class="loom-badge loom-badge-dim">▼ Deprioritised — still here, still readable, and an up-vote pulls it straight back.</p>` : ""}
+      <h4 class="loom-title">${C.esc(idea.title)}</h4>
+      <p class="loom-pitch">${C.esc(idea.pitch)}</p>
+      <div class="loom-block"><h5>Built from</h5><ul class="loom-cites">${cites}</ul></div>
+      ${avoids}
+      ${fits}
+      ${foot}
+    </li>`;
+  }
+
+  function loomPanel(notes, now) {
     const takes = (notes || []).length;
     const people = new Set((notes || []).map(t => String(t.who || "").toLowerCase()).filter(Boolean)).size;
-    if (takes >= 8 && people >= 3) return "";   // VR-99 fills this slot
-    return `<div class="panel loom loom-empty">
+
+    /* ---- state 1: below the gate. The one panel here allowed to render on empty. ---- */
+    if (takes < LOOM_GATE.takes || people < LOOM_GATE.people) {
+      return `<div class="panel loom loom-empty">
       <div class="eyebrow">The Loom</div>
       <h3>Nothing woven yet</h3>
       <p class="mute">Each week, The Loom reads everything the crew has said about the games they play and hands back <strong>three game ideas for the Veilrun world</strong> — built from what you love, designed around what you told us takes you out of a game.</p>
-      <p class="loom-gate">It needs a bit more to work with first: <strong>8 takes from at least 3 people</strong>. <span class="mute">(currently ${takes} from ${people})</span></p>
+      <p class="loom-gate">It needs a bit more to work with first: <strong>${LOOM_GATE.takes} takes from at least ${LOOM_GATE.people} people</strong>. <span class="mute">(currently ${takes} from ${people})</span></p>
     </div>`;
+    }
+
+    /* ---- state 4: no batch, a malformed one, or a stale one → render nothing ---- */
+    const l = D.loom;
+    if (!l || typeof l !== "object" || Array.isArray(l)) return "";
+    const woven = weeklyDate(weeklyStr(l.weekOf));
+    if (!woven) return "";
+    const ref = now || new Date();
+    const today = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
+    const age = Math.round((today - woven) / 864e5);
+    if (age > LOOM_MAX_AGE_DAYS) return "";
+    // A weekOf well in the future means the generator wrote a bad date, not that we are
+    // early. Small skew is tolerated so a timezone can't blank the panel on a Friday.
+    if (age < -7) return "";
+
+    const ideas = (Array.isArray(l.ideas) ? l.ideas : [])
+      .map((raw, i) => loomIdea(raw, i, weeklyStr(l.weekOf)))
+      .filter(Boolean);
+    if (!ideas.length) return "";                      // nothing could cite → say nothing
+
+    // −5 leaves the panel (recorded in the doc, never deleted). −3 sinks to the bottom,
+    // dimmed but readable and still votable. Stable partition, so a promoted idea and an
+    // untouched one both hold the slot they were woven into.
+    const archived = ideas.filter(x => x.net <= LOOM_THRESHOLDS.archive && !x.promoted);
+    const shown = ideas.filter(x => !(x.net <= LOOM_THRESHOLDS.archive && !x.promoted));
+    if (!shown.length) return "";
+    const live = shown.filter(x => !(x.net <= LOOM_THRESHOLDS.deprioritise && !x.promoted));
+    const sunk = shown.filter(x => (x.net <= LOOM_THRESHOLDS.deprioritise && !x.promoted));
+    const order = live.concat(sunk);
+
+    const dm = { month: "short", day: "numeric" };
+    const read = (typeof l.takesRead === "number" && l.takesRead > 0) ? l.takesRead : takes;
+    const from = (typeof l.people === "number" && l.people > 0) ? l.people : people;
+
+    return `<div class="panel loom loom-live">
+      <div class="eyebrow">The Loom · woven ${C.esc(woven.toLocaleDateString(undefined, dm))}</div>
+      <h3>${order.length === 1 ? "One idea" : order.length === 2 ? "Two ideas" : "Three ideas"}, read out of ${read} take${read === 1 ? "" : "s"} from ${from} of you</h3>
+      <p class="mute loom-intro">Built from what you said you love, designed around what you said takes you out of a game. <strong>Every idea below quotes at least ${LOOM_MIN_CITATIONS} real takes, with names</strong> — one that can't doesn't get published. They're meant to be three different answers rather than one blended one, so expect them not to fit together.</p>
+      <ol class="loom-ideas">${order.map(loomIdeaHtml).join("")}</ol>
+      <p class="loom-note mute">▲ <strong>Build this</strong> at ${LOOM_THRESHOLDS.promote > 0 ? "+" : ""}${LOOM_THRESHOLDS.promote} moves an idea into the Lab. ▼ <strong>Not it</strong> at ${LOOM_THRESHOLDS.deprioritise} dims it — reversible, one up-vote brings it back — and at ${LOOM_THRESHOLDS.archive} it leaves the panel. <strong>Archived never means deleted:</strong> it's kept in the VR-99 doc with the week it came from and its final score, because a good idea that arrived in a bad week should be findable later.${archived.length ? ` <span class="loom-archived">${archived.length} archived this week.</span>` : ""}</p>
+    </div>`;
+  }
+
+  // Up or down on one idea. Same row per person per idea — voting the other way flips
+  // it, voting the same way again takes it back. Rides the existing `votes` table.
+  function loomVote(poll, dir) {
+    const want = dir === "down" ? "down" : "up";
+    const next = (voteChoiceMine[poll] === want) ? null : want;
+    applyLoomVoteLocal(poll, next);
+    if (window.VBackend) window.VBackend.toggleVote(poll, want);
+    renderReference();
   }
 
   function renderReference() {
@@ -3016,9 +3189,13 @@ window.VApp = (function () {
   const __grefMatch = grefMatch;
   const __grefCard = (slug, notes, refs) => grefCardHtml(slug, notes, refs || []);
   const __loomPanel = loomPanel;
+  // Lets _grefcheck.js drive the thresholds without a network: it sets vote counts
+  // directly, then re-renders, so promoted / deprioritised / archived are all provable.
+  const __loomVotes = (up, down) => { voteCounts = up || {}; voteDownCounts = down || {}; voteChoiceMine = {}; voteMine = new Set(); };
+  const __loomConsts = () => ({ MAX_AGE: LOOM_MAX_AGE_DAYS, GATE: LOOM_GATE, MIN_CITATIONS: LOOM_MIN_CITATIONS, THRESHOLDS: LOOM_THRESHOLDS });
 
   return { init, route, toggleMenu, toggleDrop, signOut, __renderHub, __hubType, __renderUpdates, __weeklyHero, wkSkip,
-    __grefSlug, __grefMatch, __grefCard, __loomPanel,
-    grefOpen, grefClose, grefSubmit, grefWhoChange, grefNameChange, grefPick, grefMore, grefSort, grefToggle, grefHalf, grefExpand, grefArtFail, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, boardFilter, counterVote, gameBoardVer, gameBoardCombo, gameBoardLevel };
+    __grefSlug, __grefMatch, __grefCard, __loomPanel, __loomVotes, __loomConsts,
+    grefOpen, grefClose, grefSubmit, grefWhoChange, grefNameChange, grefPick, grefMore, grefSort, grefToggle, grefHalf, grefExpand, grefArtFail, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, loomVote, boardFilter, counterVote, gameBoardVer, gameBoardCombo, gameBoardLevel };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);

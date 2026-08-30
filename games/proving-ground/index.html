@@ -623,6 +623,12 @@ body.tuning .screen.on{opacity:0;pointer-events:none;transition:opacity .18s eas
 :root{--padh:0px}
 #vpad{display:none}
 .touchonly{display:none}
+/* VR-140 — .touchonly's mirror. Needed the moment a row's copy names a scroll
+   wheel: on a phone that sentence describes hardware that is not there, which
+   is worse than saying nothing. Two rules rather than one negated media query,
+   so it fails the same way .touchonly does — visible by default, hidden by the
+   coarse-pointer block below — instead of inverting the file's one convention. */
+.mouseonly{display:block}
 
 @media (hover:none),(pointer:coarse){
   html,body{overscroll-behavior:none}
@@ -642,6 +648,7 @@ body.tuning .screen.on{opacity:0;pointer-events:none;transition:opacity .18s eas
   #fps{display:none}
   #vpad{display:flex}
   .touchonly{display:block}
+  .mouseonly{display:none}
   .tcat-touchonly{display:flex}
   /* These are thumb targets on touch, not cursor targets. They shipped at 38px,
      which is under the 44x44 floor every touch guideline agrees on — fixed here
@@ -1326,6 +1333,19 @@ body.noanim.tuning .screen.on{transition:none}
   <div class="trow"><label for="t-pitch">Angle</label><input type="range" id="t-pitch" min="10" max="70" step="1"><output class="tval" id="t-pitchv" for="t-pitch"></output></div>
   <div class="trow"><label for="t-dist">Distance</label><input type="range" id="t-dist" min="6" max="24" step="0.5"><output class="tval" id="t-distv" for="t-dist"></output></div>
   <div class="trow"><label for="t-fov">Zoom (FOV)</label><input type="range" id="t-fov" min="24" max="80" step="1"><output class="tval" id="t-fovv" for="t-fov"></output></div>
+  <!-- VR-140 — Angle, Distance and Zoom above are the ARCADE rig, and until now
+       they were the only rig with any framing controls at all. These two are the
+       other two modes' equivalent, so the scroll wheel has somewhere to write in
+       every view rather than doing nothing in two of the three.
+
+       They are separate rows rather than one row that retargets with the View
+       above, because they are different quantities in different units and a
+       slider whose range and meaning change under you is a slider you cannot
+       learn. The wheel is what makes them feel like one gesture; the panel is
+       where you can see they are three numbers. -->
+  <div class="trow"><label for="t-tpdist">Third-person distance</label><input type="range" id="t-tpdist" min="1.6" max="12" step="0.2"><output class="tval" id="t-tpdistv" for="t-tpdist"></output></div>
+  <div class="trow"><label for="t-fpfov">First-person field of view</label><input type="range" id="t-fpfov" min="60" max="103" step="1"><output class="tval" id="t-fpfovv" for="t-fpfov"></output></div>
+  <div class="tnote mouseonly">Scroll the wheel &mdash; or press <b>&minus;</b> and <b>&#61;</b> &mdash; to move whichever of these three the view you are in uses. <b>0</b> puts it back.</div>
   <!-- Framing, not input, so it stays with the camera rather than moving to
        Controls with the rest of the touch rows. Wrapped rather than sectioned:
        a whole tile that only ever holds one slider is a tile you tap once. -->
@@ -1448,6 +1468,11 @@ body.noanim.tuning .screen.on{transition:none}
            and stopped being true the moment the button became a drawing that
            changes with the mode. Naming the button beats picturing it. -->
       <b>V</b><span>Change view — cycles arcade, third person, first person. The camera button, top right, does the same</span>
+      <!-- VR-140 — one line for three quantities, on purpose. What the wheel
+           moves depends on the view you are in, and naming all three here would
+           be a lookup table nobody reads mid-fight; Settings › Camera is where
+           the three numbers are visible as three numbers. -->
+      <b>Scroll · &minus; =</b><span>Zoom — pulls the camera in and out, or opens the lens in first person. 0 puts it back</span>
       <span class="hint">Stand perfectly still for a moment and the Shroud takes you — they lose you, and your next strike kills outright. Standing still is also how you die.</span>
     </div>
     <button class="btn" id="btn-start">Enter the arena</button>
@@ -2984,6 +3009,37 @@ var cam = {
    seen from the top; ~15 degrees keeps the figure reading as a figure. */
 var TP_OFF = { x: 0.95, y: 0.30, z: 6.4 };
 
+/* VR-140 — the other two rigs get named constants, so all three modes have the
+   same shape: a table of tuned numbers that Settings and the wheel write into.
+   Arcade has had ARC since VR-91; third and first person were carrying their
+   numbers as literals scattered through three functions, which is why zoom
+   could only ever be an arcade feature.
+
+   Third person's zoom axis is TP_OFF.z itself — the boom — so it needs no new
+   number, only a slider pointed at the one that was always there. Its floor is
+   deliberately short: wind it all the way in and the camera sits about where
+   the shoulder is, which is the seam a later card can use to hand third person
+   off to first as one continuous dolly rather than a mode switch. Nothing
+   depends on that yet; the floor is just a floor.
+
+   FP has no boom to shorten — you are already at the head — so first person's
+   zoom axis is the lens instead. Same gesture, different quantity, and that
+   difference is the whole reason ZOOM below is a per-mode table and not one
+   shared number. TP.fov is not tunable and is here anyway, so baseFov() can
+   read one shape for all three modes instead of two constants and a literal. */
+var TP = { fov: 62 };
+var FP = { fov: 76 };
+
+/* THE ONE ANSWER to "what lens does this mode want". It was three copies of the
+   same conditional in toggleCam(), fovKick() and the per-frame damp, and the
+   damp's copy is the one that matters: it pulls cam.fovTarget back to the base
+   EVERY frame, which is what makes fovKick() transient — and what silently
+   discarded any lasting fov change written anywhere else. A tunable first-person
+   lens is impossible until this is one function. */
+function baseFov() {
+  return cam.mode === "arcade" ? ARC.fov : (cam.mode === "third" ? TP.fov : FP.fov);
+}
+
 /* ---- arcade camera (VR-91) -------------------------------------------------
    Every reference for this build — Brokeass, TMNT, X-Men, Simpsons — has a
    FIXED camera, and that is exactly why billboards work in them: the viewing
@@ -3026,7 +3082,7 @@ function toggleCam() {
   var first = cam.mode === "first";
   player.g.visible = !first && !(playerSpriteReady());
   vmBlade.visible = first;
-  cam.fovTarget = cam.mode === "arcade" ? ARC.fov : (first ? 76 : 62);
+  cam.fovTarget = baseFov();   // VR-140 — one answer, not a fourth copy of it
   // pointer lock is a free-look affordance; the arcade camera doesn't want it
   if (cam.mode === "arcade" && document.pointerLockElement) document.exitPointerLock();
   syncCamUI();
@@ -3172,8 +3228,7 @@ function shake(mag) {
   cam.shake = Math.max(cam.shake, 0.22); cam.shakeMag = Math.max(cam.shakeMag, mag);
 }
 function fovKick(v) {
-  var base = (cam.mode === "arcade" ? ARC.fov : (cam.mode === "third" ? 62 : 76));
-  cam.fovTarget = base + v * MOTION.fov;
+  cam.fovTarget = baseFov() + v * MOTION.fov;
 }
 
 var _cd = new THREE.Vector3();
@@ -3228,7 +3283,7 @@ function updateCamera(dt) {
   _cd.set(cam.lx, cam.ly, cam.lz);
   camera.lookAt(_cd);
 
-  cam.fovTarget = damp(cam.fovTarget, cam.mode === "arcade" ? ARC.fov : (cam.mode === "third" ? 62 : 76), 6, dt);
+  cam.fovTarget = damp(cam.fovTarget, baseFov(), 6, dt);
   cam.fov = damp(cam.fov, cam.fovTarget, 14, dt);
   // cam.fov stays the TUNED value; framedFov is the value actually shown, so a
   // narrow window widens the lens without rewriting what Jordan dialled in.
@@ -5351,6 +5406,11 @@ var TUNE = (function () {
        desktop each keep their own tuned distance rather than fighting over one. */
     dist: TOUCH ? 11 : ARC.dist,
     fov: ARC.fov, fit: FIT.comp, look: LOOK.sens,
+    /* VR-140 — the third- and first-person framing axes, so all three views have
+       something the wheel can write into. Persisted per device like every other
+       row here, and in the preset spec below with pitch/dist/fov, because they
+       are the same KIND of thing those are: a look, not an ergonomic. */
+    tpdist: TP_OFF.z, fpfov: FP.fov,
     /* --- controls (VR-132). Ergonomics, not look-and-feel: which hand you hold
        the phone in, how big your thumbs are, whether you still need the labels.
        Persisted per device like everything else here, and deliberately absent
@@ -5395,6 +5455,42 @@ var TUNE = (function () {
     var el = $(id); if (el) el.value = V[key];
   }
 
+  /* VR-140 — pin() for the sliders, and it should have existed since VR-113.
+     pin() corrected a bad <select> and the cam branch corrected a bad mode, but
+     every NUMERIC row was still doing `ARC.dist = +V.dist` — which clamps what
+     the GAME uses and leaves the corrupt value sitting in V. Found by feeding a
+     hostile blob to a real browser, the same way VR-113's blank View row was:
+     tpdist "not a number" and fpfov 99999 rendered as a row reading `NaN` and a
+     row reading `99999°` over an arena running on 6.4 and 103.
+
+     And it was worse than cosmetic. zoom() steps from `+V[key]`, so a V holding
+     NaN made every notch fail isFinite and the wheel went silently dead until
+     somebody dragged the slider. A control that stops responding with nothing in
+     the console is indistinguishable from a control that was never wired.
+
+     So: correct V, not just the rig. Bounds come off the CONTROL, like
+     buildSpec() and zoom() — one window, read from one place. */
+  function pinNum(key, id) {
+    var el = $(id); if (!el) return;
+    var lo = +el.min, hi = +el.max;
+    if (!isFinite(lo) || !isFinite(hi) || hi <= lo) return;
+    /* Two different corrections, because they answer two different mistakes.
+       A NUMBER outside the window is a value somebody meant — 99999 is "as wide
+       as it goes" — so it clamps. Anything that is not a number is not a value
+       at all and goes back to the default. `+V[key]` alone would have made
+       `null` mean zero and quietly park the camera at the minimum, which is a
+       JS coercion rule standing in for an intent nobody expressed. */
+    var v = typeof V[key] === "number" && isFinite(V[key]) ? clamp(V[key], lo, hi) : DEF[key];
+    if (v === V[key]) return;
+    V[key] = v;
+    /* The row's own registered put, so the <output>'s formatting is not written
+       a second time here. Absent while build() is still running its first
+       apply(); syncControls() replays every put straight after, so nothing is
+       lost — this only has to be right once the panel exists. */
+    if (puts[key]) puts[key](); else el.value = v;
+    save();
+  }
+
   function apply(what) {
     if (!what || what === "map") {
       var m = buildMap(V.map);
@@ -5425,8 +5521,26 @@ var TUNE = (function () {
       for (var ci = 0; ci < CAM_MODES.length && cam.mode !== V.cam; ci++) toggleCam();
     }
     if (!what || what === "arc") {
+      /* VR-140 — pinned before they are read, not clamped as they are read. The
+         three arcade rows have carried the corrupt-blob bug since VR-113 fixed
+         its <select> equivalent; a null `dist` used to reach ARC as NaN and take
+         the camera with it. */
+      pinNum("pitch", "t-pitch"); pinNum("dist", "t-dist"); pinNum("fov", "t-fov");
       ARC.pitch = V.pitch * Math.PI / 180; ARC.dist = +V.dist; ARC.fov = +V.fov;
       if (cam.mode === "arcade") cam.fovTarget = ARC.fov;
+    }
+    /* VR-140 — the other two rigs, and the ONLY writer of either. Pinned first,
+       for the reason spelled out on pinNum(): V is rehydrated from localStorage,
+       and a boom of NaN is a black screen, a row reading `NaN`, and a wheel that
+       has quietly stopped working. The fov write mirrors the arcade line one
+       branch up — set the target directly when you are already in the mode,
+       because updateCamera only damps TOWARDS baseFov() and would otherwise take
+       a beat to notice. */
+    if (!what || what === "rig") {
+      pinNum("tpdist", "t-tpdist"); pinNum("fpfov", "t-fpfov");
+      TP_OFF.z = +V.tpdist;
+      FP.fov = +V.fpfov;
+      if (cam.mode === "first") cam.fovTarget = FP.fov;
     }
     /* VR-132 — the pad's own shape. Bounded the way the camera mode is, and for
        the same reason: V is rehydrated from localStorage, which is untrusted the
@@ -5539,6 +5653,12 @@ var TUNE = (function () {
      reason the list stage is generated from the rows: two lists of seventeen
      things drift, and the drift is silent. */
   var bound = [];
+  /* VR-140 — the same puts, also reachable BY KEY. syncControls() replays all of
+     them; the wheel moves exactly one and needs to refresh exactly one, and the
+     alternative was zoom() hand-writing `el.value = ...; out.textContent = ...`,
+     which is a second copy of the formatting the row already owns. That second
+     copy is how "the panel says 6.4 and the camera is at 5.2" happens. */
+  var puts = {};
   function bindRange(id, key, group, fmt) {
     var el = $(id), out = $(id + "v");
     if (!el) return;
@@ -5546,7 +5666,7 @@ var TUNE = (function () {
       el.value = V[key];
       if (out) out.textContent = fmt ? fmt(V[key]) : V[key];
     };
-    put(); bound.push(put);
+    put(); bound.push(put); puts[key] = put;
     el.addEventListener("input", function () {
       V[key] = +el.value;
       if (out) out.textContent = fmt ? fmt(V[key]) : V[key];
@@ -5563,6 +5683,69 @@ var TUNE = (function () {
     for (var i = 0; i < bound.length; i++) bound[i]();
     syncMotionRows();
     refreshPicks();
+  }
+
+  /* ------------------------- zoom, as one gesture (VR-140) -------------------
+     Jordan, 8/30: *"it would be nice to attach it to the mouse wheel, or a
+     simple keystroke."*
+
+     The thing that made this more than an afternoon is that "zoom" is not one
+     number. The arcade rig zooms by dollying (ARC.dist); third person zooms by
+     shortening the boom (TP_OFF.z); first person has no boom at all and zooms by
+     opening the lens (FP.fov). Three quantities, three units, three ranges. So
+     this is a TABLE keyed by cam.mode rather than a shared `zoom` value with
+     three conversions hanging off it — a conversion is a place two numbers can
+     disagree, and there is no honest conversion between "metres back" and
+     "degrees wide" anyway.
+
+     `mult` is per mode because a wheel notch has to feel like the same amount of
+     zoom in all three, and the underlying steps differ by an order of magnitude.
+
+     BOUNDS COME OFF THE CONTROL, not from constants here — the same rule
+     buildSpec() follows, and for the same reason: widen a slider and the wheel
+     widens with it, in one edit. A hand-typed copy of `min="1.6"` is exactly the
+     kind of thing that goes stale in silence, and the failure is a wheel that
+     stops short of somewhere the panel will happily drag you.
+
+     NOT a fourth writer of the rigs. Everything below routes through V, apply()
+     and the row's own registered put, so the wheel, the two keys and the slider
+     are the same path — the argument VR-113 made for cycleCam() and setCam(),
+     arriving here from the input side. -------------------------------------- */
+  var ZOOM = {
+    arcade: { key: "dist",   id: "t-dist",   group: "arc", mult: 1,
+              say: function (v) { return "distance " + v.toFixed(1); } },
+    third:  { key: "tpdist", id: "t-tpdist", group: "rig", mult: 2,
+              say: function (v) { return "distance " + v.toFixed(1); } },
+    first:  { key: "fpfov",  id: "t-fpfov",  group: "rig", mult: 2,
+              say: function (v) { return "field of view " + v + "°"; } }
+  };
+  /* dir: -1 pulls in, +1 pushes out, 0 returns to the tuned default. In every
+     mode "in" is the SMALLER number — a shorter dolly or a narrower lens — so
+     one sign works for all three and the wheel never reverses meaning when you
+     change view. */
+  function zoom(dir) {
+    var z = ZOOM[cam.mode]; if (!z) return false;
+    var el = $(z.id); if (!el) return false;
+    var lo = +el.min, hi = +el.max, st = +el.step || 1;
+    if (!isFinite(lo) || !isFinite(hi) || hi <= lo) return false;
+    /* Falls back to the default rather than trusting V, so the wheel still works
+       on the frame a corrupt blob is loaded and before apply() has pinned it.
+       Belt and braces with pinNum() — but zoom() is reachable from an input
+       event, and an input path that assumes something upstream already ran is
+       the shape of the bug that made this line necessary. */
+    var cur = +V[z.key]; if (!isFinite(cur)) cur = DEF[z.key];
+    var next = dir ? cur + dir * st * z.mult : DEF[z.key];
+    /* Snapped to the step grid and rounded, or 0.2-sized steps accumulate into
+       6.400000000000001 and the row's <output> starts printing float noise. */
+    next = clamp(+(Math.round(next / st) * st).toFixed(4), lo, hi);
+    if (!isFinite(next) || next === cur) return false;
+    V[z.key] = next;
+    if (puts[z.key]) puts[z.key]();
+    apply(z.group); save();
+    /* The toast is the readout when the panel is shut, which is the case this
+       whole feature exists for. Same channel the pixel-grid key uses. */
+    toast(z.say(next));
+    return true;
   }
 
   /* ---------------- presets: the spec IS the panel (VR-113) ----------------
@@ -5606,6 +5789,11 @@ var TUNE = (function () {
       if (of.length) S[key] = { t: "pick", of: of };
     }
     num("pitch", "t-pitch"); num("dist", "t-dist"); num("fov", "t-fov");
+    /* VR-140 — in, with the arcade framing rows. A preset is a LOOK, and where a
+       third-person camera sits over the shoulder is as much of one as how wide
+       the arcade lens is. Read off the controls like everything else here, so
+       widening either slider widens the preset range in the same edit. */
+    num("tpdist", "t-tpdist"); num("fpfov", "t-fpfov");
     num("fit", "t-fit"); num("look", "t-look"); num("fog", "t-fog");
     num("amin", "t-amin"); num("amax", "t-amax"); num("lift", "t-lift");
     for (i = 0; i < MOTION_KEYS.length; i++) num("m" + MOTION_KEYS[i], "t-m" + MOTION_KEYS[i]);
@@ -5799,6 +5987,8 @@ var TUNE = (function () {
     bindRange("t-pitch", "pitch", "arc", function (v) { return v + "°"; });
     bindRange("t-dist", "dist", "arc", function (v) { return (+v).toFixed(1); });
     bindRange("t-fov", "fov", "arc");
+    bindRange("t-tpdist", "tpdist", "rig", function (v) { return (+v).toFixed(1); });
+    bindRange("t-fpfov", "fpfov", "rig", function (v) { return v + "°"; });
     bindRange("t-fit", "fit", "touch", function (v) { return (+v).toFixed(2); });
     bindRange("t-look", "look", "touch", function (v) { return (+v * 1000).toFixed(1); });
     /* VR-132 — the Controls group. All five write through apply("pad"), which is
@@ -6582,12 +6772,78 @@ var TUNE = (function () {
            open: open, close: close, isOpen: isOpen,
            wireDialog: wireDialog, buildStage: buildStage,
            setCompact: setCompact, gripWidth: gripWidth,
-           setCam: setCam, camMode: camMode };
+           setCam: setCam, camMode: camMode, zoom: zoom };
 })();
 TUNE.wireDialog();
 
 window.addEventListener("keydown", function (e) {
   if (e.key === "\\\\") { TUNE.toggle(); }
+});
+
+/* ===================== zoom input, wheel and keys (VR-140) ================
+   Both ends of Jordan's ask — "attach it to the mouse wheel, or a simple
+   keystroke" — turned out to be worth having, because they answer different
+   moments. The wheel is what you reach for mid-fight without thinking; the keys
+   are what works on a trackpad you have turned scroll-acceleration loose on,
+   and what a player who never touches a wheel can still find in the legend.
+
+   Both call the one setter, so neither can drift from the panel.
+
+   WHY THIS IS NOT IN THE MAIN keydown HANDLER. That handler hard-returns while
+   the settings dialog is open (VR-114), and rightly — single-letter hotkeys must
+   not reach the arena from under a modal. But zoom is DIFFERENT in kind: the
+   thing it moves is a row in that very dialog, sitting open in front of you, and
+   scrolling the arena while watching the slider track it is the most useful this
+   feature ever is. So it lives out here and makes its own, narrower judgement
+   about what is in the way. ---------------------------------------------- */
+
+/* The one predicate. A wheel over the settings drawer has to SCROLL THE DRAWER —
+   it is a long list on a short window — and a wheel over the help overlay has to
+   scroll that. Nothing else in the document scrolls, so "is the pointer inside a
+   panel" is the whole question, and `closest` answers it without this needing to
+   know which panels exist. */
+function zoomBlocked(target) {
+  if (!target || !target.closest) return false;
+  return !!target.closest("#tune, #s-help, #tunescrim");
+}
+
+/* On window rather than on the canvas. The canvas is not the only place a
+   player's pointer sits — #hud is fixed on top of it, the start and pause panels
+   cover it outright, and every one of those is somewhere a wheel should still
+   frame the shot. One listener plus one predicate beats enumerating the surfaces
+   that count, and it is the predicate that has to be right either way. */
+window.addEventListener("wheel", function (e) {
+  if (zoomBlocked(e.target)) return;
+  /* Without this the page itself scrolls on a trackpad — the body is not
+     scrollable on desktop, but a two-finger swipe still triggers overscroll
+     chrome, and on the touch layout #tunebody would rubber-band. */
+  e.preventDefault();
+  /* Sign, not magnitude. deltaY arrives in pixels, lines or pages depending on
+     the device and the OS, and a trackpad's momentum tail can deliver a hundred
+     events for one flick — reading the magnitude means one gesture crossing the
+     whole range. One notch per event, clamped at both ends, and the camera's own
+     damp does the smoothing that a magnitude read would have been for.
+     Up is IN, which is every other zoom this project's players have used. */
+  if (e.deltaY) TUNE.zoom(e.deltaY < 0 ? -1 : 1);
+}, { passive: false });
+
+window.addEventListener("keydown", function (e) {
+  /* Modified presses belong to the browser: ⌘/Ctrl +/− is page zoom, and taking
+     that away from somebody who is trying to make the HUD legible is a worse
+     trade than any camera framing. */
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  /* A dialog is open AND the keyboard is inside it — a range input's own arrow
+     keys and a text field's minus sign both outrank this. The wheel needs no
+     such guard because a pointer has a position and a keystroke does not. */
+  var t = e.target;
+  if (t && t !== document.body && zoomBlocked(t)) return;
+  /* `-` and `=` are the unshifted keys, `_` and `+` what a hand that reached for
+     "minus" and "plus" actually sends. All four, because the difference is a
+     held Shift the player does not know they are holding. */
+  var k = e.key;
+  if (k === "-" || k === "_") { if (TUNE.zoom(1)) e.preventDefault(); return; }
+  if (k === "=" || k === "+") { if (TUNE.zoom(-1)) e.preventDefault(); return; }
+  if (k === "0") { if (TUNE.zoom(0)) e.preventDefault(); }
 });
 
 

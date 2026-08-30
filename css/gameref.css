@@ -154,11 +154,66 @@
 .gr-conv.mute { color: var(--mute); }
 .gr-add { font-size: .82rem; padding: 7px 14px; }
 
-/* ---- The Loom (VR-99 fills this; the empty state ships now on purpose) ---- */
+/* ---- The Loom (VR-99) -------------------------------------------------------
+   Magenta border on both states, because the empty state and the live one are the
+   same panel at two moments and it should read that way when the gate opens. */
 .loom { margin-top: 1.5rem; border-color: var(--magenta); }
 .loom h3 { margin: .3rem 0 .5rem; }
 .loom p { max-width: 62ch; font-size: .9rem; }
 .loom-gate { margin-bottom: 0; }
+.loom-intro { margin-bottom: 1.2rem; }
+
+.loom-ideas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1rem; }
+.loom-idea { border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem 1.1rem; }
+.loom-title { margin: 0 0 .35rem; font-size: 1.08rem; }
+.loom-pitch { margin: 0 0 .9rem; font-size: .92rem; }
+.loom-block { margin-top: .85rem; }
+.loom-block h5 { margin: 0 0 .35rem; font-size: .7rem; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--mute); font-weight: 600; }
+
+/* The citations carry the whole credibility of the panel, so they are styled AS quotes —
+   same treatment the reference cards give a take, so a reader recognises them as the
+   same object rather than as decorative pull-text this feature invented. */
+.loom-cites { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .55rem; }
+.loom-cite { display: flex; flex-direction: column; gap: 2px; border-left: 2px solid var(--magenta); padding-left: .7rem; }
+.loom-who { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: var(--white); }
+.loom-who .mute { text-transform: none; letter-spacing: 0; }
+.loom-quote { font-size: .86rem; line-height: 1.45; }
+.loom-quote::before { content: "\201C"; opacity: .5; }
+.loom-quote::after { content: "\201D"; opacity: .5; }
+.loom-avoids { margin: 0; padding-left: 1.1rem; font-size: .86rem; line-height: 1.5; }
+.loom-avoids li + li { margin-top: .3rem; }
+.loom-fits { margin: 0; font-size: .86rem; line-height: 1.5; }
+
+.loom-foot { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center;
+  margin-top: 1rem; border-top: 1px solid var(--line); padding-top: .8rem; }
+.loom-vote { font-size: .8rem; }
+.loom-net { font-size: .76rem; margin-left: auto; }
+.loom-note { font-size: .8rem; margin: 1.2rem 0 0; max-width: 72ch; }
+.loom-archived { color: var(--magenta); }
+
+/* Deprioritised: dimmed, NEVER hidden and never un-votable. −3 is a signal, not a
+   verdict, and the up-vote that reverses it has to still be reachable — so opacity and
+   nothing else. It also stays inside the reading flow at the bottom rather than being
+   collapsed behind a disclosure, because an idea nobody can re-read is an archived one. */
+.loom-dim { opacity: .55; }
+.loom-dim:hover, .loom-dim:focus-within { opacity: 1; }
+.loom-badge { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em;
+  margin: 0 0 .5rem; color: var(--magenta); font-weight: 600; }
+.loom-badge-dim { color: var(--mute); text-transform: none; letter-spacing: 0;
+  font-size: .78rem; font-weight: 400; }
+.loom-promoted { border-color: var(--magenta); }
+.loom-lablink { font-size: .8rem; }
+
+@media (max-width: 640px) {
+  .loom-idea { padding: .85rem .9rem; }
+  .loom-net { margin-left: 0; width: 100%; }
+}
+/* The dim-on-hover lift is a transition-free state change already, but a reader who
+   asked for no motion still gets the same reveal. */
+@media (prefers-reduced-motion: reduce) {
+  .loom-dim, .loom-dim:hover { transition: none; }
+}
 
 /* ---- Modal ---- */
 .gref-card-modal { width: min(560px, 94vw); max-height: 90vh; overflow-y: auto; }

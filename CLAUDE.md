@@ -27,6 +27,28 @@ anything else — most cards are unworkable without it.
 | Lore | `Games/Veilrun/Lore & World/` |
 | **Archived Kanban** (superseded by Trello) | `Games/Veilrun/Planning/archive/` |
 
+> **`Claude Access` is the ONLY place canon docs are edited.** The repo folder
+> `_Project Knowledge — see Claude Access/` is a pointer stub, exactly like
+> `Art & Assets — see Claude Access/` — it is deliberately empty and must stay that way.
+> **The canon docs must never be committed to this repo.** See §5's publishing note for why
+> that is a rule and not a preference.
+>
+> **The copy in the Claude Project is DERIVED, and it is replaced rather than edited.** Project
+> knowledge files cannot be edited in place — you delete and re-upload — so anything typed there
+> is typed into a copy that the next refresh destroys. **Type in `Claude Access`; publish to the
+> project.** If a doc in the project looks newer than the mount, that is a bug, not a source.
+>
+> **Why this is stated so bluntly (8/30):** all three surfaces had drifted, in both directions
+> at once. The mount had a Loom section the project lacked; the project held an unratified world
+> proposal that existed *nowhere else* and would have been destroyed by the first refresh;
+> `Character Kits & Synergies` — the file this table calls *the* source of truth — spelled Rook
+> **"Naz"** in one copy and **"Nas"** in the other. Reconciled on 8/30, with the pre-merge
+> originals kept in `Claude Access` at `_Archive/pre-merge 2026-08-30/`.
+>
+> **That proposal is CONFIDENTIAL and is deliberately not named here.** See §5's confidential-lore
+> rule; `_leakcheck.js` enforces it. This paragraph originally named it, on a page that is served
+> publicly — which is precisely why the rule and the check now exist.
+
 > **Mount-timing gotcha (this has burned a thread already):** the sandbox boots its mounts
 > in the background. An `ls` of the mount root run in the first seconds of a session can
 > come back showing only `outputs/` and `uploads/`. **That is not proof a folder is missing.**
@@ -106,7 +128,11 @@ explicitly rather than omitting an item.
    in-game Version dropdown), and that a preview build isn't silently the default.
 4. **Trello** — log/close the card on the board. *(Changed 8/16; this used to say
    "update `Planning/VEILRUN Kanban.md`".)*
-5. **Canon docs** — fold durable decisions back into `_Project Knowledge/`.
+5. **Canon docs** — fold durable decisions back into `_Project Knowledge/` **inside `Claude Access`**
+   (§1), never into this repo. The item is easy to skip precisely because it is the one thing on
+   this list that cannot ride along in the changeset — so say which file you edited in the
+   hand-off, or say "n/a" and mean it. `_docscheck.js` reports what a commit claimed and the docs
+   never mention, and it can only see the docs when the mount is there.
 
 ## 4. Validation — sim-first, don't ship unproven
 
@@ -158,15 +184,54 @@ in the folder before assuming:
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 
-**Site-level, four at the repo root, all dependency-free and mutation-tested:** `_check.js` (the
+**Site-level, six at the repo root, all dependency-free and mutation-tested:** `_check.js` (the
 `VEILRUN.games` manifest), `_hubcheck.js` (Hub states), `_updatescheck.js` (weekly-hero states),
-`_grefcheck.js` (Game Reference catalogue + matcher). Everything relevant must be green before hand-off.
+`_grefcheck.js` (Game Reference catalogue + matcher), `_docscheck.js` (ship-checklist item 5),
+`_leakcheck.js` (withheld lore, §5). Everything relevant must be green before hand-off.
+
+**`_leakcheck.js` (added 8/30, VR-127) scans everything `git ls-files` reports** — which is
+exactly the set Pages publishes — for terms listed in `Claude Access`. It **skips without the
+mount** and **never prints the matched term**, because a red build ends up in logs and
+screenshots. Mutation-tested against five breaks including the real one it was written for.
+
+**`_docscheck.js` (added 8/30 with VR-140) is the only harness that checks a rule about
+PROCESS rather than about code**, and the only one whose subject matter lives outside the repo.
+It reads the VR numbers this repo has *claimed* in commit subjects and reports the ones the canon
+docs never mention. Three deliberate properties: it **skips rather than fails without the
+`Claude Access` mount** (the `_shroud.js`-without-playwright contract — never go red for a
+condition you cannot evaluate); it **only fails when an undocumented card actually touched
+`games/` or `js/data.js`**, because a cover-art card wanting no canon entry is normal and failing
+on it teaches people to ignore the harness; and its `NO_DOCS_NEEDED` exclusions **police
+themselves** — a bare entry with no reason fails, and an entry for a card that has since been
+documented fails as stale. An exemption you can add without saying why is a mute button, not a
+decision. **It found VR-109 on its first run** — shipped 8/16, touched the site, never written up
+— now listed as acknowledged debt rather than a silent miss. It also parses `VR-131/132/133`,
+the house style for a multi-card subject, which a bare `/VR-\d+/` silently reads as one number.
 
 `_grefart.js` is a **tool, not a harness** — it resolves Steam appids for game-reference covers and
 is run by hand, never as part of the green-before-hand-off set. Report-only unless given `--write`.
 
 ## 5. Tech guardrails
 
+- **THIS REPO IS THE PUBLIC WEBSITE. Everything in it is world-readable.** Cloudflare Pages
+  deploys from the repo root with no `_routes.json`, so **every file is served, including ones
+  nothing links to and ones whose names start with `_`.** Verify rather than assume:
+  <https://veilrun-dxv.pages.dev/CLAUDE.md> and `/_check.js` both return live content — this
+  file and every harness are already public. **Before adding any file to this repo, ask whether
+  you would be happy reading it at a guessable URL.** This is the reason the canon docs live in
+  `Claude Access` (§1) rather than here: committing them would publish unreleased character kits,
+  world lore and unratified proposals. Found the hard way on 8/30, one `git add` short.
+- **Some lore is WITHHELD, and withheld means it cannot come into this repo.** Certain world
+  material is deliberately unannounced — the crew is meant to meet it in a game, not in a
+  changelog or a doc they stumble on. Because this repo is the public site, **material reaching
+  it is publication, not a private slip.** The withheld terms live in `Claude Access` at
+  `_Project Knowledge/_setup/confidential-terms.txt` (never here — a list in the repo publishes
+  the words it protects), and **`_leakcheck.js` enforces it** against everything `git ls-files`
+  reports, which is exactly what Pages deploys. It names the file and line and **never prints the
+  term**. Applies to `js/data.js` above all: an updates entry is the fastest route from a private
+  idea to the whole crew. **This rule exists because it was broken the day it was written** — the
+  CLAUDE.md paragraph in §1 recording that the material must stay private originally named it, on
+  a public page. Writing "keep this secret" in a doc is not a mechanism.
 - Games are **standalone single-file** `games/<name>/index.html`, inline IIFE, no build step.
 - **2D pair-level track:** shared engine at `games/_engine/engine.js` (`VE.Physics / Camera /
   Controller / Net / World`). Engine constants `TILE=40, COLS=24, ROWS=14`.

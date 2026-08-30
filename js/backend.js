@@ -25,16 +25,26 @@
       try { await sb.from("votes").insert({ who: who(), poll, choice }); } catch (e) { console.warn(e); }
     },
     // Toggle a single up-vote per person per poll (used by the Lab).
-    async toggleVote(poll) {
+    // `choice` defaults to "up", so every pre-VR-99 caller (the Lab, counter-concepts,
+    // the per-section idea lists) keeps its exact old behaviour: vote, vote again, gone.
+    // The Loom passes "down" as well — same row, same table, NO NEW SQL. The three cases
+    // are deliberate: same choice again un-votes, the other choice FLIPS the existing row
+    // rather than stacking a second one, and nothing there inserts.
+    async toggleVote(poll, choice) {
+      const ch = choice === "down" ? "down" : "up";
       try {
         const w = who();
-        const { data } = await sb.from("votes").select("poll").eq("who", w).eq("poll", poll).limit(1);
-        if (data && data.length) await sb.from("votes").delete().eq("who", w).eq("poll", poll);
-        else await sb.from("votes").insert({ who: w, poll, choice: "up" });
+        const { data } = await sb.from("votes").select("poll,choice").eq("who", w).eq("poll", poll).limit(1);
+        if (data && data.length) {
+          if ((data[0].choice || "up") === ch) await sb.from("votes").delete().eq("who", w).eq("poll", poll);
+          else await sb.from("votes").update({ choice: ch }).eq("who", w).eq("poll", poll);
+        } else await sb.from("votes").insert({ who: w, poll, choice: ch });
       } catch (e) { console.warn(e); }
     },
+    // `choice` is selected because the Loom nets up against down. Rows written before
+    // VR-99 may carry null here; every reader treats null as "up".
     async loadVotes() {
-      try { const { data } = await sb.from("votes").select("who,poll,created_at"); return data || []; }
+      try { const { data } = await sb.from("votes").select("who,poll,choice,created_at"); return data || []; }
       catch (e) { return []; }
     },
     // Feedback rows (who + when) — powers the contribution leaderboard.

@@ -284,15 +284,181 @@ hasnt(h, "<script>", "escaping: a script tag in a take never reaches the DOM raw
 hasnt(h, "<img src=x", "escaping: an img tag in a name never reaches the DOM raw");
 has(h, "&lt;script&gt;", "escaping: it's rendered as visible text instead");
 
-/* ---- 9. The Loom gate --------------------------------------------------- */
+/* ---- 9. THE LOOM (VR-99) ------------------------------------------------
+   Four states, a citation floor and three vote thresholds — none of which a person
+   can see going wrong. The gate opens on live data, so a regression here reads on the
+   page as "the ideas panel is just gone this week" and nobody files that as a bug.
+
+   Every check pins `now`, so the batch in js/data.js ageing out on its own 21-day
+   cliff can never turn this harness red. */
 var L = A.__loomPanel;
+var LV = A.__loomVotes, LC = A.__loomConsts();
+var FRESH = new Date(2026, 7, 30);          // 2 days after the shipped batch's weekOf
+
+// --- 9a. state 1: below the gate, the panel RENDERS. It recruits, so it must not hide.
 has(L([]), "Nothing woven yet", "loom: empty state renders (it recruits, so it must not hide)");
 has(L([]), "8 takes from at least 3 people", "loom: the empty state names the exact gate");
 has(L([]), "currently 0 from 0", "loom: shows live progress toward the gate");
-ok(L(ten) === "", "loom: yields the slot once 8 takes from 3+ people exist (VR-99 fills it)");
-var sevenOneperson = [];
-for (var j = 0; j < 9; j++) sevenOneperson.push(note("Todd", "l" + j, "g" + j));
-has(L(sevenOneperson), "Nothing woven yet", "loom: 9 takes from ONE person does not open the gate");
+var nineOnePerson = [];
+for (var j = 0; j < 9; j++) nineOnePerson.push(note("Todd", "l" + j, "g" + j));
+has(L(nineOnePerson), "Nothing woven yet", "loom: 9 takes from ONE person does not open the gate");
+has(L(nineOnePerson), "currently 9 from 1", "loom: and it says which half of the gate is short");
+// The gate is a property of the INPUT, not of the batch — a batch sitting in data.js must
+// not be able to render the panel under a gate that is closed.
+has(L(three), "Nothing woven yet", "loom: 3 takes can't open the gate even with a batch loaded");
+// The gate numbers on the page and the numbers in the code are the same numbers.
+ok(LC.GATE.takes === 8 && LC.GATE.people === 3, "loom: the gate is 8 takes across 3 people");
+
+// --- 9b. state 2: live. The gate is open on real data, so this is what actually ships.
+LV({}, {});                                  // no votes anywhere
+var live = L(ten, FRESH);
+ok(live !== "", "loom: with the gate open and a fresh batch, the panel renders");
+has(live, "The Loom", "loom live: the panel names itself");
+has(live, "loom-ideas", "loom live: the idea list renders");
+ok((live.match(/loom-idea\b/g) || []).length === 3, "loom live: all three ideas render — three candidates, not one compromise");
+has(live, "The Thinning Line", "loom live: idea 1 renders from js/data.js");
+has(live, "Two Hands", "loom live: idea 2 renders");
+has(live, "Last Call", "loom live: idea 3 renders");
+has(live, "Built from", "loom live: the citation block is labelled");
+has(live, "Avoids", "loom live: the gripes it's designed around are labelled");
+has(live, "Fits", "loom live: the crew fit is labelled");
+
+// THE CITATION REQUIREMENT IS THE WHOLE FEATURE. Names and verbatim quotes, on the page.
+// Names, run through the SAME identity collapse the cards below use. Asserted as the
+// resolved crew name rather than the raw handle on purpose: citing one person under two
+// spellings would read as two people agreeing, which inflates the consensus the panel
+// claims to have found. jkrazy→Latch · BipolarCrayons→Temper · Ramos The Wise→Vesper ·
+// Soviet→Cinder, and the raw handles must NOT leak through beside them.
+[["jkrazy", "Latch"], ["BipolarCrayons", "Temper"], ["Ramos The Wise", "Vesper"], ["Soviet", "Cinder"]]
+  .forEach(function (pair) {
+    has(live, ">" + pair[1], "loom live: " + pair[0] + " is quoted BY NAME as " + pair[1] +
+      " — an idea nobody can be seen in is slop");
+    hasnt(live, ">" + pair[0], "loom live: the raw handle '" + pair[0] +
+      "' does not leak — one person must not read as two sources");
+  });
+has(live, "Gets boring once you have everything upgraded and unlocked",
+  "loom live: the quote is verbatim, not a tidied paraphrase");
+has(live, "the ability to control 2 characters simultaniously",
+  "loom live: a typo in a real take survives — tidying it turns a citation into a paraphrase");
+// Every rendered idea must carry at least three of them. Counted per idea, not in total,
+// or two well-cited ideas would cover for a third that cites nothing.
+var perIdea = live.split('<li class="loom-idea').slice(1);
+ok(perIdea.length === 3, "loom live: three idea blocks to count citations in");
+perIdea.forEach(function (chunk, n) {
+  ok((chunk.match(/loom-cite\b/g) || []).length >= LC.MIN_CITATIONS,
+    "loom live: idea " + (n + 1) + " cites at least " + LC.MIN_CITATIONS + " real takes");
+});
+
+// --- 9c. THE FLOOR: an idea that cannot cite is DROPPED, never published thin.
+var realLoom = D.loom;
+D.loom = { weekOf: "2026-08-28", ideas: [
+  { title: "Cites three", pitch: "p", builtFrom: [
+    { who: "A", quote: "q1" }, { who: "B", quote: "q2" }, { who: "C", quote: "q3" }] },
+  { title: "Cites two only", pitch: "p", builtFrom: [{ who: "A", quote: "q1" }, { who: "B", quote: "q2" }] },
+  { title: "Cites three but one is hollow", pitch: "p", builtFrom: [
+    { who: "A", quote: "q1" }, { who: "B", quote: "q2" }, { who: "C", quote: "   " }] }
+] };
+var floor = L(ten, FRESH);
+has(floor, "Cites three", "floor: an idea with three real citations ships");
+hasnt(floor, "Cites two only", "floor: an idea with two citations is DROPPED, not published thin");
+hasnt(floor, "Cites three but one is hollow",
+  "floor: a blank quote doesn't count toward the floor — three entries is not three citations");
+// If nothing can cite, the panel says nothing at all rather than rendering an empty frame.
+D.loom = { weekOf: "2026-08-28", ideas: [{ title: "T", pitch: "p", builtFrom: [{ who: "A", quote: "q" }] }] };
+ok(L(ten, FRESH) === "", "floor: when NO idea can cite, the panel renders nothing — never an empty frame");
+D.loom = { weekOf: "2026-08-28", ideas: [{ title: "", pitch: "p", builtFrom: [
+  { who: "A", quote: "q1" }, { who: "B", quote: "q2" }, { who: "C", quote: "q3" }] }] };
+ok(L(ten, FRESH) === "", "floor: a titleless idea is dropped too — a well-cited blank is still blank");
+
+// --- 9d. state 4: staleness and malformed batches remove the panel entirely.
+D.loom = realLoom;
+ok(L(ten, new Date(2026, 8, 17)) !== "", "ageing: at 20 days the batch is still current");
+ok(L(ten, new Date(2026, 8, 19)) === "", "ageing: past 21 days the panel REMOVES ITSELF — same rule as the weekly hero");
+ok(LC.MAX_AGE === 21, "ageing: the cliff is 21 days");
+ok(L(ten, new Date(2026, 6, 1)) === "", "ageing: a weekOf far in the FUTURE is a bad date, not an early week");
+[null, undefined, {}, [], { weekOf: "2026-08-28" }, { weekOf: "not-a-date", ideas: realLoom.ideas },
+ { weekOf: "2026-08-28", ideas: [] }, { weekOf: "2026-08-28", ideas: "three of them" }].forEach(function (bad, n) {
+  D.loom = bad;
+  ok(L(ten, FRESH) === "", "malformed batch #" + n + ": renders nothing rather than half a panel");
+});
+D.loom = realLoom;
+
+// --- 9e. the three thresholds. +3 / −3 / −5, and the gap between the last two is the point.
+ok(LC.THRESHOLDS.promote === 3 && LC.THRESHOLDS.deprioritise === -3 && LC.THRESHOLDS.archive === -5,
+  "thresholds: +3 promotes, −3 deprioritises, −5 archives");
+var p1 = "loom-2026-08-28-1", p2 = "loom-2026-08-28-2", p3 = "loom-2026-08-28-3";
+// −3 dims but never hides: still on the page, still readable, still votable.
+LV({}, (function () { var d = {}; d[p2] = 3; return d; })());
+var dimmed = L(ten, FRESH);
+has(dimmed, "Two Hands", "−3: a deprioritised idea is STILL ON THE PAGE — dimming is not hiding");
+has(dimmed, "loom-dim", "−3: it's dimmed");
+has(dimmed, "Deprioritised", "−3: and it says so, rather than looking like a rendering bug");
+ok(dimmed.indexOf("Two Hands") > dimmed.indexOf("Last Call"),
+  "−3: it sinks below the live ideas instead of holding its slot");
+ok((dimmed.match(/VApp\.loomVote\('loom-2026-08-28-2','up'/g) || []).length === 1,
+  "−3 IS REVERSIBLE: the up-vote that pulls it back is still on the page");
+// One short of the threshold changes nothing — an off-by-one here silently dims a live idea.
+LV({}, (function () { var d = {}; d[p2] = 2; return d; })());
+hasnt(L(ten, FRESH), "loom-dim", "−2 is not −3: two down-votes leave an idea completely alone");
+// −5 leaves the panel. Recorded, never deleted — and the panel says so.
+LV({}, (function () { var d = {}; d[p2] = 5; return d; })());
+var archived = L(ten, FRESH);
+hasnt(archived, "Two Hands", "−5: an archived idea leaves the panel");
+has(archived, "Last Call", "−5: the others are untouched");
+has(archived, "1 archived this week", "−5: the panel accounts for it rather than quietly shrinking");
+has(archived, "Archived never means deleted", "−5: and states the recovery rule on the page");
+// Up-votes net against down-votes — otherwise a popular idea could be archived by 5 people
+// while 20 wanted it.
+LV((function () { var u = {}; u[p2] = 4; return u; })(), (function () { var d = {}; d[p2] = 5; return d; })());
+has(L(ten, FRESH), "Two Hands", "net: 4 up against 5 down is −1, which archives nothing");
+LV({}, {});
+
+// --- 9f. state 3: a promoted idea HOLDS ITS SLOT, restyled rather than removed.
+// Deliberately promotes the MIDDLE idea, not the first. Promoting idea 1 makes
+// "holds its slot" and "sorted to the front" indistinguishable, and a reordering bug
+// would sail straight through — which is exactly what mutation-testing this caught.
+D.loom = JSON.parse(JSON.stringify(realLoom));
+D.loom.ideas[1].promoted = { label: "Warded Sanctum", href: "#lab" };
+var promoted = L(ten, FRESH);
+has(promoted, "IN THE LAB", "promoted: carries the badge");
+has(promoted, "Two Hands", "promoted: STAYS in the panel — seeing your vote land is the reward loop");
+has(promoted, "#lab", "promoted: its vote row is replaced by the way into the Lab");
+ok(promoted.indexOf("The Thinning Line") < promoted.indexOf("Two Hands") &&
+   promoted.indexOf("Two Hands") < promoted.indexOf("Last Call"),
+  "promoted: it holds the slot it was woven into — not floated to the top, not sunk");
+ok((promoted.match(/data-loom="loom-2026-08-28-2"/g) || []).length === 0,
+  "promoted: the ▲/▼ row is gone — the vote already resolved");
+ok((promoted.match(/data-loom="loom-2026-08-28-1"/g) || []).length === 2,
+  "promoted: the OTHER ideas keep both their buttons");
+// A promoted idea is immune to the thresholds: it is already in the Lab, and pulling it off
+// the page on late down-votes would strand a live Lab card with no visible origin.
+LV({}, (function () { var d = {}; d[p2] = 9; return d; })());
+var late = L(ten, FRESH);
+has(late, "Two Hands", "promoted: survives even a −9, because it already shipped");
+hasnt(late, "loom-dim", "promoted: −9 doesn't dim it either");
+hasnt(late, "archived this week", "promoted: and it is never COUNTED as archived — the tally must agree with the page");
+LV({}, {});
+D.loom = realLoom;
+
+// --- 9g. XSS. Every field here is generated text that quotes CREW-SUPPLIED free text.
+D.loom = { weekOf: "2026-08-28", ideas: [{
+  title: "<script>alert(1)</script>", pitch: "\" onmouseover=\"alert(2)",
+  builtFrom: [{ who: "<img src=x onerror=alert(3)>", game: "<b>g</b>", quote: "<script>alert(4)</script>" },
+              { who: "B", quote: "q2" }, { who: "C", quote: "q3" }],
+  avoids: ["<script>alert(5)</script>"], fits: "<script>alert(6)</script>",
+  promoted: { label: "<script>alert(7)</script>", href: "javascript:alert(8)" } }] };
+var nasty = L(ten, FRESH);
+hasnt(nasty, "<script>", "loom escaping: a script tag never reaches the DOM raw");
+hasnt(nasty, "<img src=x", "loom escaping: nor an img tag in a cited name");
+has(nasty, "&lt;script&gt;", "loom escaping: it renders as visible text instead");
+D.loom = realLoom;
+
+// --- 9h. the vote handler is actually wired, and the poll ids match the spec.
+ok(typeof A.loomVote === "function", "loomVote is exported for the ▲/▼ buttons");
+LV({}, {});
+has(L(ten, FRESH), "loom-2026-08-28-1", "poll ids follow the spec's loom-<week>-<n> shape");
+has(L(ten, FRESH), "'up'", "vote buttons pass a direction — the votes table's `choice` column, no new SQL");
+has(L(ten, FRESH), "'down'", "…both directions");
 
 /* ---- 9b. the card is COLLAPSED by default (VR-109) -----------------------
    The whole point of the change is that a fresh page render is a list of summary rows.
