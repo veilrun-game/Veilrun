@@ -91,7 +91,16 @@ var CANDIDATES = [
   path.join(HOME, "Desktop/Claude Access/Games/Veilrun/_Project Knowledge"),
   path.join(HOME, "Claude Access/Games/Veilrun/_Project Knowledge"),
   path.join(HOME, "Documents/Claude Access/Games/Veilrun/_Project Knowledge"),
-  path.join(ROOT, "../Claude Access/Games/Veilrun/_Project Knowledge")
+  path.join(ROOT, "../Claude Access/Games/Veilrun/_Project Knowledge"),
+  // Cowork/sandbox layout: connected folders mount as siblings under ~/mnt/<name>, so
+  // `Claude Access` sits at ~/mnt/Claude Access — NOT ~/Claude Access, and not one level
+  // up from the repo either (ROOT/.. is ~/mnt/GitHub). Both of those were already in this
+  // list and both miss by one segment, so this harness SKIPPED in the one environment the
+  // weekly scheduled tasks actually run in. A harness that always skips is a harness that
+  // is never wrong and never useful; the SKIP text is honest about not being a pass, but
+  // nobody reads a line that never changes.
+  path.join(HOME, "mnt/Claude Access/Games/Veilrun/_Project Knowledge"),
+  path.join(ROOT, "../../Claude Access/Games/Veilrun/_Project Knowledge")
 ];
 
 function findDocs() {

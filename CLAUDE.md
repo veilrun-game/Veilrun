@@ -69,6 +69,15 @@ already held 135 and a *Community image forge* card held 136. Same rule applied:
 numbers, the two cards became **VR-141** and **VR-142**. Twice in two days is a process failure, not bad
 luck, so there is now a protocol.
 
+**A third on 8/30, and its cause is different from the first two.** `d592e19` shipped *and pushed*
+citing **VR-140** for the Proving Ground zoom work while the *Decisions* card had held VR-140 since
+8/24. Rule applied unchanged: the commit kept 140, and Decisions became **VR-144**. But the first two
+collisions happened because **nobody had claimed a number at all**; this one happened because a thread
+**claimed one without reading the counter** — which still said VR-144 the whole time, six days after
+140 was taken. **A register cannot defend a number from a thread that never opens it.** So the emphasis
+in step 1 below is the entire protocol: the moment you decide to open a card IS the moment to read and
+bump the counter, not a step you come back for.
+
 ### THE NUMBER PROTOCOL — follow it before opening any card or writing any `VR-##`
 
 **The board's `📌 Board guide` list holds a card titled `🔢 NEXT CARD NUMBER → VR-###`. That title IS
