@@ -509,6 +509,13 @@ body.tuning .screen.on{opacity:0;pointer-events:none;transition:opacity .18s eas
 .tpickc{color:var(--mute);font-size:1.1rem;line-height:1}
 #tune.staged .tpick{display:flex}
 #tune.staged #tunebody .trow,#tune.staged #tunebody .tnote-row{display:none}
+/* VR-138 — a row that does not apply to the current view is gone, in every
+   stage. `hidden` alone loses to the `display:flex` rules above and to
+   `.trow.tfocus`, so it is forced here; the row's list-entry button is hidden
+   with it, or the sheet keeps a tile that walks you to a control that is not
+   there. This is the one place in the file that needs !important, and it needs
+   it because it is overriding layout rules rather than being overridden. */
+#tune .trow[hidden],#tune .tpick[hidden]{display:none!important}
 #tune.staged.detail .tpick{display:none}
 /* h3 is not in this list any more — VR-131 hides section headers in EVERY
    staged stage, because the title bar carries the group name from the moment
@@ -1330,9 +1337,22 @@ body.noanim.tuning .screen.on{transition:none}
   <div class="trow"><label for="t-cam">View</label><select id="t-cam">
     <option value="arcade">Arcade (fixed)</option><option value="third">Third person</option>
     <option value="first">First person</option></select></div>
-  <div class="trow"><label for="t-pitch">Angle</label><input type="range" id="t-pitch" min="10" max="70" step="1"><output class="tval" id="t-pitchv" for="t-pitch"></output></div>
-  <div class="trow"><label for="t-dist">Distance</label><input type="range" id="t-dist" min="6" max="24" step="0.5"><output class="tval" id="t-distv" for="t-dist"></output></div>
-  <div class="trow"><label for="t-fov">Zoom (FOV)</label><input type="range" id="t-fov" min="24" max="80" step="1"><output class="tval" id="t-fovv" for="t-fov"></output></div>
+  <!-- VR-138 — data-cam is the whole card. Each framing row declares WHICH VIEW
+       it belongs to, and syncCamRows() shows only the rows for the view you are
+       actually in. Before this all five sat here in every mode, so in third and
+       first person you dragged Angle, Distance and Zoom and nothing moved: they
+       write into ARC, the arcade rig. An inert control is the bug being reported,
+       so the fix is not "make them all work" — Angle has no meaning outside a
+       fixed camera — it is "stop showing a control that does nothing here."
+
+       Labels are generic on purpose. The group reads as one set of rows whose
+       values change when you switch view, which is what a player expects; the
+       rows underneath stay separate ELEMENTS because they are different
+       quantities in different units, which is the VR-140 argument and still
+       right. Same reading, three honest sliders. -->
+  <div class="trow" data-cam="arcade"><label for="t-pitch">Angle</label><input type="range" id="t-pitch" min="10" max="70" step="1"><output class="tval" id="t-pitchv" for="t-pitch"></output></div>
+  <div class="trow" data-cam="arcade"><label for="t-dist">Distance</label><input type="range" id="t-dist" min="6" max="24" step="0.5"><output class="tval" id="t-distv" for="t-dist"></output></div>
+  <div class="trow" data-cam="arcade"><label for="t-fov">Zoom (FOV)</label><input type="range" id="t-fov" min="24" max="80" step="1"><output class="tval" id="t-fovv" for="t-fov"></output></div>
   <!-- VR-140 — Angle, Distance and Zoom above are the ARCADE rig, and until now
        they were the only rig with any framing controls at all. These two are the
        other two modes' equivalent, so the scroll wheel has somewhere to write in
@@ -1343,9 +1363,16 @@ body.noanim.tuning .screen.on{transition:none}
        slider whose range and meaning change under you is a slider you cannot
        learn. The wheel is what makes them feel like one gesture; the panel is
        where you can see they are three numbers. -->
-  <div class="trow"><label for="t-tpdist">Third-person distance</label><input type="range" id="t-tpdist" min="1.6" max="12" step="0.2"><output class="tval" id="t-tpdistv" for="t-tpdist"></output></div>
-  <div class="trow"><label for="t-fpfov">First-person field of view</label><input type="range" id="t-fpfov" min="60" max="103" step="1"><output class="tval" id="t-fpfovv" for="t-fpfov"></output></div>
-  <div class="tnote mouseonly">Scroll the wheel &mdash; or press <b>&minus;</b> and <b>&#61;</b> &mdash; to move whichever of these three the view you are in uses. <b>0</b> puts it back.</div>
+  <div class="trow" data-cam="third"><label for="t-tpdist">Distance</label><input type="range" id="t-tpdist" min="1.6" max="12" step="0.2"><output class="tval" id="t-tpdistv" for="t-tpdist"></output></div>
+  <!-- VR-138 — third person's lens, which VR-140 left as the one rig number with
+       no row. It had a named constant (TP.fov) and nothing to write it, so "I
+       should be able to zoom in third person as well" was only half answered: the
+       boom moved, the lens could not. It is a separate quantity from the boom and
+       both are worth having — pulling the camera in is not the same shot as
+       opening the lens, and a third-person game normally gives you both. -->
+  <div class="trow" data-cam="third"><label for="t-tpfov">Zoom (FOV)</label><input type="range" id="t-tpfov" min="40" max="90" step="1"><output class="tval" id="t-tpfovv" for="t-tpfov"></output></div>
+  <div class="trow" data-cam="first"><label for="t-fpfov">Zoom (FOV)</label><input type="range" id="t-fpfov" min="60" max="103" step="1"><output class="tval" id="t-fpfovv" for="t-fpfov"></output></div>
+  <div class="tnote mouseonly">Scroll the wheel &mdash; or press <b>&minus;</b> and <b>&#61;</b> &mdash; to move this view's zoom. <b>0</b> puts it back.</div>
   <!-- Framing, not input, so it stays with the camera rather than moving to
        Controls with the rest of the touch rows. Wrapped rather than sectioned:
        a whole tile that only ever holds one slider is a tile you tap once. -->
@@ -2371,6 +2398,15 @@ var VESPER = 0x965AE6;
 var player = {
   g: new THREE.Group(),
   x: 0, z: 6.5, vx: 0, vz: 0, yaw: 0,
+  /* VR-124 — FACING, and it is not the camera. `yaw` is where the body is
+     pointing right now; `aim` is where it is being asked to point, and
+     playerFace eases one toward the other. Before this they were the same
+     value as the camera: playerFace targeted mouse.yaw, and mouse.yaw is
+     also the movement BASIS outside arcade — so on touch, moving the left
+     stick with no look input left the body pointing wherever the camera was
+     and sliding sideways. That is the moonwalk. Two values, not one, is what
+     twin-stick means. */
+  aim: 0,
   hp: C.playerHp, iframe: 0, alive: true,
   // strike
   atkStage: -1, nextStage: 0, atkT: 0, atkPhase: "", atkHit: false, chainT: 0, queued: false,
@@ -3104,6 +3140,19 @@ function syncCamUI() {
      is the one place that knows the mode changed. Arcade's camera is fixed by
      design, so a stick there would be a control that does nothing. */
   if (typeof TPAD !== "undefined" && TPAD.syncLook) TPAD.syncLook();
+  /* VR-138 — the framing rows belong to the active view, and this is the place
+     that always knows the view changed. Three paths reach here — the ▣ fab and
+     the V key through cycleCam(), and the View <select> through apply("cam") →
+     toggleCam() — and only this function is on all three.
+
+     It went in cycleCam() first, which was WRONG in exactly the way this card is
+     about: the fab and the key updated the rows and the <select> did not, so the
+     one control most likely to change the view was the one that left the wrong
+     rows on screen. Nothing static caught it. Rendering the page in three views
+     and reading which rows were on screen did, on the first run. Note it also
+     cannot live in TUNE.setCam(), which early-returns when V.cam already equals
+     the mode — precisely the <select>'s own path. */
+  if (typeof TUNE !== "undefined" && TUNE && TUNE.syncCamRows) TUNE.syncCamRows();
 }
 /* THE VERB. What a person pressing V or tapping ▣ actually means, and the only
    place the side effects of LEAVING a mode live.
@@ -3445,9 +3494,45 @@ function lineBlocked(ax, az, bx, bz) {
 }
 
 /* ============================== player update =========================== */
+/* AIM:BEGIN — extracted and EXECUTED by _touch.js.
+   Marked because the twin-stick contract is a claim about behaviour, not about
+   text: "left stick faces on touch, the mouse still faces on desktop, first
+   person always faces where it looks, and a released stick HOLDS." Four rules
+   that a grep can only ever check the shape of. The block is two pure functions
+   reading three globals, which is exactly the shape a stub can drive.
+   ------------------------------------------------------------------------- */
+/* VR-124 — the ONE answer to "which way is forward for the sticks". Movement is
+   camera-relative in every mode; it is only the SOURCE of the camera's yaw that
+   differs. veilstep() reads this too, so a blink resolves its direction keys the
+   same way a walk does — before this it read mouse.yaw directly, which in arcade
+   is the facing rather than the screen, so W+blink went where you were pointing
+   instead of up the screen. */
+function moveBasis() { return cam.mode === "arcade" ? ARC.yaw : mouse.yaw; }
+
+/* VR-124 — where the body is asked to point, per mode.
+
+   · FIRST person: you face down your own nose. Facing IS the look direction and
+     any other answer puts the camera inside the back of your own head.
+   · THIRD person on DESKTOP: unchanged, deliberately. The mouse is both the look
+     device and the aim device there, and the card is explicit that this must not
+     regress.
+   · THIRD person on TOUCH, and ARCADE everywhere: you face where you move. This
+     is the twin-stick contract — left stick moves and therefore faces, right
+     stick looks — and it is the same maths arcade has used since VR-91 rather
+     than a second facing solver, which is the trap this card warned about.
+   · Not moving: HOLD the last aim. Snapping back to the camera on stick release
+     is the moonwalk arriving by another route. */
+function aimFor(moving, tvx, tvz) {
+  if (cam.mode === "first") return mouse.yaw;
+  if (cam.mode === "third" && !TOUCH) return mouse.yaw;
+  return moving ? Math.atan2(-tvx, -tvz) : player.aim;
+}
+
+/* AIM:END */
+
 function playerFace(dt) {
   // Face the aim direction while attacking or executing, otherwise ease toward it.
-  var target = mouse.yaw;
+  var target = player.aim;
   var rate = (player.atkStage >= 0 || player.execLunge > 0) ? 26 : 13;
   player.yaw += shortAngle(player.yaw, target) * clamp(rate * dt, 0, 1);
 }
@@ -3524,13 +3609,18 @@ function veilstep() {
   var mx = 0, mz = 0;
   if (keys.w) mz -= 1; if (keys.s) mz += 1;
   if (keys.a) mx -= 1; if (keys.d) mx += 1;
-  var cy = Math.cos(mouse.yaw), sy = Math.sin(mouse.yaw);
+  /* VR-124 — the same basis walking uses, and the same facing everything else
+     reads. Direction keys resolve against the camera; no direction keys means
+     "blink where I am pointing", which is player.aim rather than wherever the
+     camera happens to be looking. */
+  var basis = moveBasis();
+  var cy = Math.cos(basis), sy = Math.sin(basis);
   var dx, dz;
   if (mx || mz) {
     var fx = -sy, fz = -cy, rx = cy, rz = -sy;
     dx = fx * -mz + rx * mx; dz = fz * -mz + rz * mx;
     var l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
-  } else { dx = -sy; dz = -cy; }
+  } else { dx = -Math.sin(player.aim); dz = -Math.cos(player.aim); }
 
   ghost(player.x, player.z, player.yaw);
   burst(player.x, 1.0, player.z, 12, VESPER, 5.0, { grav: -3, lifeScale: 0.7, scale: 0.8 });
@@ -3650,7 +3740,7 @@ function updatePlayer(dt) {
   var mx = 0, mz = 0;
   if (keys.w) mz -= 1; if (keys.s) mz += 1;
   if (keys.a) mx -= 1; if (keys.d) mx += 1;
-  var basis = (cam.mode === "arcade") ? ARC.yaw : mouse.yaw;
+  var basis = moveBasis();
   var cy = Math.cos(basis), sy = Math.sin(basis);
   var tvx = 0, tvz = 0;
   if (mx || mz) {
@@ -3661,10 +3751,12 @@ function updatePlayer(dt) {
     var spd = base * (player.atkStage >= 0 ? 0.32 : 1) * (player.execLunge > 0 ? 0.2 : 1);
     tvx = tvx / l * spd; tvz = tvz / l * spd;
   }
-  // Arcade: you face where you move. Everything downstream (strike arc, Veilstep,
-  // Execute) already reads mouse.yaw, so pointing it at the travel direction
-  // converts the whole kit to a fixed-camera beat-em-up without touching the kit.
-  if (cam.mode === "arcade" && (mx || mz)) mouse.yaw = Math.atan2(-tvx, -tvz);
+  /* VR-124 — every mode answers this now, not just arcade, and it writes to
+     player.aim instead of to mouse.yaw. That single redirection is the card:
+     everything downstream (strike arc, Execute, the Veilstep fallback) reads the
+     facing, and the camera reads mouse.yaw, and they have stopped being the same
+     number. Arcade behaves exactly as it did — same maths, new destination. */
+  player.aim = aimFor(!!(mx || mz), tvx, tvz);
 
   var ax = tvx - player.vx, az = tvz - player.vz;
   var rate = (mx || mz) ? C.accel : C.friction;
@@ -4054,7 +4146,7 @@ function resetRun() {
   player.execCd = 0; player.execLunge = 0;
   player.still = 0; player.shroud = 0; player.veiled = false;
   player.g.visible = cam.mode !== "first" && !playerSpriteReady();
-  mouse.yaw = 0; mouse.pitch = -0.12;
+  mouse.yaw = 0; mouse.pitch = -0.12; player.aim = player.yaw;   // VR-124 — facing resets with the body, not with the camera
   for (var i = 0; i < ENEMIES.length; i++) { ENEMIES[i].live = false; ENEMIES[i].g.visible = false; TELE[i].visible = false; }
   for (var t = 0; t < THIN.length; t++) { THIN[t].life = 0; THIN[t].mesh.visible = false; }
   for (var p = 0; p < PMAX; p++) { parts[p].life = 0; parts[p].m.visible = false; }
@@ -5410,7 +5502,10 @@ var TUNE = (function () {
        something the wheel can write into. Persisted per device like every other
        row here, and in the preset spec below with pitch/dist/fov, because they
        are the same KIND of thing those are: a look, not an ergonomic. */
-    tpdist: TP_OFF.z, fpfov: FP.fov,
+    /* VR-138 — tpfov joins them. TP.fov existed as a constant and was the only
+       rig number with no row, which is why third person could dolly but not
+       zoom. */
+    tpdist: TP_OFF.z, tpfov: TP.fov, fpfov: FP.fov,
     /* --- controls (VR-132). Ergonomics, not look-and-feel: which hand you hold
        the phone in, how big your thumbs are, whether you still need the labels.
        Persisted per device like everything else here, and deliberately absent
@@ -5537,9 +5632,14 @@ var TUNE = (function () {
        because updateCamera only damps TOWARDS baseFov() and would otherwise take
        a beat to notice. */
     if (!what || what === "rig") {
-      pinNum("tpdist", "t-tpdist"); pinNum("fpfov", "t-fpfov");
+      pinNum("tpdist", "t-tpdist"); pinNum("tpfov", "t-tpfov"); pinNum("fpfov", "t-fpfov");
       TP_OFF.z = +V.tpdist;
+      TP.fov = +V.tpfov;
       FP.fov = +V.fpfov;
+      /* Set the target directly when you are already in the mode — updateCamera
+         only damps TOWARDS baseFov(), so without this the slider lags a beat
+         behind the thumb and reads as broken. One branch per mode, same shape. */
+      if (cam.mode === "third") cam.fovTarget = TP.fov;
       if (cam.mode === "first") cam.fovTarget = FP.fov;
     }
     /* VR-132 — the pad's own shape. Bounded the way the camera mode is, and for
@@ -5636,6 +5736,25 @@ var TUNE = (function () {
     syncMotionRows();
   }
   // push V back into the five sliders after the button or the OS moves them
+  /* VR-138 — the rows follow the view. Walks every framing row's data-cam and
+     shows only the ones the active mode uses, hiding each row's list-entry
+     button with it so the sheet cannot walk you to a control that is not there.
+
+     Reads cam.mode, not V.cam. They agree once apply("cam") has run, but this is
+     also called from setCam() — which fires on the ▣ fab and the V key, before
+     the arena has switched — and the rows must describe the camera you are
+     LOOKING THROUGH, not the one the panel has just been told about. Same class
+     of bug as VR-113's blank View row, from the other side. */
+  function syncCamRows() {
+    var body = $("tunebody"); if (!body) return;
+    var rows = body.querySelectorAll(".trow[data-cam]");
+    for (var i = 0; i < rows.length; i++) {
+      var off = rows[i].getAttribute("data-cam") !== cam.mode;
+      rows[i].hidden = off;
+      var b = pickFor(rows[i]); if (b) b.hidden = off;
+    }
+  }
+
   function syncMotionRows() {
     for (var i = 0; i < MOTION_KEYS.length; i++) {
       var k = MOTION_KEYS[i], el = $("t-m" + k), out = $("t-m" + k + "v");
@@ -5682,6 +5801,7 @@ var TUNE = (function () {
   function syncControls() {
     for (var i = 0; i < bound.length; i++) bound[i]();
     syncMotionRows();
+    syncCamRows();
     refreshPicks();
   }
 
@@ -5793,7 +5913,7 @@ var TUNE = (function () {
        third-person camera sits over the shoulder is as much of one as how wide
        the arcade lens is. Read off the controls like everything else here, so
        widening either slider widens the preset range in the same edit. */
-    num("tpdist", "t-tpdist"); num("fpfov", "t-fpfov");
+    num("tpdist", "t-tpdist"); num("tpfov", "t-tpfov"); num("fpfov", "t-fpfov");
     num("fit", "t-fit"); num("look", "t-look"); num("fog", "t-fog");
     num("amin", "t-amin"); num("amax", "t-amax"); num("lift", "t-lift");
     for (i = 0; i < MOTION_KEYS.length; i++) num("m" + MOTION_KEYS[i], "t-m" + MOTION_KEYS[i]);
@@ -5988,6 +6108,7 @@ var TUNE = (function () {
     bindRange("t-dist", "dist", "arc", function (v) { return (+v).toFixed(1); });
     bindRange("t-fov", "fov", "arc");
     bindRange("t-tpdist", "tpdist", "rig", function (v) { return (+v).toFixed(1); });
+    bindRange("t-tpfov", "tpfov", "rig", function (v) { return v + "°"; });
     bindRange("t-fpfov", "fpfov", "rig", function (v) { return v + "°"; });
     bindRange("t-fit", "fit", "touch", function (v) { return (+v).toFixed(2); });
     bindRange("t-look", "look", "touch", function (v) { return (+v * 1000).toFixed(1); });
@@ -6772,7 +6893,8 @@ var TUNE = (function () {
            open: open, close: close, isOpen: isOpen,
            wireDialog: wireDialog, buildStage: buildStage,
            setCompact: setCompact, gripWidth: gripWidth,
-           setCam: setCam, camMode: camMode, zoom: zoom };
+           setCam: setCam, camMode: camMode, zoom: zoom,
+           syncCamRows: syncCamRows };
 })();
 TUNE.wireDialog();
 
@@ -7251,6 +7373,12 @@ TUNE.build();
 /* After build(), never before: the list column shows each setting's CURRENT
    value, and before build() every control still holds its markup default. */
 TUNE.buildStage();
+/* VR-138 — AFTER buildStage, not inside it. buildStage creates the list-entry
+   buttons, so a row hidden before they exist leaves its button visible for the
+   rest of the session; and syncCamRows lives outside the SHEET block that
+   _touch.js executes on its own, so calling it from in there is a reference the
+   harness cannot resolve. It caught exactly that. Build, then sync. */
+TUNE.syncCamRows();
 /* VR-139 — and after buildStage(), never before: the resolver's first call
    lands on `setCompact`, which sends the panel to whichever front door this
    layout has, and there is no front door until the tiles exist. Every later

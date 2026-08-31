@@ -2244,6 +2244,163 @@ ok("names are cleaned and length-capped at the door",
    P.clean("  a b  ").length > 0 && P.clean("x".repeat(400)).length === P.NAMEMAX &&
    P.clean(null) === "" && P.clean({}) === "");
 
+/* ======================================================================
+   N. VR-124 — facing is not the camera (the twin-stick contract)
+   ====================================================================== */
+console.log("\n[facing and camera are two values]");
+/* The moonwalk was one value doing two jobs: playerFace targeted mouse.yaw, and
+   mouse.yaw is also the movement basis outside arcade. So on touch, moving with
+   no look input left the body pointing at the camera and sliding sideways.
+   These are behaviour claims, so the block is EXECUTED rather than grepped. */
+const aimSrc = (html.match(/AIM:BEGIN[\s\S]*?-+ \*\/([\s\S]*?)\/\* AIM:END/) || [])[1];
+ok("the AIM block is marked and found", !!aimSrc);
+if (aimSrc) {
+  const A = { cam: { mode: "arcade" }, ARC: { yaw: 0 }, mouse: { yaw: 0 },
+              TOUCH: false, player: { aim: 0 }, Math: Math };
+  vm.createContext(A);
+  vm.runInContext(aimSrc, A);
+
+  const NORTH = 0;                     // atan2(-0, -1) — straight up the screen
+  const EAST  = Math.atan2(-1, -0);    // travelling +x
+
+  // --- movement basis: camera-relative everywhere, but from the right source
+  A.cam.mode = "arcade"; A.ARC.yaw = 1.23; A.mouse.yaw = 9.9;
+  ok("arcade resolves the sticks against the FIXED rig", A.moveBasis() === 1.23,
+     "reading mouse.yaw here is what made W+blink go where you were pointing");
+  A.cam.mode = "third";
+  ok("third person resolves them against the camera", A.moveBasis() === 9.9);
+
+  // --- arcade: unchanged behaviour, new destination
+  A.cam.mode = "arcade"; A.mouse.yaw = 2.5; A.player.aim = 0;
+  ok("arcade still faces where you move", Math.abs(A.aimFor(true, 0, -1) - NORTH) < 1e-9);
+  ok("arcade no longer needs the camera's yaw to do it", A.aimFor(true, 1, 0) === EAST,
+     "same maths as VR-91, writing to player.aim instead of mouse.yaw");
+
+  // --- third person, touch: the actual fix
+  A.cam.mode = "third"; A.TOUCH = true; A.mouse.yaw = 2.5; A.player.aim = 0;
+  ok("touch third person faces where the LEFT stick pushes",
+     Math.abs(A.aimFor(true, 0, -1) - NORTH) < 1e-9,
+     "this is the moonwalk — it used to return the camera's yaw");
+  ok("the camera's yaw does not reach facing there", A.aimFor(true, 0, -1) !== A.mouse.yaw);
+
+  // --- releasing the stick must not snap you back to the camera
+  A.player.aim = 1.75;
+  ok("a released stick HOLDS the last facing", A.aimFor(false, 0, 0) === 1.75,
+     "snapping to the camera on release is the same bug arriving on stick-up");
+
+  // --- desktop third person is explicitly not regressed
+  A.TOUCH = false; A.mouse.yaw = 2.5;
+  ok("desktop third person keeps mouse-look facing", A.aimFor(true, 0, -1) === 2.5,
+     "the card is explicit that this must not regress");
+
+  // --- first person: facing IS look, on both input devices
+  A.cam.mode = "first"; A.mouse.yaw = -0.8;
+  ok("first person faces where it looks (desktop)", A.aimFor(true, 0, -1) === -0.8);
+  A.TOUCH = true;
+  ok("first person faces where it looks (touch)", A.aimFor(true, 1, 0) === -0.8,
+     "any other answer puts the camera in the back of your own head");
+}
+/* The wiring, which execution alone cannot see. */
+ok("playerFace targets the aim, not the camera",
+   /function playerFace[\s\S]{0,220}var target = player\.aim;/.test(html) &&
+   !/function playerFace[\s\S]{0,220}var target = mouse\.yaw;/.test(html));
+ok("nothing writes the camera's yaw to steer the body",
+   !/cam\.mode === "arcade" && \(mx \|\| mz\)\) mouse\.yaw =/.test(html),
+   "the old arcade line is gone rather than living beside the new one");
+ok("there is exactly one facing solver",
+   (html.match(/function aimFor\(/g) || []).length === 1 &&
+   (html.match(/function moveBasis\(/g) || []).length === 1,
+   "a second solver is the trap the card names");
+ok("walking and blinking share the basis",
+   (html.match(/moveBasis\(\)/g) || []).length >= 3,
+   "one definition and both call sites");
+
+/* ======================================================================
+   N+1. VR-138 — no camera row is visible-but-inert
+   ====================================================================== */
+console.log("\n[every camera row applies to the view showing it]");
+/* The reported bug: in third and first person, Angle / Distance / Zoom sat there
+   and did nothing, because all three write into ARC. The fix is that a row
+   declares the view it belongs to and is hidden everywhere else — so the thing
+   to assert is that the declaration and the wiring agree. A row that says
+   data-cam="third" but writes into the arcade rig is the original bug with a
+   label on it. */
+const camSec = (html.match(/<section class="tsec"[^>]*data-ico="i-cat-camera"[\s\S]*?<\/section>/) || [""])[0];
+ok("the Camera section is found", camSec.length > 0);
+
+const camRows = [...camSec.matchAll(/<div class="trow"([^>]*)>[\s\S]*?id="(t-[a-z]+)"/g)]
+  .map(m => ({ attrs: m[1], id: m[2], mode: (m[1].match(/data-cam="(\w+)"/) || [])[1] }));
+const MODES = ["arcade", "third", "first"];
+
+ok("every framing row declares a view",
+   camRows.filter(r => r.id !== "t-cam" && r.id !== "t-fit").every(r => MODES.indexOf(r.mode) >= 0),
+   camRows.map(r => r.id + "=" + (r.mode || "—")).join(" "));
+ok("the View row itself belongs to no view",
+   (camRows.find(r => r.id === "t-cam") || {}).mode === undefined,
+   "hiding the control you change the view with would be a locked door");
+
+/* Which rig does each row actually write? bindRange's group is the answer, and
+   it is read off the call rather than retyped here — a hand-copied table is the
+   thing that goes stale in silence. */
+const groupOf = {};
+for (const m of html.matchAll(/bindRange\("(t-[a-z]+)",\s*"(\w+)",\s*"(\w+)"/g)) groupOf[m[1]] = { key: m[2], group: m[3] };
+const RIG_FOR = { arcade: "arc", third: "rig", first: "rig" };
+ok("no row writes into a rig its view does not use",
+   camRows.filter(r => r.mode && groupOf[r.id])
+          .every(r => groupOf[r.id].group === RIG_FOR[r.mode]),
+   camRows.filter(r => r.mode && groupOf[r.id])
+          .map(r => r.id + "→" + groupOf[r.id].group).join(" "));
+ok("every view has at least one framing row",
+   MODES.every(mo => camRows.some(r => r.mode === mo)),
+   "a view with nothing to drag is the complaint in a different shape");
+ok("third person can zoom as well as dolly",
+   camRows.some(r => r.mode === "third" && r.id === "t-tpdist") &&
+   camRows.some(r => r.mode === "third" && r.id === "t-tpfov"),
+   "the boom and the lens are different shots");
+ok("the third-person lens is actually applied",
+   /TP\.fov = \+V\.tpfov;/.test(html) && /pinNum\("tpfov", "t-tpfov"\)/.test(html),
+   "a bound row with no writer is inert with extra steps");
+ok("baseFov is still the one answer for all three views",
+   (html.match(/function baseFov\(/g) || []).length === 1 &&
+   /cam\.fovTarget = damp\(cam\.fovTarget, baseFov\(\)/.test(html),
+   "the per-frame damp is what silently discarded any lasting fov change");
+
+/* The wheel has to write into a row you can SEE in that mode, or zoom toasts a
+   number the panel never shows. */
+const zoomRows = [...html.matchAll(/(arcade|third|first):\s*\{\s*key: "\w+",\s*id: "(t-[a-z]+)"/g)]
+  .map(m => ({ mode: m[1], id: m[2] }));
+ok("the wheel writes a row that is visible in that view",
+   zoomRows.length === 3 &&
+   zoomRows.every(z => camRows.some(r => r.id === z.id && r.mode === z.mode)),
+   zoomRows.map(z => z.mode + "→" + z.id).join(" "));
+
+ok("hidden rows beat the staged layout rules",
+   /#tune \.trow\[hidden\],#tune \.tpick\[hidden\]\{display:none!important\}/.test(html),
+   "plain `hidden` loses to .trow{display:flex} and to .trow.tfocus");
+ok("a hidden row's list entry is hidden with it",
+   /function syncCamRows\(\)[\s\S]{0,420}pickFor\(rows\[i\]\)/.test(html),
+   "otherwise the sheet keeps a tile that walks you to a control that is not there");
+ok("the rows follow cam.mode, not the saved value",
+   /function syncCamRows\(\)[\s\S]{0,420}!== cam\.mode/.test(html),
+   "V.cam is what survives a reload; cam.mode is what you are looking through");
+/* This assertion was written to the WRONG SHAPE first — it matched a call
+   anywhere after setCam, and passed while the call sat in cycleCam(), which the
+   View <select> never goes through. Rendering the page caught it; this now pins
+   the call to syncCamUI, the only function all three paths (fab, V key, and the
+   <select> via apply("cam") → toggleCam) actually run. */
+const syncCamUIFn = (html.match(/function syncCamUI\(\)[\s\S]*?\n\}/) || [""])[0];
+ok("the sync runs from the one function every path reaches",
+   /TUNE\.syncCamRows\(\)/.test(syncCamUIFn),
+   "the fab and the V key go through cycleCam; the View <select> does not");
+ok("it is not hung off cycleCam alone",
+   !/function cycleCam\(\)[\s\S]{0,400}TUNE\.syncCamRows/.test(html),
+   "that path updates the rows for two of the three controls and leaves the third stale");
+ok("nor off setCam, which early-returns",
+   !/function setCam\(mode\)[\s\S]{0,300}syncCamRows/.test(html),
+   "setCam returns before doing anything when V.cam already equals the mode — the <select>'s own path");
+ok("and again after the list entries exist",
+   /TUNE\.buildStage\(\);[\s\S]{0,420}TUNE\.syncCamRows\(\);/.test(html));
+
 console.log("\n" + "=".repeat(58));
 console.log((fails ? "FAIL — " + fails + " of " : "PASS — ") + checks + " checks\n");
 process.exit(fails ? 1 : 0);

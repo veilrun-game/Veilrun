@@ -103,8 +103,25 @@ ok("pointer lock goes through one predicate", /function wantsLock\(\)\s*\{\s*ret
   ok("no stale cam.mode guard survives", !/cam\.mode !== "arcade"[\s\S]{0,60}requestPointerLock/.test(html),
      "a condition left behind here is a touch device asking for a lock it can't have");
 }
-ok("WASD resolves against the fixed camera", /basis = \(cam\.mode === "arcade"\) \? ARC\.yaw/.test(html));
-ok("you face where you move", /cam\.mode === "arcade" && \(mx \|\| mz\)\) mouse\.yaw = Math\.atan2/.test(html));
+/* VR-124 moved both of these behind two named functions. The CLAIMS are
+   unchanged — arcade resolves the sticks against the fixed rig, and in arcade you
+   face where you move — but they are no longer two inline expressions, so
+   matching the old text would fail on a build that still does exactly the right
+   thing. The behavioural proof now lives in _touch.js, which extracts the AIM
+   block and executes it; what belongs HERE, with the rest of the arcade-camera
+   contract, is that the arcade rig is still what the sticks resolve against and
+   that facing no longer travels through the camera's yaw. */
+ok("WASD resolves against the fixed camera",
+   /function moveBasis\(\) \{ return cam\.mode === "arcade" \? ARC\.yaw : mouse\.yaw; \}/.test(html) &&
+   /var basis = moveBasis\(\);/.test(html),
+   "one definition, used by walking and by veilstep");
+ok("you face where you move",
+   /player\.aim = aimFor\(!!\(mx \|\| mz\), tvx, tvz\);/.test(html) &&
+   /return moving \? Math\.atan2\(-tvx, -tvz\) : player\.aim;/.test(html),
+   "same maths as VR-91, writing to player.aim instead of to the camera");
+ok("facing never rides the camera's yaw again",
+   !/mouse\.yaw = Math\.atan2/.test(html),
+   "the old arcade line is gone rather than living beside the new one");
 ok("pixel grid on by default", /var PIXEL = 4;/.test(html));
 ok("antialias off while pixelated", /antialias: PIXEL <= 1/.test(html), "smoothing at low res kills the effect");
 ok("sprites switch to NearestFilter", /NearestFilter/.test(html));
