@@ -698,11 +698,14 @@ window.VApp = (function () {
         <p class="mute" style="max-width:64ch;margin-top:1rem">The games we actually play — and, more usefully, the things that take us out of them. No game is perfect; naming what makes a good one take a hit is what turns taste into design decisions. <span id="gref-stats" class="gr-stats"></span></p>
         <div class="gr-bar">
           <button type="button" class="btn gr-addbtn" onclick="VApp.grefOpen()">＋ Add a game</button>
+        </div>
+        <div id="gref-loom"></div>
+        <div class="gr-listbar">
+          <h2 class="gr-listhead">What we play</h2>
           <select class="gb-sel" onchange="VApp.grefSort(this.value)" aria-label="Sort games">
             ${sorts.map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}
           </select>
         </div>
-        <div id="gref-loom"></div>
         <div id="gref-list" class="gr-list"><p class="mute">Loading…</p></div>
       </div>`;
     },

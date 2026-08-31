@@ -29,14 +29,20 @@
    row now, above everything, with the sort select on the far end. The full panel is not
    deleted — it still renders as `.gr-empty` when nobody has added anything, because on an
    empty page recruiting IS the content and a lone button says nothing about why. */
-.gr-bar { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center;
-  justify-content: space-between; margin: var(--s-6) 0 0; }
+.gr-bar { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center; margin: var(--s-6) 0 0; }
 .gr-addbtn { flex: 0 0 auto; }
-.gr-bar .gb-sel { flex: 0 0 auto; margin-left: auto; }
+
+/* The sort deliberately did NOT come up here with it. It orders the list below the Loom,
+   and a control that sits above a panel it cannot reorder reads as though it does. So the
+   list keeps its own bar, with a heading that says what is being sorted. */
+.gr-listbar { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: baseline;
+  justify-content: space-between; margin: var(--s-6) 0 0; }
+.gr-listhead { margin: 0; font-size: 1.15rem; }
+.gr-listbar .gb-sel { flex: 0 0 auto; margin-left: auto; }
+.gr-listbar + .gr-list { margin-top: .9rem; }
 @media (max-width: 480px) {
-  /* Two full-width rows rather than a button and a select fighting over one line. */
-  .gr-bar { flex-direction: column; align-items: stretch; }
-  .gr-bar .gb-sel { margin-left: 0; }
+  .gr-addbtn { width: 100%; }
+  .gr-listbar .gb-sel { width: 100%; margin-left: 0; }
 }
 
 /* ---- Card: a summary row that opens (VR-109) ------------------------------
