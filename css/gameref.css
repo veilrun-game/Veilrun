@@ -23,6 +23,22 @@
 .gr-empty h3 { margin: 0 0 .6rem; }
 .gr-empty p { max-width: 54ch; margin: 0 auto 1.2rem; }
 
+/* ---- The header bar (VR-145) ------------------------------------------------
+   Add-a-game was a full CTA panel sitting BELOW the Loom, which put the one action this
+   page exists to collect below several screens of reading. It is a button on the furniture
+   row now, above everything, with the sort select on the far end. The full panel is not
+   deleted — it still renders as `.gr-empty` when nobody has added anything, because on an
+   empty page recruiting IS the content and a lone button says nothing about why. */
+.gr-bar { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center;
+  justify-content: space-between; margin: var(--s-6) 0 0; }
+.gr-addbtn { flex: 0 0 auto; }
+.gr-bar .gb-sel { flex: 0 0 auto; margin-left: auto; }
+@media (max-width: 480px) {
+  /* Two full-width rows rather than a button and a select fighting over one line. */
+  .gr-bar { flex-direction: column; align-items: stretch; }
+  .gr-bar .gb-sel { margin-left: 0; }
+}
+
 /* ---- Card: a summary row that opens (VR-109) ------------------------------
    Collapsed, a card is one row — cover, name, convergence line. Everything else is in
    `.gr-detail`, which is `hidden` until asked for. The list has to stay scannable at
@@ -185,6 +201,31 @@
 .loom-avoids li + li { margin-top: .3rem; }
 .loom-fits { margin: 0; font-size: .86rem; line-height: 1.5; }
 
+/* ---- The collapsed idea (VR-145) --------------------------------------------
+   Same disclosure contract as `.gr-detail`: `hidden` is a plain display:none, not a height
+   transition, because the block holds a variable number of quotes and there is no honest
+   height to animate to. The caret rotates instead.
+
+   The credit line IS the button. Making the pitch the click target was the other option and
+   it loses on two counts: prose inside a <button> is awkward to select, and a reader who
+   wants to re-read the pitch shouldn't risk folding the card away to do it. */
+.loom-summary { display: flex; width: 100%; align-items: center; gap: .5rem;
+  margin: 0; padding: .45rem 0; background: none; border: 0; border-top: 1px solid var(--line);
+  color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.loom-summary:hover .loom-credit { color: var(--white); }
+.loom-summary:focus-visible { outline: 2px solid var(--magenta); outline-offset: 2px; }
+.loom-credit { flex: 1 1 auto; min-width: 0; font-size: .78rem; color: var(--mute);
+  transition: color .12s; }
+.loom-caret { width: 20px; height: 20px; margin-left: auto; margin-right: 0; }
+.loom-idea.open .loom-caret { transform: rotate(180deg); opacity: 1; }
+.loom-summary:hover .loom-caret { opacity: 1; }
+.loom-detail { padding-top: .2rem; }
+/* The first block inside the detail already has the summary's rule above it. */
+.loom-detail .loom-block:first-child { margin-top: .5rem; }
+
+/* Not a vote, so it is not coloured like one until you have actually asked. */
+.loom-morebtn { font-size: .8rem; }
+
 .loom-foot { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center;
   margin-top: 1rem; border-top: 1px solid var(--line); padding-top: .8rem; }
 .loom-vote { font-size: .8rem; }
@@ -208,11 +249,15 @@
 @media (max-width: 640px) {
   .loom-idea { padding: .85rem .9rem; }
   .loom-net { margin-left: 0; width: 100%; }
+  /* Three actions do not fit one phone row, and a wrapped row of equal buttons reads as
+     three equal choices — which these are not. Vote pair first, ask second. */
+  .loom-morebtn { flex: 1 1 100%; justify-content: center; }
 }
 /* The dim-on-hover lift is a transition-free state change already, but a reader who
    asked for no motion still gets the same reveal. */
 @media (prefers-reduced-motion: reduce) {
   .loom-dim, .loom-dim:hover { transition: none; }
+  .loom-caret { transition: none; }
 }
 
 /* ---- Modal ---- */

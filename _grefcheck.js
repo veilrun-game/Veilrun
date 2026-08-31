@@ -292,7 +292,7 @@ has(h, "&lt;script&gt;", "escaping: it's rendered as visible text instead");
    Every check pins `now`, so the batch in js/data.js ageing out on its own 21-day
    cliff can never turn this harness red. */
 var L = A.__loomPanel;
-var LV = A.__loomVotes, LC = A.__loomConsts();
+var LV = A.__loomVotes, LC = A.__loomConsts(), LO = A.__loomOpen;
 var FRESH = new Date(2026, 7, 30);          // 2 days after the shipped batch's weekOf
 
 // --- 9a. state 1: below the gate, the panel RENDERS. It recruits, so it must not hide.
@@ -459,6 +459,138 @@ LV({}, {});
 has(L(ten, FRESH), "loom-2026-08-28-1", "poll ids follow the spec's loom-<week>-<n> shape");
 has(L(ten, FRESH), "'up'", "vote buttons pass a direction — the votes table's `choice` column, no new SQL");
 has(L(ten, FRESH), "'down'", "…both directions");
+
+/* ---- 9i. THE IDEA IS COLLAPSED BY DEFAULT (VR-145) -----------------------
+   The same contract §9b holds the reference cards to, one panel up, and it fails the
+   same silent way: a card that ships expanded looks completely fine and simply undoes
+   the change, for as long as nobody scrolls. */
+LV({}, {}); LO([]);
+var folded = L(ten, FRESH);
+ok((folded.match(/aria-expanded="false"/g) || []).length === 3,
+  "collapsed: all three ideas render closed");
+hasnt(folded, 'aria-expanded="true"', "collapsed: none of them ships pre-opened");
+ok((folded.match(/<div class="loom-detail" id="loomdetail-loom-2026-08-28-\d" hidden>/g) || []).length === 3,
+  "collapsed: each detail carries the `hidden` attribute rather than being dropped");
+hasnt(folded, "loom-idea open", "collapsed: no idea renders with the open class");
+
+/* THE DETAIL IS HIDDEN, NEVER DROPPED. This is the assertion that stops a future
+   "make it smaller" pass from turning the disclosure into a truncation — the quotes are
+   the crew's own words and find-in-page has to keep reaching all of them. */
+has(folded, "Built from", "collapsed: the citation block is still in the DOM");
+has(folded, "Avoids", "collapsed: so are the gripes it is designed around");
+has(folded, "Fits", "collapsed: and the crew fit");
+has(folded, "Limited characters to choose from - low replayability once you have everything",
+  "collapsed: a cited quote is still findable on the page verbatim while folded");
+ok((folded.match(/loom-cite\b/g) || []).length >= 3 * LC.MIN_CITATIONS,
+  "collapsed: every citation survives the fold — hidden is not fewer");
+
+/* WHAT STAYS OUT ON THE FACE. Title, pitch, a credit line and the actions. Losing the
+   credit line is the failure worth naming: the citation floor is the only reason this
+   panel gets read rather than skimmed, and an idea folded down to a bare title reads as
+   an idea from nowhere. */
+has(folded, "loom-title", "face: the title stays out");
+has(folded, "loom-pitch", "face: so does the pitch — an idea you must open to judge is one nobody opens");
+has(folded, "loom-credit", "face: and the credit line");
+has(folded, "Built from 4 takes", "face: the credit line names how many takes it was built from");
+/* Idea 1 quotes jkrazy TWICE. It must read as three people, not four — the same identity
+   collapse §9d holds the quotes to, applied to the summary that now stands in for them. */
+has(folded, "Built from 4 takes · Latch, Temper, Vesper",
+  "face: the credit names DISTINCT people through canonicalWho — one quoted twice is one name");
+hasnt(folded, "Latch, Temper, Vesper, Latch",
+  "face: a repeat citation never inflates the credit line into two people agreeing");
+// Scoped to the credit spans on purpose: a raw handle legitimately appears in the
+// generated Avoids prose ("the failure jkrazy hit in Friends vs Friends"), which is the
+// generator quoting itself, not the page crediting somebody under the wrong name.
+var creditText = (folded.match(/<span class="loom-credit">[^<]*<\/span>/g) || []).join(" ");
+ok(creditText.indexOf("jkrazy") === -1, "face: the raw handle never reaches a credit line");
+ok((folded.match(/<span class="loom-credit">/g) || []).length === 3, "face: one credit line per idea");
+/* The actions must NOT be behind the caret. A vote you have to open a card to cast is a
+   vote nobody casts, and the vote is the entire mechanism this panel runs on. */
+ok((folded.match(/loom-foot/g) || []).length === 3, "face: every idea keeps its action row unfolded");
+ok((folded.match(/VApp\.loomVote\(/g) || []).length === 6, "face: ▲ and ▼ render on all three");
+
+/* Counting occurrences is not enough, and this is the mutation that proves it: move the
+   action row INSIDE the disclosure and every count above still passes while the vote
+   becomes unreachable without opening the card. So strip what ships `hidden` — div-depth
+   aware — and ask what a reader can actually reach. */
+function visibleOnly(html) {
+  var out = "", i = 0;
+  while (i < html.length) {
+    var at = html.indexOf('<div class="loom-detail"', i);
+    if (at === -1) { out += html.slice(i); break; }
+    var tagEnd = html.indexOf(">", at);
+    if (html.slice(at, tagEnd).indexOf(" hidden") === -1) { out += html.slice(i, tagEnd + 1); i = tagEnd + 1; continue; }
+    out += html.slice(i, at);
+    var depth = 1, j = tagEnd + 1;
+    while (j < html.length && depth > 0) {
+      var nextOpen = html.indexOf("<div", j), nextClose = html.indexOf("</div>", j);
+      if (nextClose === -1) break;
+      if (nextOpen !== -1 && nextOpen < nextClose) { depth++; j = nextOpen + 4; }
+      else { depth--; j = nextClose + 6; }
+    }
+    i = j;
+  }
+  return out;
+}
+var seen = visibleOnly(folded);
+ok((seen.match(/VApp\.loomVote\(/g) || []).length === 6,
+  "face: ▲ and ▼ are reachable WITHOUT opening the card — a vote behind a disclosure is a vote nobody casts");
+ok((seen.match(/data-loom-more=/g) || []).length === 3, "face: and so is the ask");
+has(seen, "loom-credit", "face: the credit line is what the reader sees while folded");
+hasnt(seen, "loom-cite", "face: …standing in for quotes that are genuinely folded away");
+hasnt(seen, "loom-avoids", "face: …and for the Avoids list");
+
+// Opening one opens exactly one.
+LO(["loom-2026-08-28-2"]);
+var opened = L(ten, FRESH);
+ok((opened.match(/aria-expanded="true"/g) || []).length === 1, "open: exactly one idea reports itself open");
+has(opened, '<div class="loom-detail" id="loomdetail-loom-2026-08-28-2">', "open: that one's detail loses `hidden`");
+has(opened, '<div class="loom-detail" id="loomdetail-loom-2026-08-28-1" hidden>', "open: its neighbours stay folded");
+has(opened, "loom-idea open", "open: the card carries the open class so the caret can flip");
+ok(typeof A.loomToggle === "function", "loomToggle is exported for the summary button");
+LO([]);
+
+/* ---- 9j. "TELL ME MORE" (VR-145) ----------------------------------------
+   A SIBLING POLL, not a third choice on the vote. The property worth pinning is that it
+   cannot move the score: `-more` rides the same table, and if it ever landed on the same
+   poll id an ask for detail would silently read as an endorsement. */
+LV({}, {});
+var more = L(ten, FRESH);
+ok(typeof A.loomMore === "function", "loomMore is exported for the ✎ button");
+ok((more.match(/data-loom-more="loom-2026-08-28-\d"/g) || []).length === 3,
+  "more: all three ideas carry the ask");
+ok((more.match(/VApp\.loomMore\('loom-2026-08-28-1'\)/g) || []).length === 1,
+  "more: it is wired to its own idea");
+hasnt(more, 'data-loom="loom-2026-08-28-1-more"',
+  "more: the -more poll never appears under the ▲/▼ attribute");
+
+// Five asks on idea 1. The net must not move.
+LV({ "loom-2026-08-28-1-more": 5 }, {});
+var asked = L(ten, FRESH);
+has(asked, "net 0", "more: five asks leave the net at zero — asking for detail is not a vote");
+hasnt(asked, "net +5", "more: …and cannot be mistaken for five up-votes");
+hasnt(asked, "loom-dim", "more: nor can it dim anything");
+// The count is on the button, because the generator reads it and the reader should see why.
+ok(/loom-morebtn[^>]*data-loom-more="loom-2026-08-28-1"[\s\S]{0,240}?<span class="vc">5<\/span>/.test(asked),
+  "more: the ask count renders on the button it belongs to");
+
+// And the reverse: real votes must not leak into the ask count.
+LV({ "loom-2026-08-28-1": 4 }, {});
+var voted = L(ten, FRESH);
+has(voted, "net +4", "more: an up-vote still scores normally");
+ok(/loom-morebtn[^>]*data-loom-more="loom-2026-08-28-1"[\s\S]{0,240}?<span class="vc">0<\/span>/.test(voted),
+  "more: …and does not show up as somebody asking for detail");
+
+// A promoted idea has somewhere better to send you, so it swaps the whole action row.
+LV({}, {});
+D.loom = JSON.parse(JSON.stringify(realLoom));
+D.loom.ideas[0].promoted = { label: "Warded Sanctum", href: "#lab" };
+var promotedMore = L(ten, FRESH);
+hasnt(promotedMore, 'data-loom-more="loom-2026-08-28-1"',
+  "more: a promoted idea drops the ask — elaboration happens in the Lab now, not here");
+has(promotedMore, 'data-loom-more="loom-2026-08-28-2"', "more: its neighbours keep theirs");
+D.loom = realLoom;
+LV({}, {});
 
 /* ---- 9b. the card is COLLAPSED by default (VR-109) -----------------------
    The whole point of the change is that a fresh page render is a list of summary rows.

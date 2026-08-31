@@ -696,17 +696,13 @@ window.VApp = (function () {
       return `<div class="wrap section">
         ${C.sectionHeader("The Lab", "Game reference")}
         <p class="mute" style="max-width:64ch;margin-top:1rem">The games we actually play — and, more usefully, the things that take us out of them. No game is perfect; naming what makes a good one take a hit is what turns taste into design decisions. <span id="gref-stats" class="gr-stats"></span></p>
-        <div id="gref-loom"></div>
-        <div class="panel cta-card" onclick="VApp.grefOpen()" style="margin-top:1.5rem">
-          <div class="eyebrow">Your turn</div>
-          <h3 style="margin:.3rem 0">＋ Add a game</h3>
-          <p class="mute">One you actually play. What you love, and what makes you put it down.</p>
-        </div>
-        <div class="filters" style="margin-top:1.5rem">
+        <div class="gr-bar">
+          <button type="button" class="btn gr-addbtn" onclick="VApp.grefOpen()">＋ Add a game</button>
           <select class="gb-sel" onchange="VApp.grefSort(this.value)" aria-label="Sort games">
             ${sorts.map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}
           </select>
         </div>
+        <div id="gref-loom"></div>
         <div id="gref-list" class="gr-list"><p class="mute">Loading…</p></div>
       </div>`;
     },
@@ -2270,6 +2266,9 @@ window.VApp = (function () {
   // re-sort rebuilds the list, and someone who opened one game's gripes to read them should
   // not lose them because they changed the sort.
   let grefState = { sort: "takes", open: new Set(), halves: new Set() };
+  /* Which Loom ideas are expanded (VR-145). Off-DOM, exactly like grefState.open, so a
+     re-render caused by a vote can't silently fold up an idea somebody is reading. */
+  let loomState = { open: new Set() };
 
   // Open or close one half of one card. Deliberately independent of every other half —
   // reading a game's gripes should not also unfold its loves, and it should not touch the
@@ -2343,9 +2342,29 @@ window.VApp = (function () {
   const LOOM_THRESHOLDS = { promote: 3, deprioritise: -3, archive: -5 };
 
   const loomPoll = (weekOf, i) => "loom-" + weekOf + "-" + (i + 1);
+  /* "Tell me more" (VR-145) rides the SAME votes table on a SIBLING poll id rather than
+     becoming a third choice on the existing one. Deliberate: ▲/▼ is a verdict and "say
+     more about this" is not, and one person can legitimately want both. Folding them into
+     one row would make asking for detail cost you your vote — which is the fastest way to
+     stop getting either signal. No new SQL; it dedupes per person for free. */
+  const loomMorePoll = (poll) => poll + "-more";
   // Net score for one idea. Reads the same vote store the Lab uses; down-votes are
   // counted separately so a Lab up-vote count can never be dented by a Loom down-vote.
   const loomNet = (poll) => (voteCount(poll) - voteDownCount(poll));
+
+  /* The line that survives collapsing (VR-145). A tucked-away idea showing no trace of its
+     citations reads as an idea from nowhere, and the citation floor is the entire reason
+     this panel is believable rather than skimmable — so the COUNT and the NAMES stay on the
+     collapsed face and only the quotes themselves go behind the caret. Names are resolved
+     through canonicalWho for exactly the reason the quotes are: one person quoted twice
+     must not read on the summary as two people agreeing. */
+  function loomCredit(cites) {
+    const names = [];
+    cites.forEach(c => { const n = canonicalWho(c.who.trim()); if (names.indexOf(n) < 0) names.push(n); });
+    const rest = names.length > 3 ? " +" + (names.length - 3) + " more" : "";
+    return "Built from " + cites.length + " take" + (cites.length === 1 ? "" : "s") +
+           " \u00b7 " + names.slice(0, 3).join(", ") + rest;
+  }
 
   // One idea, validated. Returns null when it can't cite — which is a drop, not an error.
   function loomIdea(raw, i, weekOf) {
@@ -2358,10 +2377,13 @@ window.VApp = (function () {
     const poll = loomPoll(weekOf, i);
     return {
       title, pitch, poll, cites,
+      credit: loomCredit(cites),
       avoids: (Array.isArray(raw.avoids) ? raw.avoids : []).filter(weeklyStr),
       fits: weeklyStr(raw.fits),
       promoted: (raw.promoted && weeklyStr(raw.promoted.label)) ? raw.promoted : null,
-      net: loomNet(poll)
+      net: loomNet(poll),
+      more: voteCount(loomMorePoll(poll)),
+      moreMine: iVoted(loomMorePoll(poll))
     };
   }
 
@@ -2388,16 +2410,33 @@ window.VApp = (function () {
              onclick="VApp.loomVote('${C.esc(idea.poll)}','up')" aria-label="Build this">▲ Build this <span class="vc">${voteCount(idea.poll)}</span></button>
            <button type="button" class="votebtn loom-vote loom-down" data-loom="${C.esc(idea.poll)}" data-dir="down"
              onclick="VApp.loomVote('${C.esc(idea.poll)}','down')" aria-label="Not it">▼ Not it <span class="vc">${voteDownCount(idea.poll)}</span></button>
+           <button type="button" class="votebtn loom-vote loom-morebtn${idea.moreMine ? " on" : ""}" data-loom-more="${C.esc(idea.poll)}"
+             onclick="VApp.loomMore('${C.esc(idea.poll)}')" aria-label="Ask for more detail on this idea">✎ Tell me more <span class="vc">${idea.more}</span></button>
            <span class="loom-net mute">net ${idea.net > 0 ? "+" : ""}${idea.net}</span>
          </div>`;
-    return `<li class="loom-idea${dim ? " loom-dim" : ""}${idea.promoted ? " loom-promoted" : ""}">
+    /* COLLAPSED BY DEFAULT (VR-145) — the same disclosure VR-109 gave the reference cards
+       below, for the same reason: three ideas at full height is several screens before the
+       list this page is named after even begins. The detail is `hidden`, NEVER dropped, so
+       find-in-page and screen readers still reach every quote and only the layout is capped.
+       Title, pitch and the credit line stay out on the face; the actions never move behind
+       a caret, because a vote you have to open a card to cast is a vote nobody casts. */
+    const open = loomState.open.has(idea.poll);
+    const id = C.esc(idea.poll);
+    return `<li class="loom-idea${dim ? " loom-dim" : ""}${idea.promoted ? " loom-promoted" : ""}${open ? " open" : ""}" id="loomcard-${id}">
       ${idea.promoted ? `<p class="loom-badge">✓ IN THE LAB</p>` : ""}
       ${dim ? `<p class="loom-badge loom-badge-dim">▼ Deprioritised — still here, still readable, and an up-vote pulls it straight back.</p>` : ""}
       <h4 class="loom-title">${C.esc(idea.title)}</h4>
       <p class="loom-pitch">${C.esc(idea.pitch)}</p>
-      <div class="loom-block"><h5>Built from</h5><ul class="loom-cites">${cites}</ul></div>
-      ${avoids}
-      ${fits}
+      <button type="button" class="loom-summary" id="loomsum-${id}" aria-expanded="${open ? "true" : "false"}"
+        aria-controls="loomdetail-${id}" onclick="VApp.loomToggle('${id}')">
+        <span class="loom-credit">${C.esc(idea.credit)}</span>
+        <span class="gr-caret loom-caret" aria-hidden="true"></span>
+      </button>
+      <div class="loom-detail" id="loomdetail-${id}"${open ? "" : " hidden"}>
+        <div class="loom-block"><h5>Built from</h5><ul class="loom-cites">${cites}</ul></div>
+        ${avoids}
+        ${fits}
+      </div>
       ${foot}
     </li>`;
   }
@@ -2453,8 +2492,49 @@ window.VApp = (function () {
       <h3>${order.length === 1 ? "One idea" : order.length === 2 ? "Two ideas" : "Three ideas"}, read out of ${read} take${read === 1 ? "" : "s"} from ${from} of you</h3>
       <p class="mute loom-intro">Built from what you said you love, designed around what you said takes you out of a game. <strong>Every idea below quotes at least ${LOOM_MIN_CITATIONS} real takes, with names</strong> — one that can't doesn't get published. They're meant to be three different answers rather than one blended one, so expect them not to fit together.</p>
       <ol class="loom-ideas">${order.map(loomIdeaHtml).join("")}</ol>
-      <p class="loom-note mute">▲ <strong>Build this</strong> at ${LOOM_THRESHOLDS.promote > 0 ? "+" : ""}${LOOM_THRESHOLDS.promote} moves an idea into the Lab. ▼ <strong>Not it</strong> at ${LOOM_THRESHOLDS.deprioritise} dims it — reversible, one up-vote brings it back — and at ${LOOM_THRESHOLDS.archive} it leaves the panel. <strong>Archived never means deleted:</strong> it's kept in the VR-99 doc with the week it came from and its final score, because a good idea that arrived in a bad week should be findable later.${archived.length ? ` <span class="loom-archived">${archived.length} archived this week.</span>` : ""}</p>
+      <p class="loom-note mute">▲ <strong>Build this</strong> at ${LOOM_THRESHOLDS.promote > 0 ? "+" : ""}${LOOM_THRESHOLDS.promote} moves an idea into the Lab. ▼ <strong>Not it</strong> at ${LOOM_THRESHOLDS.deprioritise} dims it — reversible, one up-vote brings it back — and at ${LOOM_THRESHOLDS.archive} it leaves the panel. <strong>Archived never means deleted:</strong> it's kept in the VR-99 doc with the week it came from and its final score, because a good idea that arrived in a bad week should be findable later. ✎ <strong>Tell me more</strong> is not a vote and never touches the score — it asks Friday's batch to go deeper on that one, and the number beside it is how many of you asked.${archived.length ? ` <span class="loom-archived">${archived.length} archived this week.</span>` : ""}</p>
     </div>`;
+  }
+
+  /* Open/close one idea. Toggles the DOM in place rather than re-rendering, the same way
+     grefToggle does and for the same reason — a re-render would drop any "read more"
+     disclosure the reader has already opened inside the quotes. */
+  function loomToggle(poll) {
+    const card = document.getElementById("loomcard-" + poll);
+    const detail = document.getElementById("loomdetail-" + poll);
+    if (!card || !detail) return;
+    const open = !loomState.open.has(poll);
+    if (open) loomState.open.add(poll); else loomState.open.delete(poll);
+    detail.hidden = !open;
+    if (card.classList) card.classList.toggle("open", open);
+    const btn = card.querySelector ? card.querySelector(".loom-summary") : null;
+    if (btn && btn.setAttribute) btn.setAttribute("aria-expanded", String(open));
+  }
+
+  // The title off the raw batch, for tagging the note. Read from D rather than passed
+  // through the onclick attribute, because a title is free text and an apostrophe in one
+  // would otherwise end the JS string literal mid-attribute.
+  function loomTitleFor(poll) {
+    const n = parseInt(String(poll).split("-").pop(), 10);
+    const ideas = (D.loom && Array.isArray(D.loom.ideas)) ? D.loom.ideas : [];
+    const raw = ideas[n - 1];
+    return (raw && weeklyStr(raw.title)) || "an idea";
+  }
+
+  /* "Tell me more" (VR-145). TWO THINGS, in this order, and the order is the point: the ask
+     is recorded on the FIRST click, and only then are you offered somewhere to say what is
+     thin. Close the modal, change your mind, never type a word — the count still stands,
+     because "this one needs more" is already the whole signal Friday needs to act on, and a
+     feature that only counts the people willing to write a paragraph counts almost nobody.
+     Clicking again takes it back, the same way every other vote on this site does. */
+  function loomMore(poll) {
+    const mp = loomMorePoll(poll);
+    const had = iVoted(mp);
+    applyVoteLocal(mp, !had);
+    if (window.VBackend) window.VBackend.toggleVote(mp, "up");
+    renderReference();
+    if (had) { toast("Taken back."); return; }
+    feedback("Loom idea: " + loomTitleFor(poll), "idea");
   }
 
   // Up or down on one idea. Same row per person per idea — voting the other way flips
@@ -2673,7 +2753,8 @@ window.VApp = (function () {
     }
     fbCtx = { context: context || "", type: type || "idea" };
     const el = document.getElementById("fbmodal"); if (!el) return;
-    const title = context && context.indexOf("mode idea") > -1 ? "Pitch a game mode"
+    const title = context && context.indexOf("Loom idea") === 0 ? "What would you want spelled out?"
+      : context && context.indexOf("mode idea") > -1 ? "Pitch a game mode"
       : context && context.indexOf("General") > -1 ? "Share a thought"
       : context ? "Share feedback" : "Share a thought";
     el.querySelector("#fb-title").textContent = title;
@@ -3189,13 +3270,15 @@ window.VApp = (function () {
   const __grefMatch = grefMatch;
   const __grefCard = (slug, notes, refs) => grefCardHtml(slug, notes, refs || []);
   const __loomPanel = loomPanel;
+  // VR-145: the harness drives collapse without a DOM, so it needs the state set itself.
+  const __loomOpen = (polls) => { loomState.open = new Set(polls || []); };
   // Lets _grefcheck.js drive the thresholds without a network: it sets vote counts
   // directly, then re-renders, so promoted / deprioritised / archived are all provable.
   const __loomVotes = (up, down) => { voteCounts = up || {}; voteDownCounts = down || {}; voteChoiceMine = {}; voteMine = new Set(); };
   const __loomConsts = () => ({ MAX_AGE: LOOM_MAX_AGE_DAYS, GATE: LOOM_GATE, MIN_CITATIONS: LOOM_MIN_CITATIONS, THRESHOLDS: LOOM_THRESHOLDS });
 
   return { init, route, toggleMenu, toggleDrop, signOut, __renderHub, __hubType, __renderUpdates, __weeklyHero, wkSkip,
-    __grefSlug, __grefMatch, __grefCard, __loomPanel, __loomVotes, __loomConsts,
-    grefOpen, grefClose, grefSubmit, grefWhoChange, grefNameChange, grefPick, grefMore, grefSort, grefToggle, grefHalf, grefExpand, grefArtFail, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, loomVote, boardFilter, counterVote, gameBoardVer, gameBoardCombo, gameBoardLevel };
+    __grefSlug, __grefMatch, __grefCard, __loomPanel, __loomVotes, __loomConsts, __loomOpen,
+    grefOpen, grefClose, grefSubmit, grefWhoChange, grefNameChange, grefPick, grefMore, grefSort, grefToggle, grefHalf, grefExpand, grefArtFail, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, loomVote, loomToggle, loomMore, boardFilter, counterVote, gameBoardVer, gameBoardCombo, gameBoardLevel };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);
