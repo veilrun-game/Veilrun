@@ -154,7 +154,11 @@ in the folder before assuming:
 
 - **2D pair track** — `games/<name>-v2/_sim.py` (Python physics sim).
 - **3D** — `games/proving-ground/_sim.js` (asserts against the marked `BALANCE` block extracted from
-  the HTML), plus `_billboard.js`, `_touch.js`, `_clipfit.js`, `_shroud.js` and `_check.js`. **`_clipfit.js`
+  the HTML), plus `_billboard.js`, `_touch.js`, `_clipfit.js`, `_shroud.js`, `_zoom.js` and `_check.js`.
+  ⚠️ **`_zoom.js` was missing from this sentence from the day it was added (VR-140, 8/30) until 8/31**,
+  and a session that trusted this list instead of `ls` skipped it and shipped two regressions into it.
+  **This is the exact failure VR-100's Task B3 exists to catch, and the list it caught was this one.**
+  **`ls` the folder. Always — and check what a file actually does before counting it.** **`_clipfit.js`
   (added 8/22 with VR-111) is the only harness in the repo that reads a BINARY ASSET** — it parses
   `assets/models/vesper.glb` for real clip durations and proves them against the marked `CLIPFIT`
   block and the strike windows in `BALANCE`. It exists because VR-111 was invisible to everything
@@ -217,8 +221,16 @@ decision. **It found VR-109 on its first run** — shipped 8/16, touched the sit
 — now listed as acknowledged debt rather than a silent miss. It also parses `VR-131/132/133`,
 the house style for a multi-card subject, which a bare `/VR-\d+/` silently reads as one number.
 
-`_grefart.js` is a **tool, not a harness** — it resolves Steam appids for game-reference covers and
-is run by hand, never as part of the green-before-hand-off set. Report-only unless given `--write`.
+**TWO FILES AT THE ROOT ARE TOOLS, NOT HARNESSES.** Neither has a pass/fail and neither is ever in
+the green-before-hand-off set — running them proves nothing, and counting them as harnesses makes
+the set look larger than it is.
+
+- `_grefart.js` — resolves Steam appids for game-reference covers. Run by hand. Report-only unless
+  given `--write`.
+- `_pv.js` — renders the real `__grefCard()` against the real CSS with a demo dataset and writes a
+  static preview to `/tmp/gref-preview.html` (VR-109). Run by hand. Prints one line and exits 0;
+  **it has no assertions at all.** Named here as of VR-147 (8/31) — it had been at a public URL,
+  described nowhere, since 8/16.
 
 ## 5. Tech guardrails
 

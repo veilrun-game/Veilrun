@@ -2262,6 +2262,7 @@ if (aimSrc) {
 
   const NORTH = 0;                     // atan2(-0, -1) — straight up the screen
   const EAST  = Math.atan2(-1, -0);    // travelling +x
+  const setFace = (mode, model) => { A.cam.mode = mode; A.FACE[mode] = model; };
 
   // --- movement basis: camera-relative everywhere, but from the right source
   A.cam.mode = "arcade"; A.ARC.yaw = 1.23; A.mouse.yaw = 9.9;
@@ -2270,35 +2271,56 @@ if (aimSrc) {
   A.cam.mode = "third";
   ok("third person resolves them against the camera", A.moveBasis() === 9.9);
 
-  // --- arcade: unchanged behaviour, new destination
-  A.cam.mode = "arcade"; A.mouse.yaw = 2.5; A.player.aim = 0;
-  ok("arcade still faces where you move", Math.abs(A.aimFor(true, 0, -1) - NORTH) < 1e-9);
-  ok("arcade no longer needs the camera's yaw to do it", A.aimFor(true, 1, 0) === EAST,
-     "same maths as VR-91, writing to player.aim instead of mouse.yaw");
+  // --- the defaults ARE the ruling: VR-150's table, in code
+  ok("third person defaults to facing where you MOVE", A.FACE_DEF.third === "move",
+     "the whole point — if the mouse turns him, the camera can never get in front of him");
+  ok("first person defaults to STRAFE", A.FACE_DEF.first === "strafe",
+     "Jordan: 'first person you want to be able to strafe left and right'");
+  ok("arcade still faces where you move", A.FACE_DEF.arcade === "move");
 
-  // --- third person, touch: the actual fix
-  A.cam.mode = "third"; A.TOUCH = true; A.mouse.yaw = 2.5; A.player.aim = 0;
-  ok("touch third person faces where the LEFT stick pushes",
-     Math.abs(A.aimFor(true, 0, -1) - NORTH) < 1e-9,
-     "this is the moonwalk — it used to return the camera's yaw");
-  ok("the camera's yaw does not reach facing there", A.aimFor(true, 0, -1) !== A.mouse.yaw);
+  // --- "move": faces travel on BOTH input devices, which is the VR-150 change
+  for (const touch of [false, true]) {
+    A.TOUCH = touch;
+    setFace("third", "move"); A.mouse.yaw = 2.5; A.player.aim = 0;
+    ok("third/move faces the stick, not the camera (" + (touch ? "touch" : "desktop") + ")",
+       Math.abs(A.aimFor(true, 0, -1) - NORTH) < 1e-9 && A.aimFor(true, 0, -1) !== A.mouse.yaw,
+       touch ? "" : "VR-124 returned the camera here; VR-150 overruled that line");
+  }
 
   // --- releasing the stick must not snap you back to the camera
   A.player.aim = 1.75;
   ok("a released stick HOLDS the last facing", A.aimFor(false, 0, 0) === 1.75,
      "snapping to the camera on release is the same bug arriving on stick-up");
 
-  // --- desktop third person is explicitly not regressed
-  A.TOUCH = false; A.mouse.yaw = 2.5;
-  ok("desktop third person keeps mouse-look facing", A.aimFor(true, 0, -1) === 2.5,
-     "the card is explicit that this must not regress");
+  // --- the camera is free to orbit right round to his face
+  setFace("third", "move"); A.player.aim = 1.75;
+  const before = A.aimFor(false, 0, 0);
+  A.mouse.yaw += Math.PI;                      // orbit a half-turn
+  ok("orbiting the camera does not turn the body", A.aimFor(false, 0, 0) === before,
+     "this is the whole card — you can walk round to look at your own character");
 
-  // --- first person: facing IS look, on both input devices
-  A.cam.mode = "first"; A.mouse.yaw = -0.8;
-  ok("first person faces where it looks (desktop)", A.aimFor(true, 0, -1) === -0.8);
-  A.TOUCH = true;
-  ok("first person faces where it looks (touch)", A.aimFor(true, 1, 0) === -0.8,
+  // --- "look" is the OLD behaviour, still reachable as a choice
+  setFace("third", "look"); A.mouse.yaw = 2.5;
+  ok("third/look reproduces the pre-VR-150 feel exactly", A.aimFor(true, 0, -1) === 2.5,
+     "kept as an option rather than deleted — it is a taste, not a bug");
+
+  // --- first person: strafe, on both devices
+  setFace("first", "strafe"); A.mouse.yaw = -0.8;
+  ok("first/strafe faces where it looks while moving sideways", A.aimFor(true, 1, 0) === -0.8,
      "any other answer puts the camera in the back of your own head");
+  A.TOUCH = true;
+  ok("and the same on touch", A.aimFor(true, 1, 0) === -0.8);
+
+  // --- arcade, unchanged
+  setFace("arcade", "move"); A.mouse.yaw = 2.5; A.player.aim = 0;
+  ok("arcade faces travel, as it always did", Math.abs(A.aimFor(true, 0, -1) - NORTH) < 1e-9);
+  ok("arcade east is east", A.aimFor(true, 1, 0) === EAST);
+
+  // --- an unknown model must not silently mean something
+  A.FACE.third = "wobble"; A.cam.mode = "third"; A.mouse.yaw = 2.5; A.player.aim = 0.4;
+  ok("an unrecognised model falls back to move, not to the camera",
+     A.aimFor(true, 0, -1) !== 2.5,
+     "V is rehydrated from localStorage — apply('face') pins it, and this is the backstop");
 }
 /* The wiring, which execution alone cannot see. */
 ok("playerFace targets the aim, not the camera",
@@ -2309,8 +2331,26 @@ ok("nothing writes the camera's yaw to steer the body",
    "the old arcade line is gone rather than living beside the new one");
 ok("there is exactly one facing solver",
    (html.match(/function aimFor\(/g) || []).length === 1 &&
-   (html.match(/function moveBasis\(/g) || []).length === 1,
+   (html.match(/function moveBasis\(/g) || []).length === 1 &&
+   (html.match(/function faceModel\(/g) || []).length === 1,
    "a second solver is the trap the card names");
+/* VR-150 — the model is a setting, so it needs the same one-writer discipline
+   the rigs have, and a row per view that syncCamRows can show and hide. */
+ok("apply(\"face\") is the only writer of FACE",
+   (html.match(/FACE\[mode\] = V\[key\];/g) || []).length === 1 &&
+   !/FACE\.(arcade|third|first) = /.test(html.replace(/var FACE = \{[^}]*\};/, "")),
+   "two writers is how the panel and the game start disagreeing");
+ok("every view has a facing row, and it declares its view",
+   ["t-facearc", "t-facethird", "t-facefirst"].every(id =>
+     new RegExp('<div class="trow" data-cam="(arcade|third|first)"><label for="' + id + '"').test(html)),
+   "so VR-138's syncCamRows shows only the one that applies");
+ok("the facing rows are NOT in the touch-only Controls section",
+   !/tsec touchonly[\s\S]*?t-facethird[\s\S]*?<\/section>/.test(html),
+   "this setting matters most on a desktop in third person — Controls is touchonly and would hide it there");
+ok("the three models are bounded on rehydrate",
+   /var MODELS = \["move", "look", "strafe"\]/.test(html) &&
+   /MODELS\.indexOf\(V\[key\]\) < 0/.test(html),
+   "V comes back from localStorage, which is untrusted the moment anything can write a settings blob");
 ok("walking and blinking share the basis",
    (html.match(/moveBasis\(\)/g) || []).length >= 3,
    "one definition and both call sites");

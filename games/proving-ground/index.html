@@ -1372,7 +1372,29 @@ body.noanim.tuning .screen.on{transition:none}
        opening the lens, and a third-person game normally gives you both. -->
   <div class="trow" data-cam="third"><label for="t-tpfov">Zoom (FOV)</label><input type="range" id="t-tpfov" min="40" max="90" step="1"><output class="tval" id="t-tpfovv" for="t-tpfov"></output></div>
   <div class="trow" data-cam="first"><label for="t-fpfov">Zoom (FOV)</label><input type="range" id="t-fpfov" min="60" max="103" step="1"><output class="tval" id="t-fpfovv" for="t-fpfov"></output></div>
-  <div class="tnote mouseonly">Scroll the wheel &mdash; or press <b>&minus;</b> and <b>&#61;</b> &mdash; to move this view's zoom. <b>0</b> puts it back.</div>
+  <!-- VR-138 kept this sentence's job and changed its subject. It used to say the
+       wheel moves "whichever of these three" because all three rows sat here in
+       every view; now only the current view's rows are on screen, so it explains
+       the part that is no longer visible — that zoom is three different
+       quantities, and which one you are about to move. -->
+  <div class="tnote mouseonly">Zoom is a different quantity in each view &mdash; arcade pulls the camera in, third person shortens the boom, first person opens the lens. Scroll the wheel &mdash; or press <b>&minus;</b> and <b>&#61;</b> &mdash; and it moves whichever of these three the view you are in uses. <b>0</b> puts it back.</div>
+  <!-- VR-150 — how the BODY relates to the camera, per view, and DELIBERATELY
+       NOT in the Controls group where the card first put it. Controls is
+       `touchonly`, and this setting matters most on a desktop in third person,
+       which is exactly where it would have been invisible. It is a Controls KEY
+       in every other sense — persisted per device, absent from the preset spec —
+       but it lives here, beside the view it describes.
+
+       They carry data-cam like the framing rows above, so VR-138's syncCamRows
+       shows you only the one for the view you are in. One row, always the right
+       one, rather than three rows and a mapping to hold in your head. -->
+  <div class="trow" data-cam="arcade"><label for="t-facearc">Facing</label><select id="t-facearc">
+    <option value="move">Faces where you move</option><option value="look">Faces the camera</option><option value="strafe">Never turns &mdash; strafe</option></select></div>
+  <div class="trow" data-cam="third"><label for="t-facethird">Facing</label><select id="t-facethird">
+    <option value="move">Faces where you move</option><option value="look">Faces the camera</option><option value="strafe">Never turns &mdash; strafe</option></select></div>
+  <div class="trow" data-cam="first"><label for="t-facefirst">Facing</label><select id="t-facefirst">
+    <option value="strafe">Never turns &mdash; strafe</option><option value="look">Faces the camera</option><option value="move">Faces where you move</option></select></div>
+  <div class="tnote"><b>Faces where you move</b> lets the camera swing right round to his face &mdash; the third-person default. <b>Faces the camera</b> is the older behaviour: the mouse turns him, so you can never get in front. <b>Strafe</b> means moving never turns him at all.</div>
   <!-- Framing, not input, so it stays with the camera rather than moving to
        Controls with the rest of the touch rows. Wrapped rather than sectioned:
        a whole tile that only ever holds one slider is a tile you tap once. -->
@@ -3301,6 +3323,17 @@ function updateCamera(dt) {
     cam.ly = damp(cam.ly, ARC.height, ARC.lam, dt);
     cam.lz = damp(cam.lz, player.z, ARC.lam, dt);
   } else if (cam.mode === "third") {
+    /* VR-150 — the camera orbits the BODY now, not with it. The rig is still
+       built from mouse.yaw, which is what makes orbiting work at all; what
+       changed is that the body no longer follows mouse.yaw, so the camera can
+       come round the front. Two things had to be checked rather than assumed:
+
+       1. The shoulder offset is applied along the CAMERA's right vector, so it
+          stays on the same side of frame as you orbit. It does not swap sides
+          when you pass behind him, because it was never anchored to the body.
+       2. The look target leads along the camera's forward, not the body's — so
+          orbiting to his face keeps him framed instead of swinging the aim
+          point out to wherever he happens to be pointing. */
     // shoulder offset, then pull back along -forward
     var rx = cy, rz = -sy;                         // right vector
     var tx = player.x + rx * TP_OFF.x - fx * TP_OFF.z;
@@ -3509,22 +3542,36 @@ function lineBlocked(ax, az, bx, bz) {
    instead of up the screen. */
 function moveBasis() { return cam.mode === "arcade" ? ARC.yaw : mouse.yaw; }
 
-/* VR-124 — where the body is asked to point, per mode.
+/* VR-150 — where the body is asked to point, per view, and it is now a CHOICE.
 
-   · FIRST person: you face down your own nose. Facing IS the look direction and
-     any other answer puts the camera inside the back of your own head.
-   · THIRD person on DESKTOP: unchanged, deliberately. The mouse is both the look
-     device and the aim device there, and the card is explicit that this must not
-     regress.
-   · THIRD person on TOUCH, and ARCADE everywhere: you face where you move. This
-     is the twin-stick contract — left stick moves and therefore faces, right
-     stick looks — and it is the same maths arcade has used since VR-91 rather
-     than a second facing solver, which is the trap this card warned about.
-   · Not moving: HOLD the last aim. Snapping back to the camera on stick release
-     is the moonwalk arriving by another route. */
+   VR-124 shipped with "desktop third person keeps mouse-look facing". Jordan
+   played it and overruled that line, correctly: if the mouse turns the body, the
+   camera can never get in front of it, so you can never look at your own
+   character. That is what a third-person camera is FOR.
+
+   Three models, and every view names one:
+   · "move"   — the body faces where it travels, and HOLDS when you stop. The
+                camera is free to orbit right round to his face.
+   · "look"   — the body faces where the camera looks. First person's only
+                sane answer; any other puts the camera in the back of his head.
+   · "strafe" — movement never rotates the body at all. Facing comes from look,
+                so you can circle-strafe. This is what first person already did
+                and what Jordan asked to keep: "first person you want to be able
+                to strafe left and right."
+
+   `look` and `strafe` return the same VALUE and differ in what they mean for
+   movement, which is why they are two names: VR-146's side-on view will want
+   `strafe` semantics with a fixed camera, and a shared name would hide that. */
+var FACE_DEF = { arcade: "move", third: "move", first: "strafe" };
+var FACE = { arcade: "move", third: "move", first: "strafe" };
+
+function faceModel() { return FACE[cam.mode] || FACE_DEF[cam.mode] || "move"; }
+
 function aimFor(moving, tvx, tvz) {
-  if (cam.mode === "first") return mouse.yaw;
-  if (cam.mode === "third" && !TOUCH) return mouse.yaw;
+  var m = faceModel();
+  if (m === "look" || m === "strafe") return mouse.yaw;
+  /* "move" — and HOLDING on release is half the fix. Snapping back to the
+     camera the moment the stick centres is the moonwalk arriving on stick-up. */
   return moving ? Math.atan2(-tvx, -tvz) : player.aim;
 }
 
@@ -5513,6 +5560,11 @@ var TUNE = (function () {
        holds their own phone is not a fact another player's saved setup gets to
        assert on their behalf. */
     hand: "left", padsize: 1, verbs: "fillstop", padlbl: "1", camstick: "1",
+    /* VR-150 — the facing model per view. Controls keys, so persisted per device
+       and OUT of the preset spec with the rest of them: how somebody wants their
+       own character to turn is not a fact another player's setup gets to assert
+       on their behalf. */
+    faceArcade: FACE_DEF.arcade, faceThird: FACE_DEF.third, faceFirst: FACE_DEF.first,
     /* VR-139 — the drawer's width, in px, or 0 for "use the responsive
        default". Zero rather than a number so the clamp stays authoritative
        until somebody actually disagrees with it: a saved 290 would pin the
@@ -5650,6 +5702,23 @@ var TUNE = (function () {
        while the pad sat in its default arrangement, which is the
        panel-disagrees-with-the-game bug VR-113 fixed for the camera. So the
        correction reaches the control, not just V. */
+    /* VR-150 — the ONLY writer of FACE. Bounded like every other rehydrated
+       value: V comes back from localStorage, and an unknown model would silently
+       mean "move" in aimFor while the row showed something else — the
+       panel-disagrees-with-the-game bug VR-113 fixed for the camera. */
+    if (!what || what === "face") {
+      var MODELS = ["move", "look", "strafe"];
+      var pairs = [["arcade", "faceArcade", "t-facearc"], ["third", "faceThird", "t-facethird"],
+                   ["first", "faceFirst", "t-facefirst"]];
+      for (var fi = 0; fi < pairs.length; fi++) {
+        var mode = pairs[fi][0], key = pairs[fi][1], id = pairs[fi][2];
+        if (MODELS.indexOf(V[key]) < 0) {
+          V[key] = DEF[key];
+          var fe = $(id); if (fe) fe.value = V[key];
+        }
+        FACE[mode] = V[key];
+      }
+    }
     if (!what || what === "pad") {
       pin("hand", ["left", "right"], "t-hand");
       pin("verbs", ["fillstop", "fillsdown"], "t-verbs");
@@ -6118,6 +6187,10 @@ var TUNE = (function () {
     bindPick("t-verbs", "verbs", "pad");
     bindPick("t-padlbl", "padlbl", "pad");
     bindPick("t-camstick", "camstick", "pad");
+    /* VR-150 — one group, "face", whose only writer is apply("face"). */
+    bindPick("t-facearc", "faceArcade", "face");
+    bindPick("t-facethird", "faceThird", "face");
+    bindPick("t-facefirst", "faceFirst", "face");
     bindRange("t-padsize", "padsize", "pad", function (v) { return Math.round(+v * 100) + "%"; });
     bindRange("t-fog", "fog", "fog", function (v) { return (+v).toFixed(3); });
     bindPick("t-husks", "husks", "husks");
@@ -6893,8 +6966,8 @@ var TUNE = (function () {
            open: open, close: close, isOpen: isOpen,
            wireDialog: wireDialog, buildStage: buildStage,
            setCompact: setCompact, gripWidth: gripWidth,
-           setCam: setCam, camMode: camMode, zoom: zoom,
-           syncCamRows: syncCamRows };
+           setCam: setCam, camMode: camMode, syncCamRows: syncCamRows,
+           zoom: zoom };
 })();
 TUNE.wireDialog();
 
