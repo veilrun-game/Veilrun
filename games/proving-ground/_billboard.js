@@ -111,10 +111,15 @@ ok("pointer lock goes through one predicate", /function wantsLock\(\)\s*\{\s*ret
    block and executes it; what belongs HERE, with the rest of the arcade-camera
    contract, is that the arcade rig is still what the sticks resolve against and
    that facing no longer travels through the camera's yaw. */
+/* VR-156 widened moveBasis into a branch (arcade / latched "free" / camera),
+   so pinning its one-line text no longer works. What this file is responsible
+   for is unchanged and is what is asserted: ARCADE still resolves against the
+   fixed rig, ahead of every other branch, and both call sites share the one
+   definition. The behaviour of the other branches is _touch.js's, executed. */
 ok("WASD resolves against the fixed camera",
-   /function moveBasis\(\) \{ return cam\.mode === "arcade" \? ARC\.yaw : mouse\.yaw; \}/.test(html) &&
-   /var basis = moveBasis\(\);/.test(html),
-   "one definition, used by walking and by veilstep");
+   /function moveBasis\(moving\) \{\s*if \(cam\.mode === "arcade"\) return ARC\.yaw;/.test(html) &&
+   (html.match(/var basis = moveBasis\(!!\(mx \|\| mz\)\);/g) || []).length === 2,
+   "one definition, used by walking and by veilstep — and arcade answers first");
 ok("you face where you move",
    /player\.aim = aimFor\(!!\(mx \|\| mz\), tvx, tvz\);/.test(html) &&
    /return moving \? Math\.atan2\(-tvx, -tvz\) : player\.aim;/.test(html),

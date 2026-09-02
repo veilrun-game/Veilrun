@@ -1416,12 +1416,17 @@ body.noanim.tuning .screen.on{transition:none}
        shows you only the one for the view you are in. One row, always the right
        one, rather than three rows and a mapping to hold in your head. -->
   <div class="trow" data-cam="arcade"><label for="t-facearc">Facing</label><select id="t-facearc">
-    <option value="move">Faces where you move</option><option value="look">Faces the camera</option><option value="strafe">Never turns &mdash; strafe</option></select></div>
+    <option value="move">Faces where you move</option><option value="look">Aim with the mouse</option></select></div>
   <div class="trow" data-cam="third"><label for="t-facethird">Facing</label><select id="t-facethird">
-    <option value="move">Faces where you move</option><option value="look">Faces the camera</option><option value="strafe">Never turns &mdash; strafe</option></select></div>
-  <div class="trow" data-cam="first"><label for="t-facefirst">Facing</label><select id="t-facefirst">
-    <option value="strafe">Never turns &mdash; strafe</option><option value="look">Faces the camera</option><option value="move">Faces where you move</option></select></div>
-  <div class="tnote"><b>Faces where you move</b> lets the camera swing right round to his face &mdash; the third-person default. <b>Faces the camera</b> is the older behaviour: the mouse turns him, so you can never get in front. <b>Strafe</b> means moving never turns him at all.</div>
+    <option value="move">Faces where you move</option><option value="free">Move and look apart</option><option value="look">Faces the camera</option></select></div>
+  <!-- VR-156 — first person has no Facing row on purpose. It has exactly one
+       sane answer (you face where you look; anything else puts the camera in
+       the back of his head), and the two options it used to offer, "strafe"
+       and "look", returned the same value. A select with one real answer is
+       the inert control VR-138 exists to delete. -->
+  <div class="tnote" data-cam="third"><b>Faces where you move</b> &mdash; he turns to face where you steer, and the camera orbits freely, right round to his face. <b>Move and look apart</b> keeps running you the way you were going while the camera swings anywhere: <i>look behind you without turning round.</i> It re-aims to the screen the moment you stop. <b>Faces the camera</b> is the old behaviour &mdash; the mouse turns him, so you can never get in front of him.</div>
+  <div class="tnote" data-cam="arcade"><b>Faces where you move</b> is arcade&rsquo;s default &mdash; the camera is fixed, so walking is aiming. <b>Aim with the mouse</b> keeps the fixed camera and puts the aim on the mouse instead.</div>
+  <div class="tnote" data-cam="first">First person always faces where you look and moves sideways when you strafe. There is nothing to choose here, so there is no control.</div>
   <!-- Framing, not input, so it stays with the camera rather than moving to
        Controls with the rest of the touch rows. Wrapped rather than sectioned:
        a whole tile that only ever holds one slider is a tile you tap once. -->
@@ -3625,7 +3630,38 @@ function lineBlocked(ax, az, bx, bz) {
    same way a walk does — before this it read mouse.yaw directly, which in arcade
    is the facing rather than the screen, so W+blink went where you were pointing
    instead of up the screen. */
-function moveBasis() { return cam.mode === "arcade" ? ARC.yaw : mouse.yaw; }
+/* VR-156 — the latch that makes "free" possible. Declared in the block because
+   the block is what _touch.js executes, and a latch the stub cannot see is a
+   contract the stub cannot prove. */
+var moveLatch = 0;
+
+function moveBasis(moving) {
+  if (cam.mode === "arcade") return ARC.yaw;
+  /* VR-156 — "free" is the one model where the camera and the legs are not
+     wired to each other.
+
+     THE GAP IT FILLS, and VR-150 did not see it. Every other model resolves the
+     stick against the camera's CURRENT yaw, so orbiting the camera rotates your
+     run: "forward" turns with the look, and you cannot watch something behind
+     you while still running away from it. Jordan, 9/2: *"on controllers, your
+     right analog controls camera, left analog controls player movement — this
+     way, you can look behind you while running forward."*
+
+     THE BASIS IS LATCHED, NOT WORLD-FIXED, and the difference is the whole
+     design. A hard world axis satisfies that sentence and is unusable: "up"
+     would stop meaning "up the screen" the moment you turned the camera, and
+     you would be steering by compass. Latching re-samples the camera the
+     instant you are at REST, so every fresh push is screen-relative and reads
+     the way people expect — then holds for as long as you keep moving, so the
+     camera can swing anywhere, including right round to his face, without
+     bending your path. Stop and go again and it re-aligns to wherever you are
+     now looking. */
+  if (faceModel() === "free") {
+    if (!moving) moveLatch = mouse.yaw;
+    return moveLatch;
+  }
+  return mouse.yaw;
+}
 
 /* VR-150 — where the body is asked to point, per view, and it is now a CHOICE.
 
@@ -3634,29 +3670,50 @@ function moveBasis() { return cam.mode === "arcade" ? ARC.yaw : mouse.yaw; }
    camera can never get in front of it, so you can never look at your own
    character. That is what a third-person camera is FOR.
 
-   Three models, and every view names one:
-   · "move"   — the body faces where it travels, and HOLDS when you stop. The
-                camera is free to orbit right round to his face.
-   · "look"   — the body faces where the camera looks. First person's only
-                sane answer; any other puts the camera in the back of his head.
-   · "strafe" — movement never rotates the body at all. Facing comes from look,
-                so you can circle-strafe. This is what first person already did
-                and what Jordan asked to keep: "first person you want to be able
-                to strafe left and right."
+   The models:
+   · "move"   — the body faces where it travels and HOLDS when you stop, and the
+                stick resolves against the camera's CURRENT yaw. The camera is
+                free to orbit right round to his face.
+   · "free"   — VR-156. Exactly "move" for FACING, and the opposite for the
+                LEGS: the movement basis latches while you run, so the camera
+                and the stick stop being wired together. See moveBasis().
+   · "look"   — the body faces where the camera looks. First person's only sane
+                answer; any other puts the camera in the back of his head.
+   · "strafe" — movement never rotates the body. First person's name for the
+                same behaviour, kept on Jordan's explicit call: "first person
+                you want to be able to strafe left and right."
 
-   `look` and `strafe` return the same VALUE and differ in what they mean for
-   movement, which is why they are two names: VR-146's side-on view will want
-   `strafe` semantics with a fixed camera, and a shared name would hide that. */
+   ⚠️ VR-156 — `look` and `strafe` RETURN THE SAME VALUE AND ALWAYS HAVE.
+   VR-150 shipped them as two names on the promise that they would come to mean
+   different things for movement; `moveBasis()` never branched on either, so
+   for eleven days the third-person dropdown offered two options that did
+   precisely the same thing. That is half of what Jordan hit when he said
+   "Never turns... can lock in at a weird angle": in third person `strafe`
+   glues the body to `mouse.yaw`, which drags it round with the camera — the
+   exact behaviour VR-150 existed to remove, sitting in VR-150's own menu.
+   They are no longer both offered anywhere. FACE_OK is what enforces that. */
 var FACE_DEF = { arcade: "move", third: "move", first: "strafe" };
 var FACE = { arcade: "move", third: "move", first: "strafe" };
+
+/* VR-156 — which models a view may hold, and therefore which it may OFFER.
+   · arcade drops `strafe` — a duplicate of `look` — but keeps `look`, which
+     with a fixed camera is a real and different game: mouse-aimed twin-stick.
+   · third drops `strafe` for the reason above, and gains `free`.
+   · first is a LIST OF ONE and therefore has no row at all. Two identical
+     options is worse than no choice, and a select with one option is the inert
+     control VR-138 exists to delete. The behaviour Jordan asked for is
+     unchanged — it is simply no longer pretending to be a decision. */
+var FACE_OK = { arcade: ["move", "look"], third: ["move", "free", "look"], first: ["strafe"] };
 
 function faceModel() { return FACE[cam.mode] || FACE_DEF[cam.mode] || "move"; }
 
 function aimFor(moving, tvx, tvz) {
   var m = faceModel();
   if (m === "look" || m === "strafe") return mouse.yaw;
-  /* "move" — and HOLDING on release is half the fix. Snapping back to the
-     camera the moment the stick centres is the moonwalk arriving on stick-up. */
+  /* "move" and "free" — and HOLDING on release is half the fix. Snapping back
+     to the camera the moment the stick centres is the moonwalk arriving on
+     stick-up. The two differ in moveBasis(), never here: what he faces is
+     where he is going in both, which is the point of them being one family. */
   return moving ? Math.atan2(-tvx, -tvz) : player.aim;
 }
 
@@ -3760,7 +3817,7 @@ function veilstep() {
      reads. Direction keys resolve against the camera; no direction keys means
      "blink where I am pointing", which is player.aim rather than wherever the
      camera happens to be looking. */
-  var basis = moveBasis();
+  var basis = moveBasis(!!(mx || mz));
   var cy = Math.cos(basis), sy = Math.sin(basis);
   var dx, dz;
   if (mx || mz) {
@@ -3892,7 +3949,7 @@ function updatePlayer(dt) {
   var mx = 0, mz = 0;
   if (keys.w) mz -= 1; if (keys.s) mz += 1;
   if (keys.a) mx -= 1; if (keys.d) mx += 1;
-  var basis = moveBasis();
+  var basis = moveBasis(!!(mx || mz));
   var cy = Math.cos(basis), sy = Math.sin(basis);
   var tvx = 0, tvz = 0;
   if (mx || mz) {
@@ -5677,7 +5734,7 @@ var TUNE = (function () {
        and OUT of the preset spec with the rest of them: how somebody wants their
        own character to turn is not a fact another player's setup gets to assert
        on their behalf. */
-    faceArcade: FACE_DEF.arcade, faceThird: FACE_DEF.third, faceFirst: FACE_DEF.first,
+    faceArcade: FACE_DEF.arcade, faceThird: FACE_DEF.third, faceFirst: FACE_DEF.first,   // faceFirst is kept and pinned — see apply("face")
     /* VR-139 — the drawer's width, in px, or 0 for "use the responsive
        default". Zero rather than a number so the clamp stays authoritative
        until somebody actually disagrees with it: a saved 290 would pin the
@@ -5820,17 +5877,27 @@ var TUNE = (function () {
        mean "move" in aimFor while the row showed something else — the
        panel-disagrees-with-the-game bug VR-113 fixed for the camera. */
     if (!what || what === "face") {
-      var MODELS = ["move", "look", "strafe"];
+      /* VR-156 — bounded PER VIEW against FACE_OK rather than against one flat
+         model list. A saved "strafe" in third person is now out of range and
+         resets to the default, which is deliberate: that value is the bug
+         Jordan reported, and leaving it valid would keep anyone who had already
+         selected it stuck in it with no way back through a menu that no longer
+         offers it. First person keeps a key and loses its row — its list is one
+         long, so the loop resolves it to the default every time and the writer
+         stays single. */
       var pairs = [["arcade", "faceArcade", "t-facearc"], ["third", "faceThird", "t-facethird"],
-                   ["first", "faceFirst", "t-facefirst"]];
+                   ["first", "faceFirst", null]];
       for (var fi = 0; fi < pairs.length; fi++) {
         var mode = pairs[fi][0], key = pairs[fi][1], id = pairs[fi][2];
-        if (MODELS.indexOf(V[key]) < 0) {
+        if (FACE_OK[mode].indexOf(V[key]) < 0) {
           V[key] = DEF[key];
-          var fe = $(id); if (fe) fe.value = V[key];
+          var fe = id && $(id); if (fe) fe.value = V[key];
         }
         FACE[mode] = V[key];
       }
+      /* A model change must never inherit a stale latch: "free" would resume
+         against wherever the camera was pointing when it was last at rest. */
+      moveLatch = mouse.yaw;
     }
     if (!what || what === "pad") {
       pin("hand", ["left", "right"], "t-hand");
@@ -5929,7 +5996,12 @@ var TUNE = (function () {
      of bug as VR-113's blank View row, from the other side. */
   function syncCamRows() {
     var body = $("tunebody"); if (!body) return;
-    var rows = body.querySelectorAll(".trow[data-cam]");
+    /* VR-156 — .tnote as well as .trow. First person's Facing row is gone and
+       its note is the only thing left explaining why; a note pinned to a view
+       is as much a per-view element as the control it describes, and leaving
+       three notes on screen at once was the same visible-but-irrelevant
+       failure VR-138 fixed for the sliders. */
+    var rows = body.querySelectorAll(".trow[data-cam], .tnote[data-cam]");
     for (var i = 0; i < rows.length; i++) {
       var off = rows[i].getAttribute("data-cam") !== cam.mode;
       rows[i].hidden = off;
@@ -6303,7 +6375,7 @@ var TUNE = (function () {
     /* VR-150 — one group, "face", whose only writer is apply("face"). */
     bindPick("t-facearc", "faceArcade", "face");
     bindPick("t-facethird", "faceThird", "face");
-    bindPick("t-facefirst", "faceFirst", "face");
+    /* no t-facefirst — VR-156 removed the row, not the key */
     bindRange("t-padsize", "padsize", "pad", function (v) { return Math.round(+v * 100) + "%"; });
     bindRange("t-fog", "fog", "fog", function (v) { return (+v).toFixed(3); });
     bindPick("t-husks", "husks", "husks");

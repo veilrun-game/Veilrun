@@ -2266,10 +2266,10 @@ if (aimSrc) {
 
   // --- movement basis: camera-relative everywhere, but from the right source
   A.cam.mode = "arcade"; A.ARC.yaw = 1.23; A.mouse.yaw = 9.9;
-  ok("arcade resolves the sticks against the FIXED rig", A.moveBasis() === 1.23,
+  ok("arcade resolves the sticks against the FIXED rig", A.moveBasis(true) === 1.23,
      "reading mouse.yaw here is what made W+blink go where you were pointing");
   A.cam.mode = "third";
-  ok("third person resolves them against the camera", A.moveBasis() === 9.9);
+  ok("third person resolves them against the camera", A.moveBasis(true) === 9.9);
 
   // --- the defaults ARE the ruling: VR-150's table, in code
   ok("third person defaults to facing where you MOVE", A.FACE_DEF.third === "move",
@@ -2321,6 +2321,64 @@ if (aimSrc) {
   ok("an unrecognised model falls back to move, not to the camera",
      A.aimFor(true, 0, -1) !== 2.5,
      "V is rehydrated from localStorage — apply('face') pins it, and this is the backstop");
+
+  /* ---- VR-156: "free" — the camera and the legs come apart ---------------
+     Driven rather than read, because the whole claim is about what happens
+     ACROSS frames: the basis has to survive a camera orbit while you are
+     moving, and re-align the moment you are not. */
+  console.log("\n[VR-156 — move and look, apart]");
+  setFace("third", "free");
+  A.mouse.yaw = 0.5; A.moveBasis(false);        // at rest: latch takes the camera
+  ok("at rest, the basis IS the camera", A.moveBasis(false) === 0.5,
+     "a fresh push must be screen-relative or you are steering by compass");
+  A.mouse.yaw = 0.5 + Math.PI;                  // orbit right round while running
+  ok("orbiting a half-turn WHILE MOVING does not bend your path",
+     A.moveBasis(true) === 0.5,
+     "Jordan: 'you can look behind you while running forward' — this is that sentence");
+  ok("and it still does not, several frames later",
+     A.moveBasis(true) === 0.5 && A.moveBasis(true) === 0.5);
+  A.moveBasis(false);                            // stop
+  ok("stopping re-aligns it to wherever you are now looking",
+     A.moveBasis(true) === 0.5 + Math.PI,
+     "otherwise the next run starts sideways and the model is unusable");
+
+  ok("`free` faces travel exactly like `move`", (() => {
+       setFace("third", "free"); A.mouse.yaw = 2.5; A.player.aim = 0;
+       return Math.abs(A.aimFor(true, 0, -1) - NORTH) < 1e-9;
+     })(), "the two are one family — they differ in the LEGS, never in the face");
+  ok("and holds on release exactly like `move`", (() => {
+       A.player.aim = 1.75; return A.aimFor(false, 0, 0) === 1.75;
+     })());
+
+  // arcade ignores the latch entirely — its basis is the rig, always
+  setFace("arcade", "free"); A.ARC.yaw = 1.23; A.mouse.yaw = 77;
+  ok("arcade is never latched — the rig is the basis, moving or not",
+     A.moveBasis(true) === 1.23 && A.moveBasis(false) === 1.23,
+     "a fixed camera has nothing to come apart from");
+
+  /* ---- VR-156: the duplicate, and its removal ---------------------------- */
+  console.log("\n[VR-156 — look and strafe were the same option]");
+  A.cam.mode = "third"; A.mouse.yaw = 1.11; A.player.aim = 0.4;
+  A.FACE.third = "look";  const asLook   = A.aimFor(true, 0, -1);
+  A.FACE.third = "strafe"; const asStrafe = A.aimFor(true, 0, -1);
+  ok("they are still identical in the solver, which is WHY one had to go",
+     asLook === asStrafe && asLook === 1.11,
+     "VR-150 shipped two names on a promise that moveBasis never kept");
+  ok("third person may no longer HOLD strafe", A.FACE_OK.third.indexOf("strafe") < 0,
+     "in third person it glues the body to the camera — the exact bug VR-150 removed");
+  ok("nor may arcade", A.FACE_OK.arcade.indexOf("strafe") < 0);
+  ok("first person keeps it, and keeps only it", A.FACE_OK.first.join() === "strafe",
+     "Jordan's explicit call, and a list of one is why the row is gone");
+  ok("third person is the only view offering `free`",
+     A.FACE_OK.third.indexOf("free") >= 0 && A.FACE_OK.arcade.indexOf("free") < 0 &&
+     A.FACE_OK.first.indexOf("free") < 0,
+     "arcade has nothing to come apart from; first person has no body to point");
+  ok("every view's list is non-empty and every entry is a model the solver knows",
+     ["arcade", "third", "first"].every(m => A.FACE_OK[m].length > 0 &&
+       A.FACE_OK[m].every(v => ["move", "free", "look", "strafe"].indexOf(v) >= 0)));
+  ok("and every default is inside its own view's list",
+     ["arcade", "third", "first"].every(m => A.FACE_OK[m].indexOf(A.FACE_DEF[m]) >= 0),
+     "a default the panel would immediately reject is a boot that fights itself");
 }
 /* The wiring, which execution alone cannot see. */
 ok("playerFace targets the aim, not the camera",
@@ -2340,20 +2398,42 @@ ok("apply(\"face\") is the only writer of FACE",
    (html.match(/FACE\[mode\] = V\[key\];/g) || []).length === 1 &&
    !/FACE\.(arcade|third|first) = /.test(html.replace(/var FACE = \{[^}]*\};/, "")),
    "two writers is how the panel and the game start disagreeing");
-ok("every view has a facing row, and it declares its view",
-   ["t-facearc", "t-facethird", "t-facefirst"].every(id =>
-     new RegExp('<div class="trow" data-cam="(arcade|third|first)"><label for="' + id + '"').test(html)),
+ok("the two views WITH a choice each declare it",
+   ["t-facearc", "t-facethird"].every(id =>
+     new RegExp('<div class="trow" data-cam="(arcade|third)"><label for="' + id + '"').test(html)),
    "so VR-138's syncCamRows shows only the one that applies");
+/* VR-156 — the row's absence is the decision, so it is asserted rather than
+   left to be quietly re-added by someone who reads the gap as an oversight. */
+ok("first person has NO facing row, and no binder for one",
+   !/id="t-facefirst"/.test(html) && !/bindPick\("t-facefirst"/.test(html),
+   "its list is one long: two identical options is worse than no choice, and a one-option select is the inert control VR-138 deletes");
+ok("but it still holds a key, so the writer stays single",
+   /\["first", "faceFirst", null\]/.test(html) && /faceFirst: FACE_DEF\.first/.test(html),
+   "dropping the key would mean a second place that assigns FACE");
+ok("the per-view notes are hidden with their views too",
+   /querySelectorAll\("\.trow\[data-cam\], \.tnote\[data-cam\]"\)/.test(html) &&
+   (html.match(/<div class="tnote" data-cam="/g) || []).length === 3,
+   "first person's note is now the only thing explaining why it has no control");
 ok("the facing rows are NOT in the touch-only Controls section",
    !/tsec touchonly[\s\S]*?t-facethird[\s\S]*?<\/section>/.test(html),
    "this setting matters most on a desktop in third person — Controls is touchonly and would hide it there");
-ok("the three models are bounded on rehydrate",
-   /var MODELS = \["move", "look", "strafe"\]/.test(html) &&
-   /MODELS\.indexOf\(V\[key\]\) < 0/.test(html),
-   "V comes back from localStorage, which is untrusted the moment anything can write a settings blob");
-ok("walking and blinking share the basis",
-   (html.match(/moveBasis\(\)/g) || []).length >= 3,
-   "one definition and both call sites");
+ok("the models are bounded PER VIEW on rehydrate",
+   /var FACE_OK = \{ arcade: \[/.test(html) &&
+   /FACE_OK\[mode\]\.indexOf\(V\[key\]\) < 0/.test(html) &&
+   !/var MODELS = \[/.test(html),
+   "one flat list would keep a saved third-person `strafe` valid — and that value IS the reported bug");
+ok("a model change resets the latch",
+   /FACE\[mode\] = V\[key\];[\s\S]{0,400}?moveLatch = mouse\.yaw;/.test(html),
+   "`free` would otherwise resume against wherever the camera was when it last stood still");
+ok("the latch is written in exactly three places",
+   (html.match(/moveLatch = /g) || []).length === 3 &&
+   /var moveLatch = 0;/.test(html) &&
+   /if \(!moving\) moveLatch = mouse\.yaw;/.test(html),
+   "the declaration, the re-sample in moveBasis, and the reset in apply — a fourth is a second solver");
+ok("walking and blinking share the basis, and both tell it whether you are moving",
+   (html.match(/moveBasis\(!!\(mx \|\| mz\)\)/g) || []).length === 2 &&
+   (html.match(/function moveBasis\(moving\)/g) || []).length === 1,
+   "a call site that forgets the flag latches the basis permanently at whatever it last was");
 
 /* ======================================================================
    N+1. VR-138 — no camera row is visible-but-inert
@@ -2418,10 +2498,10 @@ ok("hidden rows beat the staged layout rules",
    /#tune \.trow\[hidden\],#tune \.tpick\[hidden\]\{display:none!important\}/.test(html),
    "plain `hidden` loses to .trow{display:flex} and to .trow.tfocus");
 ok("a hidden row's list entry is hidden with it",
-   /function syncCamRows\(\)[\s\S]{0,420}pickFor\(rows\[i\]\)/.test(html),
+   /function syncCamRows\(\)[\s\S]{0,900}pickFor\(rows\[i\]\)/.test(html),
    "otherwise the sheet keeps a tile that walks you to a control that is not there");
 ok("the rows follow cam.mode, not the saved value",
-   /function syncCamRows\(\)[\s\S]{0,420}!== cam\.mode/.test(html),
+   /function syncCamRows\(\)[\s\S]{0,900}!== cam\.mode/.test(html),
    "V.cam is what survives a reload; cam.mode is what you are looking through");
 /* This assertion was written to the WRONG SHAPE first — it matched a call
    anywhere after setCam, and passed while the call sat in cycleCam(), which the
