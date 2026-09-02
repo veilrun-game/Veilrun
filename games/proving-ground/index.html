@@ -100,6 +100,32 @@ canvas{display:block}
 #crosshair{position:absolute;top:50%;left:50%;width:5px;height:5px;margin:-2.5px 0 0 -2.5px;border-radius:50%;
   background:rgba(240,238,250,.75);box-shadow:0 0 6px rgba(150,90,230,.9);transition:transform .1s ease}
 #crosshair.hot{transform:scale(2.1);background:var(--magenta)}
+/* ---------- the hit confirm (VR-104) ---------------------------------------
+   Deliberately its OWN element rather than another state on #crosshair.
+   `.hot` is a PREDICTION — it says an Execute would land here, and it is on
+   screen before you press anything. A confirm that shares an element with a
+   prediction cannot be read as a confirm: you cannot tell the mark that means
+   "that one connected" from the one that means "this one would". Two things,
+   two elements.
+   --hmpop is written by hitmark() from MOTION.flash and scales how far the
+   mark travels. It never reaches zero: the mark is INFORMATION — did that
+   land? — and damping must not cost a player the answer, exactly as the hit
+   vignette floors rather than disappearing. What damping buys is that the
+   mark stops lunging at you, not that it stops existing. */
+#hitmark{position:absolute;top:50%;left:50%;width:26px;height:26px;margin:-13px 0 0 -13px;
+  opacity:0;pointer-events:none;--hmpop:1}
+#hitmark i{position:absolute;left:50%;top:50%;width:2px;height:7px;margin:-3.5px 0 0 -1px;
+  border-radius:1px;background:rgba(240,238,250,.95);box-shadow:0 0 7px rgba(150,90,230,.95)}
+#hitmark i:nth-child(1){transform:rotate(45deg) translateY(-9px)}
+#hitmark i:nth-child(2){transform:rotate(135deg) translateY(-9px)}
+#hitmark i:nth-child(3){transform:rotate(225deg) translateY(-9px)}
+#hitmark i:nth-child(4){transform:rotate(315deg) translateY(-9px)}
+#hitmark.heavy i{background:var(--magenta);height:10px}
+@keyframes hitmarkpop{
+  0%{opacity:1;transform:scale(calc(1 - .30 * var(--hmpop)))}
+  100%{opacity:0;transform:scale(calc(1 + .55 * var(--hmpop)))}}
+#hitmark.on{animation:hitmarkpop .22s ease-out}
+#hitmark.on.heavy{animation-duration:.3s}
 #vignette{position:absolute;inset:0;opacity:0;transition:opacity .18s ease;
   background:radial-gradient(ellipse at center,transparent 42%,rgba(200,40,60,.62) 100%)}
 #shroudv{position:absolute;inset:0;opacity:0;transition:opacity .35s ease;
@@ -1209,6 +1235,7 @@ body.noanim.tuning .screen.on{transition:none}
       <span class="pipkey">RMB</span></div><div class="piplbl">Execute</div></div>
   </div>
   <div id="crosshair"></div>
+  <div id="hitmark"><i></i><i></i><i></i><i></i></div>
   
 
 <div id="shroudv"></div>
@@ -2484,9 +2511,28 @@ var vmBlade = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.85, 0.12), pBladeMat
 vmBlade.position.set(0.34, -0.30, -0.72); vmBlade.rotation.set(0.5, 0.1, 0.22);
 vmBlade.visible = false; camera.add(vmBlade);
 
-// blade trail — a thin fan swept through the arc of a swing
+/* blade trail — a fan swept through the arc of a swing.
+   VR-104: ONE FAN PER STAGE, swept to the strike's REAL arc. This used to be a
+   single 1.7rad (97 degree) ring reused for all three stages, which understated
+   the 290 degree finisher by three to one — and, worse, stage 1 was drawn with
+   a +0.85 offset that put the picture somewhere the hitbox is not.
+   strikeHits() tests `half = arc/2` either side of facing, so a CENTRED fan of
+   the real arc is the truthful drawing, not a stylistic choice: the trail is
+   the strike's readable arc — the picture of which enemies were inside the
+   swing — and a trail that disagrees with the hitbox is worse than none.
+   Handedness now comes from which way the fan sweeps as it fades (trailSpin),
+   which is a decay direction rather than a lie about where the damage was. */
+var TRAIL_GEO = (function () {
+  var g = [];
+  for (var ti = 0; ti < C.strike.length; ti++) {
+    var a = C.strike[ti].arc * Math.PI / 180;
+    g.push(new THREE.RingGeometry(1.1, 2.7, Math.max(20, Math.round(a * 14)), 1, 0, a));
+  }
+  return g;
+})();
+var trailSpin = -1;
 var trail = new THREE.Mesh(
-  new THREE.RingGeometry(1.1, 2.7, 20, 1, 0, 1.7),
+  TRAIL_GEO[0],
   new THREE.MeshBasicMaterial({ color: 0xC9BEEA, transparent: true, opacity: 0, side: THREE.DoubleSide,
     depthWrite: false, blending: THREE.AdditiveBlending })
 );
@@ -3251,8 +3297,15 @@ function playerSpriteReady() {
    the OS flag changes mid-session we follow it, but ONLY while nobody has
    touched these controls (TUNE.mset); an explicit choice here outranks it.
 
-   WHAT IS DELIBERATELY NOT DAMPED, and why — VR-104 will add more damage
-   feedback and inherits these decisions:
+   WHAT IS DELIBERATELY NOT DAMPED, and why — VR-104 added more damage
+   feedback and inherited these decisions. What it added, and how each one
+   landed against the rules below: hitmark() damps its POP but never its
+   opacity (a hit confirm is information, like the trail and the dissolve);
+   bladeFlash() damps fully through MOTION.flash, because a blade getting
+   brighter is decoration and the hit is confirmed elsewhere; the contact
+   bloom in damageEnemy() is undamped because it is particles, which were
+   never one of the six choke points; and the connect lens kick rides
+   fovKick(), so it damps for free — see the amended note at MOTION_RED.
 
    · hitStop(). It is the one that looks like it belongs here and does not.
      First, it is not motion — it is the ABSENCE of motion, a freeze frame.
@@ -3281,8 +3334,15 @@ var PREFERS_REDUCED = (function () {
 })();
 /* Scales, 0..1. MOTION_RED is not zeros across the board on purpose: `flash`
    floors the hit vignette at a still, readable tint rather than deleting it,
-   and `fov` keeps a trace of the execute's lens pull because it is how you
-   tell an Execute landed from a strike landing. */
+   and `fov` keeps a trace of the lens pull because it is how you tell an
+   Execute landing from a strike landing.
+   ⚠️ AMENDED BY VR-104. That last sentence used to say the lens kick belonged
+   to Execute alone. It no longer does — a normal strike connect now kicks too
+   (-2.2, and -4 on the finisher, against Execute's -9). So the cue is no
+   longer PRESENCE, it is AMPLITUDE, and 0.25 is what keeps the ratio legible
+   instead of flattening three different impacts into one twitch. If a future
+   effect wants a lens kick, check it against -9 before adding it: the moment
+   two of them are the same number, this axis stops telling you anything. */
 var MOTION_FULL = { shake: 1,    fov: 1,    flash: 1,    ghost: 1, banner: 1 };
 var MOTION_RED  = { shake: 0,    fov: 0.25, flash: 0.34, ghost: 0, banner: 0 };
 var MOTION_KEYS = ["shake", "fov", "flash", "ghost", "banner"];
@@ -3301,6 +3361,30 @@ function shake(mag) {
 function fovKick(v) {
   cam.fovTarget = baseFov() + v * MOTION.fov;
 }
+/* VR-104 — the two new damage-DEALING primitives. Both follow the VR-103 rule
+   above: the scale is multiplied INSIDE the named function, never at a call
+   site, so there is exactly one place to look when an axis misbehaves. */
+function hitmark(heavy) {
+  var el = HUD.hitmark; if (!el) return;
+  /* The mark always appears. It answers "did that land?", which is
+     information, and the file's own rule is that information is not damped —
+     the blade trail and the Shroud dissolve are left alone for the same
+     reason. MOTION.flash scales the POP, floored so a player at zero still
+     gets a confirm that simply does not lunge. */
+  el.style.setProperty("--hmpop", (0.34 + 0.66 * MOTION.flash).toFixed(3));
+  el.classList.toggle("heavy", !!heavy);
+  el.classList.remove("on");
+  void el.offsetWidth;                     // restart the animation mid-flight
+  el.classList.add("on");
+}
+/* A bloom on the blade at the contact frame. Read the caveat before extending
+   it: pBladeMat is worn by the PRIMITIVE rig and by the first-person view
+   model, and the GLB came out weaponless (VR-104 part 3), so with the model
+   loaded this is visible in first person and nowhere else. That is why the
+   contact bloom in damageEnemy() fires at the ENEMY rather than only here —
+   the flash that reads in third person has to live where the hit happened. */
+var bladeGlow = 0;
+function bladeFlash(v) { bladeGlow = Math.max(bladeGlow, v * MOTION.flash); }
 
 var _cd = new THREE.Vector3();
 function updateCamera(dt) {
@@ -3391,7 +3475,8 @@ var HUD = {
   fillStep: [$("fill-step0"), $("fill-step1")], fillExec: $("fill-exec"),
   pipStep: $("pip-step"), pipExec: $("pip-exec"),
   vig: $("vignette"), shroudv: $("shroudv"), shroudlbl: $("shroudlbl"),
-  cross: $("crosshair"), banner: $("banner"), dmg: $("dmgnum"), root: $("hud")
+  cross: $("crosshair"), hitmark: $("hitmark"),
+  banner: $("banner"), dmg: $("dmgnum"), root: $("hud")
 };
 
 /* ---- one readiness vocabulary, shared by the HUD pips and the touch pad ----
@@ -3614,6 +3699,18 @@ function strikeHits() {
   if (any) {
     hitStop(player.atkStage === 2 ? 78 : 46);
     shake(player.atkStage === 2 ? 0.16 : 0.07);
+    /* VR-104 — the confirm, and it is three separate decisions.
+       · hitmark() always fires, veiled or not: a hit is a hit.
+       · bladeFlash() lights the blade at the contact frame.
+       · the LENS KICK IS SKIPPED WHEN VEILED, and that is not a style call.
+         A veiled strike ran executeEnemy() above, which already set
+         fovKick(-9). fovKick assigns cam.fovTarget — it does not accumulate —
+         so kicking again here would OVERWRITE the Execute's pull with a
+         smaller number and quietly delete the one cue that separates an
+         Execute landing from a strike landing. */
+    hitmark(player.atkStage === 2);
+    bladeFlash(player.atkStage === 2 ? 1.9 : 1.15);
+    if (!veiled) fovKick(player.atkStage === 2 ? -4 : -2.2);
   }
   return any;
 }
@@ -3631,9 +3728,12 @@ function updateStrike(dt) {
       player.atkPhase = "active"; player.atkT = 0;
       // swing arc visual
       trail.visible = true;
+      trail.geometry = TRAIL_GEO[player.atkStage];
       trail.material.opacity = 0.55;
       trail.position.set(player.x, 1.05, player.z);
-      trail.rotation.z = -player.yaw + (player.atkStage === 2 ? 0 : (player.atkStage === 0 ? -0.85 : 0.85));
+      // centred on facing, because that is where strikeHits() tests
+      trail.rotation.z = -player.yaw - st.arc * Math.PI / 360;
+      trailSpin = (player.atkStage === 1) ? 1 : -1;   // the backhand sweeps back
       trail.scale.setScalar(st.range / 2.7);
       strikeHits();
       player.atkHit = true;
@@ -3755,7 +3855,12 @@ function updateShroud(dt) {
   // visual: Vesper fades toward the Weave as the shroud takes
   var op = 1 - player.shroud * 0.72;
   pBodyMat.opacity = op; pCloakMat.opacity = op;
-  pBladeMat.emissiveIntensity = 0.35 + player.shroud * 1.5;
+  /* VR-104 — this line OWNS the blade's brightness and rewrites it every
+     frame, so a bloom set anywhere else would be erased before it was seen.
+     Same shape as VR-138's fovTarget damp. The glow is folded in here and
+     decayed here; bladeFlash() only ever raises it. */
+  bladeGlow = Math.max(0, bladeGlow - dt * 5.5);
+  pBladeMat.emissiveIntensity = 0.35 + player.shroud * 1.5 + bladeGlow;
   HUD.shroudv.style.opacity = player.shroud * 0.85;
   HUD.shroudlbl.style.opacity = player.veiled ? 1 : 0;
 }
@@ -3851,7 +3956,7 @@ function poseVesper(dt, t) {
   if (trail.visible) {
     trail.material.opacity -= dt * 4.5;
     trail.position.set(player.x, 1.05, player.z);
-    trail.rotation.z -= dt * 9;
+    trail.rotation.z += trailSpin * dt * 9;
     if (trail.material.opacity <= 0) trail.visible = false;
   }
 }
@@ -3868,6 +3973,14 @@ function damageEnemy(e, dmg, dx, dz, knock, heavy) {
   if (e.state === "wind" || e.state === "strike") { e.state = "rec"; e.t = 0; }
   floatNumber(e.x, 1.85, e.z, String(Math.round(dmg)), heavy);
   burst(e.x, 1.25, e.z, heavy ? 12 : 7, 0xD65CDC, heavy ? 6.5 : 4.2, { scale: heavy ? 1.1 : 0.8, lifeScale: 0.75 });
+  /* VR-104 — the contact bloom. Slow, large and very short-lived, which is
+     what makes it read as a flash of light rather than as more spray: it is
+     the same particle machinery, driven to the opposite end of its range.
+     Undamped, deliberately — the VR-103 choke points are shake, fov, ghost,
+     banner and the vignette; particles were never in that set, and this one
+     is positioned at the hit rather than across the screen. */
+  burst(e.x, 1.25, e.z, heavy ? 5 : 3, 0xFFF3FF, heavy ? 2.0 : 1.4,
+        { scale: heavy ? 2.1 : 1.6, lifeScale: 0.26, grav: 0 });
   if (heavy) AU.hitHeavy(); else AU.hit();
   if (e.hp <= 0) killEnemy(e, false);
 }

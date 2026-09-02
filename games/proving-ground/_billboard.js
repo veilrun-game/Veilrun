@@ -361,6 +361,103 @@ const balCode = bal
 ok("BALANCE is still DOM-free", !!bal && !/document\.|window\.|localStorage|THREE\./.test(balCode),
    "an accessibility key is a display concern and cannot become a mechanical one");
 
+/* ---- damage-DEALING feedback (VR-104) ----------------------------------
+   VR-103 gave this file the reduced-motion contract; VR-104 added four more
+   effects to the DEALING side and every one of them had a way to go wrong
+   that reading the diff would not catch. Each check below names the failure
+   it exists to prevent rather than restating the code. */
+console.log("\n[damage feedback — VR-104]");
+
+ok("the hit confirm is its own element",
+   /<div id="hitmark">(<i><\/i>){4}<\/div>/.test(html) && /#hitmark\{/.test(html),
+   "sharing #crosshair would put a confirm and a prediction on one element");
+ok("and the crosshair keeps ONLY the prediction",
+   /#crosshair\.hot\{transform:scale\(2\.1\);background:var\(--magenta\)\}/.test(html) &&
+   !/#crosshair\.(hit|mark|confirm)/.test(html),
+   ".hot is on screen before you press anything — it cannot double as a confirm");
+ok("it is wired into the HUD map", /hitmark: \$\("hitmark"\)/.test(html));
+
+{
+  const hm = (html.match(/function hitmark\(heavy\)[\s\S]*?\n\}/) || [""])[0];
+  ok("hitmark() reads MOTION.flash inside the function",
+     /MOTION\.flash/.test(hm) && !/hitmark\([^)]*MOTION/.test(html),
+     "the VR-103 rule: multiply at the primitive, never at the call site");
+  ok("and floors it, so the confirm survives full damping",
+     /0\.34 \+ 0\.66 \* MOTION\.flash/.test(hm),
+     "a hit confirm is information; damping must not cost a player the answer");
+  ok("the animation restarts mid-flight",
+     /classList\.remove\("on"\)[\s\S]{0,120}offsetWidth[\s\S]{0,80}classList\.add\("on"\)/.test(hm),
+     "two fast hits must read as two marks, not as one that never replayed");
+  ok("--hmpop scales the POP and never the opacity",
+     /0%\{opacity:1;transform:scale\(calc\(1 - \.30 \* var\(--hmpop\)\)\)\}/.test(html) &&
+     /100%\{opacity:0;transform:scale\(calc\(1 \+ \.55 \* var\(--hmpop\)\)\)\}/.test(html),
+     "opacity is the information channel; only the travel is motion");
+}
+
+{
+  const bf = (html.match(/function bladeFlash\(v\) \{[^\n]*/) || [""])[0];
+  ok("bladeFlash() reads MOTION.flash inside the function",
+     /bladeGlow = Math\.max\(bladeGlow, v \* MOTION\.flash\)/.test(bf),
+     "and raises only — an assignment here would let a weak hit dim a strong one");
+  ok("the glow is consumed on the line that OWNS the blade's brightness",
+     /pBladeMat\.emissiveIntensity = 0\.35 \+ player\.shroud \* 1\.5 \+ bladeGlow;/.test(html),
+     "that line rewrites emissive every frame — a bloom set anywhere else is erased unseen");
+  ok("and decayed in the same place it is consumed",
+     /bladeGlow = Math\.max\(0, bladeGlow - dt \* [\d.]+\);[\s\S]{0,320}?\+ bladeGlow;/.test(html),
+     "a glow raised with no decay is a blade that stays lit");
+}
+
+{
+  const sh = (html.match(/function strikeHits\(\)[\s\S]*?\n\}/) || [""])[0];
+  ok("a connect fires the confirm whether or not you were veiled",
+     /hitmark\(player\.atkStage === 2\);/.test(sh));
+  ok("BUT the connect lens kick is skipped when veiled",
+     /if \(!veiled\) fovKick\(/.test(sh),
+     "a veiled strike already ran executeEnemy's fovKick(-9); fovKick ASSIGNS the target, so kicking again would overwrite the Execute's pull with a smaller one");
+  /* Pull the magnitudes out of the call itself rather than restating them, so
+     a future re-tune is measured against Execute instead of against a number
+     typed in this file a month ago. */
+  /* Anchored to the guarded call, not to any fovKick in the function — the
+     comment above it NAMES fovKick(-9) to explain why the guard exists, and a
+     loose match reads the prose and passes on the wrong number. (Found here,
+     first run: it reported 9.) */
+  const kickCall = (sh.match(/if \(!veiled\) fovKick\(([^)]*)\)/) || ["", ""])[1];
+  const kicks = (kickCall.match(/-?\d+(?:\.\d+)?/g) || []).map(Number).map(Math.abs);
+  ok("and every connect kick stays well under Execute's 9",
+     kicks.length > 0 && kicks.every(k => k > 0 && k <= 5) && /fovKick\(-9\)/.test(html),
+     "the cue is amplitude now, not presence — equal numbers make the axis say nothing; found " +
+       (kicks.join(", ") || "none"));
+}
+
+{
+  ok("the contact bloom fires at the enemy, not only on the blade",
+     /burst\(e\.x, 1\.25, e\.z, heavy \? 5 : 3, 0xFFF3FF/.test(html),
+     "pBladeMat is worn by the primitive rig and the first-person view model; the GLB is weaponless, so a blade-only bloom is invisible in third person");
+}
+
+/* ---- the blade trail must agree with the hitbox (VR-104) ---- */
+console.log("\n[trail arc — VR-104]");
+ok("one fan per strike stage, built from the BALANCE arcs",
+   /for \(var ti = 0; ti < C\.strike\.length; ti\+\+\)/.test(html) &&
+   /var a = C\.strike\[ti\]\.arc \* Math\.PI \/ 180;/.test(html),
+   "a retyped angle is a trail that stops following BALANCE the first time an arc moves");
+ok("the fan drawn is the stage's own",
+   /trail\.geometry = TRAIL_GEO\[player\.atkStage\];/.test(html),
+   "one shared 97-degree ring understated the 290-degree finisher three to one");
+ok("and it is CENTRED on facing, where strikeHits actually tests",
+   /trail\.rotation\.z = -player\.yaw - st\.arc \* Math\.PI \/ 360;/.test(html) &&
+   !/-player\.yaw \+ \(player\.atkStage === 2 \? 0/.test(html),
+   "stage 1 used to be drawn at +0.85 — a picture of the swing somewhere the damage is not");
+ok("handedness comes from the decay sweep, not from an offset fan",
+   /trail\.rotation\.z \+= trailSpin \* dt \* 9;/.test(html) &&
+   /trailSpin = \(player\.atkStage === 1\) \? 1 : -1;/.test(html));
+{
+  const geo = (html.match(/var TRAIL_GEO = \(function \(\)[\s\S]*?\}\)\(\);/) || [""])[0];
+  ok("the trail layer never reaches into BALANCE to write",
+     !/C\.strike\[\w+\]\.arc\s*=/.test(geo) && /RingGeometry/.test(geo),
+     "reading the arc is the contract; writing one would be a balance edit from the display layer");
+}
+
 console.log("\n" + "=".repeat(58));
 console.log(fails ? `FAIL — ${fails} of ${checks}` : `PASS — ${checks} checks`);
 process.exit(fails ? 1 : 0);
