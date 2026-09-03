@@ -133,6 +133,45 @@ ok("waves dominate kills", BAL.scoreFor({ waves: 1, kills: 0, executes: 0, time:
 ok("playing Vesper properly pays", BAL.scoreFor({ waves: 0, kills: 0, executes: 1, time: 0 }) >
    BAL.scoreFor({ waves: 0, kills: 1, executes: 0, time: 0 }), "execute 15 vs kill 10");
 
+/* ------------------- husk SEARCH — Shroud's payoff (VR-119) ------------- */
+console.log("\n[husk SEARCH — what losing you costs them]");
+/* These are not decoration numbers. Shroud is the only one of Vesper's verbs
+   with no button, no cost and — until this card — no visible effect, so the
+   relationships that make it WORTH standing still are the thing to prove. */
+ok("losing you is slower than seeing you", C.huskSearchSpeed < 1,
+   "a husk that hunts as fast blind as sighted makes Shroud worthless — " +
+   (C.enemySpeed * C.huskSearchSpeed).toFixed(2) + " vs " + C.enemySpeed.toFixed(2) + " u/s");
+ok("but they still close on you, slowly", C.huskSearchSpeed > 0.15,
+   "a search that barely moves is a room that has stopped playing with you");
+ok("there IS a grace window before they give up", C.huskLoseT > 0,
+   "at zero, a pillar clipping the line for two frames flips the whole room and back");
+ok("and it is short enough to feel like stealth", C.huskLoseT < C.shroudDelay,
+   "they must accept the loss faster than the veil takes, or Shroud reads as delayed — " +
+   C.huskLoseT + "s vs shroudDelay " + C.shroudDelay + "s");
+ok("a beat range, not a beat", C.huskBeatMin < C.huskBeatMax,
+   C.huskBeatMin + "-" + C.huskBeatMax + "s, randomised so a crowd never scans in unison");
+ok("the shortest beat outlasts the grace window", C.huskBeatMin > C.huskLoseT,
+   "otherwise a husk can cycle a whole beat inside the time it takes to notice you are gone");
+ok("they get at least one full cycle before patrolling", C.huskSearchGiveUp > C.huskBeatMax * 2,
+   "give-up " + C.huskSearchGiveUp + "s against a worst-case walk+scan of " + (C.huskBeatMax * 2) + "s");
+ok("staying hidden outlasts a search, so hiding can actually win",
+   C.huskSearchGiveUp > C.shroudDelay * 4,
+   "if they gave up slower than you can re-veil, Shroud would only ever delay the same fight");
+/* The one that ties the mechanic to the fiction: Stalk exists so you can move
+   while veiled. If a stalking Vesper were slower than a searching husk, the
+   husks would close on you anyway and Stalk would be a worse way to stand still. */
+/* The trade Stalk is FOR, stated as a number. Stalk (0.5) is deliberately
+   SLOWER than a searching husk, so creeping away veiled does not simply beat
+   the search — you have to pick a direction and commit, or hold still and let
+   them drift past. If this ever inverted, Shroud plus Stalk would become a
+   universal escape and the whole state below would stop mattering. */
+ok("stalking does NOT outpace a search — the veil is not an exit",
+   C.stalkSpeed < C.enemySpeed * C.huskSearchSpeed,
+   "stalk " + C.stalkSpeed + " u/s against a search of " +
+   (C.enemySpeed * C.huskSearchSpeed).toFixed(2) + " u/s");
+ok("but breaking cover always does", C.moveSpeed > C.enemySpeed * C.huskSearchSpeed * 2,
+   "running is the escape, and it costs you the veil — that is the decision");
+
 /* --------------------- projected run (the difficulty curve) ------------- */
 console.log("\n[projected run — estimated wave clear time]");
 const swingTime = cd.time / 3;

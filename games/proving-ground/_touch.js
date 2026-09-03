@@ -2381,9 +2381,39 @@ if (aimSrc) {
      "a default the panel would immediately reject is a boot that fights itself");
 }
 /* The wiring, which execution alone cannot see. */
-ok("playerFace targets the aim, not the camera",
-   /function playerFace[\s\S]{0,220}var target = player\.aim;/.test(html) &&
-   !/function playerFace[\s\S]{0,220}var target = mouse\.yaw;/.test(html));
+/* VR-157 — playerFace now resolves TWO angles, so the old "var target =
+   player.aim" text is gone. The claim it defended is unchanged and is what is
+   asserted: the VERB facing eases toward the aim and never toward the camera. */
+const pfSrc = (html.match(/function playerFace\(dt\)[\s\S]*?\n\}/) || [""])[0];
+ok("playerFace eases the verb facing toward the aim, not the camera",
+   /player\.yaw \+= shortAngle\(player\.yaw, player\.aim\)/.test(pfSrc) &&
+   !/shortAngle\(player\.yaw, mouse\.yaw\)/.test(pfSrc),
+   "mouse.yaw reaches the body only through player.aim, which apply('face') governs");
+
+/* ---- VR-157: the body and the verbs are two angles -------------------- */
+console.log("\n[VR-157 — the mouse owns the aim, not the legs]");
+ok("the body has its own angle, seeded with the verb facing",
+   /bodyYaw: 0,/.test(html) && /player\.bodyYaw = player\.yaw;/.test(html),
+   "starting it anywhere else is a character who spawns facing the wrong way for one frame");
+ok("only `look` ever separates them",
+   /if \(!acting && faceModel\(\) === "look"\)/.test(pfSrc) &&
+   /var bodyTarget = player\.yaw;/.test(pfSrc),
+   "every other model must leave bodyYaw converging on yaw, or VR-150 and VR-156 change shape by accident");
+ok("attacking puts the body back on the aim",
+   /var acting = player\.atkStage >= 0 \|\| player\.execLunge > 0;/.test(pfSrc) &&
+   /!acting &&/.test(pfSrc),
+   "the strike must land where the mouse points, not where you happened to be running");
+ok("the turn threshold is READ from BALANCE, never retyped",
+   /sp > C\.shroudBreakSpeed/.test(pfSrc) && !/sp > 0\.\d/.test(pfSrc),
+   "one definition of 'is he walking' — a second number here drifts from the one Shroud uses");
+ok("and the display layer never writes BALANCE",
+   !/C\.shroudBreakSpeed\s*=/.test(html),
+   "reading a balance value to decide a picture is fine; writing one from here is the TUNE-reaches-BALANCE failure");
+ok("the verbs still test the verb facing, not the drawn one",
+   /var fx = -Math\.sin\(player\.yaw\), fz = -Math\.cos\(player\.yaw\);/.test(html) &&
+   !/Math\.sin\(player\.bodyYaw\), fz = -Math\.cos\(player\.bodyYaw\)/.test(html) &&
+   /trail\.rotation\.z = -player\.yaw - st\.arc/.test(html),
+   "strike cone, Execute cone and the trail are one hitbox — drawing them from bodyYaw would reintroduce VR-104's trail-disagrees-with-hitbox bug");
 ok("nothing writes the camera's yaw to steer the body",
    !/cam\.mode === "arcade" && \(mx \|\| mz\)\) mouse\.yaw =/.test(html),
    "the old arcade line is gone rather than living beside the new one");

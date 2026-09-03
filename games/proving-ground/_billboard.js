@@ -133,8 +133,16 @@ ok("sprites switch to NearestFilter", /NearestFilter/.test(html));
 
 console.log("\n[yaw convention]");
 ok("one documented convention", /YAW CONVENTION/.test(html) && /var MESH_PI/.test(html));
-ok("player mesh is offset by MESH_PI", /player\.g\.rotation\.y = player\.yaw \+ MESH_PI/.test(html),
+/* VR-157 split the facing in two: player.yaw is what the VERBS use, and
+   player.bodyYaw is what is DRAWN. The convention this section polices is
+   about drawing, so it follows the drawn angle. */
+ok("player mesh is offset by MESH_PI", /player\.g\.rotation\.y = player\.bodyYaw \+ MESH_PI/.test(html),
    "meshes are modelled facing +z; forward is -z");
+ok("and the mesh is drawn from bodyYaw, never from the verb facing",
+   !/player\.g\.rotation\.y = player\.yaw/.test(html) &&
+   /SPR\.place\(s, player\.x, player\.g\.position\.y, player\.z, player\.bodyYaw, 1\)/.test(html) &&
+   !/ghost\(player\.x, player\.z, player\.yaw\)/.test(html),
+   "model, sprite and afterimages are three pictures of one body — a mixture is a character whose ghost faces elsewhere");
 ok("husk meshes too", !/e\.g\.rotation\.y = e\.yaw;/.test(html) && /e\.g\.rotation\.y = e\.yaw \+ MESH_PI/.test(html));
 ok("husks face the player on the same convention", !/Math\.atan2\(sx, sz\)/.test(html) && /Math\.atan2\(-sx, -sz\)/.test(html));
 ok("so the lunge goes TOWARD you", /var lx = -Math\.sin\(e\.yaw\), lz = -Math\.cos\(e\.yaw\)/.test(html) && /Math\.atan2\(-dx, -dz\)/.test(html),
@@ -462,6 +470,65 @@ ok("handedness comes from the decay sweep, not from an offset fan",
      !/C\.strike\[\w+\]\.arc\s*=/.test(geo) && /RingGeometry/.test(geo),
      "reading the arc is the contract; writing one would be a balance edit from the display layer");
 }
+
+/* ---- the husk SEARCH state machine (VR-119) -----------------------------
+   The BALANCE relationships are _sim.js's and the clip fit is _clipfit.js's.
+   What belongs HERE is the wiring between the state and the three surfaces
+   that draw a husk — model, primitive rig and billboard — because this file
+   is where "a husk must read the same however it happens to be rendered"
+   already lives. */
+console.log("\n[husk SEARCH — VR-119]");
+
+const upd = (html.match(/function updateEnemies\(dt\)[\s\S]*?\n\}/) || [""])[0];
+ok("losing you is a STATE, not a drifting target",
+   /e\.state = "search";/.test(upd) && !/e\.wander -= dt;/.test(upd),
+   "the old code kept RUNNING at a randomised point in the run clip — the room barely changed");
+ok("it takes a grace window to enter, and sight to leave",
+   /e\.lostT >= C\.huskLoseT/.test(upd) &&
+   /e\.state === "search" && canSee/.test(upd),
+   "a pillar clipping the line for two frames must not flip the whole room");
+ok("the search heads for where they last SAW you",
+   /e\.patrolX = e\.seekX; e\.patrolZ = e\.seekZ;/.test(upd),
+   "seeding from player.x would be a search that secretly knows the answer");
+ok("a searching husk cannot attack",
+   !/e\.state === "search"[\s\S]{0,600}e\.state = "wind"/.test(upd) &&
+   /if \(pAlive && canSee && dist < C\.enemyReach[\s\S]{0,80}e\.state = "wind"/.test(upd),
+   "the wind-up is reachable only from seek, which requires canSee — they must find you first");
+ok("the three beats cycle, and only their durations are random",
+   /e\.beat = \(e\.beat === "walk"\) \?/.test(upd) &&
+   /* BOTH assignments, not either: the mutation pass changed only the one
+      inside the cycle and this check stayed green off the one at entry. */
+   (upd.match(/e\.beatT = rand\(C\.huskBeatMin, C\.huskBeatMax\)/g) || []).length === 2,
+   "a room of husks all dizzy on the same frame reads as choreography, not as losing you");
+ok("scanning and reeling do not translate",
+   /e\.yaw \+= \(e\.beat === "dizzy" \? 2\.1 : 0\.7\) \* dt;/.test(upd),
+   "a husk that drifts while scanning is still hunting you, just slowly");
+ok("arriving at the guess ends the beat instead of marking time",
+   /e\.beatT = Math\.min\(e\.beatT, 0\.35\);/.test(upd),
+   "a husk standing on the spot playing a walk cycle is the moonwalk in a different costume");
+ok("giving up widens the guess to the whole arena",
+   /e\.searchT >= C\.huskSearchGiveUp[\s\S]{0,140}rand\(-A \+ 1\.5, A - 1\.5\)/.test(upd),
+   "otherwise they orbit your last position forever and the arena stops mattering");
+
+/* The LOD contract: three renderers, one read. */
+ok("the model names the beat as its clip",
+   /if \(e\.state === "search"\) return e\.beat;/.test(html));
+ok("the PRIMITIVE rig carries the read too",
+   /else if \(e\.state === "search"\) \{[\s\S]{0,900}e\.beat === "walk"/.test(html),
+   "husk models are LOD-budgeted — if SEARCH lived only in the clips, the mechanic would come and go with the budget");
+ok("and the billboard's gap is STATED rather than hidden",
+   /the billboard atlas has FOUR husk states/.test(html) &&
+   /husk:\s*\{ h: 1\.78, states: \["move", "attack", "hurt", "down"\] \}/.test(html),
+   "no idle frame exists, so a scanning husk reads as `move` at the far LOD — written down, not discovered later");
+ok("the state machine READS its timings and never writes them",
+   /C\.huskLoseT/.test(html) && /C\.huskBeatMin/.test(html) && /C\.huskSearchSpeed/.test(html) &&
+   !/C\.husk\w+\s*=[^=]/.test(html),
+   "a feel state that can edit BALANCE is the TUNE-reaches-BALANCE failure arriving through the enemy loop");
+ok("and the timings are named in BALANCE rather than typed into the loop",
+   !!bal && /huskLoseT:/.test(bal[0]) && /huskBeatMin:/.test(bal[0]) &&
+   /huskSearchSpeed:/.test(bal[0]) && /huskSearchGiveUp:/.test(bal[0]) &&
+   !/e\.state = "search"/.test(bal[0]),
+   "the numbers belong to the sim; the machine that spends them does not");
 
 console.log("\n" + "=".repeat(58));
 console.log(fails ? `FAIL — ${fails} of ${checks}` : `PASS — ${checks} checks`);

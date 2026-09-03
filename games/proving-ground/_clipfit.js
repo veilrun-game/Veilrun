@@ -597,6 +597,50 @@ console.log("\n[the verdict decides correctly — run against real readings]");
      /NO CALL/.test(V(bad, R(16, 17, 18, 100, 10), R(8, 9, 10, 100, 10))));
 }
 
+/* ---- the SEARCH clips (VR-119) ----------------------------------------
+   This file already proved husk.glb CARRIES walk/scan/dizzy — VR-117 merged
+   them and they sat unused for a fortnight. What is new is that they are now
+   played, so what needs proving is the FIT: that they loop, that the walk is
+   velocity-driven against its own reference, and that neither is trimmed by a
+   window that does not exist. */
+console.log("\n[husk SEARCH clips — VR-119]");
+{
+  const bal = html.match(/BALANCE:BEGIN[\s\S]*?-+ \*\/([\s\S]*?)\/\* BALANCE:END/);
+  const bBox = { module: { exports: {} }, Math, console };
+  vm.createContext(bBox);
+  new vm.Script(bal[1], { filename: "index.html#BALANCE" }).runInContext(bBox);
+  const CC = bBox.module.exports.C;
+
+  ok("walk, scan and dizzy are used, not merely present",
+     /if \(e\.state === "search"\) return e\.beat;/.test(html),
+     "VR-117 merged them; until VR-119 nothing ever asked for them");
+  ok("all four locomotion-ish clips loop",
+     /var HUSK_LOOPS = \{ run: 1, walk: 1, scan: 1, dizzy: 1 \};/.test(html) &&
+     /if \(!HUSK_LOOPS\[name\]\) a\.setLoop\(THREE\.LoopOnce, 1\);/.test(html),
+     "a 2-5s beat played as a one-shot freezes mid-turn, which reads as the animation failing");
+  ok("none of them is window-trimmed",
+     !["walk", "scan", "dizzy"].some(n => HFIT.win[n]),
+     "a window here would cut a loop into a stutter; only the one-shots are fitted");
+
+  // the walk must sit inside the same clamp the run does, across the whole curve
+  const lo = CC.enemySpeed * CC.huskSearchSpeed;                 // wave 1
+  const hi = CC.enemySpeed * 1.9 * CC.huskSearchSpeed;           // late-wave spdMult
+  ok("the walk has its own reference, not the run's",
+     typeof HFIT.walkRef === "number" && HFIT.walkRef !== HFIT.runRef,
+     "walkRef " + HFIT.walkRef + " vs runRef " + HFIT.runRef + " — different gaits, different speeds");
+  ok("and the search band lands inside the timescale clamp",
+     lo / HFIT.walkRef >= 0.55 && hi / HFIT.walkRef <= 1.9,
+     "search runs " + lo.toFixed(2) + "-" + hi.toFixed(2) + " u/s → " +
+       (lo / HFIT.walkRef).toFixed(2) + "-" + (hi / HFIT.walkRef).toFixed(2) +
+       "x; outside [0.55,1.9] the clamp bites and the feet slide");
+  ok("scan and dizzy play at their own pace",
+     /a\.setEffectiveTimeScale\(1\);\s+\/\/ a beat plays at its own pace/.test(html),
+     "rate-scaling a look-around against a ground speed of zero is a division by nothing");
+  ok("the search walk is driven by the SEARCH speed, not the seek speed",
+     /name === "walk" \? C\.huskSearchSpeed : 1/.test(html),
+     "scaling the walk clip by the run speed is a husk moonwalking at a third of its stride");
+}
+
 console.log("\n" + "=".repeat(58));
 console.log(fails ? "FAIL — " + fails + " of " + checks + " checks" : "PASS — " + checks + " checks");
 process.exit(fails ? 1 : 0);

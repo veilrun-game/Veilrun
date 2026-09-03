@@ -1418,14 +1418,14 @@ body.noanim.tuning .screen.on{transition:none}
   <div class="trow" data-cam="arcade"><label for="t-facearc">Facing</label><select id="t-facearc">
     <option value="move">Faces where you move</option><option value="look">Aim with the mouse</option></select></div>
   <div class="trow" data-cam="third"><label for="t-facethird">Facing</label><select id="t-facethird">
-    <option value="move">Faces where you move</option><option value="free">Move and look apart</option><option value="look">Faces the camera</option></select></div>
+    <option value="move">Faces where you move</option><option value="free">Move and look apart</option><option value="look">Aim with the mouse</option></select></div>
   <!-- VR-156 — first person has no Facing row on purpose. It has exactly one
        sane answer (you face where you look; anything else puts the camera in
        the back of his head), and the two options it used to offer, "strafe"
        and "look", returned the same value. A select with one real answer is
        the inert control VR-138 exists to delete. -->
-  <div class="tnote" data-cam="third"><b>Faces where you move</b> &mdash; he turns to face where you steer, and the camera orbits freely, right round to his face. <b>Move and look apart</b> keeps running you the way you were going while the camera swings anywhere: <i>look behind you without turning round.</i> It re-aims to the screen the moment you stop. <b>Faces the camera</b> is the old behaviour &mdash; the mouse turns him, so you can never get in front of him.</div>
-  <div class="tnote" data-cam="arcade"><b>Faces where you move</b> is arcade&rsquo;s default &mdash; the camera is fixed, so walking is aiming. <b>Aim with the mouse</b> keeps the fixed camera and puts the aim on the mouse instead.</div>
+  <div class="tnote" data-cam="third"><b>Faces where you move</b> &mdash; he turns to face where you steer, and the camera orbits freely, right round to his face. <b>Move and look apart</b> keeps running you the way you were going while the camera swings anywhere: <i>look behind you without turning round.</i> It re-aims to the screen the moment you stop. <b>Aim with the mouse</b> points your strikes wherever the mouse is, while he still turns to run the way you steer &mdash; back up and he walks toward you rather than sliding away from you.</div>
+  <div class="tnote" data-cam="arcade"><b>Faces where you move</b> is arcade&rsquo;s default &mdash; the camera is fixed, so walking is aiming. <b>Aim with the mouse</b> keeps the fixed camera and puts your strikes on the mouse, while he still turns to run the way you steer.</div>
   <div class="tnote" data-cam="first">First person always faces where you look and moves sideways when you strafe. There is nothing to choose here, so there is no control.</div>
   <!-- Framing, not input, so it stays with the camera rather than moving to
        Controls with the rest of the touch rows. Wrapped rather than sectioned:
@@ -1675,6 +1675,27 @@ var BAL = (function () {
     enemyHp: 96, enemySpeed: 3.0, enemyDmg: 12, enemyHpCap: 4.5,
     enemyWind: 0.55, enemyActive: 0.14, enemyRec: 0.5, enemyReach: 2.0,
     enemyStagger: 0.26, spawnRise: 0.7,
+
+    /* --- husk SEARCH (VR-119) — what LOSING you looks like ---------------
+       These are the card, not decoration. Shroud had no visible feedback at
+       all: you vanished and the room carried on running at you, so the only
+       confirmation the veil had taken was a meter. A husk that changes
+       BEHAVIOUR when it cannot see you is what makes stealth legible, and it
+       is what turns "hold still" into a decision — hold and watch them lose
+       you, or move and be re-acquired. */
+    huskLoseT: 0.45,         // sec of no sight before they accept they have lost you.
+                             // Not zero: a pillar clipping the line for two frames
+                             // must not flip the whole room into a search.
+    huskBeatMin: 2.0,        // a search beat lasts 2-5s, randomised per husk so a
+    huskBeatMax: 5.0,        // crowd never scans in unison and reads as choreography
+    huskSearchSpeed: 0.42,   // fraction of seek speed while wandering. Below 1 on
+                             // purpose: a husk that hunts as fast blind as sighted
+                             // makes Shroud worthless.
+    huskSearchGiveUp: 12.0,  // sec searching before drifting to a patrol point.
+                             // ⚠️ Was 9.0 for about a minute, and _sim.js caught it:
+                             // a worst-case walk+scan pair is 2 x huskBeatMax = 10s,
+                             // so a husk could give up before finishing ONE cycle and
+                             // wander off mid-scan. Must stay above 2 x huskBeatMax.
     liveCap: 26,             // hard ceiling on simultaneous live enemies (perf budget)
 
     // --- waves ---
@@ -1841,6 +1862,10 @@ var HUSKFIT = {
   // each clip looks natural at. Husks run between 3.0 and 5.6 u/s (enemySpeed
   // x spdMult), so the run clip carries the whole band without a walk blend.
   runRef: 4.6,
+  // VR-119 — the SEARCH walk is a different gait, so it gets its own reference
+  // rather than being the run clip slowed down. Search speed is enemySpeed x
+  // huskSearchSpeed, which is 1.26-2.35 u/s across the wave curve.
+  walkRef: 1.8,
   // A clip that needs to run outside this band is the wrong clip, not a tuning
   // problem — clamp and warn, same contract as CLIPFIT.
   minScale: 0.5,
@@ -1852,6 +1877,12 @@ var HUSKFIT = {
    two functions, for the same reason HURT_SHOW_T is: it is the denominator of
    the `down` fit, and `_clipfit.js` reads the same constant the game does. */
 var HUSK_DIE_T = 0.5;
+
+/* VR-119 — which husk clips LOOP. Named rather than tested inline, because
+   "everything except run" was true for exactly as long as run was the only
+   locomotion clip, and a search beat that freezes on its last frame is the
+   most likely way this card silently half-works. */
+var HUSK_LOOPS = { run: 1, walk: 1, scan: 1, dizzy: 1 };
 
 /* ------------------------------------------------------------------------
    HUSKLOD — the answer to "26 skinned meshes might not fit"
@@ -2461,6 +2492,9 @@ var player = {
      and sliding sideways. That is the moonwalk. Two values, not one, is what
      twin-stick means. */
   aim: 0,
+  /* VR-157 — what you SEE, as opposed to what the verbs use. Follows yaw in
+     every model except `look`. See playerFace(). */
+  bodyYaw: 0,
   hp: C.playerHp, iframe: 0, alive: true,
   // strike
   atkStage: -1, nextStage: 0, atkT: 0, atkPhase: "", atkHit: false, chainT: 0, queued: false,
@@ -2606,7 +2640,9 @@ var huskBody = new THREE.MeshStandardMaterial({ color: HUSK_COL, roughness: 0.95
       g: g, mat: mat, eyeMat: eyeMat, armL: armL, armR: armR, torso: torso,
       live: false, x: 0, z: 0, yaw: 0, hp: 0, maxHp: 0, speed: 0,
       state: "", t: 0, stagger: 0, kx: 0, kz: 0, flash: 0, lunge: false,
-      dissolve: 0, seekX: 0, seekZ: 0, wander: 0
+      dissolve: 0, seekX: 0, seekZ: 0, wander: 0,
+      // VR-119 — the SEARCH state's own memory
+      beat: "walk", beatT: 0, lostT: 0, searchT: 0, patrolX: 0, patrolZ: 0
     });
   }
 })();
@@ -3720,10 +3756,51 @@ function aimFor(moving, tvx, tvz) {
 /* AIM:END */
 
 function playerFace(dt) {
-  // Face the aim direction while attacking or executing, otherwise ease toward it.
-  var target = player.aim;
-  var rate = (player.atkStage >= 0 || player.execLunge > 0) ? 26 : 13;
-  player.yaw += shortAngle(player.yaw, target) * clamp(rate * dt, 0, 1);
+  /* VR-157 — TWO angles now, and the split is the entire fix.
+
+     THE REPORT. Jordan, 9/2, on third-person "look": *"moving left right and
+     backward has the moonwalking effect... pushing down feels like the
+     character should walk towards the camera, and going left or right feels
+     like he should move left or right in that direction, vs facing forward
+     while sliding left right and back."*
+
+     THE CAUSE, and it is not a maths error. A moonwalk IS a forward-walk clip
+     played while translating in another direction. `look` pinned the body to
+     `mouse.yaw`, so every sidestep and every backstep played the run cycle
+     sideways. **No amount of code makes that read correctly** — the honest fix
+     for "face the camera while moving sideways" is a set of STRAFE CLIPS we do
+     not have (logged on VR-157). What code CAN do is stop asking one angle to
+     be two things.
+
+     · player.yaw     — what the VERBS use. Strike cone, Execute cone, the
+                        crosshair's execute tell, the blade trail. Eases toward
+                        player.aim exactly as before: UNCHANGED, so `look`
+                        keeps its whole point, which is that the mouse aims.
+     · player.bodyYaw — what you SEE. The model, the sprite, the afterimages.
+                        In every model but `look` it simply follows player.yaw,
+                        so the two stay identical and nothing else moves.
+
+     In `look`, while you are moving and NOT swinging, the body turns to face
+     where it is actually travelling — so he walks toward the camera when you
+     back up, and turns into a sidestep rather than sliding through it. The
+     moment you attack, `acting` puts the body back on the aim at rate 26,
+     which converges inside stage 0's 0.09s wind-up: **the strike still lands
+     where the mouse points.** Standing still, he turns to face the mouse,
+     which is the aiming pose you would expect from this model. */
+  var acting = player.atkStage >= 0 || player.execLunge > 0;
+  var rate = acting ? 26 : 13;
+  player.yaw += shortAngle(player.yaw, player.aim) * clamp(rate * dt, 0, 1);
+
+  var bodyTarget = player.yaw;
+  if (!acting && faceModel() === "look") {
+    /* The same threshold updateShroud uses for "moving", deliberately: one
+       definition of whether he is walking, or the body starts turning on a
+       drift the shroud does not count as movement. It is READ here, never
+       written — a display decision may consult BALANCE and must not edit it. */
+    var sp = Math.hypot(player.vx, player.vz);
+    if (sp > C.shroudBreakSpeed) bodyTarget = Math.atan2(-player.vx, -player.vz);
+  }
+  player.bodyYaw += shortAngle(player.bodyYaw, bodyTarget) * clamp(rate * dt, 0, 1);
 }
 
 function startStrike() {
@@ -3826,7 +3903,7 @@ function veilstep() {
     var l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
   } else { dx = -Math.sin(player.aim); dz = -Math.cos(player.aim); }
 
-  ghost(player.x, player.z, player.yaw);
+  ghost(player.x, player.z, player.bodyYaw);   // VR-157 — an afterimage is a picture of the BODY
   burst(player.x, 1.0, player.z, 12, VESPER, 5.0, { grav: -3, lifeScale: 0.7, scale: 0.8 });
 
   player.x += dx * C.stepDist; player.z += dz * C.stepDist;
@@ -3837,7 +3914,7 @@ function veilstep() {
   player.stepCharges--;
   player.iframe = Math.max(player.iframe, C.stepIframe);
   player.stepLock = C.stepLockout;
-  ghost(player.x, player.z, player.yaw);
+  ghost(player.x, player.z, player.bodyYaw);   // VR-157 — an afterimage is a picture of the BODY
   burst(player.x, 1.0, player.z, 10, 0xD65CDC, 4.0, { grav: -3, lifeScale: 0.7, scale: 0.8 });
   ring(player.x, 0.04, player.z, 0.2, 1.6, 0.4, VESPER);
   fovKick(9); AU.blink();
@@ -3866,7 +3943,7 @@ function tryExecute() {
   player.execCd = C.execCd;
   // lunge to just short of the target
   var dx2 = best.x - player.x, dz2 = best.z - player.z, dd = Math.hypot(dx2, dz2) || 1;
-  ghost(player.x, player.z, player.yaw);
+  ghost(player.x, player.z, player.bodyYaw);   // VR-157 — an afterimage is a picture of the BODY
   player.x = best.x - (dx2 / dd) * 1.15;
   player.z = best.z - (dz2 / dd) * 1.15;
   clampToArena(player); pushOutOfPillars(player, 0.45);
@@ -3986,7 +4063,7 @@ function updatePlayer(dt) {
 /* animation pose for Vesper — no skeletons, just readable limb motion */
 function poseVesper(dt, t) {
   player.g.position.set(player.x, 0, player.z);
-  player.g.rotation.y = player.yaw + MESH_PI;
+  player.g.rotation.y = player.bodyYaw + MESH_PI;   // VR-157 — the model shows bodyYaw; the verbs use yaw
   var speed = Math.hypot(player.vx, player.vz);
   var bob = Math.sin(t * 11) * 0.045 * clamp(speed / C.moveSpeed, 0, 1);
   player.g.position.y = bob;
@@ -4101,6 +4178,7 @@ function spawnEnemy(spec) {
   e.state = "spawn"; e.t = 0; e.stagger = 0; e.kx = e.kz = 0; e.flash = 0; e.dissolve = 0;
   e.yaw = Math.atan2(-(player.x - x), -(player.z - z));
   e.wander = 0; e.seekX = player.x; e.seekZ = player.z;
+  e.beat = "walk"; e.beatT = 0; e.lostT = 0; e.searchT = 0; e.patrolX = x; e.patrolZ = z;
   e.mat.color.setHex(HUSK_COL); e.mat.transparent = false; e.mat.opacity = 1;
   e.eyeMat.color.setHex(0xD65CDC);
   e.g.scale.setScalar(1);
@@ -4157,15 +4235,81 @@ function updateEnemies(dt) {
     var dx = player.x - e.x, dz = player.z - e.z;
     var dist = Math.hypot(dx, dz) || 0.0001;
 
-    /* ---- Shroud: they lose you and drift to where you were ---- */
+    /* ---- VR-119 — Shroud, made LEGIBLE ---------------------------------
+       What was here before: when you veiled, `seekX/seekZ` drifted randomly
+       and the husk kept RUNNING at the drifting point at full speed, playing
+       the run clip. So the room's behaviour barely changed and nothing on
+       screen ever said "it lost you". **Shroud's only feedback was a meter.**
+
+       Now losing you is a STATE with its own clips and its own speed. The
+       payoff is a real decision rather than a status bar: Shroud refills only
+       while you are STILL (`shroudDelay`, `shroudBreakSpeed`), so you either
+       hold position and watch them come apart looking for you, or you move and
+       get re-acquired. That trade is the mechanic; the animation is what makes
+       it playable rather than guessed at. */
     var canSee = pAlive && !player.veiled && !lineBlocked(e.x, e.z, player.x, player.z);
     if (canSee) { e.seekX = player.x; e.seekZ = player.z; }
-    else if (player.veiled) {
-      e.wander -= dt;
-      if (e.wander <= 0) { e.wander = rand(0.8, 1.6); e.seekX += rand(-3, 3); e.seekZ += rand(-3, 3); }
+
+    /* The grace window is the whole reason `huskLoseT` exists. Without it a
+       pillar clipping the line for two frames flips the entire room into a
+       search and back, which reads as a bug rather than as stealth. */
+    if (canSee) e.lostT = 0; else e.lostT += dt;
+
+    var hunting = (e.state === "seek" || e.state === "search");
+    if (hunting) {
+      if (e.state === "search" && canSee) {
+        e.state = "seek"; e.t = 0; e.searchT = 0;      // re-acquired
+      } else if (e.state === "seek" && e.lostT >= C.huskLoseT) {
+        e.state = "search"; e.t = 0; e.searchT = 0;
+        e.beat = "walk"; e.beatT = rand(C.huskBeatMin, C.huskBeatMax);
+        /* Head for where they last SAW you, not where you are. Believing the
+           search is honest depends on it never quietly tracking the truth. */
+        e.patrolX = e.seekX; e.patrolZ = e.seekZ;
+      }
     }
 
-    if (e.state === "seek") {
+    if (e.state === "search") {
+      /* Three beats on a cycle, each 2-5s: wander a direction, stop and scan,
+         turn in confusion. The cycle is fixed and the DURATIONS are random, so
+         a crowd never scans in unison — a room of husks all dizzy on the same
+         frame reads as choreography, which is the opposite of losing you. */
+      e.searchT += dt; e.beatT -= dt;
+      if (e.beatT <= 0) {
+        e.beat = (e.beat === "walk") ? (Math.random() < 0.5 ? "scan" : "dizzy") : "walk";
+        e.beatT = rand(C.huskBeatMin, C.huskBeatMax);
+        if (e.beat === "walk") {
+          /* A new guess about where you went. After huskSearchGiveUp they stop
+             guessing around your last position and pick anywhere in the arena —
+             the difference between hunting and patrolling. */
+          if (e.searchT >= C.huskSearchGiveUp) {
+            e.patrolX = rand(-A + 1.5, A - 1.5); e.patrolZ = rand(-A + 1.5, A - 1.5);
+          } else {
+            e.patrolX = e.seekX + rand(-4.5, 4.5); e.patrolZ = e.seekZ + rand(-4.5, 4.5);
+          }
+        }
+      }
+      if (e.beat === "walk") {
+        var wx = e.patrolX - e.x, wz = e.patrolZ - e.z, wd = Math.hypot(wx, wz) || 0.0001;
+        if (wd > 0.6) {
+          var wspd = e.speed * C.huskSearchSpeed * (e.stagger > 0 ? 0.25 : 1);
+          e.x += wx / wd * wspd * dt; e.z += wz / wd * wspd * dt;
+          e.yaw = damp(e.yaw, Math.atan2(-wx, -wz), 5, dt);
+        } else {
+          /* ARRIVED. Cut the beat short rather than standing in a walk cycle
+             for the rest of it — "I walked to where I thought you were, and now
+             I am looking around" is the read, and a husk marking time on the
+             spot in a walk animation is the moonwalk in a different costume.
+             Found by driving the search headless: it parked at 1.79 units and
+             held the same distance for two five-second beats. */
+          e.beatT = Math.min(e.beatT, 0.35);
+        }
+      } else {
+        /* Standing still and turning. `scan` sweeps; `dizzy` spins further and
+           faster. Both are rotations rather than translations on purpose — a
+           husk that drifts while scanning is still hunting you, just slowly. */
+        e.yaw += (e.beat === "dizzy" ? 2.1 : 0.7) * dt;
+      }
+    } else if (e.state === "seek") {
       var tx = canSee ? player.x : e.seekX, tz = canSee ? player.z : e.seekZ;
       var sx = tx - e.x, sz = tz - e.z, sd = Math.hypot(sx, sz) || 0.0001;
       // separation so they don't stack into one blob
@@ -4215,6 +4359,22 @@ function updateEnemies(dt) {
       var wob = Math.sin(gameTime * 9 + i) * 0.35;
       e.armL.rotation.x = wob; e.armR.rotation.x = -wob;
       e.g.position.y = Math.abs(Math.sin(gameTime * 9 + i)) * 0.05;
+    } else if (e.state === "search") {
+      /* VR-119 — the PRIMITIVE rig gets the read too. The husk model is
+         LOD-budgeted, so on a busy wave some husks are cylinders; if SEARCH
+         only existed in the clips, the mechanic would appear and disappear
+         with the budget. Walking is the seek wobble at half rate; scanning
+         and reeling hang the arms and stop the bob entirely, which is the
+         difference you can see from across the arena. */
+      if (e.beat === "walk") {
+        var swob = Math.sin(gameTime * 4.5 + i) * 0.22;
+        e.armL.rotation.x = swob; e.armR.rotation.x = -swob;
+        e.g.position.y = Math.abs(Math.sin(gameTime * 4.5 + i)) * 0.03;
+      } else {
+        e.armL.rotation.x = damp(e.armL.rotation.x, 0.12, 6, dt);
+        e.armR.rotation.x = damp(e.armR.rotation.x, 0.12, 6, dt);
+        e.g.position.y = 0;
+      }
     }
   }
 }
@@ -4364,6 +4524,7 @@ function resetRun() {
   player.still = 0; player.shroud = 0; player.veiled = false;
   player.g.visible = cam.mode !== "first" && !playerSpriteReady();
   mouse.yaw = 0; mouse.pitch = -0.12; player.aim = player.yaw;   // VR-124 — facing resets with the body, not with the camera
+  player.bodyYaw = player.yaw;   // VR-157 — and the body starts where the verbs do, never a frame behind
   for (var i = 0; i < ENEMIES.length; i++) { ENEMIES[i].live = false; ENEMIES[i].g.visible = false; TELE[i].visible = false; }
   for (var t = 0; t < THIN.length; t++) { THIN[t].life = 0; THIN[t].mesh.visible = false; }
   for (var p = 0; p < PMAX; p++) { parts[p].life = 0; parts[p].m.visible = false; }
@@ -4687,6 +4848,12 @@ function huskSpriteState(e) {
   if (e.state === "die") return "down";
   if (e.state === "wind" || e.state === "strike") return "attack";
   if (e.stagger > 0) return "hurt";
+  /* VR-119 — the billboard atlas has FOUR husk states (move / attack / hurt /
+     down) and no idle, so a scanning husk reads as `move` here. That is a real
+     gap in the LOD contract and it is stated rather than hidden: the sprite is
+     the far LOD, where a scan is not readable at that size anyway, and the
+     primitive rig and the model both carry the difference. If husk sprites ever
+     gain an idle frame, this is the line that wants it. */
   return "move";
 }
 
@@ -4700,7 +4867,7 @@ function updateSprites() {
     var s = playerSprite;
     SPR.setState(s, spriteStateOf(playerSpriteState()));
     s.m.visible = !!s.mat.map;
-    SPR.place(s, player.x, player.g.position.y, player.z, player.yaw, 1);
+    SPR.place(s, player.x, player.g.position.y, player.z, player.bodyYaw, 1);   // VR-157 — and so does the sprite
     // the Shroud reads as a dim, cool ghost rather than a fade — alphaTest
     // would throw a blended fade away, so tint instead of going transparent
     var v = player.veiled ? 0.42 : 1;
@@ -5222,7 +5389,11 @@ var HUSKMODEL = (function () {
     for (var name in fitted) {
       var a = mixer.clipAction(fitted[name]);
       a.clampWhenFinished = true;
-      if (name !== "run") a.setLoop(THREE.LoopOnce, 1);
+      /* VR-119 — four looping clips now, not one. A search beat lasts 2-5s
+         and `scan` is about a second, so a one-shot would freeze on its last
+         frame for most of the beat: a husk locked mid-turn, which reads as the
+         animation having failed rather than as a search. */
+      if (!HUSK_LOOPS[name]) a.setLoop(THREE.LoopOnce, 1);
       actions[name] = a;
     }
     /* PRE-BIND EVERY ACTION NOW, at a moment we choose.
@@ -5331,13 +5502,17 @@ var HUSKMODEL = (function () {
     if (e.state === "die") return "down";
     if (e.state === "wind" || e.state === "strike") return "attack";
     if (e.stagger > 0) return "hurt";
+    /* VR-119 — SEARCH is the only state that names its own clip, because it is
+       the only one whose whole point is what it LOOKS like. `walk`, `scan` and
+       `dizzy` were merged into husk.glb by VR-117 and have sat unused since. */
+    if (e.state === "search") return e.beat;
     return "run";
   }
   function windowFor(name) {
     if (name === "attack") return C.enemyWind + C.enemyActive + C.enemyRec;
     if (name === "hurt")   return C.enemyStagger;
     if (name === "down")   return HUSK_DIE_T;
-    return 0;   // run loops — velocity drives it instead
+    return 0;   // run, walk, scan and dizzy all loop — see LOOPS
   }
 
   /* Silence the rig completely before it changes hands.
@@ -5464,8 +5639,16 @@ var HUSKMODEL = (function () {
         rig.current = name;
       }
       if (a) {
-        if (name === "run") {
-          a.setEffectiveTimeScale(clamp((e.speed || C.enemySpeed) / HUSKFIT.runRef, 0.55, 1.9));
+        if (name === "run" || name === "walk") {
+          /* Velocity-driven, same rule as VR-117's run: the ground speed decides
+             the playback rate, so a search walk cannot slide. It is a different
+             REFERENCE because it is a different gait — one number per clip, both
+             in HUSKFIT beside each other. */
+          var ref = (name === "walk") ? HUSKFIT.walkRef : HUSKFIT.runRef;
+          var gs = (e.speed || C.enemySpeed) * (name === "walk" ? C.huskSearchSpeed : 1);
+          a.setEffectiveTimeScale(clamp(gs / ref, 0.55, 1.9));
+        } else if (name === "scan" || name === "dizzy") {
+          a.setEffectiveTimeScale(1);          // a beat plays at its own pace
         } else {
           a.setEffectiveTimeScale(scaleFor(name, windowFor(name)));
         }
