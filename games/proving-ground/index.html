@@ -1812,7 +1812,23 @@ var CLIPFIT = {
   // tuning problem. Clamp and warn loudly so a future re-merge fails in the
   // console instead of silently playing at 20x.
   minScale: 0.5,
-  maxScale: 6.0
+  maxScale: 6.0,
+
+  /* --- VR-158: the locomotion BLEND ------------------------------------
+     These three used to be literals inside MODEL.play(): the speed each
+     locomotion clip looks natural at. They are here now for the same reason
+     the windows are — they are a claim about the ASSET, `_clipfit.js` can
+     check them against the real durations, and a blend needs them as ANCHORS
+     rather than as one-off divisors.
+
+     THE ANCHORS ARE WHAT MAKE IT A BLEND. Every clip sits at the speed it was
+     authored for, and any speed in between is a weighted mix of the two clips
+     either side of it. Before this, one clip won outright and its playback
+     rate was stretched to cover the gap — which is why crossing 4.2 u/s read
+     as a switch and why the walk looked wrong at a sprint. */
+  loco: { idle: 0, move: 2.6, run: 6.0 },
+  stalkRef: 0.55,          // stalk is a separate GAIT, not a point on this axis
+  blendIn: 0.14            // sec for the locomotion layer to fade back after a swing
 };
 /* CLIPFIT:END */
 
@@ -4826,16 +4842,26 @@ function playerSpriteState() {
   return (sp > 0.6) ? "move" : "idle";
 }
 
-/* moveSpeed is 7.8 u/s — that is sprinting, not walking, so a walk clip can
-   never look right at full tilt however we scale it. If a run clip exists we
-   swap to it above RUN_AT and let each drive its own playback rate; if it
-   doesn't, everything falls back to "move" and nothing breaks. */
-var RUN_AT = 4.2;
+/* VR-158 — THERE IS NO LONGER A THRESHOLD, and that is the card.
+
+   What was here: `var RUN_AT = 4.2` and `if (speed > RUN_AT) return "run"`.
+   One clip won outright, its playback rate was stretched to cover the speeds
+   either side of it, and crossing 4.2 u/s SWITCHED clips over a fixed 0.18s
+   crossfade. That switch is what Jordan felt as "not as fluid as games we
+   play" — and it is not a browser limitation. three's AnimationMixer will run
+   every clip at once with independent weights; we were using one of them.
+
+   Locomotion is now a WEIGHTED MIX of idle / move / run, sampled continuously
+   from speed against the CLIPFIT.loco anchors. `playerModelState` therefore
+   stops naming a locomotion clip at all: it returns "loco" and the blend does
+   the rest. Everything that is NOT locomotion — attacks, hurt, death, the
+   Execute, the stalk gait — still switches, because those are discrete events
+   and a blend between a swing and a walk means nothing. */
 function playerModelState(speed) {
   var st = playerSpriteState();
   if (st === "execute" && !MODEL.hasClip("execute")) return "attack";
-  if (st === "stalk" && !MODEL.hasClip("stalk")) return "move";   // no crouch clip yet
-  if (st === "move" && speed > RUN_AT && MODEL.hasClip("run")) return "run";
+  if (st === "stalk" && !MODEL.hasClip("stalk")) return "loco";   // no crouch clip yet
+  if (st === "idle" || st === "move") return "loco";
   return st;
 }
 
@@ -5217,25 +5243,107 @@ var MODEL = (function () {
   /* mech — how many seconds this clip is allowed to occupy, straight out of
      BAL.C. Zero/undefined means "not a fitted clip", which is every looping
      state plus `down` (a death has no window to miss). */
+  /* ---- VR-158: the locomotion blend ----------------------------------
+     LOCO holds the three clips that are points on one speed axis. Anything
+     else is an event and still switches. */
+  var LOCO = ["idle", "move", "run"];
+  var locoGain = 1;      // 0 while a swing owns the body, 1 while it does not
+  var locoPhase = 0;     // ONE stride phase, shared by every locomotion clip
+
+  /* Weights from speed, piecewise-linear between the CLIPFIT.loco anchors.
+     Always sums to 1, which is what keeps the skeleton from drifting toward
+     the bind pose — three normalises weights only if you ask it to, and a
+     total under 1 quietly blends in "no animation". */
+  function locoWeights(speed) {
+    var A = CLIPFIT.loco, w = { idle: 0, move: 0, run: 0 };
+    var sp = Math.max(0, speed || 0);
+    if (!actions.move) { w.idle = 1; return w; }             // nothing to blend with
+    if (!actions.run || sp <= A.move) {
+      var t = A.move > A.idle ? clamp((sp - A.idle) / (A.move - A.idle), 0, 1) : 1;
+      w.idle = 1 - t; w.move = t;
+      if (!actions.run && sp > A.move) { w.idle = 0; w.move = 1; }
+      return w;
+    }
+    var u = clamp((sp - A.move) / (A.run - A.move), 0, 1);
+    w.move = 1 - u; w.run = u;
+    return w;
+  }
+
+  /* THE FEET HAVE TO AGREE. Two locomotion clips playing at once with
+     independent clocks is worse than a switch — the legs visibly fight. So the
+     mixer does NOT advance them: their timeScale is pinned to 0 and one shared
+     normalised phase is written into each clip's `time` every frame. Stride
+     length is blended by the same weights, so the phase advances at the rate
+     the CURRENT mix would actually cover ground. */
+  /* ⚠️ fitDur ONLY holds the trimmed one-shots — attack, execute, hurt, down.
+     The locomotion clips have no CLIPFIT.win entry because they loop, so
+     fitDur.move and fitDur.run are undefined and this MUST fall back to the
+     clip's real duration. It did not, on the first pass: stride came out 0,
+     the guard below skipped the phase advance, and both clips sat frozen at
+     time 0 forever. Every static check passed — the weights were perfect and
+     the character was a statue. Caught by rendering the page and reading
+     move.time, which is the second time this session that only a render found
+     the bug. */
+  function clipDur(n) {
+    var a = actions[n];
+    return fitDur[n] || (a ? a.getClip().duration : 0);
+  }
+  function strideOf(w) {
+    var A = CLIPFIT.loco;
+    var sm = clipDur("move") * A.move, sr = clipDur("run") * A.run;
+    var s = w.move * sm + w.run * sr, wt = w.move + w.run;
+    return wt > 1e-4 ? s / wt : 0;
+  }
+
+  function playLoco(dt, speed) {
+    var w = locoWeights(speed);
+    var stride = strideOf(w);
+    if (stride > 1e-4) locoPhase = (locoPhase + (Math.max(0, speed) / stride) * dt) % 1;
+    for (var i = 0; i < LOCO.length; i++) {
+      var n = LOCO[i], a = actions[n]; if (!a) continue;
+      if (!a.isRunning()) a.play();
+      a.setEffectiveTimeScale(0);                 // we own the clock, not the mixer
+      a.setEffectiveWeight(w[n] * locoGain);
+      a.time = (n === "idle") ? a.time : locoPhase * clipDur(n);
+    }
+    /* idle is the one that keeps its own clock: it is a breathing loop, not a
+       stride, and forcing it onto the walk's phase makes it twitch at speed. */
+    if (actions.idle) actions.idle.setEffectiveTimeScale(1);
+  }
+
   function play(name, dt, speed, mech) {
     if (!mixer) return;
+    var isLoco = (name === "loco");
+
+    /* The locomotion LAYER fades rather than switching, so a swing can take the
+       body and hand it straight back without the walk restarting from frame 0. */
+    var want = isLoco ? 1 : 0;
+    var k = clamp(dt / Math.max(0.001, CLIPFIT.blendIn), 0, 1);
+    locoGain += (want - locoGain) * k;
+
+    if (isLoco) {
+      if (current && current !== "loco" && actions[current]) actions[current].fadeOut(fadeFor(current));
+      current = "loco";
+      playLoco(dt, speed);
+      mixer.update(dt);
+      return;
+    }
+
     var a = actions[name];
     if (a && current !== name) {
-      var prev = actions[current];
+      var prev = (current && current !== "loco") ? actions[current] : null;
       a.reset().fadeIn(fadeFor(name)).play();
       if (prev && prev !== a) prev.fadeOut(fadeFor(current));
       current = name;
     }
-    // Feet skate when the clip's stride rate doesn't match how fast the game
-    // actually moves you. Driving playback from velocity fixes most of it
-    // without touching the animation. WALK_REF is the speed the clip looks
-    // natural at; a real run clip is the proper fix at top speed.
-    if ((name === "move" || name === "run" || name === "stalk") && a) {
-      var REF = (name === "run") ? 6.0 : (name === "stalk" ? 0.55 : 2.6);  // natural speed per clip
-      a.setEffectiveTimeScale(clamp((speed || 0) / REF, 0.55, 1.9));
+    // Stalk is a separate GAIT rather than a point on the blend axis, so it
+    // keeps the old velocity-scaled playback against its own reference.
+    if (name === "stalk" && a) {
+      a.setEffectiveTimeScale(clamp((speed || 0) / CLIPFIT.stalkRef, 0.55, 1.9));
     } else if (a) {
       a.setEffectiveTimeScale(mech > 0 ? scaleFor(name, mech) : 1);
     }
+    playLoco(dt, speed);        // keeps the layer alive at whatever locoGain is now
     mixer.update(dt);
   }
 

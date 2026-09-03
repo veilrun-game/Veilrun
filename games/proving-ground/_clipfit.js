@@ -641,6 +641,50 @@ console.log("\n[husk SEARCH clips — VR-119]");
      "scaling the walk clip by the run speed is a husk moonwalking at a third of its stride");
 }
 
+/* ---- the locomotion anchors against the REAL clips (VR-158) -------------
+   _billboard.js proves the blend maths. What belongs here is the half that
+   needs the GLB open: an anchor is a claim that a clip LOOKS RIGHT at a given
+   ground speed, and that is only checkable against the clip's real duration.
+   A stride length that comes out absurd means the anchor is wrong, and a wrong
+   anchor is a blend that slides at exactly the speeds you play at most. */
+console.log("\n[locomotion anchors — VR-158]");
+{
+  const A = FIT.loco;
+  ok("vesper.glb carries all three locomotion clips",
+     !!(clips.idle && clips.move && clips.run),
+     "the blend degrades safely without them, but it is a blend of one until they exist");
+  ok("the anchors ascend", A.idle < A.move && A.move < A.run,
+     `idle ${A.idle} < move ${A.move} < run ${A.run} u/s`);
+  ok("the run anchor is below top speed, not above it",
+     A.run < C.moveSpeed,
+     `run anchor ${A.run} against moveSpeed ${C.moveSpeed} — an anchor past the fastest you can go is a clip that never plays clean`);
+  ok("and not so far below that the sprint is pure run for most of the band",
+     A.run > C.moveSpeed * 0.6,
+     "if run were anchored at walking pace the blend would sit pinned at the top and stop blending");
+
+  // stride = how far one full cycle of the clip covers at its own anchor speed
+  const strideWalk = clips.move.duration * A.move;
+  const strideRun  = clips.run.duration * A.run;
+  ok("the walk's stride is a plausible human one",
+     strideWalk > 0.8 && strideWalk < 6,
+     `${strideWalk.toFixed(2)}m per cycle (${clips.move.duration.toFixed(2)}s x ${A.move} u/s)`);
+  ok("the run's stride is longer than the walk's",
+     strideRun > strideWalk,
+     `run ${strideRun.toFixed(2)}m vs walk ${strideWalk.toFixed(2)}m — if this inverts, the phase blend speeds UP as you slow down`);
+  ok("neither is more than double the other",
+     Math.max(strideRun, strideWalk) / Math.min(strideRun, strideWalk) < 2.2,
+     "a shared phase across wildly different strides is the foot-fight the blend exists to remove");
+  ok("the stalk reference is well below the walk anchor",
+     FIT.stalkRef < A.move && FIT.stalkRef > 0,
+     `stalk ${FIT.stalkRef} u/s — it is a separate gait, and BALANCE's stalkSpeed is ${C.stalkSpeed}`);
+  ok("and it is near the speed a stalk actually moves at",
+     Math.abs(FIT.stalkRef - C.stalkSpeed) < 0.35,
+     "the one place the old velocity-scaling survives, so its reference has to match the mechanic");
+  ok("the blend-in is short enough to hand the body back inside a chain window",
+     FIT.blendIn > 0 && FIT.blendIn < C.chainWindow,
+     `${FIT.blendIn}s against a chain window of ${C.chainWindow}s`);
+}
+
 console.log("\n" + "=".repeat(58));
 console.log(fails ? "FAIL — " + fails + " of " + checks + " checks" : "PASS — " + checks + " checks");
 process.exit(fails ? 1 : 0);

@@ -4,7 +4,7 @@
    the atlas UV mapping and the plane geometry against the asset contract, and
    cross-checks the constants actually present in index.html so the two can't drift.
    Usage: node _billboard.js   (run from games/proving-ground/) */
-const fs = require("fs"), path = require("path");
+const fs = require("fs"), path = require("path"), vm = require("vm");
 const html = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
 
 let fails = 0, checks = 0;
@@ -203,10 +203,19 @@ ok("glass is not the seam's magenta", !/uGlass = \{ value: new THREE\.Color\(0xD
 ok("eaten edges are lit", /uEdge/.test(html) &&
    /vrE = 1\.0 - smoothstep\(0\.0, VR_GLOW/.test(html),
    "the burn is applied last, so the seam lights on skin and glass alike");
-ok("locomotion is speed-matched", /setEffectiveTimeScale\(clamp\(\(speed \|\| 0\) \/ REF/.test(html),
-   "feet skate when stride rate doesn't match actual velocity");
-ok("run blends in by speed when it exists", /MODEL\.hasClip\("run"\)/.test(html) &&
-   /var RUN_AT = 4\.2/.test(html), "and falls back to walk when it doesn't");
+/* VR-158 replaced the locomotion SWITCH with a blend, so both of these were
+   written to text that no longer exists. The claims they defended are intact
+   and are restated against the new shape rather than deleted: locomotion is
+   still driven by real velocity, and run still comes in by speed with a walk
+   fallback — it is just a weight now instead of a branch. The executed proof
+   is in the VR-158 section further down. */
+ok("locomotion is still driven by actual velocity",
+   /locoPhase = \(locoPhase \+ \(Math\.max\(0, speed\) \/ stride\) \* dt\) % 1;/.test(html),
+   "feet skate when stride rate doesn't match how fast the game moves you");
+ok("run comes in by speed, and walk carries it alone when run is missing",
+   /if \(!actions\.run \|\| sp <= A\.move\)/.test(html) &&
+   /if \(!actions\.run && sp > A\.move\) \{ w\.idle = 0; w\.move = 1; \}/.test(html),
+   "a missing clip must degrade to the old look, never to the bind pose");
 ok("blend times differ by intent", /fadeFor/.test(html), "combat snaps, locomotion carries weight");
 ok("motes belong to the coming-apart phase", /player\.shroud < 0\.92/.test(html),
    "glass does not shed dust");
@@ -529,6 +538,125 @@ ok("and the timings are named in BALANCE rather than typed into the loop",
    /huskSearchSpeed:/.test(bal[0]) && /huskSearchGiveUp:/.test(bal[0]) &&
    !/e\.state = "search"/.test(bal[0]),
    "the numbers belong to the sim; the machine that spends them does not");
+
+/* ---- the locomotion blend (VR-158) --------------------------------------
+   Jordan, 9/2: *"something just doesn't feel as fluid as games we play... is
+   there a way to actually control a rig more fluidly vs mapping animations to
+   move speed."* The answer was that we ran ONE clip at a time and stretched
+   its playback rate to cover the gaps, switching at 4.2 u/s. This section
+   proves the switch is gone and the blend is sound — and it EXECUTES the
+   weight maths rather than reading it, because "the weights always sum to 1"
+   is a claim about every speed, not about a line of source. */
+const clipfitBlock = (html.match(/CLIPFIT:BEGIN[\s\S]*?CLIPFIT:END/) || [""])[0];
+/* ⚠️ `code` is the file with its block comments stripped, and it exists because
+   this trap has now bitten TWICE in one day. VR-104's kick check matched the
+   comment that NAMED fovKick(-9) while explaining why the guard existed; the
+   check below would have matched the comment that names the RUN_AT line it was
+   asserting the ABSENCE of. A well-commented codebase makes "this text is gone"
+   the wrong question — ask "is this CODE gone". Use `code` for any absence
+   assertion; use `html` when the comment is itself the thing being pinned. */
+const code = html.replace(/\/\*[\s\S]*?\*\//g, "");
+console.log("\n[locomotion blend — VR-158]");
+
+/* Pinned by what the function RETURNS, not by the name of the constant that
+   used to gate it. The mutation pass reintroduced the threshold as a bare
+   `speed > 4.2` and a RUN_AT-shaped check sailed straight past it: the thing
+   that matters is that no locomotion clip can be NAMED as a state, because a
+   named clip is a clip that wins outright. */
+{
+  const pms = ((code.match(/function playerModelState\(speed\)[\s\S]*?\n\}/) || [""])[0]);
+  const returned = [...pms.matchAll(/return\s+"([a-z0-9]+)"/g)].map(m => m[1]);
+  ok("playerModelState never names a locomotion clip",
+     returned.length > 0 && !returned.some(r => ["idle", "move", "run"].includes(r)),
+     "a named locomotion clip is a clip that wins outright — that IS the switch. Returns: " +
+       returned.join(", "));
+  ok("and it does name the blend",
+     returned.includes("loco"));
+  ok("nothing else branches on a raw speed threshold either",
+     !/speed\s*>\s*[\d.]+\s*&&\s*MODEL\.hasClip/.test(code) && !/var RUN_AT\s*=/.test(code),
+     "a threshold anywhere in the selection path can only ever pop when you cross it");
+}
+ok("the anchors live in the marked CLIPFIT block",
+   !!clipfitBlock && /loco: \{ idle: 0, move: 2\.6, run: 6\.0 \}/.test(clipfitBlock),
+   "they are a claim about the ASSET, so _clipfit.js can check them against the real durations");
+ok("the mixer does not own the locomotion clock",
+   /a\.setEffectiveTimeScale\(0\);\s+\/\/ we own the clock, not the mixer/.test(html),
+   "two locomotion clips on independent clocks is worse than a switch — the legs visibly fight");
+ok("one shared stride phase is written into every locomotion clip",
+   /a\.time = \(n === "idle"\) \? a\.time : locoPhase \* clipDur\(n\);/.test(html),
+   "same normalised phase = feet in agreement; that is the whole reason a blend reads better than a crossfade");
+/* The bug this pins: fitDur holds ONLY the trimmed one-shots. The locomotion
+   clips loop and have no CLIPFIT.win entry, so a stride computed from fitDur
+   alone comes out 0, the phase guard skips, and both clips freeze at time 0 —
+   with perfect weights and a motionless character. Every static check passed;
+   only rendering the page found it. */
+ok("durations fall back to the real clip, never to fitDur alone",
+   /return fitDur\[n\] \|\| \(a \? a\.getClip\(\)\.duration : 0\);/.test(html) &&
+   /var sm = clipDur\("move"\) \* A\.move, sr = clipDur\("run"\) \* A\.run;/.test(html) &&
+   !/\(fitDur\.move \|\| 0\)/.test(html),
+   "fitDur has no entry for a looping clip — a stride built from it is zero, and a zero stride is a statue");
+ok("idle keeps its own clock",
+   /if \(actions\.idle\) actions\.idle\.setEffectiveTimeScale\(1\);/.test(html),
+   "a breathing loop forced onto the walk's phase twitches at speed");
+ok("the layer FADES for a swing rather than switching",
+   /locoGain \+= \(want - locoGain\) \* k;/.test(html) && /CLIPFIT\.blendIn/.test(html),
+   "so a strike hands the body back without the walk restarting from frame 0");
+ok("stalk stays a separate gait, not a point on the axis",
+   /name === "stalk" && a/.test(html) && /CLIPFIT\.stalkRef/.test(html),
+   "a crouch is not a slow walk, and blending it against one would read as neither");
+ok("only locomotion blends — events still switch",
+   /var LOCO = \["idle", "move", "run"\];/.test(html) &&
+   /if \(st === "idle" \|\| st === "move"\) return "loco";/.test(html),
+   "a blend between a swing and a walk means nothing");
+
+/* --- executed: the weight maths, across the whole speed band --- */
+{
+  const src = (html.match(/function locoWeights\(speed\)[\s\S]*?\n  \}/) || [""])[0];
+  const box = {
+    CLIPFIT: { loco: { idle: 0, move: 2.6, run: 6.0 } },
+    actions: { idle: {}, move: {}, run: {} },
+    clamp: (v, a, b) => Math.max(a, Math.min(b, v)),
+    Math
+  };
+  vm.createContext(box);
+  vm.runInContext(src + "\n;this.__w = locoWeights;", box);
+  const W = box.__w;
+  ok("locoWeights extracted and runs", typeof W === "function");
+
+  const band = [];
+  for (let sp = 0; sp <= 12; sp += 0.05) band.push({ sp: +sp.toFixed(2), w: W(sp) });
+
+  ok("every weight set sums to exactly 1",
+     band.every(b => Math.abs((b.w.idle + b.w.move + b.w.run) - 1) < 1e-9),
+     "a total under 1 quietly blends in the bind pose, which is the drift that looks like a broken rig");
+  ok("no weight is ever negative or NaN",
+     band.every(b => ["idle", "move", "run"].every(k => b.w[k] >= 0 && b.w[k] === b.w[k])));
+  ok("standing still is pure idle", W(0).idle === 1);
+  ok("the walk anchor is pure walk", Math.abs(W(2.6).move - 1) < 1e-9,
+     "each clip plays clean at the speed it was authored for — that is what an anchor IS");
+  ok("the run anchor is pure run", Math.abs(W(6.0).run - 1) < 1e-9);
+  ok("top speed stays pure run", W(7.8).run === 1 && W(12).run === 1,
+     "moveSpeed is 7.8 — past the last anchor it must clamp, not extrapolate");
+  let mono = true;
+  for (let i = 1; i < band.length; i++) {
+    if (band[i].w.run < band[i - 1].w.run - 1e-12) mono = false;
+    if (band[i].w.idle > band[i - 1].w.idle + 1e-12) mono = false;
+  }
+  ok("run only ever rises with speed, and idle only ever falls", mono,
+     "a non-monotonic blend is a character who breaks into a jog and back inside one acceleration");
+  // and the fallback: a build whose GLB has no run clip
+  const box2 = { ...box, actions: { idle: {}, move: {} } };
+  vm.createContext(box2);
+  vm.runInContext(src + "\n;this.__w = locoWeights;", box2);
+  ok("with no run clip, walk carries the top of the band",
+     box2.__w(7.8).move === 1 && box2.__w(7.8).idle === 0,
+     "every asset load falls back — a missing clip keeps the old look, it does not empty the skeleton");
+  const box3 = { ...box, actions: { idle: {} } };
+  vm.createContext(box3);
+  vm.runInContext(src + "\n;this.__w = locoWeights;", box3);
+  ok("with no walk clip either, it is pure idle rather than nothing",
+     box3.__w(7.8).idle === 1);
+}
 
 console.log("\n" + "=".repeat(58));
 console.log(fails ? `FAIL — ${fails} of ${checks}` : `PASS — ${checks} checks`);
