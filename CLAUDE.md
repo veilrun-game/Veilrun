@@ -143,6 +143,33 @@ explicitly rather than omitting an item.
    hand-off, or say "n/a" and mean it. `_docscheck.js` reports what a commit claimed and the docs
    never mention, and it can only see the docs when the mount is there.
 
+### DELEGATE THIS CHECKLIST — do not walk it from memory (VR-159, 9/4)
+
+**Before any hand-off on a changeset touching `games/`, `js/data.js` or the site shell, delegate to
+the `release-steward` subagent** (`.claude/agents/release-steward.md`). It runs `_ship.js`, walks the
+five items above against the actual diff, and drafts the commit message.
+
+**Jordan should never have to ask for it by name. If he does, this rule has failed** — that was the
+whole complaint on 9/4: *"it feels like an extra step now instead of just being at the end of a
+prompt."* An agent you have to remember to summon is a chore with more steps than the chore it replaced.
+
+**Why a subagent and not this thread.** Twenty-one harness outputs is a lot of context to spend on a
+checklist. And **a thread that just spent an hour building something is the worst available reviewer
+of whether it documented itself** — it knows what it meant, which is exactly the knowledge that makes
+item 5 easy to wave through.
+
+**The split, so neither half does the other's job:**
+
+| Half | Who | Why |
+|---|---|---|
+| Run the harnesses | **`_ship.js`**, and the pre-commit hook already runs it | Deterministic. Never needed a language model, and a script cannot hallucinate a green. |
+| Items 1–5 against the diff, and the commit message | **`release-steward`** | Judgment. Item 5 asks whether a decision belongs in canon; item 3 asks whether a player can actually reach the thing. No script answers those. |
+
+⚠️ **A green `_ship.js` is not a passed checklist.** It proves the code is sound; it says nothing
+about whether the release is visible on the site, reachable by a player, logged on the board, or
+written down. **Those four are the ones that actually get skipped** — every entry in `_docscheck.js`'s
+debt list is one of them, never a harness failure.
+
 ## 4. Validation — sim-first, don't ship unproven
 
 1. Design the map/mechanic → 2. **sim** proving it's solvable, the interaction is *required*,
