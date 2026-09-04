@@ -154,7 +154,11 @@ in the folder before assuming:
 
 - **2D pair track** — `games/<name>-v2/_sim.py` (Python physics sim).
 - **3D** — `games/proving-ground/_sim.js` (asserts against the marked `BALANCE` block extracted from
-  the HTML), plus `_billboard.js`, `_touch.js`, `_clipfit.js`, `_shroud.js`, `_zoom.js` and `_check.js`.
+  the HTML), plus `_arena.js`, `_billboard.js`, `_touch.js`, `_clipfit.js`, `_shroud.js`, `_zoom.js`
+  and `_check.js`. **`_arena.js` (added 9/3 with VR-148) judges the SHAPE OF THE GROUND** rather than
+  the numbers — six criteria per layout (reach · wedge · shroud · cheese · blink · convergence). It is
+  the external bar VR-154's generator gets scored against, and the reason VR-121 can add walls without
+  anyone eyeballing whether the result is playable.
   ⚠️ **`_zoom.js` was missing from this sentence from the day it was added (VR-140, 8/30) until 8/31**,
   and a session that trusted this list instead of `ls` skipped it and shipped two regressions into it.
   **This is the exact failure VR-100's Task B3 exists to catch, and the list it caught was this one.**
@@ -201,6 +205,25 @@ in the folder before assuming:
 `VEILRUN.games` manifest), `_hubcheck.js` (Hub states), `_updatescheck.js` (weekly-hero states),
 `_grefcheck.js` (Game Reference catalogue + matcher), `_docscheck.js` (ship-checklist item 5),
 `_leakcheck.js` (withheld lore, §5). Everything relevant must be green before hand-off.
+
+**RUN THEM WITH `node _ship.js` (VR-159, 9/4) — it is a RUNNER, not a seventh check.** It asserts
+nothing of its own; every claim it prints belongs to the harness that made it. It **discovers by
+listing the folders**, so it cannot inherit a stale list — including this one — and it excludes the
+two tools below by name. It reports **PASS / SKIP / FAIL as three states**, because a run where the
+two mount-dependent checks skipped has not checked the two things most likely to be wrong, and a
+summary folding SKIP into PASS lies by omission. `--staged` scopes the per-game harnesses to games
+with staged changes (~0.8s vs ~38s for the full sweep).
+
+**AND IT CHECKS THIS SENTENCE BACK.** Every harness it discovers is grepped for in this file, and
+anything missing is reported as drift. That is the 8/31 failure turned into a mechanism: the list
+above can still go stale, but it can no longer go stale *quietly*. It found `_arena.js` missing on
+its first run, four days after VR-148 added it.
+
+**A git `pre-commit` hook runs `_ship.js --staged` on every commit**, including from GitHub Desktop —
+the only point in the workflow where a check runs without being asked, because the commit happens
+outside Claude where no agent can see it. It blocks on FAIL, never on SKIP. **It lives in
+`.git/hooks/` and is therefore NOT tracked**, so a fresh clone will not have it; the VR-159 card
+carries the script to recreate it.
 
 **`_leakcheck.js` (added 8/30, VR-127) scans everything `git ls-files` reports** — which is
 exactly the set Pages publishes — for terms listed in `Claude Access`. It **skips without the

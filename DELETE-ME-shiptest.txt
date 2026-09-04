@@ -1,0 +1,3 @@
+/* TEMPORARY test fixture — deliberately fails. Removed at the end of this command. */
+console.log("FAIL — this harness fails on purpose, to prove the hook blocks.");
+process.exit(1);
