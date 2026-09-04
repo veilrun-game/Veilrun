@@ -55,3 +55,15 @@ build/
 .cache/
 *.log
 npm-debug.log*
+
+# --- Agent observability (STU-02 / STU-03) ---
+# claude-office and the studio event log both write OUTSIDE this repo by design
+# (~/.claude/ and ~/Documents/GitHub/claude-office/). These patterns exist only
+# so that a future tool writing cwd-relative cannot leak tool I/O or file paths
+# into a repo that is served verbatim. Belt and braces — nothing matches today.
+*.jsonl
+agent-events/
+visualizer.db
+visualizer.db-wal
+visualizer.db-shm
+claude-office-hooks.log

@@ -3639,20 +3639,31 @@ function freezeArena(on) {
 
 /* ============================ collision helpers ========================= */
 function clampToArena(o) {
-  var lim = A - 0.45;
-  if (o.x < -lim) { o.x = -lim; return true; }
-  if (o.x > lim) { o.x = lim; return true; }
-  if (o.z < -lim) { o.z = -lim; return true; }
-  if (o.z > lim) { o.z = lim; return true; }
-  return false;
+  /* VR-148 — BOTH axes, every time. This used to `return true` on the first
+     axis it clamped, so a diagonal Veilstep out of a corner clamped x and left
+     z outside the seam: the arena judge's `blink` criterion failed on every
+     shipped layout until this was fixed, which is precisely what it is for. */
+  var lim = A - 0.45, hit = false;
+  if (o.x < -lim) { o.x = -lim; hit = true; } else if (o.x > lim) { o.x = lim; hit = true; }
+  if (o.z < -lim) { o.z = -lim; hit = true; } else if (o.z > lim) { o.z = lim; hit = true; }
+  return hit;
 }
 function pushOutOfPillars(o, radius) {
   for (var i = 0; i < PILLARS.length; i++) {
     var p = PILLARS[i], dx = o.x - p.x, dz = o.z - p.z;
     var d2 = dx * dx + dz * dz, r = p.r + radius;
-    if (d2 < r * r && d2 > 0.0001) {
-      var d = Math.sqrt(d2), f = (r - d) / d;
-      o.x += dx * f; o.z += dz * f;
+    if (d2 < r * r) {
+      if (d2 > 0.0001) {
+        var d = Math.sqrt(d2), f = (r - d) / d;
+        o.x += dx * f; o.z += dz * f;
+      } else {
+        /* VR-148 — dead centre still has to come out. The old guard skipped the
+           push when there was no direction to push along, so a Veilstep that
+           landed within ~0.01u of a pillar's axis left you standing INSIDE the
+           stone. Rare, but the arena judge found it on Open Ground and it is
+           the kind of thing nobody would ever reproduce on purpose. */
+        o.x = p.x + r; o.z = p.z;
+      }
     }
   }
 }
