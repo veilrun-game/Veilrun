@@ -1,10 +1,50 @@
 # Cloudflare Pages cache rules.
+#
 # Always revalidate code + content so a push shows up immediately instead of
-# being served from a stale browser cache. (Images keep default caching — they
-# get new filenames when they change, so they're safe to cache.)
+# being served from a stale cache. (Images keep default caching — they get new
+# filenames when they change, so they're safe to cache.)
+#
+# ⚠️ THIS LIST IS LOAD-BEARING, AND A TYPE THAT IS MISSING FROM IT IS PUBLISHED
+# FOR SEVEN DAYS AFTER YOU DELETE IT (VR-167, 9/6).
+#
+# Anything not matched here falls to Pages' default `public, s-maxage=604800`.
+# That is a 7-day EDGE cache, not a browser one, so it is not something the
+# reader can refresh past and not something a deploy clears: a cached response
+# is served without the origin being consulted at all.
+#
+# Found the hard way. VR-164 took `.claude/agents/release-steward.md` out of git
+# on 9/5 — correctly, and the origin was clean immediately: the per-deployment
+# URL 404'd. The production hostname kept serving the file anyway, because `.md`
+# was not on this list. Measured 9/6: `cf-cache-status: HIT`, `age: 73693`.
+#
+# THE RULE THAT FOLLOWS: removing a file from the repo is not unpublishing it.
+# `_leakcheck.js` proves nothing withheld is in `git ls-files`; nothing proves
+# the edge has caught up. For a `*.pages.dev` hostname there is no self-serve
+# purge — Purge Cache is zone-scoped and that zone is Cloudflare's, not ours —
+# so the only lever is making sure the thing was never cacheable in the first
+# place. That is what this file is for.
+#
+# So: ADD A TYPE HERE BEFORE YOU COMMIT ONE. Text served from this repo is
+# world-readable (CLAUDE.md §5) and should also be world-*revocable*.
+
 /*.html
   Cache-Control: no-cache
 /*.js
   Cache-Control: no-cache
 /*.css
+  Cache-Control: no-cache
+
+# Markdown is served, not just stored — CLAUDE.md and every harness's sibling
+# notes are live at guessable URLs. Added VR-167.
+/*.md
+  Cache-Control: no-cache
+
+# Nothing links to these and they are all published anyway: the harnesses'
+# Python tooling, the confidential-terms-adjacent text formats, and any JSON
+# that is not a build artifact. Cheap to revalidate, expensive to leave stuck.
+/*.py
+  Cache-Control: no-cache
+/*.txt
+  Cache-Control: no-cache
+/*.json
   Cache-Control: no-cache
