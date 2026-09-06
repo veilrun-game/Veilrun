@@ -440,15 +440,44 @@ function c_wedgeAndCheese(L) {
 const SHROUD_MOVE_T = 2.0;   // sec — a reposition, not a marathon across the map
 const SHROUD_STEP   = 0.10;  // sec — resolution of the hold test
 
+/* ⚠️ WHERE, NOT JUST HOW MUCH — added 9/4 from the first gauntlet run (VR-148).
+   Every other criterion names a place: `wedge` gives the husk's stuck coordinate,
+   `cheese` an example spot, `blink` the cell it escaped from. `shroud` gave a bare
+   percentage, and in a three-round run against a 70u arena that cost the builder
+   the whole run — it read "42%, needs 50%", added sixteen stones on a guess,
+   reached 46%, added sixteen more on another guess, and got 46% again. A number
+   with no location is not a named failure; it is a score.
+
+   So the engagements are bucketed by where the PLAYER was standing, on a compass
+   3x3 (-z is north, matching the camera's default heading), and the weakest
+   regions are named. THE BAR IS UNTOUCHED: `pass` is still the same fraction
+   against the same threshold. This changes what the judge SAYS, never what it
+   asks for — which is why it was safe to add to a judge that was already green. */
+const SHROUD_MIN_SAMPLE = 8;   // a region with fewer engagements than this is noise, not a finding
+
+function regionOf(x, z, half) {
+  const t = half / 3;
+  const ns = z < -t ? "north" : z > t ? "south" : "";
+  const ew = x < -t ? "west" : x > t ? "east" : "";
+  if (!ns && !ew) return "the centre";
+  return "the " + (ns && ew ? ns + "-" + ew : ns || ew);
+}
+
 function c_shroud(L) {
   const g = makeGrid(L, NAV, PLAYER_R);
   const rng = mulberry32(0x5EED03);
   const ids = walkableIds(g);
   if (!ids.length) return { pass: false, why: "no floor to hide on", stat: "-" };
   const players = sample(ids, 80, rng);
+  const region = new Map();          // region name -> { pairs, viable }
+  function bucket(name) {
+    if (!region.has(name)) region.set(name, { pairs: 0, viable: 0 });
+    return region.get(name);
+  }
   let pairs = 0, viable = 0;
   for (const pid of players) {
     const pi = pid % g.n, pj = (pid - pi) / g.n, px = g.xs[pi], pz = g.zs[pj];
+    const bin = bucket(regionOf(px, pz, g.half));
     const reachCap = SHROUD_MOVE_T * C.moveSpeed;
     const dist = dijkstra(g, pid, reachCap);
     const obs = [];
@@ -461,7 +490,7 @@ function c_shroud(L) {
       obs.push({ x: ox, z: oz, d: d });
     }
     for (const o of obs) {
-      pairs++;
+      pairs++; bin.pairs++;
       const closeT = Math.max(0, (o.d - C.enemyReach) / C.enemySpeed);
       const budget = Math.min(SHROUD_MOVE_T, Math.max(0, closeT - C.shroudDelay));
       const reach = budget * C.moveSpeed;
@@ -477,7 +506,7 @@ function c_shroud(L) {
       }
       cand.sort((u, v) => u[0] - v[0]);
       for (let k = 0; k < Math.min(cand.length, 14); k++) {
-        if (holds(o, px, pz, cand[k][1], cand[k][2], cand[k][0])) { viable++; break; }
+        if (holds(o, px, pz, cand[k][1], cand[k][2], cand[k][0])) { viable++; bin.viable++; break; }
       }
     }
   }
@@ -494,13 +523,29 @@ function c_shroud(L) {
     return true;
   }
   const frac = pairs ? viable / pairs : 0;
+
+  /* Regions with enough engagements to mean anything, weakest first. Reported
+     both ways round on purpose: a builder needs to know where the cover is not
+     working AND where it is, because the answer is usually "do over there what
+     you already did over here" rather than "add more of everything". */
+  const ranked = Array.from(region.entries())
+    .filter(e => e[1].pairs >= SHROUD_MIN_SAMPLE)
+    .map(e => ({ name: e[0], frac: e[1].viable / e[1].pairs, pairs: e[1].pairs }))
+    .sort((a, b) => a.frac - b.frac);
+  const say = r => r.name + " " + (100 * r.frac).toFixed(0) + "% of " + r.pairs;
+  const worst = ranked.length
+    ? " — weakest " + ranked.slice(0, 2).map(say).join(", ") +
+      (ranked.length > 2 ? "; strongest " + say(ranked[ranked.length - 1]) : "")
+    : "";
+
   return {
     pass: pairs > 0 && frac >= TH.shroudViable,
     why: pairs === 0
       ? "no engagement at all could be sampled — the layout has no usable sightlines"
       : "only " + (100 * frac).toFixed(0) + "% of engagements offer a line you can break and HOLD for Shroud's " +
-        C.shroudDelay + "s (needs " + (100 * TH.shroudViable).toFixed(0) + "%)",
-    stat: (100 * frac).toFixed(0) + "% of " + pairs + " engagements are Shroud-viable"
+        C.shroudDelay + "s (needs " + (100 * TH.shroudViable).toFixed(0) + "%)" + worst,
+    stat: (100 * frac).toFixed(0) + "% of " + pairs + " engagements are Shroud-viable" +
+      (ranked.length ? " · weakest " + say(ranked[0]) : "")
   };
 }
 

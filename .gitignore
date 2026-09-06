@@ -26,7 +26,22 @@ desktop.ini
 .idea/
 *.swp
 *~
-.claude/settings.local.json
+
+# --- Agent config: ALL OF IT (VR-164, 9/5) ---
+# THIS REPO IS THE PUBLIC WEBSITE and Cloudflare Pages serves dot-directories
+# like any other. Verified 9/5: .claude/agents/release-steward.md returned live
+# content at https://veilrun-dxv.pages.dev/.claude/agents/release-steward.md —
+# it had been world-readable since the day it was committed.
+#
+# Only `.claude/settings.local.json` was ignored before, which reads as "agent
+# config is handled" and is why nobody looked again. Skills, agents, commands
+# and hooks are internal process: they name unshipped cards, quote Jordan, and
+# describe how the project is run. None of it is dangerous; all of it is ours.
+#
+# The whole directory is ignored rather than a list of subfolders, because a
+# list only covers the kinds of agent config that exist today. `.gitignore`
+# does NOT untrack what is already tracked — see the VR-164 card for that.
+.claude/
 
 # --- Local dev servers & scratch ---
 # Local-only helper scripts (e.g. a python http.server launcher for playtesting

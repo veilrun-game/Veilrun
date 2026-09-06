@@ -2255,8 +2255,12 @@ console.log("\n[facing and camera are two values]");
 const aimSrc = (html.match(/AIM:BEGIN[\s\S]*?-+ \*\/([\s\S]*?)\/\* AIM:END/) || [])[1];
 ok("the AIM block is marked and found", !!aimSrc);
 if (aimSrc) {
+  /* VR-160 — atkStage/execLunge join the stub because aimFor() now HOLDS while a
+     verb is in flight, and a hold the stub cannot see is a contract the stub
+     cannot prove. atkStage is -1 (idle) rather than 0: zero is a valid stage. */
   const A = { cam: { mode: "arcade" }, ARC: { yaw: 0 }, mouse: { yaw: 0 },
-              TOUCH: false, player: { aim: 0 }, Math: Math };
+              TOUCH: false, player: { aim: 0, yaw: 0, atkStage: -1, execLunge: 0 },
+              Math: Math };
   vm.createContext(A);
   vm.runInContext(aimSrc, A);
 
@@ -2369,6 +2373,55 @@ if (aimSrc) {
   ok("nor may arcade", A.FACE_OK.arcade.indexOf("strafe") < 0);
   ok("first person keeps it, and keeps only it", A.FACE_OK.first.join() === "strafe",
      "Jordan's explicit call, and a list of one is why the row is gone");
+  /* ---- VR-160: the crosshair and the cone -------------------------------
+     Jordan, 9/5: *"Right mouse button isn't working for third person."* These
+     run against the same extracted block, so they are a claim about behaviour
+     rather than about text — and the first one FAILS on the pre-VR-160 file,
+     which is the only reason to trust the rest. */
+  console.log("\n[VR-160 — a verb aims where you are looking]");
+  A.player.atkStage = -1; A.player.execLunge = 0;
+
+  setFace("third", "move");
+  A.mouse.yaw = 2.4;        // you have orbited the camera onto something
+  A.player.aim = 0;         // your legs last went north
+  ok("third person: the verb follows the crosshair, not the legs",
+     A.verbYaw() === 2.4 && A.aimFor(false, 0, 0) === 0,
+     "THE BUG: the cone read the legs, so RMB found nothing and returned silently");
+
+  setFace("third", "free");
+  ok("`free` is the same — left stick is the legs, right stick is the AIM",
+     A.verbYaw() === 2.4,
+     "this is the mode Jordan reported it in: 'left controls character, right controls camera'");
+
+  A.cam.mode = "first";
+  ok("first person is unchanged in effect — it always aimed at the camera",
+     A.verbYaw() === 2.4, "which is exactly why RMB worked there and nowhere else");
+
+  A.cam.mode = "arcade"; A.player.yaw = 1.23;
+  ok("arcade keeps the BODY, because a fixed rig has no 'where you are looking'",
+     A.verbYaw() === 1.23,
+     "ARC.yaw never moves, so following the camera there would mean following nothing");
+
+  // --- the hold: a verb in flight owns the aim
+  setFace("third", "move"); A.mouse.yaw = 2.4; A.player.aim = 1.0;
+  A.player.atkStage = 0;                       // mid-swing
+  ok("a swing HOLDS its committed aim against the stick",
+     A.aimFor(true, 0, -1) === 1.0,
+     "without the hold, updatePlayer overwrites the snap on the same tick and he lunges sideways");
+  A.player.atkStage = -1; A.player.execLunge = 0.2;
+  ok("an Execute lunge holds it too", A.aimFor(true, 1, 0) === 1.0);
+  A.player.execLunge = 0;
+  ok("and the stick takes it back the moment the verb ends",
+     Math.abs(A.aimFor(true, 0, -1) - NORTH) < 1e-9,
+     "a hold that outlives the verb is a stuck facing, which is worse than the bug");
+
+  // --- the trap this card could still fall into
+  A.player.atkStage = -1;
+  setFace("third", "look"); A.mouse.yaw = 2.4; A.player.aim = 0;
+  ok("`look` and the verb aim now agree, which is the point",
+     A.aimFor(true, 0, -1) === A.verbYaw(),
+     "look pinned the BODY to the camera; VR-160 pins the VERB to it and leaves the body alone");
+
   ok("third person is the only view offering `free`",
      A.FACE_OK.third.indexOf("free") >= 0 && A.FACE_OK.arcade.indexOf("free") < 0 &&
      A.FACE_OK.first.indexOf("free") < 0,
@@ -2400,8 +2453,7 @@ ok("only `look` ever separates them",
    /var bodyTarget = player\.yaw;/.test(pfSrc),
    "every other model must leave bodyYaw converging on yaw, or VR-150 and VR-156 change shape by accident");
 ok("attacking puts the body back on the aim",
-   /var acting = player\.atkStage >= 0 \|\| player\.execLunge > 0;/.test(pfSrc) &&
-   /!acting &&/.test(pfSrc),
+   /var acting = verbActing\(\);/.test(pfSrc) && /!acting &&/.test(pfSrc),
    "the strike must land where the mouse points, not where you happened to be running");
 ok("the turn threshold is READ from BALANCE, never retyped",
    /sp > C\.shroudBreakSpeed/.test(pfSrc) && !/sp > 0\.\d/.test(pfSrc),
@@ -2409,11 +2461,37 @@ ok("the turn threshold is READ from BALANCE, never retyped",
 ok("and the display layer never writes BALANCE",
    !/C\.shroudBreakSpeed\s*=/.test(html),
    "reading a balance value to decide a picture is fine; writing one from here is the TUNE-reaches-BALANCE failure");
-ok("the verbs still test the verb facing, not the drawn one",
-   /var fx = -Math\.sin\(player\.yaw\), fz = -Math\.cos\(player\.yaw\);/.test(html) &&
+/* VR-160 — THIS ASSERTION USED TO PIN THE BUG IN PLACE, and that is worth
+   saying out loud rather than quietly editing away. It read:
+
+       /var fx = -Math\.sin\(player\.yaw\), fz = -Math\.cos\(player\.yaw\);/
+
+   — green, every run, for three weeks, while RMB did nothing in third person.
+   It was a true statement about the text and a false one about the game: it
+   proved the cones agreed with EACH OTHER, and never asked whether the angle
+   they agreed on was the one the player was aiming. A harness that only checks
+   internal consistency will happily certify a consistent mistake.
+
+   The contract now has two halves, and the second is the one that has teeth. */
+ok("the verbs test the COMMITTED aim, never the drawn body",
    !/Math\.sin\(player\.bodyYaw\), fz = -Math\.cos\(player\.bodyYaw\)/.test(html) &&
-   /trail\.rotation\.z = -player\.yaw - st\.arc/.test(html),
-   "strike cone, Execute cone and the trail are one hitbox — drawing them from bodyYaw would reintroduce VR-104's trail-disagrees-with-hitbox bug");
+   /var fx = -Math\.sin\(player\.aim\), fz = -Math\.cos\(player\.aim\);/.test(html) &&
+   /trail\.rotation\.z = -player\.aim - st\.arc/.test(html),
+   "strike cone and the trail are one hitbox — drawing them from bodyYaw would reintroduce VR-104's trail-disagrees-with-hitbox bug");
+ok("no verb resolves a cone against player.yaw any more",
+   !/-Math\.sin\(player\.yaw\)/.test(html),
+   "player.yaw eases at 13/s — it is a FACING. Reading it as an aim is VR-160 exactly");
+ok("the Execute cone and its crosshair tell read ONE source",
+   (html.match(/verbYaw\(\)/g) || []).length >= 4 &&
+   /var aim = verbYaw\(\);/.test(html) && /var av = verbYaw\(\);/.test(html),
+   "the tell agreed with a broken cone for three weeks because it was a second copy of the same two lines");
+ok("there is exactly one verb-aim solver",
+   (html.match(/function verbYaw\(/g) || []).length === 1 &&
+   (html.match(/function verbActing\(/g) || []).length === 1,
+   "a second one is how third and first person start disagreeing again");
+ok("`acting` is asked once, not spelled out twice",
+   (html.match(/player\.atkStage >= 0 \|\| player\.execLunge > 0/g) || []).length === 1,
+   "aimFor() holds on it and playerFace() sets its turn rate from it — two copies drift");
 ok("nothing writes the camera's yaw to steer the body",
    !/cam\.mode === "arcade" && \(mx \|\| mz\)\) mouse\.yaw =/.test(html),
    "the old arcade line is gone rather than living beside the new one");

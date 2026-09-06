@@ -368,6 +368,14 @@ function hMech(name) {
   if (name === "attack") return C.enemyWind + C.enemyActive + C.enemyRec;
   if (name === "hurt")   return C.enemyStagger;
   if (name === "down")   return HUSK_DIE_T;
+  /* VR-118 — the entrance beats. Returning null here is not a stub: the loop
+     below turns an unmapped window into a LOUD FAILURE, which is how the four
+     new windows announced themselves the moment they were added. A window with
+     no mechanical duration is a clip playing at whatever speed it was authored
+     at, inside a beat that ends on a timer — the desync VR-111 was. */
+  if (name === "fall" || name === "float") return C.spawnRise;
+  if (name === "getup")  return C.entryDown;
+  if (name === "land")   return C.entryLand;
   return null;
 }
 
@@ -683,6 +691,135 @@ console.log("\n[locomotion anchors — VR-158]");
   ok("the blend-in is short enough to hand the body back inside a chain window",
      FIT.blendIn > 0 && FIT.blendIn < C.chainWindow,
      `${FIT.blendIn}s against a chain window of ${C.chainWindow}s`);
+}
+
+/* ---- the ENTRANCE (VR-118) --------------------------------------------
+   Four more of the thirteen clips leave the shelf. What has to be proven is
+   the same thing VR-111 existed to prove and VR-119 proved again: that a clip
+   and the mechanic it illustrates agree about how long they take. An entrance
+   is a window in which a husk is visible and HARMLESS, so a clip that outruns
+   its beat is a husk still climbing to its feet while the sim has it running
+   at you — and a clip that undershoots is one standing idle waiting for the
+   state to change. Neither throws. */
+console.log("\n[husk ENTRANCE clips — VR-118]");
+{
+  const bal = html.match(/BALANCE:BEGIN[\s\S]*?-+ \*\/([\s\S]*?)\/\* BALANCE:END/);
+  const eBox = { module: { exports: {} }, Math, console };
+  vm.createContext(eBox);
+  new vm.Script(bal[1], { filename: "index.html#BALANCE" }).runInContext(eBox);
+  const CC = eBox.module.exports.C;
+
+  ok("the entrance is wired to the clips, not to a floor-rise",
+     /return \(e\.entryBeat === "in"\) \? e\.entry/.test(html) &&
+     !/lerp\(-1\.6, 0, s \* s\)/.test(html),
+     "VR-118's 8/22 direction change: they come through the seam, not up through the ground");
+
+  ok("both flavours exist and the crash is the likelier one",
+     CC.entryCrash > 0.5 && CC.entryCrash < 1,
+     `entryCrash ${CC.entryCrash} — Jordan's call: weighted toward the crash, never all of one`);
+
+  ok("the odds are a BALANCE constant, not a literal at the call site",
+     /Math\.random\(\) < C\.entryCrash/.test(html),
+     "a ratio typed where it is used is a ratio nobody can tune or sim");
+
+  /* THE FIT ITSELF IS NOT CHECKED HERE, deliberately. The generic [fit] loop
+     above already walks every entry in HUSKFIT.win, trims it with the same
+     arithmetic the game uses, and proves the scale lands inside the clamp — so
+     the four entrance windows are covered by it the moment they exist, and
+     `hMech()` failing loudly on an unmapped one is what forced them to be. A
+     second copy here would be a second opinion about the same numbers, and the
+     one that went stale would be the one nobody was reading. */
+  ok("every entrance beat is fitted, none left to run at native speed",
+     /if \(name === "fall" \|\| name === "float"\) return C\.spawnRise;/.test(html) &&
+     /if \(name === "getup"\)  return C\.entryDown;/.test(html) &&
+     /if \(name === "land"\)   return C\.entryLand;/.test(html),
+     "windowFor returning 0 means 'this one loops' — an unlooped clip that gets 0 plays at 1x and desyncs");
+
+  ok("none of the four loops",
+     !["fall", "float", "getup", "land"].some(n => /var HUSK_LOOPS = \{[^}]*\b/.test(html) &&
+        new RegExp("HUSK_LOOPS = \\{[^}]*\\b" + n + ":").test(html)),
+     "a looping entrance never ends, and the state machine is waiting on the timer either way");
+
+  ok("the entrance is checked BEFORE the states it would otherwise fall through",
+     /function clipFor\(e\) \{[\s\S]{0,600}?if \(e\.state === "spawn"\)[\s\S]{0,300}?if \(e\.state === "die"\)/.test(html),
+     "a spawning husk is also stagger-0 and not dying, so a later check leaves it sprinting in mid-air");
+
+  ok("a husk mid-entrance is still untargetable and unhittable",
+     (html.match(/\bstate === "die" \|\| \w+\.state === "spawn"/g) || []).length >= 4,
+     "the outer state stays 'spawn' precisely so every existing guard keeps working " +
+     "unedited — the strike cone, the Execute cone, the crosshair tell and husk separation");
+
+  /* ---- the phase-in, and the one number in it that cannot be eyeballed ---- */
+  ok("the husk phase-in is its own shader constants, not Vesper's",
+     /var HUSK_BURN\s+= 0x/.test(html) && /var HUSK_EMBER = 0x/.test(html) &&
+     !/uEdge = \{ value: new THREE\.Color\(HUSK_BURN\)/.test(html),
+     "sharing uniforms is how a later recolour of a husk quietly recolours the player");
+
+  ok("it runs backwards — a husk ARRIVES, it does not dissolve away",
+     /setPhase\(e\.mat, 1 - s\)/.test(html) && /setPhase\(e\.mat, 1\);/.test(html),
+     "1 -> 0: the front closes over him. Vesper's runs 0 -> 1 and eats him");
+
+  ok("there is exactly one writer of the phase value",
+     (html.match(/function setPhase\(/g) || []).length === 1 &&
+     !/uPhase\.value = /.test(html.replace(/function setPhase\([\s\S]{0,220}?\n\}/, "")),
+     "a second writer is how the rig and the primitive start disagreeing mid-fade");
+
+  ok("a rig inherits the phase rather than starting fresh",
+     (html.match(/setPhase\(rig\.mat, \(e\.mat\.userData\.vrPhase/g) || []).length === 2,
+     "once on attach and once per frame — attach alone leaves it frozen, per-frame alone pops on frame one");
+
+  ok("an entrance is never drawn as a billboard",
+     /if \(e\.state === "spawn"\) \{\s*hs\.m\.visible = false;/.test(html) &&
+     /if \(e\.state === "spawn"\) d -= ENTRY_LOD_BONUS;/.test(html),
+     "a card has no dissolve and no clips — it cannot phase in, fall, or get up");
+
+  /* THE REFIT, PROVEN RATHER THAN ASSERTED. The logistic constant in the
+     husk shader is the coarse field's own CDF; Vesper's (k=10.9, mu=0.505) is
+     fitted to a DIFFERENT field. Reuse his and the front stalls and then takes
+     the whole husk at once — a failure that is invisible to every text check,
+     because both files read as perfectly reasonable GLSL. So: re-implement the
+     two-octave value noise here, sample it, push it through the shipped
+     constants, and measure how straight the coverage curve actually is. */
+  const octaves = html.match(/hk_noise\(vUv \* ([\d.]+)\) \* ([\d.]+) \+ hk_noise\(vUv \* ([\d.]+)\) \* ([\d.]+)/);
+  const logistic = html.match(/hkN = 1\.0 \/ \(1\.0 \+ exp\(-([\d.]+) \* \(hkN - ([\d.]+)\)\)\)/);
+  ok("the husk field and its logistic are both readable from the shader",
+     !!octaves && !!logistic,
+     "if this stops matching, the check below is measuring nothing and must fail loudly");
+
+  if (octaves && logistic) {
+    const [fA, wA, fB, wB] = [+octaves[1], +octaves[2], +octaves[3], +octaves[4]];
+    const k = +logistic[1], mu = +logistic[2];
+    const fract = x => x - Math.floor(x);
+    const hash = (x, y) => fract(Math.sin(x * 127.1 + y * 311.7) * 43758.5453);
+    const noise = (px, py) => {
+      const ix = Math.floor(px), iy = Math.floor(py);
+      let fx = fract(px), fy = fract(py);
+      fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+      const a = hash(ix, iy), b = hash(ix + 1, iy), c = hash(ix, iy + 1), d = hash(ix + 1, iy + 1);
+      const t = a + (b - a) * fx, u = c + (d - c) * fx;
+      return t + (u - t) * fy;
+    };
+    const N = 190, out = [];
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+      const u = (i + 0.5) / N, v = (j + 0.5) / N;
+      const n = noise(u * fA, v * fA) * wA + noise(u * fB, v * fB) * wB;
+      out.push(1 / (1 + Math.exp(-k * (n - mu))));
+    }
+    out.sort((a, b) => a - b);
+    let worst = 0, at = 0;
+    for (let q = 1; q <= 9; q++) {
+      const target = q / 10;
+      const dev = Math.abs(out[Math.floor(out.length * target)] - target);
+      if (dev > worst) { worst = dev; at = target; }
+    }
+    ok("the logistic is fitted to THIS field — the front sweeps evenly",
+       worst < 0.035,
+       `worst deviation ${(worst * 100).toFixed(1)}% at the ${(at * 100) | 0}% mark ` +
+       `(field ${fA}/${fB}, k=${k}, mu=${mu}) — Vesper's pair measures 1.6%`);
+    ok("and it is genuinely coarser than Vesper's grain",
+       fA < 26 && fA > 1,
+       `${fA} against Vesper's 26 — slabs, not grain, which is what Jordan asked for`);
+  }
 }
 
 console.log("\n" + "=".repeat(58));

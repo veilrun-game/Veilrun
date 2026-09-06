@@ -149,6 +149,14 @@ explicitly rather than omitting an item.
 the `release-steward` subagent** (`.claude/agents/release-steward.md`). It runs `_ship.js`, walks the
 five items above against the actual diff, and drafts the commit message.
 
+⚠️ **`.claude/` IS UNTRACKED AS OF VR-164 (9/5), so a fresh clone will not have the steward** — the
+same contract as the pre-commit hook below, and for the same reason in reverse: the hook is untracked
+because it *can't* be tracked, and this is untracked because it **must not** be. This repo is the
+public website and Pages serves dot-directories like any other; `release-steward.md` was live at a
+guessable URL from the day it was committed. **The canonical copy lives in `Claude Access` at
+`_Project Knowledge/_setup/agent-config/`** — copy it back from there, edit the repo's working copy
+(that is the one the agent loads), and copy your change back. **Do not re-add it to the repo.**
+
 **Jordan should never have to ask for it by name. If he does, this rule has failed** — that was the
 whole complaint on 9/4: *"it feels like an extra step now instead of just being at the end of a
 prompt."* An agent you have to remember to summon is a chore with more steps than the chore it replaced.
@@ -181,11 +189,20 @@ in the folder before assuming:
 
 - **2D pair track** — `games/<name>-v2/_sim.py` (Python physics sim).
 - **3D** — `games/proving-ground/_sim.js` (asserts against the marked `BALANCE` block extracted from
-  the HTML), plus `_arena.js`, `_billboard.js`, `_touch.js`, `_clipfit.js`, `_shroud.js`, `_zoom.js`
-  and `_check.js`. **`_arena.js` (added 9/3 with VR-148) judges the SHAPE OF THE GROUND** rather than
-  the numbers — six criteria per layout (reach · wedge · shroud · cheese · blink · convergence). It is
-  the external bar VR-154's generator gets scored against, and the reason VR-121 can add walls without
-  anyone eyeballing whether the result is playable.
+  the HTML), plus `_arena.js`, `_gauntlet.js`, `_billboard.js`, `_touch.js`, `_clipfit.js`,
+  `_shroud.js`, `_zoom.js` and `_check.js`. **`_arena.js` (added 9/3 with VR-148) judges the SHAPE OF
+  THE GROUND** rather than the numbers — six criteria per layout (reach · wedge · shroud · cheese ·
+  blink · convergence). It is the external bar VR-154's generator gets scored against, and the reason
+  VR-121 can add walls without anyone eyeballing whether the result is playable.
+  **`_gauntlet.js` (added 9/4, VR-148's open half) is the LOOP that walks a builder up to that bar** —
+  generate → judge → *named failures back* → repeat, three rounds, spend reported. ⚠️ **The builder is
+  an agent and this file is deliberately not it**: the referee owns the round discipline, the brief and
+  the spend accounting, and nothing creative. Run with no arguments it is a harness (22 checks, ~1s) —
+  it self-tests the referee against canned verdicts plus **one live judge call**, so the parse is never
+  a fixture agreeing with itself. **Driving a real round costs an agent, so a commit never starts one.**
+  Its three guards against a loop that is theatre — a resubmitted layout refused, a `_note` required
+  from round 2 that must NAME a failed criterion, and the judge quoted verbatim rather than paraphrased —
+  are the difference between this and VR-154's randomizer.
   ⚠️ **`_zoom.js` was missing from this sentence from the day it was added (VR-140, 8/30) until 8/31**,
   and a session that trusted this list instead of `ls` skipped it and shipped two regressions into it.
   **This is the exact failure VR-100's Task B3 exists to catch, and the list it caught was this one.**

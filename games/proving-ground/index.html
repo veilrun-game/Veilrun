@@ -1676,6 +1676,36 @@ var BAL = (function () {
     enemyWind: 0.55, enemyActive: 0.14, enemyRec: 0.5, enemyReach: 2.0,
     enemyStagger: 0.26, spawnRise: 0.7,
 
+    /* --- the ENTRANCE (VR-118) — how they arrive, and how long they are safe
+       These are balance numbers, not decoration, and that is the whole reason
+       they live here rather than beside the animation code: an entrance is a
+       window in which a husk is ON SCREEN AND HARMLESS. Every existing
+       `state === "spawn"` guard already skips it for targeting, the strike cone
+       and the Execute cone, so lengthening the entrance directly lowers wave
+       pressure. `spawnRise` (0.7) is REUSED as the travel beat rather than
+       replaced, so the change from the old floor-rise is only the recovery:
+
+           crash  = spawnRise + entryDown  = 1.70s   (was 0.70s)
+           float  = spawnRise + entryLand  = 1.20s   (was 0.70s)
+
+       ⚠️ A husk mid-entrance still OCCUPIES its slot against `liveCap`, so a
+       longer entrance thins the room slightly at high wave counts. Half a
+       second against a wave that takes tens of seconds, and it buys the one
+       thing the old rise never had: a beat where you can see what is coming
+       and decide where to stand. If it ever needs to be free instead of cheap,
+       the answer is to spawn earlier, not to cut the animation short. */
+    entryCrash: 0.65,        // odds of the CRASHED entrance. Weighted toward it on
+                             // Jordan's 8/22 call — the Thinned are dropped through
+                             // the world, not deployed, and most of them land badly.
+    entryDown: 1.0,          // sec getting up, after a crash landing. ⚠️ RAISED from
+                             // 0.45 by _clipfit.js: the real "Getting Up" take is
+                             // 7.63s and even its decisive half is 2.67s, so half a
+                             // second needed 17x and would have shipped as a blur.
+                             // THIS IS THE DIAL if the scramble reads wrong — the
+                             // window is fitted to it, so the speed follows it.
+    entryLand: 0.5,          // sec absorbing a clean landing, after a float. Raised
+                             // from 0.30 for the same reason, measured the same way.
+
     /* --- husk SEARCH (VR-119) — what LOSING you looks like ---------------
        These are the card, not decoration. Shroud had no visible feedback at
        all: you vanished and the room carried on running at you, so the only
@@ -1872,7 +1902,42 @@ var HUSKFIT = {
   win: {
     attack: [0, 26],
     hurt:   [0, 14],
-    down:   [86, 118]
+    down:   [86, 118],
+
+    /* --- VR-118, the ENTRANCE, and every one of these was MEASURED ---------
+       Same method as the three above and as VR-111 before them: per-frame joint
+       rotation energy out of husk.glb, not a guess. `_clipfit.js` now reads the
+       real durations back and fails if any of them needs a scale outside the
+       clamp — which is how three of these four were caught before shipping.
+
+       THE RAW TAKES DO NOT FIT AND THAT IS THE POINT. Untrimmed they need
+       6.5x (fall), 17.0x (getup) and 7.1x (land) to hit their beats. A husk
+       getting up at seventeen times speed is VR-111's failure verbatim, and
+       nothing outside this harness would have thrown.
+
+       fall  ("Falling", 4.53s) is a LOOP — energy is flat across all 137 frames,
+             because it is a man falling through air with nothing to land on.
+             Any slice reads as falling, so take exactly one beat of it: 21
+             frames IS `spawnRise` at 30fps, so the drop plays at 1.00x, the
+             speed it was authored at.
+       float ("Floating", 3.63s) is the same shape, flat across 110 frames, and
+             gets the same treatment for the same reason. 1.00x.
+       getup ("Getting Up", 7.63s) is the dangerous one, and it is dangerous in
+             the opposite direction to `down`. Energy is near-zero for the first
+             15 frames and the last 25 — he lies still, writhes on the floor for
+             three seconds, THEN pushes up, with peak motion at f120. The whole
+             10-90% band is 154 frames, and compressing five seconds into a
+             one-second beat looks like a man scrambling in a silent film.
+             So the window is the DECISIVE half only — [120,200], the push-up
+             through to standing — and the writhing is dropped. He hits the
+             floor at the end of `fall`, and the next thing he does is get up.
+             2.67x: brisk, which is the tone (dry, not a pratfall), not frantic.
+       land  ("Landing", 2.13s) impacts at f15 and has spent itself by f30; the
+             remaining 35 frames are a stand-still. Window [0,30], 2.00x. */
+    fall:   [0, 21],
+    float:  [0, 21],
+    getup:  [120, 200],
+    land:   [0, 30]
   },
   // Locomotion is velocity-driven, not window-fitted: REF is the ground speed
   // each clip looks natural at. Husks run between 3.0 and 5.6 u/s (enemySpeed
@@ -2632,6 +2697,93 @@ var ENEMIES = [];
 var HUSK_COL = 0x9a90a8;
 var huskBody = new THREE.MeshStandardMaterial({ color: HUSK_COL, roughness: 0.95, metalness: 0.05,
   emissive: new THREE.Color(0x2a1a3a), emissiveIntensity: 0.9 });
+
+/* ===================== the husk PHASE-IN (VR-118) =======================
+   Jordan, 9/5: *"we could even use the same or similar effect that we use for
+   Vesper to come in, only the enemies should be red, and should be coarser."*
+
+   THIS IS A REUSE, NOT A SECOND SHADER, and the discipline that makes it one
+   is that the noise, the moving tear and the burn edge are the SAME three
+   ideas as `DISSOLVE_BODY` in the player module. Three things differ, and each
+   one is a decision rather than a tweak.
+
+   1. RED, and it stays out of Vesper's palette. `VEIL_BURN`/`VEIL_GLASS`/
+      `VEIL_RIM` are his — indigo, because the Shroud is his verb. The seam that
+      drops husks into the room is the world tearing, and the Thinned carry the
+      "one dying ember" of canon, so this set is its own three constants. They
+      are NOT uniforms shared with his: two characters reading one colour is how
+      a later card recolours a husk and quietly recolours the player.
+
+   2. COARSER, and the histogram HAD TO BE REFITTED. This is the part that is
+      easy to get wrong invisibly. Vesper's field is `26.0*0.65 + 7.0*0.35`, and
+      the logistic on the next line (`k=10.9`, `mu=0.505`) is not a magic number
+      — it is that field's own CDF, which is what makes his sweep cover a linear
+      share of the surface per unit of `uDissolve`. Change the octaves and that
+      constant is fitted to a distribution that no longer exists: the front
+      stalls, then takes the whole husk at once.
+      MEASURED, not guessed, the same way VR-111's windows were. The coarse mix
+      `9.0*0.7 + 3.5*0.3` has mu 0.549, sd 0.166, and its own best fit is
+      **k = 9.3, mu = 0.547** — worst deviation from a straight line 1.7% across
+      the ten deciles, against 1.6% for the shipped Vesper pair. So it sweeps as
+      evenly as his does, in slabs instead of grain.
+
+   3. IT RUNS BACKWARDS. Vesper dissolves OUT: `uDissolve` 0 -> 1, skin eaten
+      away to glass. A husk arrives, so it runs 1 -> 0 and the same front closes
+      OVER him — glass resolving into a body rather than a body coming apart.
+      One value, one direction flag's worth of difference, and it is why there
+      is no "materialise" shader to keep in sync with the "dematerialise" one.
+
+   ⚠️ NO GLASS SHELL. Vesper's dissolve reveals a fresnel-lit glass Vesper
+   underneath, because he is STEPPING OUT of the world and something has to be
+   left standing there. A husk being dropped INTO it has nothing underneath yet,
+   so what sits behind the front is nothing — the fragment is discarded. That is
+   the honest read and it is also cheaper. */
+var HUSK_BURN  = 0xFF3B24;      // the hot edge of the arrival front
+var HUSK_EMBER = 0xC01A12;      // the duller red just behind it
+var HUSK_PHASE_HEAD = [
+  "uniform float uPhase;",      // 1 = not here yet, 0 = fully arrived
+  "uniform vec3  uPBurn;",
+  "uniform vec3  uPEmber;",
+  "float hk_hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }",
+  "float hk_noise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);",
+  "  return mix(mix(hk_hash(i),hk_hash(i+vec2(1.,0.)),f.x),",
+  "             mix(hk_hash(i+vec2(0.,1.)),hk_hash(i+vec2(1.,1.)),f.x), f.y); }"
+].join("\n");
+var HUSK_PHASE_BODY = [
+  "if (uPhase > 0.001) {",
+  // the coarse field — slabs, not grain. See (2) above for the refit.
+  "  float hkN = hk_noise(vUv * 9.0) * 0.7 + hk_noise(vUv * 3.5) * 0.3;",
+  "  hkN = 1.0 / (1.0 + exp(-9.3 * (hkN - 0.547)));",
+  // Anything the front has not reached yet is simply not here. No glass.
+  "  if (hkN < uPhase) discard;",
+  // the burn, on the arriving side of the front. Hot at the edge, ember behind.
+  "  float hkE = 1.0 - smoothstep(0.0, 0.17, hkN - uPhase);",
+  "  gl_FragColor.rgb = mix(gl_FragColor.rgb, mix(uPEmber, uPBurn, hkE * hkE), hkE * 0.92);",
+  "}"
+].join("\n");
+
+/* Every husk material — the primitives' and every rig's — is a clone of
+   `huskBody`, and a clone carries `onBeforeCompile` with it. So hooking the
+   TEMPLATE is what gives all of them the effect, and three.js compiles each
+   clone separately, which is what gives each one its OWN uniforms. The uniforms
+   object is parked on `material.userData` because that is the only handle a
+   caller has after compilation. */
+huskBody.onBeforeCompile = function (shader) {
+  shader.uniforms.uPhase  = { value: 0 };
+  shader.uniforms.uPBurn  = { value: new THREE.Color(HUSK_BURN) };
+  shader.uniforms.uPEmber = { value: new THREE.Color(HUSK_EMBER) };
+  shader.fragmentShader = HUSK_PHASE_HEAD + "\n" + shader.fragmentShader.replace(
+    "#include <dithering_fragment>", HUSK_PHASE_BODY + "\n#include <dithering_fragment>");
+  this.userData.vrPhase = shader.uniforms.uPhase;
+};
+/* THE ONE WRITER. Everything that wants a husk part-arrived goes through here,
+   including the rig sync — so a rig attached mid-entrance inherits the value
+   rather than starting at zero and popping fully-formed into a room its
+   primitive was still fading into. Silently a no-op until the material has
+   compiled, which is correct: an uncompiled material has not been drawn yet. */
+function setPhase(mat, v) {
+  if (mat && mat.userData && mat.userData.vrPhase) mat.userData.vrPhase.value = v;
+}
 (function () {
   var torsoG = new THREE.CylinderGeometry(0.22, 0.30, 0.85, 8);
   var headG = new THREE.SphereGeometry(0.19, 10, 8);
@@ -2657,6 +2809,9 @@ var huskBody = new THREE.MeshStandardMaterial({ color: HUSK_COL, roughness: 0.95
       live: false, x: 0, z: 0, yaw: 0, hp: 0, maxHp: 0, speed: 0,
       state: "", t: 0, stagger: 0, kx: 0, kz: 0, flash: 0, lunge: false,
       dissolve: 0, seekX: 0, seekZ: 0, wander: 0,
+      // VR-118 — the entrance's own memory, declared here so the shape of an
+      // enemy is one list rather than fields that appear on first spawn
+      entry: "", entryBeat: "", entryX: 0, entryZ: 0,
       // VR-119 — the SEARCH state's own memory
       beat: "walk", beatT: 0, lostT: 0, searchT: 0, patrolX: 0, patrolZ: 0
     });
@@ -3772,6 +3927,15 @@ function faceModel() { return FACE[cam.mode] || FACE_DEF[cam.mode] || "move"; }
 
 function aimFor(moving, tvx, tvz) {
   var m = faceModel();
+  /* VR-160 — a verb in flight OWNS the aim, and this line is what makes
+     verbYaw() stick. Without it, `player.aim` is recomputed from the stick
+     every frame (updatePlayer writes it AFTER the input block runs), so the
+     snap that tryExecute() and startStrike() perform would be erased on the
+     same tick it happened and the body would lunge sideways while facing
+     wherever the legs last went. Holding is not a special case bolted on: it
+     is the same "a released stick HOLDS" rule below, applied to the moment
+     the stick is not what is steering. */
+  if (verbActing()) return player.aim;
   if (m === "look" || m === "strafe") return mouse.yaw;
   /* "move" and "free" — and HOLDING on release is half the fix. Snapping back
      to the camera the moment the stick centres is the moonwalk arriving on
@@ -3779,6 +3943,50 @@ function aimFor(moving, tvx, tvz) {
      where he is going in both, which is the point of them being one family. */
   return moving ? Math.atan2(-tvx, -tvz) : player.aim;
 }
+
+/* VR-160 — THE ONE ANSWER to "which way is a VERB pointed", and it is a
+   different question from "which way is the body facing". Conflating the two is
+   the whole bug.
+
+   THE REPORT. Jordan, 9/5: *"Right mouse button isn't working for third
+   person."* The button was fine. `FACE.third` is `"move"`, so `aimFor()` above
+   returns the direction you last WALKED — and `tryExecute()`, `strikeHits()`,
+   the crosshair's execute tell and `veilstep()` all resolved their cones
+   against that. Orbit the camera onto a husk behind you, press RMB, and the
+   120-degree cone is still pointed where your legs went: no target, and
+   `tryExecute()` returns SILENTLY — no cooldown, no lunge, no sound. That is
+   indistinguishable from a dead button. The crosshair never heated either,
+   because the tell read the same wrong angle, so the game agreed with itself
+   while being wrong. First person was the only mode that worked, and only
+   because `strafe` happens to return `mouse.yaw`.
+
+   WHY mouse.yaw IS THE HONEST ANSWER AND NOT AN APPROXIMATION. The worry is
+   parallax: the rig is over-the-shoulder (`TP_OFF.x` 0.95), so a ray from the
+   camera through screen centre does not pass through the player. It does not
+   have to. `updateCamera()` aims the camera at `player + forward * 6`, so the
+   view CONVERGES on the player's own camera-yaw line at 6 units — and
+   `execRange` is 6.4. The crosshair therefore already marks a point on the
+   line this function returns, at almost exactly the distance the verb reaches.
+   Pitch drops out too: the horizontal projection of the camera forward is
+   `(-sin(yaw), -cos(yaw))` scaled by `cos(pitch)`, so the yaw is `mouse.yaw`
+   whatever you are looking up or down at. No raycast, no second targeting rule.
+
+   ARCADE IS THE ONE MODE THAT KEEPS THE BODY, and for a reason rather than out
+   of caution: its camera is a FIXED rig on `ARC.yaw`, so there is no "where you
+   are looking" for a verb to follow. `player.yaw` is the aim there, exactly as
+   it was.
+   ⚠️ Which also means arcade's `look` face model is currently inert — `mouse.yaw`
+   only moves under pointer lock, and `wantsLock()` is false in arcade — so it
+   offers a mouse-aim that no mouse can move. Named on VR-160, deliberately NOT
+   fixed here: this card is about the cone, and that one is about the lock. */
+var CAM_AIMS = { arcade: false, third: true, first: true };
+function verbYaw() { return CAM_AIMS[cam.mode] ? mouse.yaw : player.yaw; }
+
+/* Is a verb resolving right now? Read by aimFor() above, and the reason it is a
+   named function rather than the expression inlined twice is that `playerFace()`
+   asks the identical question to decide its turn rate — two copies of "is he
+   acting" is how one of them ends up meaning something slightly different. */
+function verbActing() { return player.atkStage >= 0 || player.execLunge > 0; }
 
 /* AIM:END */
 
@@ -3799,10 +4007,11 @@ function playerFace(dt) {
      not have (logged on VR-157). What code CAN do is stop asking one angle to
      be two things.
 
-     · player.yaw     — what the VERBS use. Strike cone, Execute cone, the
-                        crosshair's execute tell, the blade trail. Eases toward
-                        player.aim exactly as before: UNCHANGED, so `look`
-                        keeps its whole point, which is that the mouse aims.
+     · player.yaw     — the SETTLED facing. Eases toward player.aim exactly as
+                        before. VR-160 note: this is no longer what the verbs
+                        read — they read verbYaw()/player.aim, because a yaw
+                        that eases at 13/s is a facing, not an aim, and the
+                        Execute cone was silently resolving against it.
      · player.bodyYaw — what you SEE. The model, the sprite, the afterimages.
                         In every model but `look` it simply follows player.yaw,
                         so the two stay identical and nothing else moves.
@@ -3814,7 +4023,7 @@ function playerFace(dt) {
      which converges inside stage 0's 0.09s wind-up: **the strike still lands
      where the mouse points.** Standing still, he turns to face the mouse,
      which is the aiming pose you would expect from this model. */
-  var acting = player.atkStage >= 0 || player.execLunge > 0;
+  var acting = verbActing();   // VR-160 — one definition, shared with aimFor()
   var rate = acting ? 26 : 13;
   player.yaw += shortAngle(player.yaw, player.aim) * clamp(rate * dt, 0, 1);
 
@@ -3831,6 +4040,9 @@ function playerFace(dt) {
 }
 
 function startStrike() {
+  /* VR-160 — commit the aim BEFORE atkStage is set, because setting it is what
+     makes verbActing() true and freezes this value in for the whole swing. */
+  player.aim = verbYaw();
   player.atkStage = player.nextStage;
   player.atkPhase = "wind"; player.atkT = 0; player.atkHit = false;
   player.chainT = 0;
@@ -3840,7 +4052,12 @@ function startStrike() {
 function strikeHits() {
   var st = C.strike[player.atkStage];
   var arc = st.arc * Math.PI / 180, half = arc / 2;
-  var fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
+  /* VR-160 — the aim the swing was COMMITTED to, not the body's current angle.
+     startStrike() snapped player.aim to verbYaw() and aimFor() has been holding
+     it there ever since, so reading it here means the contact frame lands where
+     the crosshair was when you pressed — not wherever the body has managed to
+     rotate to by then, which at rate 26 is only most of the way. */
+  var fx = -Math.sin(player.aim), fz = -Math.cos(player.aim);
   var veiled = player.veiled;
   var any = false;
   for (var i = 0; i < ENEMIES.length; i++) {
@@ -3892,8 +4109,10 @@ function updateStrike(dt) {
       trail.geometry = TRAIL_GEO[player.atkStage];
       trail.material.opacity = 0.55;
       trail.position.set(player.x, 1.05, player.z);
-      // centred on facing, because that is where strikeHits() tests
-      trail.rotation.z = -player.yaw - st.arc * Math.PI / 360;
+      // centred on the COMMITTED aim, because that is where strikeHits() tests
+      // (VR-160 — it read player.yaw, which after the split is the body. The
+      //  trail lying about the hitbox is the exact thing VR-104 fixed once.)
+      trail.rotation.z = -player.aim - st.arc * Math.PI / 360;
       trailSpin = (player.atkStage === 1) ? 1 : -1;   // the backhand sweeps back
       trail.scale.setScalar(st.range / 2.7);
       strikeHits();
@@ -3919,8 +4138,12 @@ function veilstep() {
   if (keys.a) mx -= 1; if (keys.d) mx += 1;
   /* VR-124 — the same basis walking uses, and the same facing everything else
      reads. Direction keys resolve against the camera; no direction keys means
-     "blink where I am pointing", which is player.aim rather than wherever the
-     camera happens to be looking. */
+     "blink where I am pointing".
+     VR-160 — and "where I am pointing" is now the crosshair, not the legs. A
+     blink is the one verb with no wind-up to turn into, so it takes verbYaw()
+     directly rather than committing player.aim: the body follows the travel on
+     the next frame either way, and freezing the aim through a 0.1s blink would
+     only fight the stick you are already holding. */
   var basis = moveBasis(!!(mx || mz));
   var cy = Math.cos(basis), sy = Math.sin(basis);
   var dx, dz;
@@ -3928,7 +4151,7 @@ function veilstep() {
     var fx = -sy, fz = -cy, rx = cy, rz = -sy;
     dx = fx * -mz + rx * mx; dz = fz * -mz + rz * mx;
     var l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
-  } else { dx = -Math.sin(player.aim); dz = -Math.cos(player.aim); }
+  } else { var vy = verbYaw(); dx = -Math.sin(vy); dz = -Math.cos(vy); }
 
   ghost(player.x, player.z, player.bodyYaw);   // VR-157 — an afterimage is a picture of the BODY
   burst(player.x, 1.0, player.z, 12, VESPER, 5.0, { grav: -3, lifeScale: 0.7, scale: 0.8 });
@@ -3950,7 +4173,8 @@ function veilstep() {
 
 function tryExecute() {
   if (player.execCd > 0 || player.atkStage >= 0) return;
-  var fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
+  var aim = verbYaw();                                  // VR-160 — where the crosshair is
+  var fx = -Math.sin(aim), fz = -Math.cos(aim);
   var half = C.execArc * Math.PI / 360;
   var best = null, bestD = 1e9;
   for (var i = 0; i < ENEMIES.length; i++) {
@@ -3967,6 +4191,10 @@ function tryExecute() {
   }
   if (!best) return;
 
+  /* VR-160 — the body turns into it, and ONLY once a target is found. A whiffed
+     Execute costs nothing and returns above, so snapping the facing on a miss
+     would spin him for a verb that never happened. */
+  player.aim = aim;
   player.execCd = C.execCd;
   // lunge to just short of the target
   var dx2 = best.x - player.x, dz2 = best.z - player.z, dd = Math.hypot(dx2, dz2) || 1;
@@ -4001,7 +4229,8 @@ function updateShroud(dt) {
   // A stalk is deliberately below shroudBreakSpeed, so this comparison alone
   // keeps the veil — no special case needed. _sim.js asserts the relationship.
   var moving = Math.hypot(player.vx, player.vz) > C.shroudBreakSpeed;
-  var acting = player.atkStage >= 0 || player.execLunge > 0;
+  var acting = verbActing();   // VR-160 — the third copy of this question, folded in
+
   if (moving || acting || !player.alive) {
     if (player.veiled) breakShroud(false);
     else { player.still = 0; player.shroud = damp(player.shroud, 0, 12, dt); }
@@ -4209,11 +4438,59 @@ function spawnEnemy(spec) {
   e.mat.color.setHex(HUSK_COL); e.mat.transparent = false; e.mat.opacity = 1;
   e.eyeMat.color.setHex(0xD65CDC);
   e.g.scale.setScalar(1);
-  e.g.position.set(x, -1.6, z);
+
+  /* ---- VR-118: the ENTRANCE -------------------------------------------
+     Two flavours, chosen once here so every layer downstream reads a decision
+     rather than re-rolling one. Weighted toward the crash on Jordan's call:
+     the Thinned are dropped through the world, not deployed.
+
+       crash  fall  -> face down -> getup -> [dizzy|scan]   (entryCrash odds)
+       float  float -> land      -> [scan]
+
+     THEY COME OUT OF THE SEAM, NOT UP THROUGH THE FLOOR (the 8/22 direction
+     change). `spawnEnemy` already picks a point on the arena EDGE, which is
+     where the seam is, so the position was never wrong — only the motion. The
+     entrance now starts at `ENTRY_H` above that point and moves INWARD along
+     the arena normal, so they arrive out of the break rather than rising out
+     of the ground under your feet.
+
+     A CRASH TRAVELS AND A FLOAT DOES NOT, and that is the whole read: the
+     crashed ones are thrown clear and land short of where they were aimed,
+     the deliberate ones come straight down on the spot. `entryX/entryZ` hold
+     the launch point so the arc can be interpolated rather than integrated —
+     a husk mid-entrance must land exactly where the sim thinks it is, and a
+     velocity that anything else can nudge is how that stops being true. */
+  var crash = Math.random() < C.entryCrash;
+  e.entry = crash ? "fall" : "float";
+  e.entryBeat = "in";
+  var inward = Math.atan2(-x, -z);                  // toward the middle of the arena
+  e.entryX = x; e.entryZ = z;
+  if (crash) {
+    // thrown clear of the seam — the landing point is where the sim put it,
+    // so the LAUNCH point is walked back out toward the wall instead.
+    e.entryX = x - Math.sin(inward) * ENTRY_THROW;
+    e.entryZ = z - Math.cos(inward) * ENTRY_THROW;
+    e.entryX = clamp(e.entryX, -A + 0.3, A - 0.3);
+    e.entryZ = clamp(e.entryZ, -A + 0.3, A - 0.3);
+  }
+  e.g.position.set(e.entryX, ENTRY_H, e.entryZ);
+  e.g.rotation.set(0, e.yaw + MESH_PI, 0);
+  setPhase(e.mat, 1);                                // not here yet
   e.g.visible = true;
   tearAt(x, z);
   return true;
 }
+
+/* How high the break sits, and how far a crashed husk is thrown out of it.
+   Not in BALANCE: neither number changes what a husk can DO, only where the
+   picture of its arrival starts. The duration is the balance quantity, and
+   that one is in BALANCE. */
+var ENTRY_H = 3.1;
+var ENTRY_THROW = 2.4;
+/* Squared distance an arriving husk is treated as being nearer by, when the LOD
+   hands out rigs. Large enough to beat the arena's diagonal, so an entrance
+   anywhere outranks a bystander anywhere. */
+var ENTRY_LOD_BONUS = 4000;
 
 function updateEnemies(dt) {
   var pAlive = player.alive;
@@ -4243,13 +4520,65 @@ function updateEnemies(dt) {
       continue;
     }
 
-    /* ---- rising through the tear ---- */
+    /* ---- arriving through the seam (VR-118) ----
+       Two beats, and the husk is `state === "spawn"` for both — which is what
+       keeps every existing guard (targeting, the strike cone, the Execute cone)
+       correct without knowing this rewrite happened.
+
+       · "in"  — travel. A float comes straight down; a crash is thrown inward
+                 on an arc and faceplants. The phase-in front closes over him
+                 across the WHOLE beat, so he is solid the moment he lands
+                 rather than resolving while lying there.
+       · "up"  — recovery. Face down for `entryDown`, or absorbing a clean
+                 landing for `entryLand`. He is still harmless here, and that
+                 is deliberate: the beat exists so you can see him arrive and
+                 decide where to be. */
     if (e.state === "spawn") {
       e.t += dt;
-      var s = clamp(e.t / C.spawnRise, 0, 1);
-      e.g.position.set(e.x, lerp(-1.6, 0, s * s), e.z);
+      if (e.entryBeat === "in") {
+        var s = clamp(e.t / C.spawnRise, 0, 1);
+        /* Gravity is s*s for the fall and a settle for the float. Interpolated
+           from the launch point rather than integrated — see spawnEnemy(). */
+        var gy = (e.entry === "fall") ? (1 - s * s) : (1 - s) * (1 - s) * (1 + s * 0.9);
+        e.g.position.set(lerp(e.entryX, e.x, e.entry === "fall" ? s * s : s),
+                         ENTRY_H * gy,
+                         lerp(e.entryZ, e.z, e.entry === "fall" ? s * s : s));
+        e.g.rotation.y = e.yaw + MESH_PI;
+        /* THE PRIMITIVE RIG HAS NO CLIPS, so it gets the motion in the only
+           vocabulary it has: a crash tips face-first and a float stays upright.
+           ⚠️ GUARDED ON `e.rig`, and it has to be: the rig root is a CHILD of
+           `e.g`, so tipping the group would tip the clip too and a rigged husk
+           would play "Falling" while ALSO being rotated 66 degrees forward. The
+           primitive is the fallback picture, not a layer under the model. */
+        e.g.rotation.x = (!e.rig && e.entry === "fall") ? -1.15 * s * s : 0;
+        setPhase(e.mat, 1 - s);
+        if (e.rig) setPhase(e.rig.mat, 1 - s);
+        if (s >= 1) {
+          e.entryBeat = "up"; e.t = 0;
+          e.g.position.set(e.x, 0, e.z);
+          setPhase(e.mat, 0);
+          if (e.rig) setPhase(e.rig.mat, 0);
+          if (e.entry === "fall") {
+            // the landing is the only loud thing about the entrance
+            burst(e.x, 0.25, e.z, 9, 0x9c9ab2, 3.4, { grav: -4, upScale: 0.5, scale: 0.8 });
+            ring(e.x, 0.03, e.z, 0.2, 1.4, 0.4, 0xE8574F);
+            tearAt(e.x, e.z);   // the seam snaps shut behind him
+          }
+        }
+        continue;
+      }
+      // "up" — the recovery beat
+      var rt = (e.entry === "fall") ? C.entryDown : C.entryLand;
+      var u = clamp(e.t / rt, 0, 1);
+      e.g.position.set(e.x, 0, e.z);
       e.g.rotation.y = e.yaw + MESH_PI;
-      if (e.t >= C.spawnRise) { e.state = "seek"; e.t = 0; }
+      // face down, then push up through the back half of the beat
+      e.g.rotation.x = (!e.rig && e.entry === "fall")
+        ? -1.15 * (1 - clamp((u - 0.35) / 0.65, 0, 1)) : 0;
+      if (e.t >= rt) {
+        e.g.rotation.x = 0;
+        e.state = "seek"; e.t = 0; e.entryBeat = "";
+      }
       continue;
     }
 
@@ -4508,7 +4837,12 @@ function updateHUD() {
   // crosshair heats when an Execute would land
   var hot = false;
   if (player.execCd <= 0 && player.alive) {
-    var fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw), half = C.execArc * Math.PI / 360;
+    /* VR-160 — the SAME angle tryExecute() will use. These two loops are near
+        duplicates and always were; the duplication is exactly what let the tell
+        agree with a broken cone for three weeks. Any change to one is a change
+        to both, and _billboard.js asserts they read one source. */
+    var av = verbYaw();
+    var fx = -Math.sin(av), fz = -Math.cos(av), half = C.execArc * Math.PI / 360;
     for (var j = 0; j < ENEMIES.length; j++) {
       var e = ENEMIES[j];
       if (!e.live || e.state === "die" || e.state === "spawn") continue;
@@ -4526,7 +4860,12 @@ var LS = "vr_arena_";
 function gwho() { return localStorage.getItem("vr_who") || localStorage.getItem("vr_account") || "anon"; }
 var SB_URL = "https://jbprsreaosetmqxhsnkl.supabase.co";
 var SB_KEY = "sb_publishable_fzxPI3jRqOmA-VIfWFuoNQ_zgXgBtAS";
-var GAME_ID = "proving-ground";
+/* VR-162 — this MUST equal the level `id` in the VEILRUN.games manifest for this
+   build, because that id IS the game_id the board reads. It said "proving-ground"
+   from 2026-08-10 to 2026-09-05 while the manifest said "proving-ground-v1", so
+   every run posted to the v0 archive's board and the site showed an empty one.
+   "proving-ground" now belongs to versions/v0/ alone. Change neither by itself. */
+var GAME_ID = "proving-ground-v1";
 function saveScore(score) {
   try {
     fetch(SB_URL + "/rest/v1/game_scores", { method: "POST",
@@ -4924,6 +5263,27 @@ function updateSprites() {
         hs.m.visible = false;
         e.g.visible = true;
         if (e.state !== "die") SHADOWS.drop(e.x, e.z, 0.46 * (e.g.scale.y || 1), 1);
+        continue;
+      }
+      /* VR-118 — AN ENTRANCE IS NEVER DRAWN AS A CARD, and this is the LOD
+         decision the card asked to be made explicitly rather than discovered.
+
+         A billboard husk has no dissolve shader and no clips: it cannot phase
+         in, cannot fall and cannot get up. Given a rig it looks right, and the
+         LOD now hands arriving husks a rig first — but the budget can be spent
+         (`HUSKLOD.mode` set to a small number by hand, or an honest p95 having
+         dropped it), and a card that pops into existence fully formed while the
+         husk beside it fades in is worse than either treatment alone.
+
+         So the fallback is the PRIMITIVE rig, not the card. It is the plainer
+         picture, and it is the one that carries the effect: `e.mat` is a clone
+         of the same `huskBody` every rig uses, so it phases in exactly the same
+         red, and the tip-and-recover above gives it the motion in the only
+         vocabulary it has. Chain unchanged in spirit (model -> billboard ->
+         primitive); it is only the entrance that skips the middle rung. */
+      if (e.state === "spawn") {
+        hs.m.visible = false;
+        e.g.visible = true;
         continue;
       }
       e.g.visible = false;
@@ -5618,6 +5978,14 @@ var HUSKMODEL = (function () {
      LOD gave it a mesh this frame — that would make the swap visible, and the
      swap being invisible is the whole premise of the budget. */
   function clipFor(e) {
+    /* VR-118 — the entrance is four of the nine clips that shipped in husk.glb
+       on 8/22 and have sat unused since. It is checked FIRST because a husk
+       mid-entrance is also `stagger === 0` and `state !== "die"`, so it would
+       otherwise fall through to "run" and sprint at you from mid-air. */
+    if (e.state === "spawn") {
+      return (e.entryBeat === "in") ? e.entry               // "fall" | "float"
+                                    : (e.entry === "fall" ? "getup" : "land");
+    }
     if (e.state === "die") return "down";
     if (e.state === "wind" || e.state === "strike") return "attack";
     if (e.stagger > 0) return "hurt";
@@ -5631,6 +5999,14 @@ var HUSKMODEL = (function () {
     if (name === "attack") return C.enemyWind + C.enemyActive + C.enemyRec;
     if (name === "hurt")   return C.enemyStagger;
     if (name === "down")   return HUSK_DIE_T;
+    /* VR-118 — the entrance clips are fitted to the BALANCE beats exactly as
+       the combat ones are, which is the whole point of this function existing:
+       nothing decides how fast a husk looks twice. A "Falling" take that runs
+       long would otherwise still be in mid-air when the sim has already put him
+       on the floor — VR-111's failure, in a new clip. */
+    if (name === "fall" || name === "float") return C.spawnRise;
+    if (name === "getup")  return C.entryDown;
+    if (name === "land")   return C.entryLand;
     return 0;   // run, walk, scan and dizzy all loop — see LOOPS
   }
 
@@ -5661,6 +6037,15 @@ var HUSKMODEL = (function () {
     rig.root.rotation.set(0, 0, 0);
     rig.e = e; e.rig = rig;
     silence(rig);
+    /* VR-118 — inherit however far arrived the husk already is. Without this a
+       rig handed to a husk mid-entrance renders solid on its first frame while
+       the primitive it replaced was still fading in, which reads as a pop.
+       ⚠️ Sits AFTER silence() rather than before it on purpose: `_clipfit.js`
+       pins `rig.e = e; e.rig = rig;` and the silence call as adjacent, because
+       a rig that changes hands without being silenced strands the previous
+       husk's clamped one-shot under the new one's clip. Nothing may come
+       between them. */
+    setPhase(rig.mat, (e.mat.userData.vrPhase ? e.mat.userData.vrPhase.value : 0));
     // a fresh phase per attachment, so two husks that spawn together and pick
     // the same clip still do not breathe in step
     rig.phase = Math.random() * TAU;
@@ -5713,6 +6098,13 @@ var HUSKMODEL = (function () {
       var dx = e.x - camera.position.x, dz = e.z - camera.position.z;
       var d = dx * dx + dz * dz;
       if (e.rig) d -= HUSKLOD.swapMargin * HUSKLOD.swapMargin;   // incumbents keep their seat
+      /* VR-118 — an ARRIVING husk jumps the queue, because the entrance is the
+         one moment that is nothing but animation. A card cannot fall, cannot
+         get up and cannot phase in; a husk that spends its whole entrance as a
+         billboard has no entrance at all. It is a bounded exception — the
+         entrance is about a second, and `liveCap` bounds how many can be in one
+         at once — so it borrows a seat rather than raising the budget. */
+      if (e.state === "spawn") d -= ENTRY_LOD_BONUS;
       order.push({ e: e, d: d });
     }
     order.sort(function (a, b) { return a.d - b.d; });
@@ -5779,6 +6171,9 @@ var HUSKMODEL = (function () {
       rig.mat.transparent = e.mat.transparent;
       rig.mat.opacity = e.mat.opacity;
       rig.mat.depthWrite = e.mat.opacity > 0.92;
+      // VR-118 — the phase-in is enemy state like the rest of it, so it is
+      // inherited here rather than driven twice
+      setPhase(rig.mat, (e.mat.userData.vrPhase ? e.mat.userData.vrPhase.value : 0));
 
       if (rig.emberMat) {
         /* Two beats that never line up, and a dropout. A steady pulse would
@@ -7649,7 +8044,14 @@ var BENCH = (function () {
       e.state = "seek"; e.t = 0; e.stagger = 0; e.kx = e.kz = 0; e.flash = 0; e.dissolve = 0;
       e.yaw = ang; e.wander = 0; e.seekX = 0; e.seekZ = 0;
       e.mat.color.setHex(HUSK_COL); e.mat.transparent = false; e.mat.opacity = 1;
+      setPhase(e.mat, 0);   // VR-118 — a recycled husk is never half-arrived
+      e.entry = ""; e.entryBeat = "";
       e.g.scale.setScalar(1); e.g.position.set(e.x, 0, e.z); e.g.visible = true;
+      /* VR-118 — and it stands UP. `spawnEnemy` resets the whole rotation, but
+         this path never went through it: a benchmark seeded straight after a
+         crash landing would have measured a row of husks lying on their faces,
+         and a benchmark measuring the wrong pose is a number nobody can use. */
+      e.g.rotation.set(0, e.yaw + MESH_PI, 0);
     }
   }
 

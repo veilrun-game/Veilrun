@@ -466,10 +466,19 @@ ok("one fan per strike stage, built from the BALANCE arcs",
 ok("the fan drawn is the stage's own",
    /trail\.geometry = TRAIL_GEO\[player\.atkStage\];/.test(html),
    "one shared 97-degree ring understated the 290-degree finisher three to one");
-ok("and it is CENTRED on facing, where strikeHits actually tests",
-   /trail\.rotation\.z = -player\.yaw - st\.arc \* Math\.PI \/ 360;/.test(html) &&
+/* VR-160 — retargeted from player.yaw to player.aim, and NOT as a rename. The
+   trail must be drawn from whatever strikeHits() tests, and that moved: the cone
+   now reads the aim the swing was COMMITTED to, because player.yaw eases at
+   26/s and is therefore still catching up at the contact frame. Drawing from
+   player.yaw now would put the picture a few degrees behind the damage — VR-104's
+   bug back in a smaller size, which is precisely what this check exists to stop. */
+ok("and it is CENTRED on the committed aim, where strikeHits actually tests",
+   /trail\.rotation\.z = -player\.aim - st\.arc \* Math\.PI \/ 360;/.test(html) &&
    !/-player\.yaw \+ \(player\.atkStage === 2 \? 0/.test(html),
    "stage 1 used to be drawn at +0.85 — a picture of the swing somewhere the damage is not");
+ok("and the cone it is drawn to match reads that same value",
+   /var fx = -Math\.sin\(player\.aim\), fz = -Math\.cos\(player\.aim\);/.test(html),
+   "trail and hitbox are one claim — asserting the picture alone is how they drift apart");
 ok("handedness comes from the decay sweep, not from an offset fan",
    /trail\.rotation\.z \+= trailSpin \* dt \* 9;/.test(html) &&
    /trailSpin = \(player\.atkStage === 1\) \? 1 : -1;/.test(html));
