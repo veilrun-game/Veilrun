@@ -123,8 +123,39 @@ if (!DOCS) {
 console.log("  docs: " + DOCS.replace(HOME, "~"));
 
 /* ---- what the docs mention ---------------------------------------------- */
+
+/* WALK THE TREE, NOT JUST THE TOP LEVEL (VR-166, 9/6).
+ *
+ * This used to be a flat `readdirSync`, which meant **every canon file in a subfolder
+ * read as if it did not exist.** It failed VR-164 as undocumented while VR-164's write-up
+ * sat in `_setup/agent-config/README — why this lives here.md`, written the same day.
+ *
+ * That is a worse failure than an ordinary false positive, for two reasons. The
+ * pre-commit hook blocks on FAIL, so it blocked **every commit in the repo**. And the
+ * remedy this file prints is "add it to NO_DOCS_NEEDED WITH A REASON" — so the obvious
+ * way out was to write down that VR-164 needed no canon entry, which is false, and which
+ * would have outlived anyone's memory of why it was written. **A check that is wrong in
+ * a direction that invites a false exemption is worse than one that is merely wrong.**
+ *
+ * ⚠️ THE MASKING RISK FROM 8/30 APPLIES HERE TOO, and recursion widens it. A status
+ * snapshot listing "VR-130 shipped" makes cards look documented without documenting a
+ * decision, and one buried in a subfolder is harder to notice than one at the top level.
+ * The 8/30 note above is the precedent: if this check ever goes quiet about something you
+ * expected it to catch, look for a list before you trust the silence. */
+function docsUnder(dir) {
+  var out = [];
+  fs.readdirSync(dir).forEach(function (name) {
+    var full = path.join(dir, name);
+    var st;
+    try { st = fs.statSync(full); } catch (e) { return; }
+    if (st.isDirectory()) out = out.concat(docsUnder(full));
+    else if (/\.md$/i.test(name)) out.push(path.relative(DOCS, full));
+  });
+  return out;
+}
+
 var documented = {};
-var docFiles = fs.readdirSync(DOCS).filter(function (f) { return /\.md$/i.test(f); });
+var docFiles = docsUnder(DOCS);
 docFiles.forEach(function (f) {
   var body = fs.readFileSync(path.join(DOCS, f), "utf8");
   citedIn(body).forEach(function (id) {

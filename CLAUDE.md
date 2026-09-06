@@ -220,7 +220,7 @@ in the folder before assuming:
   that the `matchMedia` string in the script and the `@media` query in the stylesheet are
   **character-identical**: CSS decides whether the pad is on screen, JS decides whether it's wired,
   and a mismatch reads as "mobile is broken" rather than as a one-character typo.
-  It has since grown to **374 checks and executes three of the file's marked blocks** — `TOUCH`,
+  It has since grown to **494 checks and executes three of the file's marked blocks** — `TOUCH`,
   `SHEET` and `PRESET` — so it is the harness that covers the settings dialog's focus contract and
   its stages as well as the pad. **VR-131/132/133 (8/23) added:** the three-stage sheet walked
   end to end (tiles → group → control → back out), a markup check that **no `.trow` sits outside a
@@ -262,6 +262,13 @@ with staged changes (~0.8s vs ~38s for the full sweep).
 anything missing is reported as drift. That is the 8/31 failure turned into a mechanism: the list
 above can still go stale, but it can no longer go stale *quietly*. It found `_arena.js` missing on
 its first run, four days after VR-148 added it.
+
+**AND THE NUMBERS THIS FILE STATES, not just the filenames (VR-161, 9/6).** Every `N checks` claim
+in §4 is compared against what that harness printed in the same run — no second invocation. A
+missing filename is visible from `ls`; a wrong count is only visible by running the harness, which
+is why `_touch.js` sat here claiming 374 while printing 494. **A count that FELL is called out
+separately** — rising means the harness grew, falling means assertions were deleted. It reports and
+never edits: a checker that rewrites the thing it checks can only ever agree with itself.
 
 **A git `pre-commit` hook runs `_ship.js --staged` on every commit**, including from GitHub Desktop —
 the only point in the workflow where a check runs without being asked, because the commit happens
