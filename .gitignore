@@ -43,6 +43,22 @@ desktop.ini
 # does NOT untrack what is already tracked — see the VR-164 card for that.
 .claude/
 
+# --- Canon: the working folders, not the pointer stubs (VR-165, 9/7) ---
+# CLAUDE.md §1: canon docs and the art working folder are edited ONLY in
+# `Claude Access`, and §5 explains why committing them is publication rather than
+# a private slip — unreleased character kits, world lore, unratified proposals.
+# It was missed by one `git add` on 8/30.
+#
+# Nothing matches today, and that is the point: this is the EARLY defence, for the
+# case where someone copies a folder in before anyone reviews it. `_pathcheck.js`
+# is the late one and catches it from the index if it gets added anyway.
+#
+# These two names are exact and do NOT cover the repo's deliberately-empty pointer
+# stubs, which are named "_Project Knowledge — see Claude Access/" and
+# "Art & Assets — see Claude Access/". Those stay tracked, with a .gitkeep each.
+_Project Knowledge/
+Art & Assets/
+
 # --- Local dev servers & scratch ---
 # Local-only helper scripts (e.g. a python http.server launcher for playtesting
 # the 3D builds). Keep these OUTSIDE the repo where possible.

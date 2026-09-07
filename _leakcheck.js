@@ -78,12 +78,41 @@ if (!terms.length) {
 }
 console.log("  " + terms.length + " withheld term(s) loaded (not printed, by design)");
 
-/* Scan what git actually tracks — that is exactly the set Pages deploys. An
-   untracked scratch file is not published and is not this check's business. */
+/* TWO SETS, TWO VERDICTS (VR-165 Gap A, 9/7).
+ *
+ * This file used to scan only `git ls-files` and say so: *"An untracked scratch file
+ * is not published and is not this check's business."* **True, and false one `git add`
+ * from now.** A withheld term can sit in an untracked-but-unignored file and this check
+ * reports PASS right up to the `git add .` that publishes it — which is the moment
+ * nobody is reading harness output.
+ *
+ * So the untracked-unignored set — exactly what `git add .` would sweep in — is scanned
+ * too, and it FAILS rather than warns. The counter-argument is `_docscheck.js`'s rule
+ * that failing on a normal state teaches people to ignore a harness; the answer is that
+ * withheld terms in the working directory are not a normal state. The private place is
+ * `Claude Access`, not this repo's working dir. If this starts firing routinely, that
+ * judgement was wrong and it should be revisited on a card, not softened here.
+ *
+ * The two verdicts are worded differently on purpose: "already public" and "one `git
+ * add` away" are different facts with different remedies.
+ *
+ * `-z` BECAUSE `core.quotePath` MANGLES NON-ASCII PATHS. Plain `git ls-files` returns
+ * this repo's pointer stubs as `"_Project Knowledge \342\200\224 see ..."` — quoted and
+ * backslash-escaped — and the `readFileSync` below then throws ENOENT into a `catch`
+ * that returns silently. Result: every tracked file with a non-ASCII character in its
+ * path was skipped WITHOUT BEING COUNTED as skipped. Two files today, both empty
+ * keepers, so nothing leaked — but the two it skipped were the canon pointer stubs,
+ * the highest-risk paths in the repo, and every canon filename in this project carries
+ * an em dash. Caught by mutation-testing `_pathcheck.js`, not by this file. */
 var files = [];
+var untracked = [];
+function gitPaths(cmd) {
+  return cp.execSync(cmd, { cwd: ROOT, encoding: "utf8" })
+    .split("\0").map(function (f) { return f.trim(); }).filter(Boolean);
+}
 try {
-  files = cp.execSync("git ls-files", { cwd: ROOT, encoding: "utf8" })
-    .split("\n").map(function (f) { return f.trim(); }).filter(Boolean);
+  files = gitPaths("git ls-files -z");
+  untracked = gitPaths("git ls-files -z --others --exclude-standard");
 } catch (e) {
   console.log("\n  ~ SKIP — git is unavailable (" + e.message.split("\n")[0] + ")");
   process.exit(0);
@@ -94,24 +123,41 @@ try {
 var SKIP_EXT = /\.(png|jpg|jpeg|webp|gif|ico|glb|gltf|mp3|wav|ogg|mp4|woff2?|ttf|otf|zip|pdf)$/i;
 var SELF = path.basename(__filename);
 
-var hits = [], scanned = 0;
-files.forEach(function (rel) {
-  if (SKIP_EXT.test(rel) || path.basename(rel) === SELF) return;
-  var body;
-  try { body = fs.readFileSync(path.join(ROOT, rel), "utf8"); } catch (e) { return; }
-  scanned++;
-  var lines = body.split("\n");
-  terms.forEach(function (term, ti) {
-    /* Whole words only. Without the boundary, a term that is a substring of a
-       normal word fails on every innocent use and the check gets switched off. */
-    var re = new RegExp("\\b" + term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i");
-    lines.forEach(function (line, li) {
-      if (re.test(line)) hits.push({ file: rel, line: li + 1, index: ti });
+/* One scanner, both sets. A second copy of the matching logic is how the two verdicts
+   would drift into disagreeing about what counts as a hit. UNREADABLE FILES ARE
+   COUNTED AND NAMED rather than swallowed — a scanner that silently skips input while
+   printing PASS is the bug this function was just fixed for, and the honest version
+   says how many it could not open. */
+function scan(list, out) {
+  var seen = 0, unreadable = [];
+  list.forEach(function (rel) {
+    if (SKIP_EXT.test(rel) || path.basename(rel) === SELF) return;
+    var body;
+    try { body = fs.readFileSync(path.join(ROOT, rel), "utf8"); }
+    catch (e) { unreadable.push(rel); return; }
+    seen++;
+    var lines = body.split("\n");
+    terms.forEach(function (term, ti) {
+      /* Whole words only. Without the boundary, a term that is a substring of a
+         normal word fails on every innocent use and the check gets switched off. */
+      var re = new RegExp("\\b" + term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i");
+      lines.forEach(function (line, li) {
+        if (re.test(line)) out.push({ file: rel, line: li + 1, index: ti });
+      });
     });
   });
-});
+  return { scanned: seen, unreadable: unreadable };
+}
 
-console.log("  " + scanned + " tracked text file(s) scanned");
+var hits = [], pending = [];
+var t = scan(files, hits);
+var u = scan(untracked, pending);
+
+console.log("  " + t.scanned + " tracked text file(s) scanned");
+console.log("  " + u.scanned + " untracked-unignored text file(s) scanned  (what `git add .` would sweep in)");
+t.unreadable.concat(u.unreadable).forEach(function (rel) {
+  console.log("  ~ could not read, so NOT scanned: " + rel);
+});
 
 /* COMMIT MESSAGES ARE A PUBLIC SURFACE TOO, and a separate one — they are not
    files, so the scan above cannot see them. If the GitHub repo is public they are
@@ -168,4 +214,20 @@ if (hits.length) {
   console.log("  the term list. Do not silence this by narrowing the scan.");
   process.exit(1);
 }
-console.log("PASS — nothing withheld appears in anything git tracks.");
+/* LAST, BECAUSE IT IS THE LEAST BAD OF THE THREE and the order is the severity order:
+   a commit message is permanent, a tracked file is already public, and this one is
+   still private. Still a FAIL — the remedy is different, not optional. */
+if (pending.length) {
+  console.log("FAIL — withheld material is one `git add` away from being published:\n");
+  pending.forEach(function (h) {
+    console.log("  " + h.file + ":" + h.line + "   (term #" + (h.index + 1) + " in the list)");
+  });
+  console.log("\n  These files are UNTRACKED and UNIGNORED, so nothing is public yet — but");
+  console.log("  `git add .` would sweep them in, and this repo is the live site (CLAUDE.md §5).");
+  console.log("  The term is not printed here, for the same reason as above.");
+  console.log("\n  Move the file to `Claude Access`, which is the private place — or add it to");
+  console.log("  `.gitignore` if it is genuinely local scratch. Do not just commit around it.");
+  process.exit(1);
+}
+console.log("PASS — nothing withheld appears in anything git tracks, or in anything");
+console.log("       one `git add` would publish.");

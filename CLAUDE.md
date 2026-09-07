@@ -263,12 +263,35 @@ in the folder before assuming:
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 
-**Site-level, six at the repo root, all dependency-free and mutation-tested:** `_check.js` (the
+**Site-level, seven at the repo root, all dependency-free and mutation-tested:** `_check.js` (the
 `VEILRUN.games` manifest), `_hubcheck.js` (Hub states), `_updatescheck.js` (weekly-hero states),
 `_grefcheck.js` (Game Reference catalogue + matcher), `_docscheck.js` (ship-checklist item 5),
-`_leakcheck.js` (withheld lore, §5). Everything relevant must be green before hand-off.
+`_leakcheck.js` (withheld lore, §5), `_pathcheck.js` (withheld *locations*, §5).
+Everything relevant must be green before hand-off.
 
-**RUN THEM WITH `node _ship.js` (VR-159, 9/4) — it is a RUNNER, not a seventh check.** It asserts
+**`_pathcheck.js` (added 9/7, VR-165) asks the question content-scanning CANNOT.** Its sibling asks
+whether a file *contains* something withheld; VR-164 proved that is not the whole question, because
+`.claude/agents/release-steward.md` was tracked, scanned and **clean — zero term matches** — and was
+world-readable at a guessable URL from the day it was committed. **"No withheld term" does not mean
+"safe to publish."** It therefore holds a rule about **location, not content**: a denylist of paths
+that must never be tracked — `.claude/`, the canon working folders, secrets by filename — plus the
+rule that §1's `— see Claude Access` pointer stubs **stay empty**, which was a sentence until now.
+It runs **38 checks** and is the one root harness that **never skips**: it needs no term list and no
+mount, which is exactly why it could not live inside the lore scan (that file exits early without
+the mount, so a location rule placed after it would silently never run — VR-164's failure
+reproduced structurally). It reads `git ls-files`, which is the **index**, so it stops a bad
+`git add` at the pre-commit hook rather than one commit after it is public.
+
+⚠️ **Both publish checks read `git ls-files -z` and split on NUL, and that is load-bearing, not
+style.** Plain `git ls-files` applies `core.quotePath` and returns a non-ASCII path
+backslash-escaped and quoted — this repo's two pointer stubs come back as
+`"_Project Knowledge \342\200\224 see ..."`. `_leakcheck.js` then failed to open them and its
+`catch` returned **silently**, so every tracked file with an em dash in its path was skipped
+*without being counted as skipped*. Two files on 9/7, both empty keepers — but they were the canon
+pointer stubs, and every canon filename in this project has an em dash in it. Found by
+mutation-testing `_pathcheck.js`; `_leakcheck.js` now also **names any file it could not read**.
+
+**RUN THEM WITH `node _ship.js` (VR-159, 9/4) — it is a RUNNER, not an eighth check.** It asserts
 nothing of its own; every claim it prints belongs to the harness that made it. It **discovers by
 listing the folders**, so it cannot inherit a stale list — including this one — and it excludes the
 two tools below by name. It reports **PASS / SKIP / FAIL as three states**, because a run where the
@@ -298,6 +321,12 @@ carries the script to recreate it.
 exactly the set Pages publishes — for terms listed in `Claude Access`. It **skips without the
 mount** and **never prints the matched term**, because a red build ends up in logs and
 screenshots. Mutation-tested against five breaks including the real one it was written for.
+**As of VR-165 (9/7) it scans a SECOND set**: `git ls-files --others --exclude-standard`, the
+untracked-unignored files a `git add .` would sweep in. That set also **fails** rather than warns —
+the private place is `Claude Access`, not this repo's working directory — but it is worded
+separately, because *"already public"* and *"one `git add` away"* are different facts with
+different remedies. ⚠️ The old comment at its scan (*"an untracked scratch file is not published
+and is not this check's business"*) was true, and false one `git add` later.
 
 **`_docscheck.js` (added 8/30 with VR-140) is the only harness that checks a rule about
 PROCESS rather than about code**, and the only one whose subject matter lives outside the repo.
@@ -340,9 +369,15 @@ the set look larger than it is.
   it is publication, not a private slip.** The withheld terms live in `Claude Access` at
   `_Project Knowledge/_setup/confidential-terms.txt` (never here — a list in the repo publishes
   the words it protects), and **`_leakcheck.js` enforces it** against everything `git ls-files`
-  reports, which is exactly what Pages deploys. It names the file and line and **never prints the
-  term**. Applies to `js/data.js` above all: an updates entry is the fastest route from a private
-  idea to the whole crew. **This rule exists because it was broken the day it was written** — the
+  reports — plus, as of VR-165, everything a `git add .` would sweep in. It names the file and line
+  and **never prints the term**. Applies to `js/data.js` above all: an updates entry is the fastest
+  route from a private idea to the whole crew.
+- **Some files are wrong to publish because of WHERE THEY ARE, whatever is inside them.**
+  `.claude/agents/release-steward.md` was scanned and **clean**, and was still world-readable for a
+  day (VR-164). **A clean content scan is not permission to publish.** `_pathcheck.js` holds the
+  location rule: `.claude/`, the canon working folders, secrets by filename, and §1's pointer stubs
+  staying empty. **Adding a path to that denylist is cheap; removing one is a publishing decision
+  and belongs on a card.** **This rule exists because it was broken the day it was written** — the
   CLAUDE.md paragraph in §1 recording that the material must stay private originally named it, on
   a public page. Writing "keep this secret" in a doc is not a mechanism.
 - Games are **standalone single-file** `games/<name>/index.html`, inline IIFE, no build step.
