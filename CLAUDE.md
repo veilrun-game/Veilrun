@@ -220,9 +220,12 @@ in the folder before assuming:
   that the `matchMedia` string in the script and the `@media` query in the stylesheet are
   **character-identical**: CSS decides whether the pad is on screen, JS decides whether it's wired,
   and a mismatch reads as "mobile is broken" rather than as a one-character typo.
-  It has since grown to **494 checks and executes three of the file's marked blocks** — `TOUCH`,
-  `SHEET` and `PRESET` — so it is the harness that covers the settings dialog's focus contract and
-  its stages as well as the pad. **VR-131/132/133 (8/23) added:** the three-stage sheet walked
+  It has since grown to **544 checks and executes FOUR of the file's marked blocks** — `TOUCH`,
+  `SHEET`, `PRESET` and `AIM` — so it is the harness that covers the settings dialog's focus
+  contract and its stages, and the aim solver, as well as the pad. *(This sentence said "three"
+  and named only the first three from the day `AIM` was added; `_ship.js` checks the NUMBER and
+  could not see the omission — a count is machine-checkable and a list of names is not.)*
+  **VR-131/132/133 (8/23) added:** the three-stage sheet walked
   end to end (tiles → group → control → back out), a markup check that **no `.trow` sits outside a
   `<section class="tsec">`** (such a row gets a list entry and no tile — fine on desktop,
   unreachable on a phone), all four combinations of the pad's handedness/verb-order mirrors, the
@@ -234,6 +237,13 @@ in the folder before assuming:
   peek for the one group that is watched at the pad, the message bar's state-vs-event priority,
   and the husk model budget checked against the shipped wave curve rather than a retyped copy —
   so "the first billboard appears at wave N" stays true if the curve moves.
+  **VR-126 (9/7) added the directional hold**, driven as real pointer events against the stub: the
+  22% dead zone measured from where the thumb LANDED, release always firing (and firing *undirected*
+  inside the dead zone), the setting proven byte-identical to today's tap path while it is off, Stalk
+  proven to never open a hold, a lost pointer capture proven to drop a half-finished verb rather than
+  fire it, and the overlay proven to read every cone and range from `BALANCE` rather than a retyped
+  copy. It also asserts the **desktop** stub answers `holdYaw()` — `verbYaw()` calls it every frame
+  in every mode, so a missing stub is a TypeError in the desktop aim path thrown by a mobile feature.
   **`_shroud.js` (added 8/23 with VR-130) is the only harness that RENDERS.** It lifts the veil
   shader out of `index.html` — never a retyped copy — compiles it in a real GL context, draws
   the whole Shroud transition and **counts pixels**, so it can assert that skin, glass and the

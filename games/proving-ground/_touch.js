@@ -125,6 +125,7 @@ const state = {
   game: { running: true, over: false, paused: false },
   player: { stepCharges: 2, stepTimer: 0, execCd: 0 },
   cam: { mode: "arcade" },
+  ARC: { yaw: 0 },
   helpOpenFlag: false,
   paused: []
 };
@@ -138,6 +139,10 @@ const sandbox = {
   game: state.game,
   player: state.player,
   cam: state.cam,
+  /* VR-126 — the hold resolves a screen drag against the camera, and in arcade
+     the camera IS the fixed rig. Without ARC here the module throws the moment
+     a thumb travels past the dead zone in the one mode this card exists for. */
+  ARC: state.ARC,
   C,
   helpOpen: () => state.helpOpenFlag,
   clamp: (v, a, b) => Math.max(a, Math.min(b, v)),
@@ -2241,7 +2246,7 @@ ok("a preset name never becomes markup",
    /o\.textContent = slots\[i\]\.n;/.test(html) && !/innerHTML[^\n]*slots/.test(html),
    "the dropdown is the one place a shared string would otherwise be parsed as HTML");
 ok("names are cleaned and length-capped at the door",
-   P.clean("  a b  ").length > 0 && P.clean("x".repeat(400)).length === P.NAMEMAX &&
+   P.clean("  a\u0000b  ").length > 0 && P.clean("x".repeat(400)).length === P.NAMEMAX &&
    P.clean(null) === "" && P.clean({}) === "");
 
 /* ======================================================================
@@ -2252,17 +2257,29 @@ console.log("\n[facing and camera are two values]");
    mouse.yaw is also the movement basis outside arcade. So on touch, moving with
    no look input left the body pointing at the camera and sliding sideways.
    These are behaviour claims, so the block is EXECUTED rather than grepped. */
+/* VR-126 — hoisted out of the block below so the directional-hold section at
+   the end of this file can drive the SAME executed aim path rather than
+   building a second context that would agree with itself. */
+let A126 = null;
+const aimHold = { v: null };
 const aimSrc = (html.match(/AIM:BEGIN[\s\S]*?-+ \*\/([\s\S]*?)\/\* AIM:END/) || [])[1];
 ok("the AIM block is marked and found", !!aimSrc);
 if (aimSrc) {
   /* VR-160 — atkStage/execLunge join the stub because aimFor() now HOLDS while a
      verb is in flight, and a hold the stub cannot see is a contract the stub
      cannot prove. atkStage is -1 (idle) rather than 0: zero is a valid stage. */
+  /* VR-126 — verbYaw() now asks the pad for a held aim on every call, so the
+     stub has to answer. `aimHold.v` is the pad's whole contract with the aim
+     path reduced to one value: null means "no hold", a number means "this way".
+     Null by default, which is what makes every VR-150/156/160 assertion below
+     a REGRESSION test of the hold as well as of itself. */
   const A = { cam: { mode: "arcade" }, ARC: { yaw: 0 }, mouse: { yaw: 0 },
               TOUCH: false, player: { aim: 0, yaw: 0, atkStage: -1, execLunge: 0 },
+              TPAD: { holdYaw: () => aimHold.v },
               Math: Math };
   vm.createContext(A);
   vm.runInContext(aimSrc, A);
+  A126 = A;
 
   const NORTH = 0;                     // atan2(-0, -1) — straight up the screen
   const EAST  = Math.atan2(-1, -0);    // travelling +x
@@ -2628,6 +2645,221 @@ ok("nor off setCam, which early-returns",
    "setCam returns before doing anything when V.cam already equals the mode — the <select>'s own path");
 ok("and again after the list entries exist",
    /TUNE\.buildStage\(\);[\s\S]{0,420}TUNE\.syncCamRows\(\);/.test(html));
+
+/* ======================================================================
+   VR-126 — the directional hold
+   ======================================================================
+   Phase 2 item 5, and the four rulings are the four things asserted: the dead
+   zone, release-always-fires, the tap contract, and an overlay that reads
+   BALANCE rather than a retyped copy.
+
+   These are BEHAVIOUR claims wherever they can be — the module is driven with
+   real pointer events against the stub, and the aim path is executed — because
+   the failure this card can actually ship is not a typo. It is a hold that
+   fires the wrong verb, or an aim that leaks into the body's facing, and
+   neither is visible in the text. */
+console.log("\n[VR-126 — a held button carries a direction]");
+
+/* The ruling's number, read from the file and asserted ONCE, then used by every
+   drag below — so the tests move with the shipped dead zone instead of quietly
+   proving a constant this harness invented. */
+const HOLD_DEAD = +((html.match(/var HOLD_DEAD = ([\d.]+);/) || [])[1]);
+ok("the dead zone is the ruling's 22% of the button radius", HOLD_DEAD === 0.22,
+   "signed off 8/31 — 22%, deliberately NOT the movement stick's 30%: nothing is gated on it");
+
+const R126 = 50;                        // the stub button is 100x100
+const IN  = Math.round(R126 * HOLD_DEAD) - 2;   // inside  the dead zone
+const OUT = Math.round(R126 * HOLD_DEAD) + 6;   // outside it
+const CX = 50, CY = 50;
+const resetP = () => { state.pressed.strike = state.pressed.exec = state.pressed.step = false;
+                       state.mouse.l = false; TPAD.holdConsume(); };
+const setHold = on => TPAD.setLayout({ hand: "left", size: 1, verbs: "fillstop",
+                                       labels: true, camstick: "1", hold: on });
+
+/* ---- the tap contract: with the setting OFF nothing moved ---------------- */
+setHold(false); resetP();
+btn("strike").fire("pointerdown", { pointerId: 40, clientX: CX, clientY: CY });
+ok("setting OFF — strike still fires on pointerdown, and still latches mouse.l",
+   state.pressed.strike === true && state.mouse.l === true,
+   "the default-off guarantee: this is the code that shipped, reached unchanged");
+btn("strike").fire("pointerup", { pointerId: 40 });
+ok("setting OFF — and still releases mouse.l", state.mouse.l === false);
+resetP();
+btn("exec").fire("pointerdown", { pointerId: 41, clientX: CX, clientY: CY });
+ok("setting OFF — Execute still fires on pointerdown", state.pressed.exec === true);
+ok("setting OFF — the pad reports no hold", TPAD.holdYaw() === null && TPAD.holdVerb() === null);
+
+/* ---- with it ON, the verb waits for the release ------------------------- */
+setHold(true); resetP();
+btn("strike").fire("pointerdown", { pointerId: 42, clientX: CX, clientY: CY });
+ok("setting ON — pointerdown alone fires nothing",
+   state.pressed.strike === false && state.mouse.l === false,
+   "a verb that resolved on press could never be steered — the strike's whole wind-up is 0.09s");
+ok("setting ON — the button says it is aiming", btn("strike")._cls.has("vaim"));
+ok("the pad reports which verb is held", TPAD.holdVerb() === "strike");
+ok("but reports no direction yet — the thumb has not moved", TPAD.holdYaw() === null);
+
+/* ---- the dead zone, from the LANDING point rather than the centre -------- */
+btn("strike").fire("pointermove", { pointerId: 42, clientX: CX, clientY: CY - IN });
+ok("a drag inside the dead zone is still no direction", TPAD.holdYaw() === null,
+   IN + "px of " + R126 + " — the tail of a tap, not an aim");
+btn("strike").fire("pointermove", { pointerId: 42, clientX: CX, clientY: CY - OUT });
+ok("past it, the hold has a direction", TPAD.holdYaw() !== null, OUT + "px");
+
+/* ---- screen up is the camera's forward, exactly as the stick's up is ----- */
+state.cam.mode = "arcade"; state.ARC.yaw = 0;
+btn("strike").fire("pointermove", { pointerId: 42, clientX: CX, clientY: CY - OUT });
+ok("dragging straight up aims where the camera faces", Math.abs(TPAD.holdYaw() - 0) < 1e-9,
+   "one idiom for both thumbs — up is forward on the stick, so up is forward here");
+btn("strike").fire("pointermove", { pointerId: 42, clientX: CX + OUT, clientY: CY });
+ok("dragging right aims a quarter turn clockwise",
+   Math.abs(TPAD.holdYaw() - (-Math.PI / 2)) < 1e-9);
+state.ARC.yaw = 1.23;
+btn("strike").fire("pointermove", { pointerId: 42, clientX: CX, clientY: CY - OUT });
+ok("and the whole thing rides the rig, not the world",
+   Math.abs(TPAD.holdYaw() - 1.23) < 1e-9,
+   "a world-fixed aim would mean steering by compass the moment the view turned");
+
+/* ---- release fires, and the aim outlives the pointer by one tick --------- */
+btn("strike").fire("pointerup", { pointerId: 42 });
+ok("release fires the verb", state.pressed.strike === true);
+ok("the held aim is still readable when the verb RESOLVES",
+   Math.abs(TPAD.holdYaw() - 1.23) < 1e-9,
+   "pressed.* is consumed on the next sim tick — an aim cleared on pointerup arrives too late");
+ok("the aiming class is gone with the thumb", !btn("strike")._cls.has("vaim"));
+TPAD.holdConsume();
+ok("and holdConsume() releases it, so normal aiming resumes", TPAD.holdYaw() === null,
+   "one tick, not one frame — a latch that never clears is a stuck aim");
+
+/* ---- release INSIDE the dead zone still fires, undirected ---------------- */
+resetP();
+btn("exec").fire("pointerdown", { pointerId: 43, clientX: CX, clientY: CY });
+btn("exec").fire("pointermove", { pointerId: 43, clientX: CX, clientY: CY - IN });
+btn("exec").fire("pointerup", { pointerId: 43 });
+ok("RULING — release always fires, even with no direction", state.pressed.exec === true,
+   "cancel-on-release was rejected: a button that sometimes does nothing is VR-138's complaint");
+ok("and it fires UNDIRECTED, through today's aim", TPAD.holdYaw() === null,
+   "which is what makes a sub-threshold tap the same act it has always been");
+
+/* ---- Veilstep too, and Stalk never ------------------------------------- */
+resetP();
+btn("step").fire("pointerdown", { pointerId: 44, clientX: CX, clientY: CY });
+ok("Veilstep waits for the release as well", state.pressed.step === false);
+btn("step").fire("pointerup", { pointerId: 44 });
+ok("and fires on it", state.pressed.step === true);
+resetP();
+const stalkWas = TPAD.stalking();
+btn("stalk").fire("pointerdown", { pointerId: 45, clientX: CX, clientY: CY });
+ok("STALK is untouched — it latches on pointerdown, hold or no hold",
+   TPAD.stalking() !== stalkWas && TPAD.holdVerb() === null,
+   "a latch has no cone and nothing to point; opening a hold on it would strand the toggle");
+
+/* ---- a hold that is taken away is dropped, never fired ------------------- */
+resetP();
+btn("strike").fire("pointerdown", { pointerId: 46, clientX: CX, clientY: CY });
+btn("strike").fire("pointermove", { pointerId: 46, clientX: CX, clientY: CY - OUT });
+btn("strike").fire("lostpointercapture", { pointerId: 46 });
+ok("a lost capture drops the hold without firing", state.pressed.strike === false,
+   "a panel opening over a held button is not a release, and 'release always fires' is a promise about releases");
+ok("and leaves no direction behind", TPAD.holdYaw() === null);
+
+resetP();
+btn("strike").fire("pointerdown", { pointerId: 47, clientX: CX, clientY: CY });
+btn("strike").fire("pointermove", { pointerId: 47, clientX: CX, clientY: CY - OUT });
+TPAD.release();
+ok("dropHeldInput() drops a half-finished verb too", TPAD.holdYaw() === null && state.pressed.strike === false,
+   "the same argument VR-132 made for the camera stick, and a hold is worse: it is half a verb");
+
+resetP();
+btn("strike").fire("pointerdown", { pointerId: 48, clientX: CX, clientY: CY });
+setHold(false);
+ok("turning the setting off mid-hold clears it", TPAD.holdVerb() === null);
+setHold(true);
+
+/* ---- one hold at a time ------------------------------------------------- */
+resetP();
+btn("strike").fire("pointerdown", { pointerId: 49, clientX: CX, clientY: CY });
+btn("exec").fire("pointerdown", { pointerId: 50, clientX: CX, clientY: CY });
+ok("a second button cannot open a second hold", TPAD.holdVerb() === "strike",
+   "one timer, one capture, one decision point — the VR-134 note's whole warning");
+btn("strike").fire("pointerup", { pointerId: 49 });
+ok("and only the held verb fires", state.pressed.strike === true && state.pressed.exec === false);
+resetP(); setHold(false);
+
+/* ---- the aim path: the hold IS the verb's direction --------------------- */
+console.log("\n[VR-126 — the hold reaches the verbs through verbYaw(), and nothing else]");
+if (aimSrc) {
+  const A = A126;
+  A.cam.mode = "third"; A.mouse.yaw = 2.4; A.player.yaw = 0.9; A.player.aim = 0;
+  A.player.atkStage = -1; A.player.execLunge = 0;
+  aimHold.v = null;
+  ok("no hold — verbYaw is the line that shipped", A.verbYaw() === 2.4);
+  aimHold.v = 1.75;
+  ok("a hold overrides the crosshair in third person", A.verbYaw() === 1.75);
+  A.cam.mode = "arcade"; A.ARC.yaw = 0.3;
+  ok("AND IN ARCADE, which is the case the card exists for", A.verbYaw() === 1.75,
+     "arcade's aim was the body, so on a phone 'aim' meant 'walk at it' — this is the first aim it has ever had");
+  aimHold.v = null;
+  ok("and arcade falls straight back to the body when the hold ends", A.verbYaw() === 0.9);
+
+  /* THE "not a fourth writer" CLAIM, proven rather than asserted. */
+  aimHold.v = 1.75;
+  A.cam.mode = "third"; A.FACE.third = "move"; A.player.aim = 0.42;
+  ok("a hold does NOT leak into aimFor() — the body still follows the legs",
+     A.aimFor(false, 0, 0) === 0.42,
+     "the hold points the VERB; the facing solver is untouched, which is why player.aim gains no writer");
+  aimHold.v = null;
+}
+
+/* ---- the overlay's numbers are BALANCE's ------------------------------- */
+console.log("\n[VR-126 — the arc draws the REAL cone]");
+const arcFn = (html.match(/function updateAimArc\(dt\)[\s\S]*?\n\}/) || [""])[0];
+ok("the overlay is its own named function", !!arcFn, "GRD item 3");
+ok("it reads the strike cone from BALANCE",
+   /C\.strike\[/.test(arcFn) && /\.arc\b/.test(arcFn) && /\.range\b/.test(arcFn));
+ok("it reads Execute's cone from BALANCE",
+   /C\.execArc/.test(arcFn) && /C\.execRange/.test(arcFn));
+ok("it reads the blink distance from BALANCE", /C\.stepDist/.test(arcFn));
+ok("and it retypes NONE of them",
+   !/\b(100|110|290|120|2\.5|2\.6|3\.1|6\.4|5\.6)\b/.test(arcFn),
+   "a copied cone drifts the first time one is retuned, and the player is aiming BY it");
+ok("it damps through MOTION rather than ignoring it", /MOTION\.ghost/.test(arcFn),
+   "VR-103 — an overlay you are staring at is the worst place to ignore reduced motion");
+ok("but keeps a floor, so reduced motion loses the ANIMATION and not the aid",
+   /0\.34 \+ 0\.66 \* MOTION\.ghost/.test(arcFn),
+   "the same shape hitmark() uses with MOTION.flash");
+ok("the frame loop actually calls it", /updateAimArc\(raw\)/.test(html));
+ok("and updatePlayer releases the one-tick latch",
+   /pressed\.strike = false;[\s\S]{0,700}TPAD\.holdConsume\(\)/.test(html),
+   "after the verbs are consumed, never before");
+
+/* ---- the desktop contract ---------------------------------------------- */
+const stubApi = (html.match(/var api = \{[\s\S]*?\n  \};/) || [""])[0];
+ok("the DESKTOP stub answers holdYaw", /holdYaw: function \(\) \{ return null; \}/.test(stubApi),
+   "verbYaw() calls it every frame in every mode — a missing stub is a TypeError in the desktop aim path");
+ok("and stubs the rest of the hold's surface",
+   /setHold: function \(\) \{\}/.test(stubApi) && /holdConsume: function \(\) \{\}/.test(stubApi) &&
+   /holdVerb: function \(\) \{ return null; \}/.test(stubApi));
+
+/* ---- the setting ------------------------------------------------------- */
+ok("the toggle exists and defaults OFF", /dirhold: "0"/.test(html),
+   "the tap path is untouched while it is off, so it can ship to everyone");
+ok("it is a Controls key, pinned like the other five", /pin\("dirhold", \["0", "1"\], "t-dirhold"\)/.test(html));
+ok("it writes through apply('pad')", /bindPick\("t-dirhold", "dirhold", "pad"\)/.test(html));
+ok("it is OUT of the preset spec",
+   !/(pick|num)\("dirhold"/.test(html),
+   "how somebody holds their own phone is not a fact another player's setup gets to assert");
+const dirRow = (html.match(/<div class="trow"><label for="t-dirhold"[\s\S]*?<\/div>/) || [""])[0];
+/* Anchored on the SECTION TAG, not on `data-watch="pad"` — that string also
+   appears in two prose comments tens of kilobytes earlier, and an indexOf that
+   lands in a comment measures a range the row cannot be inside. Written the
+   wrong way first and caught by this assertion failing on correct markup, which
+   is the same trap the syncCamUI check above documents. */
+const padSecAt = html.indexOf('class="tsec touchonly" data-ico="i-cat-pad"');
+ok("its row is inside the touch-only Controls section",
+   padSecAt > 0 && html.indexOf(dirRow) > padSecAt &&
+   html.indexOf(dirRow) < html.indexOf("</section>", padSecAt),
+   "a .trow outside a .tsec gets a list entry and no tile — unreachable on a phone");
 
 console.log("\n" + "=".repeat(58));
 console.log((fails ? "FAIL — " + fails + " of " : "PASS — ") + checks + " checks\n");

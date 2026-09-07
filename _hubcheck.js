@@ -46,10 +46,14 @@ function renderFor(state) {
   return ctx.VApp.__renderHub(state.hub);
 }
 
-const D_UPDATES_TOP = (() => {
-  const ctx = build({ ls: {} });
-  return ctx.VEILRUN.updates[0];
-})();
+const D_BOOT = build({ ls: {} });
+const D_UPDATES_TOP = D_BOOT.VEILRUN.updates[0];
+/* The hub renders every title through VC.esc, so a check that the page NAMES the last
+   update has to compare against the ESCAPED prefix. Searching for the raw substring
+   passed for thirty-odd entries only because no title had ever contained & < > or " —
+   VR-126's is the first that does, and it failed the moment it landed. esc maps one
+   character at a time, so esc(prefix) is genuinely a prefix of esc(title). */
+const ESC = D_BOOT.VC.esc;
 
 /* ---------------------------------------------------------------- 1. first visit */
 {
@@ -110,7 +114,7 @@ const D_UPDATES_TOP = (() => {
 {
   const html = renderFor({ ls: { vr_account: "Big Papa" }, hub: { type: "ext", lastSeen: 1, unseen: [], waiting: [] } });
   ok("ext caught-up: says so", /You're all caught up/.test(html));
-  ok("ext caught-up: names last update", html.indexOf(D_UPDATES_TOP.title.slice(0, 24)) > -1);
+  ok("ext caught-up: names last update", html.indexOf(ESC(D_UPDATES_TOP.title.slice(0, 24))) > -1);
 }
 
 /* ------------------------------------- 6. signed out: first time vs returning device */

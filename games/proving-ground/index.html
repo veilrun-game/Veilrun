@@ -996,6 +996,10 @@ body.noanim.tuning .screen.on{transition:none}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:.02em}
 /* Stalk latches — a crouched creep you hold for seconds isn't a thumb you can spare */
 #vpad .vbtn.on{background:rgba(150,90,230,.42);border-color:var(--accent)}
+/* VR-126 — a held button that is steering a verb has to look different from one
+   that is merely pressed, or the only feedback for the whole gesture is on the
+   ground behind your own thumb. Colour, like every other state on this pad. */
+#vpad .vbtn.vaim{background:rgba(214,92,220,.45);border-color:#D65CDC}
 #vpad .vbtn.vready{border-color:var(--accent)}
 /* THE COOLDOWN IS THE BUTTON (VR-112). Same vocabulary as .pipsegs/.pipfill in
    the HUD — fill means readiness and grows upward — so the pad is not a second
@@ -1441,7 +1445,7 @@ body.noanim.tuning .screen.on{transition:none}
        row here is ergonomics rather than look-and-feel, which is also why none
        of them is in the preset spec: how you hold your phone is not a fact
        somebody else's saved setup gets to assert about you. -->
-  <section class="tsec touchonly" data-ico="i-cat-pad" data-sub="Which hand, how big, camera stick" data-watch="pad">
+  <section class="tsec touchonly" data-ico="i-cat-pad" data-sub="Which hand, how big, camera stick, aiming" data-watch="pad">
   <h3>Controls</h3>
   <div class="trow"><label for="t-hand">Stick side</label><select id="t-hand">
     <option value="left">Left &mdash; buttons right</option>
@@ -1454,6 +1458,9 @@ body.noanim.tuning .screen.on{transition:none}
     <option value="fillsdown">Strike &amp; Stalk on top</option></select></div>
   <div class="trow"><label for="t-padlbl">Button labels</label><select id="t-padlbl">
     <option value="1">Name and icon</option><option value="0">Icon only &mdash; bigger</option></select></div>
+  <div class="trow"><label for="t-dirhold">Aim by holding</label><select id="t-dirhold">
+    <option value="0">Off &mdash; tap to act</option><option value="1">On &mdash; hold and drag to aim</option></select></div>
+  <div class="tnote">Hold Strike, Execute or Veilstep and drag to point it, and the real cone that verb will swing is drawn on the ground. Let go and it fires &mdash; let go without dragging and it fires straight ahead, exactly as a tap does now. Stalk is unaffected. While this is on, holding Strike aims instead of chaining, so the three-hit combo is driven by tapping.</div>
   <div class="trow"><label for="t-camstick">Camera stick</label><select id="t-camstick">
     <option value="1">On &mdash; third and first person</option><option value="0">Off</option></select></div>
   <div class="tnote">A small stick above the buttons that turns the camera, so you can steer and look at the same time. Dragging the arena still works and is unchanged. Arcade never shows it &mdash; that view's camera is fixed on purpose.</div>
@@ -2561,6 +2568,95 @@ function updateRings(dt) {
 /* Built from cylinders / spheres / cones — r128 has no CapsuleGeometry, and
    models are a scope trap. The look comes from light, not geometry. */
 var VESPER = 0x965AE6;
+
+/* ---- VR-126 · THE AIM OVERLAY ------------------------------------------
+   The picture a directional hold draws. Its own named function per the GRD, so
+   that "what the arc shows" is one readable answer rather than a branch buried
+   in the frame loop.
+
+   ⚠️ EVERY NUMBER IN IT COMES FROM `BALANCE`, AND THAT IS THE POINT. The wedge
+   is `C.strike[stage].arc` at `C.strike[stage].range`, or `C.execArc` at
+   `C.execRange`; the blink marker sits at `C.stepDist`. A retyped copy would
+   drift the first time a cone is retuned, and an aim overlay that has drifted
+   is worse than none — the player aims BY it, so it would not look wrong, it
+   would make them wrong. `_touch.js` asserts this function names those fields
+   and contains no literal cone or range number of its own.
+
+   IT SHOWS THE NEXT CHAIN STAGE, not stage 0, because that is the swing that
+   will actually happen. The 290-degree finisher reading as very nearly a circle
+   is honest, and is the first time the spin explains itself.
+
+   REDUCED MOTION DAMPS THE ANIMATION, NOT THE INFORMATION. `MOTION.ghost`
+   scales the ease-in and the pulse, over a floor, exactly as hitmark() does
+   with `MOTION.flash` — because an overlay that vanishes entirely at
+   MOTION.ghost = 0 would remove the aiming aid from the players most likely to
+   want it, which is not what "reduced motion" asks for. */
+var AIMARC = (function () {
+  var mat = new THREE.MeshBasicMaterial({
+    color: VESPER, transparent: true, opacity: 0, depthWrite: false,
+    side: THREE.DoubleSide
+  });
+  var mesh = new THREE.Mesh(new THREE.RingGeometry(0.4, 1, 8, 1, 0, 1), mat);
+  mesh.rotation.x = -Math.PI / 2; mesh.visible = false; mesh.renderOrder = 2;
+  scene.add(mesh);
+
+  var gmat = new THREE.MeshBasicMaterial({
+    color: 0xD65CDC, transparent: true, opacity: 0, depthWrite: false,
+    side: THREE.DoubleSide
+  });
+  var ghostM = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.72, 20), gmat);
+  ghostM.rotation.x = -Math.PI / 2; ghostM.visible = false; ghostM.renderOrder = 2;
+  scene.add(ghostM);
+
+  /* Geometry is rebuilt only when the SHAPE changes — four shapes exist across
+     the whole game (three strike stages and Execute), so this disposes at most
+     once per verb change rather than once per frame. */
+  var curArc = -1, curRange = -1;
+  function shape(arcDeg, range) {
+    if (arcDeg === curArc && range === curRange) return;
+    curArc = arcDeg; curRange = range;
+    var half = arcDeg * Math.PI / 360;
+    mesh.geometry.dispose();
+    mesh.geometry = new THREE.RingGeometry(0.42, range, Math.max(8, Math.round(arcDeg / 6)), 1,
+                                           -half, arcDeg * Math.PI / 180);
+  }
+  return { mesh: mesh, ghost: ghostM, mat: mat, gmat: gmat, shape: shape };
+})();
+
+function updateAimArc(dt) {
+  var k = TPAD.holdVerb(), yaw = TPAD.holdYaw();
+  var show = k !== null && yaw !== null && k !== "stalk";
+  /* The floor is the reduced-motion contract: the shape stays legible at
+     MOTION.ghost = 0, only the ease and the pulse go. */
+  var vis = 0.34 + 0.66 * MOTION.ghost;
+  var rate = 1 - Math.pow(0.001, dt * (0.35 + 0.65 * MOTION.ghost));
+
+  var wantArc = 0, wantGhost = 0;
+  if (show && (k === "strike" || k === "exec")) {
+    if (k === "strike") {
+      var st = C.strike[clamp(player.nextStage, 0, C.strike.length - 1)];
+      AIMARC.shape(st.arc, st.range);
+    } else {
+      AIMARC.shape(C.execArc, C.execRange);
+    }
+    AIMARC.mesh.position.set(player.x, 0.05, player.z);
+    /* Ring geometry is built in XY about +X and laid flat by rotation.x; with
+       Three's default XYZ Euler the Z spin happens first, so this is the angle
+       in the ring's own plane that maps to world forward (-sin yaw, -cos yaw). */
+    AIMARC.mesh.rotation.z = Math.PI / 2 + yaw;
+    wantArc = 0.30 * vis;
+  } else if (show && k === "step") {
+    AIMARC.ghost.position.set(player.x - Math.sin(yaw) * C.stepDist, 0.05,
+                              player.z - Math.cos(yaw) * C.stepDist);
+    wantGhost = 0.55 * vis;
+  }
+
+  AIMARC.mat.opacity += (wantArc - AIMARC.mat.opacity) * rate;
+  AIMARC.gmat.opacity += (wantGhost - AIMARC.gmat.opacity) * rate;
+  AIMARC.mesh.visible = AIMARC.mat.opacity > 0.004;
+  AIMARC.ghost.visible = AIMARC.gmat.opacity > 0.004;
+}
+
 var player = {
   g: new THREE.Group(),
   x: 0, z: 6.5, vx: 0, vz: 0, yaw: 0,
@@ -3001,7 +3097,17 @@ var TPAD = (function () {
     syncLook: function () {},
     setLook: function () {},
     setLayout: function () {},
-    tickLook: function () {}
+    tickLook: function () {},
+    /* VR-126 — the directional hold's two stubs. `holdYaw()` is read by
+       verbYaw() on EVERY frame in every mode, desktop included, so a missing
+       stub here is not a mobile bug: it is a TypeError in the aim path of a
+       desktop build, thrown from a feature that does not exist there. It
+       returns null rather than a number precisely so the caller's fallback is
+       the untouched line it has always run. */
+    holdYaw: function () { return null; },
+    holdVerb: function () { return null; },
+    holdConsume: function () {},
+    setHold: function () {}
   };
   if (!TOUCH) return api;
 
@@ -3071,16 +3177,138 @@ var TPAD = (function () {
      four verbs are the thing being tested first, and a hidden second verb per
      button is not something to ship untested alongside a layout change. */
   var strikeId = null;
-  pad.querySelectorAll(".vgrid .vbtn").forEach(function (btn) {
+
+  /* ---- VR-126 · the directional hold ------------------------------------
+     THE HOOK ABOVE, BUILT. This is the long-press variant the FUTURE note
+     describes and it is deliberately the ONLY one: one timer-free pointer
+     capture, one decision point, one place that decides what a held button
+     means. A second hold system beside it is the thing that note warns about.
+
+     THE FOUR RULINGS (Jordan, 8/31, "all four", unamended):
+       · dead zone   22% of the button's radius, measured from where the thumb
+                     LANDED rather than from the button's centre — an off-centre
+                     press must not read as an aim before the thumb has moved.
+       · release     ALWAYS fires. Inside the dead zone it fires undirected.
+                     Cancel-on-release was rejected: a button that sometimes
+                     does nothing is the complaint VR-138 exists to delete.
+       · the arc     draws the verb's REAL cone — see updateAimArc().
+       · tap         today's behaviour, unchanged.
+
+     ⚠️ WHY THE VERB MOVES TO pointerup WHEN THE SETTING IS ON, and why that is
+     still "byte-identical". The ruling's own rejected alternative settles it:
+     "release inside the dead zone CANCELS" is only a coherent thing to reject
+     if the fire happens at release. A hold cannot resolve on pointerdown and
+     still be steerable — the strike's whole wind-up is 0.09s and a thumb drag
+     is not. So the guarantee is the one that makes default-off safe and is the
+     one worth asserting: with the setting OFF this function is the code that
+     shipped, unchanged, and with it ON a sub-threshold tap fires the SAME verb
+     through the SAME branch with the SAME undirected aim.
+
+     ⚠️ STRIKE LOSES HOLD-TO-CHAIN WHILE THIS IS ON, and that is not a bug that
+     can be coded away: holding the Strike button is now the aim gesture, so it
+     cannot also be the chain gesture. Each press-release is one directed swing
+     and the chain is driven by tapping. Flagged on the card for Jordan.
+
+     Stalk is absent on purpose. It is a LATCH with no cone and nothing to point,
+     so it fires on pointerdown in both modes and never opens a hold. */
+  var HOLD_DEAD = 0.22;              // fraction of the button's radius
+  var holdOn = false;                // the Controls toggle. DEFAULT OFF.
+  var hold = { id: null, k: null, cx: 0, cy: 0, R: 1, aimed: false, yaw: 0, pending: false };
+
+  function holdClear() {
+    if (hold.k) { var b = padBtnFor(hold.k); if (b) b.classList.remove("vaim"); }
+    hold.id = null; hold.k = null; hold.aimed = false; hold.pending = false;
+  }
+
+  /* Screen-relative, and deliberately NOT moveBasis(). That function LATCHES
+     `moveLatch` as a side effect in the "free" model, so asking it for an angle
+     would quietly re-aim the player's *movement* basis every time a thumb
+     touched a button. Aiming reads the camera; it never writes it. */
+  function holdBasis() { return cam.mode === "arcade" ? ARC.yaw : mouse.yaw; }
+
+  function holdTrack(cx, cy) {
+    var dx = cx - hold.cx, dy = cy - hold.cy;
+    if (Math.hypot(dx, dy) < hold.R * HOLD_DEAD) { hold.aimed = false; return; }
+    hold.aimed = true;
+    /* Screen up is the camera's forward, exactly as pushing the movement stick
+       up is — one idiom for both thumbs. atan2(dx, -dy) is the clockwise screen
+       angle from "up"; world yaw runs the other way, hence the subtraction. */
+    hold.yaw = holdBasis() - Math.atan2(dx, -dy);
+  }
+
+  /* The aim has to outlive the pointer by one tick: pressed.* is consumed in
+     updatePlayer() on the NEXT sim step, and that is where startStrike(),
+     tryExecute() and veilstep() ask verbYaw() which way they point. `pending`
+     is that one-tick latch and updatePlayer clears it through holdConsume(). */
+  api.holdYaw = function () {
+    if (hold.pending) return hold.yaw;
+    return (hold.id !== null && hold.aimed) ? hold.yaw : null;
+  };
+  api.holdVerb = function () { return hold.id !== null ? hold.k : null; };
+  api.holdConsume = function () { hold.pending = false; };
+  api.setHold = function (on) { holdOn = !!on; if (!holdOn) holdClear(); };
+
+  var padBtns0 = pad.querySelectorAll(".vgrid .vbtn");
+  function padBtnFor(k) {
+    for (var i = 0; i < padBtns0.length; i++) {
+      if (padBtns0[i].getAttribute("data-k") === k) return padBtns0[i];
+    }
+    return null;
+  }
+
+  function holdFire(k) {
+    if (k === "strike") { pressed.strike = true; }
+    else if (k === "exec") { pressed.exec = true; }
+    else if (k === "step") { pressed.step = true; }
+  }
+
+  padBtns0.forEach(function (btn) {
     var k = btn.getAttribute("data-k");
     btn.addEventListener("pointerdown", function (e) {
       e.preventDefault();
       if (!live()) return;
+      if (holdOn && k !== "stalk") {
+        if (hold.id !== null) return;              // one hold at a time
+        var r = btn.getBoundingClientRect();
+        hold.id = e.pointerId; hold.k = k;
+        hold.aimed = false; hold.pending = false;
+        hold.cx = e.clientX; hold.cy = e.clientY;  // from the LANDING point
+        hold.R = r.width / 2;
+        try { btn.setPointerCapture(e.pointerId); } catch (_) {}
+        btn.classList.add("vaim");
+        return;
+      }
       if (k === "strike") { strikeId = e.pointerId; mouse.l = true; pressed.strike = true; }
       else if (k === "exec") { pressed.exec = true; }
       else if (k === "step") { pressed.step = true; }
       else if (k === "stalk") { stalk = !stalk; btn.classList.toggle("on", stalk); }
     });
+
+    if (k !== "stalk") {
+      btn.addEventListener("pointermove", function (e) {
+        if (hold.id === null || e.pointerId !== hold.id || hold.k !== k) return;
+        e.preventDefault();
+        holdTrack(e.clientX, e.clientY);
+      });
+      var holdUp = function (e) {
+        if (hold.id === null || e.pointerId !== hold.id || hold.k !== k) return;
+        var fireK = hold.k, aimed = hold.aimed, yaw = hold.yaw;
+        btn.classList.remove("vaim");
+        hold.id = null; hold.k = null; hold.aimed = false;
+        // release ALWAYS fires; inside the dead zone it fires undirected
+        hold.pending = aimed; hold.yaw = yaw;
+        holdFire(fireK);
+      };
+      btn.addEventListener("pointerup", holdUp);
+      btn.addEventListener("pointercancel", holdUp);
+      btn.addEventListener("lostpointercapture", function () {
+        /* A capture lost without a pointerup is the pad being taken away —
+           a panel opening over a held button. Do NOT fire: "release always
+           fires" is a promise about a release, and this is not one. */
+        if (hold.id !== null) holdClear();
+      });
+    }
+
     if (k === "strike") {
       var up = function (e) {
         if (strikeId !== null && e.pointerId !== strikeId) return;
@@ -3229,7 +3457,7 @@ var TPAD = (function () {
     return out;
   }
   api.cellOrder = cellOrder;
-  var padBtns = pad.querySelectorAll(".vgrid .vbtn");
+  var padBtns = padBtns0;   // one query, one list — see the hold block above
   api.setLayout = function (o) {
     pad.classList.toggle("righty", o.hand === "right");
     pad.classList.toggle("nolabels", !o.labels);
@@ -3242,6 +3470,7 @@ var TPAD = (function () {
       if (ord[k]) b.style.order = String(ord[k]);
     });
     api.setLook(o.camstick);
+    api.setHold(o.hold);
   };
 
   /* ---- state the pad shows back -----------------------------------------
@@ -3274,6 +3503,9 @@ var TPAD = (function () {
        stick used to be the one place this could happen, and dropHeldInput() is
        the single function every such panel already calls. */
     camId = null; clearLook();
+    /* VR-126 — same argument, and a hold is worse than a tilted stick: it is a
+       half-finished verb. Dropped, never fired. */
+    holdClear();
   };
   return api;
 })();
@@ -3980,7 +4212,31 @@ function aimFor(moving, tvx, tvz) {
    offers a mouse-aim that no mouse can move. Named on VR-160, deliberately NOT
    fixed here: this card is about the cone, and that one is about the lock. */
 var CAM_AIMS = { arcade: false, third: true, first: true };
-function verbYaw() { return CAM_AIMS[cam.mode] ? mouse.yaw : player.yaw; }
+function verbYaw() {
+  /* VR-126 — A DIRECTIONAL HOLD IS AN AIM, so it belongs in the function that
+     already answers "which way is a VERB pointed" and nowhere else.
+
+     This one line is the whole of Phase 2's item 2, and it satisfies "not a
+     fourth writer" by writing NOTHING. Strike, Execute and Veilstep all reach
+     their direction through this function today — startStrike() commits
+     `player.aim = verbYaw()`, tryExecute() takes `verbYaw()` and commits it on
+     a hit, veilstep() reads it directly — so putting the hold here means all
+     three inherit it through the paths VR-160 already built, and `player.aim`
+     keeps exactly the two writers it had. Adding a third caller-side branch per
+     verb would have been three copies of one decision.
+
+     ARCADE IS THE CASE THIS CARD IS FOR. There `CAM_AIMS` is false and the aim
+     is the body, so "aim" has meant "walk at it" — on a phone, with no mouse,
+     that is no aim at all. The hold is the first thing that has ever pointed a
+     verb in arcade without moving the player.
+
+     Null on desktop, null with the setting off, and null until the thumb has
+     travelled past the dead zone — so in every other case this is the line that
+     shipped, reached one call later. */
+  var h = TPAD.holdYaw();
+  if (h !== null) return h;
+  return CAM_AIMS[cam.mode] ? mouse.yaw : player.yaw;
+}
 
 /* Is a verb resolving right now? Read by aimFor() above, and the reason it is a
    named function rather than the expression inlined twice is that `playerFace()`
@@ -4274,6 +4530,11 @@ function updatePlayer(dt) {
     if (player.atkStage < 0) startStrike();
     else if (player.atkPhase === "rec") player.queued = true;
   }
+  /* VR-126 — the held aim survived exactly as long as it had to: from the
+     release that fired the verb to the tick that resolved it, three lines up.
+     Released here rather than inside TPAD because THIS is the place that knows
+     the verb has been consumed; the pad only knows a thumb left the glass. */
+  TPAD.holdConsume();
 
   // movement — camera-relative, with weight
   // Stalk LATCHES on touch rather than being held: it's a crouched creep you
@@ -6427,6 +6688,11 @@ var TUNE = (function () {
        holds their own phone is not a fact another player's saved setup gets to
        assert on their behalf. */
     hand: "left", padsize: 1, verbs: "fillstop", padlbl: "1", camstick: "1",
+    /* VR-126 — DEFAULT OFF, and that is the ruling rather than caution: the tap
+       path is untouched while it is off, so the setting can ship to everyone and
+       be judged by the people who turn it on. A Controls key like the five above
+       it, so persisted per device and out of the preset spec with them. */
+    dirhold: "0",
     /* VR-150 — the facing model per view. Controls keys, so persisted per device
        and OUT of the preset spec with the rest of them: how somebody wants their
        own character to turn is not a fact another player's setup gets to assert
@@ -6601,11 +6867,13 @@ var TUNE = (function () {
       pin("verbs", ["fillstop", "fillsdown"], "t-verbs");
       pin("padlbl", ["0", "1"], "t-padlbl");
       pin("camstick", ["0", "1"], "t-camstick");
+      pin("dirhold", ["0", "1"], "t-dirhold");
       var ps = clamp(+V.padsize, 0.8, 1.35);
       if (!isFinite(ps)) ps = DEF.padsize;
       V.padsize = ps;
       TPAD.setLayout({ hand: V.hand, size: ps, verbs: V.verbs,
-                       labels: V.padlbl !== "0", camstick: V.camstick !== "0" });
+                       labels: V.padlbl !== "0", camstick: V.camstick !== "0",
+                       hold: V.dirhold === "1" });
       /* --padh is measured off #vpad's height, and this is the only setting that
          changes that height — so the gameplay window has to be re-measured or
          the HUD's pips end up behind a pad that just grew. */
@@ -6871,8 +7139,8 @@ var TUNE = (function () {
     pick("pixel", "t-pixel"); pick("husks", "t-husks");
     S.glass = { t: "hex" }; S.rim = { t: "hex" }; S.burn = { t: "hex" };
     /* NOT HERE, deliberately: hand, padsize, verbs, padlbl and camstick
-       (VR-132), joining the motion-preference flag on the list of things a
-       preset may not carry. A preset is a LOOK — camera framing, fog, colour,
+       (VR-132) and dirhold (VR-126), joining the motion-preference flag on the
+       list of things a preset may not carry. A preset is a LOOK — camera framing, fog, colour,
        how much the screen moves — and it travels between devices and between
        people. How somebody holds their own phone does not. Loading a friend's
        setup and finding your stick has moved to your other hand mid-run is the
@@ -7069,6 +7337,7 @@ var TUNE = (function () {
     bindPick("t-verbs", "verbs", "pad");
     bindPick("t-padlbl", "padlbl", "pad");
     bindPick("t-camstick", "camstick", "pad");
+    bindPick("t-dirhold", "dirhold", "pad");
     /* VR-150 — one group, "face", whose only writer is apply("face"). */
     bindPick("t-facearc", "faceArcade", "face");
     bindPick("t-facethird", "faceThird", "face");
@@ -8303,6 +8572,7 @@ function frame(now) {
   poseVesper(raw, gameTime);
   updateParts(raw);
   updateRings(raw);
+  updateAimArc(raw);   // VR-126 — presentation, so real frame time like the rest
   updateGhosts(raw);
   updateTears(raw);
   updateCamera(raw);
