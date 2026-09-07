@@ -190,7 +190,7 @@ in the folder before assuming:
 - **2D pair track** — `games/<name>-v2/_sim.py` (Python physics sim).
 - **3D** — `games/proving-ground/_sim.js` (asserts against the marked `BALANCE` block extracted from
   the HTML), plus `_arena.js`, `_gauntlet.js`, `_billboard.js`, `_touch.js`, `_clipfit.js`,
-  `_shroud.js`, `_zoom.js` and `_check.js`. **`_arena.js` (added 9/3 with VR-148) judges the SHAPE OF
+  `_shroud.js`, `_zoom.js`, `_strike.js` and `_check.js`. **`_arena.js` (added 9/3 with VR-148) judges the SHAPE OF
   THE GROUND** rather than the numbers — six criteria per layout (reach · wedge · shroud · cheese ·
   blink · convergence). It is the external bar VR-154's generator gets scored against, and the reason
   VR-121 can add walls without anyone eyeballing whether the result is playable.
@@ -242,6 +242,24 @@ in the folder before assuming:
   an npm install (`playwright`), so it SKIPS its render pass — five text checks, exit 0 —
   rather than failing a clean checkout.** `_shroud.png` beside it is the sheet from a run that
   did render, checked in so the picture is reviewable without installing anything.
+  **`_strike.js` (added 9/6 with VR-168) is the first harness whose thresholds come from OUTSIDE
+  this repo** — measured off a community-datamined frame-data table for a class of one-handed-blade
+  chain kits. It asks the one question nothing else did: **not whether the art fits the strike window,
+  but whether the strike window itself is right.** The clip harness consumes `wind + active + rec` as
+  a *denominator* and so takes those numbers as given; `_strike.js` judges them, in **71 checks**, and
+  it **measures by execution, never by arithmetic** — it lifts `startStrike()`, `updateStrike()` and the
+  strike input branch out of the HTML and runs them frame by frame at the real `STEP = 1/60`, because
+  a BALANCE number is not what the player gets: `rec: 0.20` costs THIRTEEN frames, not twelve, since
+  twelve 1/60s sum to 0.19999999999999998. ⚠️ **SEVEN OF ITS CRITERIA FAIL THE SHIPPED GAME AND ARE
+  ALLOWED, NOT PASSED (VR-170).** Four are VR-169's defects; three are values awaiting Jordan's
+  ruling. **An allowance is a FOURTH STATE** — every allowed failure still prints in full and the
+  summary reads `64 pass · 7 allowed · 0 unallowed`, never 71 pass, for the same reason `_ship.js`
+  keeps SKIP out of PASS. The list **polices itself**: an entry with no card or `ruling-pending`
+  fails, and an entry whose criterion has since started passing fails as **stale**, so an allowance
+  cannot outlive its bug. Anything not on the list still fails and still blocks. **Do not make it
+  green by editing the game or loosening the bar** — a bar that named four real defects on its first
+  run is the harness working. The reference title is named only in the rubric in `Claude Access`
+  (Planning · Reference & Specs · VR-168); a harness in this repo never names a commercial game.
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 
