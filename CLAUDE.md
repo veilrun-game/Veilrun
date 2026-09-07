@@ -116,9 +116,22 @@ live block from one that quietly expired. Kickoff prompts for individual cards l
   commit message (subject + short bullet body) instead — and run `git status` + `git diff`
   first, scoping the message to *everything* uncommitted, not just the last change.
 - **Never delete files — archive instead.** Ask before anything irreversible.
-- **Every character is fully capable solo.** A pairing/trio unlocks a unique *enhancement*,
-  never a dependency.
+- **Every character has a synergy with every other character**, in some form — depth varies with
+  the relationship, and that asymmetry is the interesting part. **And every character can hold
+  their own weight:** real strengths, real weaknesses, no passengers.
+  ⚠️ **REVISED 9/7 (STU-08 ruling 1). This used to read "every character is fully capable solo; a
+  pairing unlocks an enhancement, never a dependency" — and that was too strong in one direction
+  and too vague in the other.** "Holds their own weight" is **not** "can solo any content," which
+  the old wording quietly asserted. **And whether a GAME requires the synergy to progress is that
+  game's own stance, declared on its card — not a house law.** The 2D pair track requires it and is
+  better for it; a battle royale would not. Read the old rule literally and it forbids the very
+  design that proved the concept. Full reasoning: `Claude Access/Studio/Planning/NORTHSTAR
+  (STU-08).md` §7.
 - **Big synergies drain the area thin — power has a price.** This is the balancing lever.
+- **When "is this good?" has no obvious answer, the NORTHSTAR is the tiebreaker** —
+  `Claude Access/Studio/Planning/NORTHSTAR (STU-08).md`. It states what this studio is aiming at,
+  what good looks like, what to avoid, and the two different thresholds for *shipping* versus
+  *asking the crew for their attention*. **It is short on purpose. Read it rather than guessing.**
 
 ## 3. Ship checklist — required on every commit that changes a game / level / mechanic
 
