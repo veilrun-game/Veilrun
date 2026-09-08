@@ -112,9 +112,21 @@ live block from one that quietly expired. Kickoff prompts for individual cards l
 
 ## 2. House rules (non-negotiable)
 
-- **Never run `git commit` or `git push`.** Jordan commits via GitHub Desktop. Deliver a
-  commit message (subject + short bullet body) instead — and run `git status` + `git diff`
-  first, scoping the message to *everything* uncommitted, not just the last change.
+- **NEVER commit or push to `main`.** `main` is what Cloudflare Pages deploys, so a commit there
+  **is a publish**. That stays Jordan's, always, via GitHub Desktop.
+  ✅ **REVISED 9/7 — committing to a BRANCH is allowed, and is now the expected path for agent
+  work.** Create a branch, commit with the message the checklist produced, push the branch, and
+  move the card to `🔀 In review`. **A branch push deploys nothing** (Pages watches only `main`),
+  and **the pre-commit hook still runs**, so `_pathcheck.js` and `_leakcheck.js` fire before
+  anything is committed anywhere — the publish guards are not bypassed by this, they are reached
+  one step earlier.
+  **Why it changed:** the old rule stranded the card. An agent handed over a message, its session
+  ended, Jordan committed by hand — and then nothing could move the card without him *asking* for
+  it, at which point he may as well have moved it himself. **A handoff that needs a human to relay
+  it is not a handoff.**
+  ⚠️ **Still scope the message to EVERYTHING uncommitted**, not just the last change — run
+  `git status` and `git diff` first. Unchanged, and it is the part that catches work from an
+  earlier session riding along.
 - **Never delete files — archive instead.** Ask before anything irreversible.
 - **Every character has a synergy with every other character**, in some form — depth varies with
   the relationship, and that asymmetry is the interesting part. **And every character can hold
@@ -148,8 +160,29 @@ explicitly rather than omitting an item.
    `id` IS the `game_id` in `game_scores` — never rename one without migrating the board.
 3. **Play access** — confirm the exact path a player takes (combo `play` link and/or the
    in-game Version dropdown), and that a preview build isn't silently the default.
-4. **Trello** — log/close the card on the board. *(Changed 8/16; this used to say
-   "update `Planning/VEILRUN Kanban.md`".)*
+4. **Trello** — log the card on the board. *(Changed 8/16; this used to say "update
+   `Planning/VEILRUN Kanban.md`".)*
+   ⚠️ **NEVER ASK JORDAN WHETHER TO MOVE A CARD. Ever.** (9/7.) **Every transition below is either
+   an agent's own action or a fact readable out of git.** None of them is a judgement call, and
+   asking turns something automatic into a prompt he has to answer.
+
+   **THE PIPELINE — a card's list IS its stage:**
+   · **Building** → `🟣 In progress`.
+   · **Branch committed and pushed** → **move it to `🔀 In review` yourself**, and put the branch
+     name in a comment. Do not ask. Do not move it to Done — it is not live yet.
+   · **Branch merged into `main`** → **move it to `🟢 Done`.** This is derivable, never a question:
+     `git branch --merged main` lists what has landed. **The Producer's sweep checks this every run**,
+     so a card cannot sit in review after its branch is merged.
+   · **Nothing committed yet** → leave it in `🟣 In progress` and say so.
+   · **`🟢 Done` is FINAL.** A problem with something live becomes a **new card** — bug or
+     enhancement — never a reopening. This is why `VR-117` sat in Done titled *"FIX PENDING PUSH
+     (live is broken)"* for a week: **a card used as a status light stops being a record of what
+     shipped.**
+
+   **Jordan's only step in this is the merge**, which is the one place a human judgement genuinely
+   belongs — it is the moment work becomes public.
+   **A git hook cannot move the card** — the board needs credentials and §5 forbids them in this
+   repo. The agent moves it on push; the sweep moves it on merge.
 5. **Canon docs** — fold durable decisions back into `_Project Knowledge/` **inside `Claude Access`**
    (§1), never into this repo. The item is easy to skip precisely because it is the one thing on
    this list that cannot ride along in the changeset — so say which file you edited in the
