@@ -69,7 +69,21 @@ var NO_DOCS_NEEDED = {
             "stored `true` therefore always implies the field beside it is empty — VR-174 " +
             "renders on that promise. Listed rather than written because an agent folding its " +
             "own work into canon is how canon stops being a record and starts being an echo. " +
-            "Delete this entry once it is written up."
+            "Delete this entry once it is written up.",
+  "VR-174": "DEBT, opened by the Producer 9/12 and Jordan's to close. Same home as VR-173 — " +
+            "Design System.md, the Game Reference disclosure entry — and best written up with " +
+            "it, since the two are one decision collected and then rendered. Two durable " +
+            "halves. FIRST, the affirmation is a FIFTH cap on that page and the heading that " +
+            "counts them needs renumbering: three names, then three and a count, because the " +
+            "slot has no disclosure of its own to hide a tenth name behind. SECOND, and the " +
+            "part no later thread can infer from the code: a tick is a claim ABOUT gripes and " +
+            "is never itself a gripe, so it is deliberately absent from the flag count, the " +
+            "'Most gripes' sort and 'N gripes worth reading', while still counting as a take. " +
+            "Those three read correctly today only because they filter on non-empty text — " +
+            "'affirmations aren't showing in the gripe count' is a plausible bug report whose " +
+            "fix would be wrong, and the reason it is wrong lives here, not in the code. " +
+            "Listed rather than written because an agent folding its own work into canon is " +
+            "how canon stops being a record and starts being an echo. Delete once written up."
 };
 
 /* CLEARED 8/30 — VR-109, VR-110, VR-120, VR-129 and VR-130 were listed here for
