@@ -236,7 +236,7 @@ in the folder before assuming:
 - **2D pair track** — `games/<name>-v2/_sim.py` (Python physics sim).
 - **3D** — `games/proving-ground/_sim.js` (asserts against the marked `BALANCE` block extracted from
   the HTML), plus `_arena.js`, `_gauntlet.js`, `_billboard.js`, `_touch.js`, `_clipfit.js`,
-  `_shroud.js`, `_zoom.js`, `_strike.js` and `_check.js`. **`_arena.js` (added 9/3 with VR-148) judges the SHAPE OF
+  `_shroud.js`, `_zoom.js`, `_strike.js`, `_exec.js` and `_check.js`. **`_arena.js` (added 9/3 with VR-148) judges the SHAPE OF
   THE GROUND** rather than the numbers — six criteria per layout (reach · wedge · shroud · cheese ·
   blink · convergence). It is the external bar VR-154's generator gets scored against, and the reason
   VR-121 can add walls without anyone eyeballing whether the result is playable.
@@ -316,6 +316,19 @@ in the folder before assuming:
   green by editing the game or loosening the bar** — a bar that named four real defects on its first
   run is the harness working. The reference title is named only in the rubric in `Claude Access`
   (Planning · Reference & Specs · VR-168); a harness in this repo never names a commercial game.
+  **`_exec.js` (added 9/12 with VR-172) is the only harness that judges what a verb says when it
+  finds NOTHING.** Every other bar here measures a verb that connected; this one lifts
+  `tryExecute()` out of the HTML and runs it at an empty arena, at a husk past `execRange` and at a
+  husk outside `execArc`, in **58 checks**, and asks whether the press was perceivable at all.
+  ⚠️ **It failed the shipped game on 12 of them before VR-172 landed** — the miss path wrote
+  literally nothing, so a whiff and a dead button were byte-identical to the player. It bars three
+  things at once, and the second is the one a later thread will trip: a whiff must be **perceivable**,
+  must still **cost nothing** (no `execCd`, no lunge, no facing snap — "costs nothing" was a ruling
+  about price that had been quietly carrying a ruling about feedback), and must **not borrow the
+  hit's tells** (`hitStop`, `shake`, `thinGround`). It runs every case at all three `cam.mode` values
+  through the real lifted `verbYaw()`, and proves that is the real one by making arcade and third
+  disagree about the same husk. **The AU method names are read out of the file rather than listed**,
+  so a sound added tomorrow is an observable here tomorrow with no edit to the harness.
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 

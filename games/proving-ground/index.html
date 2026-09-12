@@ -2093,6 +2093,15 @@ var AU = (function () {
     blink:    function () { tone(240, 1500, 0.13, "sine", 0.16); noise(0.14, 3400, 2.2, 0.10); },
     exec:     function () { tone(70, 44, 0.42, "sine", 0.42); tone(1180, 620, 0.34, "triangle", 0.16, 0.02);
                             noise(0.24, 2200, 1.2, 0.20, "bandpass", 0.01); },
+    /* VR-172 — the whiffed Execute. Deliberately the THINNEST sound in this
+       object: a fifth of exec's peak, a third of its length, no low end at all.
+       It has to be audible enough to say "that fired" and quiet enough that
+       nobody mistakes it for contact — `exec` opens on a 70Hz thump and this
+       one has nothing below 900Hz, so the two are never confusable even at a
+       glance. Same reason `swing` is airy: a verb that found nothing should
+       sound like air. */
+    execMiss: function () { noise(0.13, 2900, 2.4, 0.075, "bandpass");
+                            tone(900, 520, 0.11, "sine", 0.06, 0.01); },
     shroud:   function () { tone(520, 200, 0.5, "sine", 0.09); },
     hurt:     function () { tone(150, 60, 0.26, "sawtooth", 0.24); noise(0.14, 380, 0.7, 0.16, "lowpass"); },
     wave:     function () { tone(330, 330, 0.16, "triangle", 0.20); tone(495, 495, 0.34, "triangle", 0.18, 0.13); },
@@ -4445,7 +4454,36 @@ function tryExecute() {
     var rank = wound * 100 + d;
     if (rank < bestD) { bestD = rank; best = e; }
   }
-  if (!best) return;
+  if (!best) {
+    /* VR-172 — A MISS IS NOT NOTHING. This return used to write absolutely
+       nothing, which made a whiff and a dead button the same event as far as
+       the player could tell. VR-160 spent a week on "right mouse button isn't
+       working" and the button was fine the whole time — the cone was pointed
+       wrong and the game said so by saying nothing at all.
+
+       ⚠️ THE COMMENT BELOW IS STILL TRUE AND IS NOT WHAT CHANGED. A whiff still
+       costs nothing: no `execCd`, no `execLunge`, no translation, no facing
+       snap, no shroud break. "Costs nothing" was a ruling about PRICE and was
+       being made to carry a ruling about FEEDBACK it never made. `_exec.js`
+       asserts both halves — that something is emitted, and that nothing is
+       charged — so the two can't be collapsed back into one again.
+
+       THREE CHANNELS, AND NONE OF THEM IS A HIT TELL. No `hitStop`, no
+       `shake`, no `thinGround`, no ring: those mean contact, and a whiff that
+       borrows them is a second way of lying about the same press.
+         · the sound is the thinnest in AU, and has no low end
+         · the blade flicks, because he did reach — and `MOTION_RED` keeps
+           flash at 0.34, so reduced motion still shows it
+         · a few grains of Weave dust out at arm's length, in the direction the
+           cone was actually pointed. That last part is the useful half: it
+           shows you WHERE you swung, which is the information a player who
+           missed actually needs. */
+    AU.execMiss();
+    bladeFlash(0.55);
+    var mx = player.x + fx * (C.execRange * 0.45), mz = player.z + fz * (C.execRange * 0.45);
+    burst(mx, 1.0, mz, 5, 0x7C4AB6, 1.6, { grav: -1.5, upScale: 0.5, scale: 0.45, lifeScale: 0.55 });
+    return;
+  }
 
   /* VR-160 — the body turns into it, and ONLY once a target is found. A whiffed
      Execute costs nothing and returns above, so snapping the facing on a miss
