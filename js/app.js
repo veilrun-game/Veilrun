@@ -2613,6 +2613,7 @@ window.VApp = (function () {
     nameIn.disabled = !!prefill;
     el.querySelector("#gref-loves").value = "";
     el.querySelector("#gref-gripes").value = "";
+    el.querySelector("#gref-affirm").checked = false;
     el.querySelector("#gref-suggest").innerHTML = "";
     el.querySelector("#gref-err").textContent = "";
     grefRenderTags(el);
@@ -2679,6 +2680,9 @@ window.VApp = (function () {
       // Editing: pre-fill, and the required-both rule relaxes to at-least-one.
       el.querySelector("#gref-loves").value = mine.loves || "";
       el.querySelector("#gref-gripes").value = mine.gripes || "";
+      // VR-173 — the affirmation comes back too, so the edit path can UNtick as well as tick.
+      // Without this, reopening an affirmed take and saving would silently drop the claim.
+      el.querySelector("#gref-affirm").checked = !!mine.gripes_affirmed;
       grefRenderTags(el, mine.tags || [], mine.gripe_tags || []);
       el.querySelector("#gref-title").textContent = "Update your take";
       box.innerHTML = `<p class="gr-hint">You've already got a take on <strong>${C.esc(name)}</strong> — this updates it. Change one side or both; leave at least one.</p>`;
@@ -2706,12 +2710,24 @@ window.VApp = (function () {
 
     const loves = el.querySelector("#gref-loves").value.trim();
     const gripes = el.querySelector("#gref-gripes").value.trim();
-    // Both required on a FIRST take — optional gripes means no gripes, and the gripes are
-    // the reason this page exists. Relaxes to at-least-one once you already have a take.
+    // VR-173. An affirmation is only ever ABOUT an empty gripes box. Tick it and type a gripe
+    // and the gripe is what you meant, so the flag is dropped rather than stored next to a
+    // contradiction — which means VR-174 can trust `true` to imply the field is empty.
+    const affirmed = !!el.querySelector("#gref-affirm").checked && !gripes;
+    // Both halves are still required on a FIRST take. The checkbox is NOT an opt-out: it is the
+    // only way past an empty gripes box, and it costs you a claim to use it. Empty LOVES is
+    // refused whether or not it is ticked — the tick says something about gripes and nothing
+    // about loves. Relaxes to at-least-one once you already have a take.
     if (grefCtx.editing) {
+      // Unchanged on purpose. Letting the tick satisfy this on its own would store a take with
+      // nothing on either side — counted as a take, contributing to neither half of the card.
+      // The tick is a claim ABOUT the gripes box, never content in place of the loves one.
       if (!loves && !gripes) { errEl.textContent = "Leave at least one — a love or a gripe."; return; }
-    } else if (!loves || !gripes) {
+    } else if (!loves) {
       errEl.textContent = "First time on a game, we need both — what you love and what takes you out of it.";
+      return;
+    } else if (!gripes && !affirmed) {
+      errEl.textContent = "Nothing takes you out of it? Tick the box under the gripes and we'll take you at your word.";
       return;
     }
     const picked = kind => [...el.querySelectorAll(`.gr-pick.on[data-kind="${kind}"]`)].map(b => b.dataset.tag);
@@ -2723,7 +2739,7 @@ window.VApp = (function () {
     const known = grefKnown((grefCache && grefCache.refs) || []);
     if (!known[grefCtx.slug]) await window.VBackend.createGameRef(grefCtx.slug, typed, who);
     const res = await window.VBackend.upsertGameRefNote({
-      slug: grefCtx.slug, who, loves, gripes,
+      slug: grefCtx.slug, who, loves, gripes, gripesAffirmed: affirmed,
       tags: picked("love"), gripeTags: picked("gripe"),
       rawName: typed, matchKind: grefCtx.matchKind
     });
@@ -3271,6 +3287,10 @@ window.VApp = (function () {
   // rendering headlessly, with no network and no signed-in account.
   const __grefSlug = grefSlug;
   const __grefMatch = grefMatch;
+  // VR-173 test seam. The cache is normally filled by a network round trip; the harness needs
+  // it filled to reach the EDIT path, where the required-both rule relaxes and the affirmation
+  // has to come back ticked. Nothing in the page calls this.
+  const __grefSetCache = (refs, notes) => { grefCache = { refs: refs || [], notes: notes || [] }; };
   const __grefCard = (slug, notes, refs) => grefCardHtml(slug, notes, refs || []);
   const __loomPanel = loomPanel;
   // VR-145: the harness drives collapse without a DOM, so it needs the state set itself.
@@ -3281,7 +3301,7 @@ window.VApp = (function () {
   const __loomConsts = () => ({ MAX_AGE: LOOM_MAX_AGE_DAYS, GATE: LOOM_GATE, MIN_CITATIONS: LOOM_MIN_CITATIONS, THRESHOLDS: LOOM_THRESHOLDS });
 
   return { init, route, toggleMenu, toggleDrop, signOut, __renderHub, __hubType, __renderUpdates, __weeklyHero, wkSkip,
-    __grefSlug, __grefMatch, __grefCard, __loomPanel, __loomVotes, __loomConsts, __loomOpen,
+    __grefSlug, __grefMatch, __grefCard, __grefSetCache, __loomPanel, __loomVotes, __loomConsts, __loomOpen,
     grefOpen, grefClose, grefSubmit, grefWhoChange, grefNameChange, grefPick, grefMore, grefSort, grefToggle, grefHalf, grefExpand, grefArtFail, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, loomVote, loomToggle, loomMore, boardFilter, counterVote, gameBoardVer, gameBoardCombo, gameBoardLevel };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);

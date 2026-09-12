@@ -92,10 +92,17 @@
       try { const { data } = await sb.from("game_refs").select("slug,name,who,created_at"); return data || []; }
       catch (e) { return []; }
     },
+    // VR-173: `*` rather than a column list. The edit path has to read `gripes_affirmed` back —
+    // without it, reopening an affirmed take shows it unticked and re-saving silently drops the
+    // claim. Naming the column here instead would have been the obvious move and is the trap:
+    // a column named in a SELECT that the database does not have yet fails the WHOLE query, and
+    // this function swallows that into `[]`, i.e. the reference page renders with every take
+    // missing. The browser cannot control whether the deploy or the migration lands first, so
+    // `*` lets it stop caring. Note the consequence: this now returns every column on the table
+    // to an anon-key client, so anything added there is published to the browser by this line.
     async loadGameRefNotes() {
       try {
-        const { data } = await sb.from("game_ref_notes")
-          .select("slug,who,loves,gripes,tags,gripe_tags,raw_name,match_kind,created_at,updated_at");
+        const { data } = await sb.from("game_ref_notes").select("*");
         return data || [];
       } catch (e) { return []; }
     },
@@ -109,14 +116,24 @@
     // One take per person per game. `unique (slug, who)` in Postgres makes this an
     // upsert rather than a decision: submitting again edits what you already said.
     async upsertGameRefNote(note) {
+      const row = {
+        slug: note.slug, who: note.who,
+        loves: note.loves || null, gripes: note.gripes || null,
+        tags: note.tags || [], gripe_tags: note.gripeTags || [],
+        raw_name: note.rawName || null, match_kind: note.matchKind || null,
+        gripes_affirmed: !!note.gripesAffirmed,
+        updated_at: new Date().toISOString()
+      };
       try {
-        const { error } = await sb.from("game_ref_notes").upsert({
-          slug: note.slug, who: note.who,
-          loves: note.loves || null, gripes: note.gripes || null,
-          tags: note.tags || [], gripe_tags: note.gripeTags || [],
-          raw_name: note.rawName || null, match_kind: note.matchKind || null,
-          updated_at: new Date().toISOString()
-        }, { onConflict: "slug,who" });
+        let { error } = await sb.from("game_ref_notes").upsert(row, { onConflict: "slug,who" });
+        // VR-173. `gripes_affirmed` is additive and the migration may not have been applied to
+        // this database yet. Dropping a whole take on the floor because of one flag is a far
+        // worse outcome than storing the take without it, so retry once without the column and
+        // let the write land. Remove this fallback once the column is live everywhere.
+        if (error && /gripes_affirmed/.test(String(error.message || ""))) {
+          delete row.gripes_affirmed;
+          ({ error } = await sb.from("game_ref_notes").upsert(row, { onConflict: "slug,who" }));
+        }
         if (error) throw error;
         return { ok: true };
       } catch (e) {

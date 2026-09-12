@@ -276,6 +276,13 @@
 .gr-didyou { font-size: .85rem; margin: .6rem 0; padding: .7rem; border: 1px dashed var(--magenta);
   border-radius: var(--radius); display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
 .gr-didyou .btn { font-size: .75rem; padding: 5px 10px; }
+/* VR-173. The way past an empty gripes box — the ONLY way past it. Styled as a claim you
+   are making rather than a preference you are setting, because that is what it is: the
+   blank used to read as laziness and this turns it into a statement with a name on it. */
+.gr-affirm { display: flex; gap: .55rem; align-items: flex-start; margin-top: .55rem;
+  font-size: .78rem; color: var(--mute); line-height: 1.35; cursor: pointer; }
+.gr-affirm input { margin: .15rem 0 0; accent-color: var(--magenta); flex: 0 0 auto; cursor: pointer; }
+.gr-affirm:hover { color: var(--white); }
 .gr-hint { font-size: .8rem; color: var(--mute); margin: .6rem 0; }
 .gr-err { color: var(--magenta); font-size: .82rem; min-height: 1.1em; margin: .6rem 0 0; }
 

@@ -26,11 +26,18 @@ function hasnt(hay, needle, msg) { ok(String(hay).indexOf(needle) === -1, msg + 
 /* ---- headless DOM: just enough for app.js to load and render ------------- */
 var els = {};
 function stubEl() {
+  // VR-173: querySelector MEMOISES. It used to mint a fresh element per call, which is fine
+  // for rendering (nobody reads the result back) and fatal for driving a form — `grefSubmit`
+  // writes an error into `#gref-err` and reads `#gref-affirm`, and against a fresh stub every
+  // lookup is a different element, so nothing it sets can ever be observed. Same selector on
+  // the same element is the same node, which is what a real DOM does anyway.
+  var kids = {};
   return {
-    innerHTML: "", textContent: "", value: "", style: {}, classList: {
+    innerHTML: "", textContent: "", value: "", checked: false, disabled: false, style: {}, classList: {
       add: function () {}, remove: function () {}, toggle: function () {}, contains: function () { return false; }
     },
-    querySelector: function () { return stubEl(); }, querySelectorAll: function () { return []; },
+    querySelector: function (sel) { return kids[sel] || (kids[sel] = stubEl()); },
+    querySelectorAll: function () { return []; },
     addEventListener: function () {}, appendChild: function () {}, remove: function () {},
     options: [], add: function () {}, focus: function () {}, dataset: {},
     // The accordion (VR-109) toggles the DOM in place rather than re-rendering, so the
@@ -687,12 +694,237 @@ ok(typeof A.grefSort === "function", "grefSort is exported for the sort select")
 ok(typeof A.grefToggle === "function", "grefToggle is exported for the summary buttons");
 ok(typeof A.grefArtFail === "function", "grefArtFail is exported for the <img> onerror chain");
 
-/* ---- report ------------------------------------------------------------- */
-console.log("VEILRUN game-reference check");
-console.log("  " + pass + " checks passed");
-if (fails.length) {
-  console.log("\nFAILED (" + fails.length + "):");
-  fails.forEach(function (f) { console.log("  - " + f); });
-  process.exit(1);
+/* ---- 11. VR-173: the gate on an empty gripes box -------------------------
+   Everything above RENDERS. This section DRIVES — it runs the real `grefSubmit()` against the
+   stub DOM and watches what it refuses and what it sends.
+   Why that distinction earns its keep: the validation rule is the whole card. BipolarCrayons
+   could not file Elden Ring because the form demanded a gripe he did not have, so three
+   minutes later he typed one anyway — and that invented gripe is now in the data the Loom is
+   built from. The bar is therefore not "is there a checkbox" but "is an empty gripes box still
+   refused unless you make the claim", which only driving the function can answer.            */
+
+var sent = null;                               // last payload app.js handed the backend
+var createdRefs = [];
+var fakeBackend = {
+  loadGameRefs: function () { return Promise.resolve([]); },
+  loadGameRefNotes: function () { return Promise.resolve([]); },
+  createGameRef: function (slug) { createdRefs.push(slug); return Promise.resolve(true); },
+  upsertGameRefNote: function (n) { sent = n; return Promise.resolve({ ok: true }); }
+};
+
+var MODAL = "grefmodal";
+function field(sel) { return ctx.document.getElementById(MODAL).querySelector(sel); }
+
+// Open the modal on a game, then fill it. `who` is set after grefOpen because grefOpen resets it.
+function fill(o) {
+  A.grefOpen(o.game || "Some New Game");
+  field("#gref-who").value = o.who || "Jordan";
+  field("#gref-loves").value = o.loves || "";
+  field("#gref-gripes").value = o.gripes || "";
+  field("#gref-affirm").checked = !!o.affirm;
+  field("#gref-err").textContent = "";
+  sent = null;
 }
-console.log("\nPASS — slugs stable, near misses never auto-merge, cards survive 1–10 takes.");
+function submitted() { return sent !== null; }
+function refusal() { return String(field("#gref-err").textContent || ""); }
+
+async function main() {
+  ctx.VBackend = fakeBackend;
+  ctx.localStorage.setItem("vr_who", "Jordan");
+
+  /* 11a. THE CARD'S CENTRAL CLAIM — an empty gripes box costs you a tick, not nothing. */
+  fill({ loves: "The drop pods land like they weigh something.", gripes: "", affirm: false });
+  await A.grefSubmit();
+  ok(!submitted(), "first take, gripes empty, UNticked: refused — the box is not optional");
+  ok(refusal().length > 0, "…and the refusal says something rather than failing silently");
+
+  fill({ loves: "The drop pods land like they weigh something.", gripes: "", affirm: true });
+  await A.grefSubmit();
+  ok(submitted(), "first take, gripes empty, TICKED: accepted — the tick is the way through");
+  ok(sent && sent.gripesAffirmed === true, "…and the payload carries the affirmation flag");
+  ok(sent && !sent.gripes, "…with the gripes field still empty — the tick is not a fake gripe");
+
+  /* 11b. NOT "gripes became optional". Ship that and the card has failed, so bar it here. */
+  fill({ loves: "", gripes: "Bullet sponges.", affirm: false });
+  await A.grefSubmit();
+  ok(!submitted(), "first take with empty LOVES is still refused (unticked)");
+
+  fill({ loves: "", gripes: "", affirm: true });
+  await A.grefSubmit();
+  ok(!submitted(), "first take with empty LOVES is still refused WHEN TICKED — the tick says " +
+     "something about gripes and nothing about loves");
+
+  fill({ loves: "", gripes: "Bullet sponges.", affirm: true });
+  await A.grefSubmit();
+  ok(!submitted(), "ticking cannot rescue an empty loves box even with gripes filled");
+
+  /* 11c. the ordinary path, unchanged. A regression here is the card breaking the form. */
+  fill({ loves: "Squad chatter.", gripes: "Bullet sponges.", affirm: false });
+  await A.grefSubmit();
+  ok(submitted(), "first take with BOTH halves filled still submits, untouched");
+  ok(sent && sent.gripesAffirmed === false, "…and is not flagged as an affirmation");
+
+  /* 11d. the contradiction. Ticked AND a gripe typed: the gripe is what they meant.
+     VR-174 renders `true` as "nothing takes me out of it", so a true stored next to a
+     written gripe would put words in someone's mouth on the page. */
+  fill({ loves: "Squad chatter.", gripes: "Bullet sponges.", affirm: true });
+  await A.grefSubmit();
+  ok(submitted(), "ticked WITH a typed gripe still submits");
+  ok(sent && sent.gripesAffirmed === false,
+     "…but the flag is dropped — a written gripe outranks the tick, so `true` always means empty");
+
+  /* 11e. THE EDIT PATH (done-when 4) — this is how the invented Elden Ring gripe gets fixed. */
+  A.__grefSetCache([{ slug: "eldenring", name: "Elden Ring", who: "Jordan" }], [
+    { slug: "eldenring", who: "Jordan", loves: "It trusts you.",
+      gripes: "I have 1000 hours and only have new playthroughs to do.",
+      gripes_affirmed: false, tags: [], gripe_tags: [] }
+  ]);
+  A.grefOpen("Elden Ring");
+  ok(field("#gref-gripes").value.indexOf("1000 hours") !== -1,
+     "edit path: the existing take pre-fills, so the invented gripe is there to be removed");
+  field("#gref-who").value = "Jordan";
+  field("#gref-gripes").value = "";
+  field("#gref-affirm").checked = true;
+  field("#gref-err").textContent = "";
+  sent = null;
+  await A.grefSubmit();
+  ok(submitted(), "edit path: clearing the gripe and ticking is accepted");
+  ok(sent && sent.gripesAffirmed === true && !sent.gripes,
+     "…and replaces the invented gripe with the affirmation");
+
+  // The tick is never a substitute for CONTENT. Emptying both boxes and ticking must still be
+  // refused on the edit path exactly as it was before this card — otherwise you can store a
+  // take that is counted in "3 takes" while contributing to neither half of the card, and the
+  // rule "you still have to say what you love" would be true on one path and false on the other.
+  A.__grefSetCache([{ slug: "eldenring", name: "Elden Ring", who: "Jordan" }], [
+    { slug: "eldenring", who: "Jordan", loves: "It trusts you.", gripes: "Too long.",
+      gripes_affirmed: false, tags: [], gripe_tags: [] }
+  ]);
+  A.grefOpen("Elden Ring");
+  field("#gref-who").value = "Jordan";
+  field("#gref-loves").value = "";
+  field("#gref-gripes").value = "";
+  field("#gref-affirm").checked = true;
+  field("#gref-err").textContent = "";
+  sent = null;
+  await A.grefSubmit();
+  ok(!submitted(), "edit path: emptying BOTH boxes and ticking is still refused — an " +
+     "affirmation is a claim about gripes, not content standing in for loves");
+
+  // An affirmed take reopened must come back TICKED, or saving it again silently un-affirms it.
+  A.__grefSetCache([{ slug: "eldenring", name: "Elden Ring", who: "Jordan" }], [
+    { slug: "eldenring", who: "Jordan", loves: "It trusts you.", gripes: "",
+      gripes_affirmed: true, tags: [], gripe_tags: [] }
+  ]);
+  A.grefOpen("Elden Ring");
+  ok(field("#gref-affirm").checked === true,
+     "edit path: an affirmed take reopens TICKED — otherwise a re-save drops the claim");
+
+  // …and the box is genuinely reset between opens, rather than latching on from last time.
+  A.__grefSetCache([], []);
+  A.grefOpen("Some Other Game");
+  ok(field("#gref-affirm").checked === false, "the tick does not survive into the next game's modal");
+
+  ctx.VBackend = null;                         // back to offline, as the rest of the file expects
+}
+
+/* ---- 12. the write path, which lives in backend.js and is not loaded above -------------- */
+var backendSrc = fs.readFileSync(path.join(ROOT, "js/backend.js"), "utf8");
+has(backendSrc, 'sb.from("game_ref_notes").select("*")',
+  "the notes read is select(*), so the edit path can read the flag back and a column this " +
+  "deploy has and the database has not cannot empty the whole reference page");
+
+/* backend.js is not loaded into the context above — it would overwrite the deliberately-null
+   VBackend section 10 relies on — so it gets its own throwaway context and a fake Supabase.
+   THIS IS THE ONE THING WORTH EXECUTING RATHER THAN GREPPING FOR. `gripes_affirmed` is
+   additive and the migration may not have reached a given database yet, so the write has to
+   survive the column being absent. A text match proves the fallback was typed; only running
+   it proves the retry fires, drops the column and lands the take. It is the difference
+   between "safe to merge before the migration" as a claim and as a checked fact.           */
+function loadBackend(onUpsert, onSelect) {
+  var bctx = vm.createContext({});
+  bctx.window = bctx; bctx.globalThis = bctx;
+  bctx.console = { warn: function () {}, info: function () {}, log: function () {}, error: function () {} };
+  bctx.localStorage = ctx.localStorage;
+  bctx.VEILRUN_CONFIG = { supabaseUrl: "https://example.supabase.co", supabaseAnonKey: "anon" };
+  bctx.supabase = { createClient: function () {
+    return { from: function (table) { return {
+      upsert: function (row, opts) { return Promise.resolve(onUpsert(table, row, opts)); },
+      select: function (cols) { return Promise.resolve(onSelect ? onSelect(table, cols) : { data: [] }); }
+    }; } };
+  } };
+  vm.runInContext(fs.readFileSync(path.join(ROOT, "js/backend.js"), "utf8"), bctx, { filename: "js/backend.js" });
+  return bctx.VBackend;
+}
+
+// PostgREST's real shape for this: code PGRST204, the column name inside the message.
+var MISSING_COL = { error: { code: "PGRST204",
+  message: "Could not find the 'gripes_affirmed' column of 'game_ref_notes' in the schema cache" } };
+
+async function backendChecks() {
+  /* 12a. the column exists — the flag goes down as written. */
+  var rows = [];
+  var B = loadBackend(function (t, row) { rows.push(row); return { error: null }; });
+  ok(!!B, "backend.js activates when config and the supabase client are both present");
+  var r = await B.upsertGameRefNote({ slug: "eldenring", who: "Jordan", loves: "x", gripes: "", gripesAffirmed: true });
+  ok(r && r.ok === true, "a note with the affirmation set writes cleanly");
+  ok(rows.length === 1 && rows[0].gripes_affirmed === true,
+     "…and the row carries gripes_affirmed — the app's flag reaches the column");
+
+  var r2 = await B.upsertGameRefNote({ slug: "eldenring", who: "Jordan", loves: "x", gripes: "y" });
+  ok(rows[1] && rows[1].gripes_affirmed === false,
+     "an ordinary take writes the column as false, never null or absent");
+  ok(r2 && r2.ok === true, "…and still succeeds");
+
+  /* 12b. the column does NOT exist — the migration has not landed on this database. */
+  var tries = [];
+  var B2 = loadBackend(function (t, row) {
+    tries.push(JSON.parse(JSON.stringify(row)));
+    return tries.length === 1 ? MISSING_COL : { error: null };
+  });
+  var r3 = await B2.upsertGameRefNote({ slug: "eldenring", who: "Jordan", loves: "x", gripes: "", gripesAffirmed: true });
+  ok(tries.length === 2, "a missing gripes_affirmed column makes the write RETRY rather than fail");
+  ok(tries[0] && tries[0].gripes_affirmed === true, "…the first attempt did carry the flag");
+  ok(tries[1] && !("gripes_affirmed" in tries[1]), "…and the retry drops the column entirely");
+  ok(tries[1] && tries[1].loves === "x" && tries[1].slug === "eldenring",
+     "…while keeping everything the person actually typed");
+  ok(r3 && r3.ok === true,
+     "…so the take LANDS. Pre-migration this loses a flag, never a take — which is what makes " +
+     "the branch safe to merge before the column is applied");
+
+  /* 12c. a real failure is still a failure. The fallback must not swallow everything. */
+  // The stub SUCCEEDS on a second attempt on purpose: that is what makes this assertion awake.
+  // Widen the fallback to `if (error)` and the retry would land, turning a permission failure
+  // into a reported success — so the bar has to be able to tell a retry from no retry here.
+  var n3 = 0;
+  var B3 = loadBackend(function () {
+    return ++n3 === 1 ? { error: { code: "42501", message: "permission denied for table game_ref_notes" } } : { error: null };
+  });
+  var r4 = await B3.upsertGameRefNote({ slug: "eldenring", who: "Jordan", loves: "x", gripes: "y" });
+  ok(n3 === 1, "an unrelated database error does NOT trigger the retry — the fallback is scoped " +
+     "to the missing column, not to failure in general");
+  ok(r4 && r4.ok === false, "…and is still reported as a failure");
+  ok(r4 && /permission denied/.test(String(r4.message || "")),
+     "…and the message reaches the person rather than being replaced by a retry");
+}
+
+var htmlSrc = fs.readFileSync(path.join(ROOT, "app.html"), "utf8");
+has(htmlSrc, 'id="gref-affirm"', "the checkbox exists in the modal markup");
+has(htmlSrc, 'type="checkbox"', "…and is a checkbox, not another text field");
+
+/* ---- report ------------------------------------------------------------- */
+function report() {
+  console.log("VEILRUN game-reference check");
+  console.log("  " + pass + " checks passed");
+  if (fails.length) {
+    console.log("\nFAILED (" + fails.length + "):");
+    fails.forEach(function (f) { console.log("  - " + f); });
+    process.exit(1);
+  }
+  console.log("\nPASS — slugs stable, near misses never auto-merge, cards survive 1–10 takes,");
+  console.log("       and an empty gripes box is a claim you have to make.");
+}
+main().then(backendChecks).then(report, function (e) {
+  console.log("VEILRUN game-reference check\n\nTHREW while driving grefSubmit:\n" + (e && e.stack || e));
+  process.exit(1);
+});
