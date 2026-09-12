@@ -2036,6 +2036,26 @@ window.VApp = (function () {
     return { slug, pending: true, name: (r && r.name) || slug, blurb: "", platforms: [], mechanics: [] };
   }
 
+  /* VR-174. ONE definition of each half of the gripes question, because four places ask it
+     and four copies is precisely how the ⚑ count, the sort and the header count drift apart.
+
+     `grefAffirms` re-checks that the box is empty rather than trusting the flag alone.
+     VR-173 enforces that on the way in — tick it and type a gripe and the gripe wins — but a
+     row hand-edited in Supabase has never been through that gate, and a take that counted as
+     both a written gripe and a silent tick would be counted twice by two different rules. */
+  const grefHasGripe = t => !!((t && t.gripes) || "").trim();
+  const grefAffirms = t => !grefHasGripe(t) && !!(t && t.gripes_affirmed);
+
+  /* Names the people behind an affirmation, capped the way everything else on this page is
+     capped. Three names is a sentence; ten names is the wall the disclosures exist to stop,
+     rebuilt in the one slot that has no disclosure of its own. */
+  function grefNameList(names) {
+    if (names.length === 1) return names[0];
+    if (names.length <= 3) return names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
+    const rest = names.length - 3;
+    return names.slice(0, 3).join(", ") + " and " + rest + " other" + (rest === 1 ? "" : "s");
+  }
+
   // Aggregate the tag chips across every take, ordered by how many people picked each.
   function grefTagRoll(notes, field) {
     const n = {};
@@ -2098,12 +2118,23 @@ window.VApp = (function () {
     const rows = notes.filter(t => (t[field] || "").trim());
     const roll = tags.length
       ? `<div class="gr-tagroll">${tags.map(t => `<span class="gr-tag">${C.esc(t.tag)}${t.n > 1 ? ` <b>${t.n}</b>` : ""}</span>`).join("")}</div>` : "";
+    /* VR-174. An affirmed empty gripes box is a STATEMENT — "nothing takes me out of this" —
+       and it is the strongest thing anyone can say about a game on this page. Rendering it as
+       an absence throws that away and makes it indistinguishable from not answering.
+       It is never a gripe, so it stays out of `rows` and out of every count on the card; it
+       is rendered beside them as its own line. */
+    const affirmers = side === "gripe" ? notes.filter(grefAffirms).map(t => canonicalWho(t.who)) : [];
+    const affirmed = affirmers.length
+      ? `<p class="gr-affirmed"><span class="gr-affirmed-i" aria-hidden="true">✓</span><span>${
+          C.esc(grefNameList(affirmers))} ${affirmers.length === 1 ? "says" : "say"} nothing takes them out of it.</span></p>`
+      : "";
     // Nothing written on this side: say so in place. A disclosure over an empty panel is a
-    // button that punishes you for pressing it.
+    // button that punishes you for pressing it. An affirmation takes that slot when there is
+    // one — the half is empty of gripes either way, but only one of the two is silence.
     if (!rows.length) {
-      return `<section class="gr-side gr-${side}">
+      return `<section class="gr-side gr-${side}" id="grhalfsec-${C.esc(slug)}-${side}">
         <div class="gr-side-head gr-side-flat"><span>${label}</span><span class="mute">0</span></div>
-        ${roll}<p class="gr-none">Nobody's said yet.</p>
+        ${roll}${affirmed || `<p class="gr-none">Nobody's said yet.</p>`}
       </section>`;
     }
     const open = grefState.halves.has(slug + "|" + side);
@@ -2115,7 +2146,7 @@ window.VApp = (function () {
         <span class="gr-side-n">${rows.length}</span>
         <span class="gr-caret gr-caret-sm" aria-hidden="true"></span>
       </button>
-      ${roll}
+      ${roll}${affirmed}
       <div class="gr-quotewrap" id="${panelId}"${open ? "" : " hidden"}>
         ${grefQuotes(notes, field, slug, side)}
       </div>
@@ -2152,7 +2183,9 @@ window.VApp = (function () {
     const g = grefCard(slug, refs);
     const loveTags = grefTagRoll(notes, "tags"), gripeTags = grefTagRoll(notes, "gripe_tags");
     const nLove = notes.filter(t => (t.loves || "").trim()).length;
-    const nGripe = notes.filter(t => (t.gripes || "").trim()).length;
+    // VR-174: `grefHasGripe`, not a fourth inline copy of the same filter. An affirmation is
+    // not a gripe and must never reach this number.
+    const nGripe = notes.filter(grefHasGripe).length;
 
     // "Also submitted as" — derived from raw_name, so the merge log costs no extra table.
     const aliases = [...new Set((notes || []).map(t => (t.raw_name || "").trim())
@@ -2559,7 +2592,9 @@ window.VApp = (function () {
     let slugs = Object.keys(bySlug);           // only games somebody has actually spoken about
     const s = grefState.sort;
     slugs.sort((a, b) => {
-      if (s === "gripes") return bySlug[b].filter(t => (t.gripes || "").trim()).length - bySlug[a].filter(t => (t.gripes || "").trim()).length;
+      // VR-174: ranks by gripes WRITTEN. A game everyone ticked has nothing to read, and
+      // floating it up the one sort whose job is surfacing complaints would be backwards.
+      if (s === "gripes") return bySlug[b].filter(grefHasGripe).length - bySlug[a].filter(grefHasGripe).length;
       if (s === "new") {
         const at = x => Math.max(...bySlug[x].map(t => new Date(t.updated_at || t.created_at || 0).getTime()));
         return at(b) - at(a);
@@ -2570,7 +2605,9 @@ window.VApp = (function () {
     if (loom) loom.innerHTML = loomPanel(notes);
     const stats = document.getElementById("gref-stats");
     if (stats) {
-      const nGripes = notes.filter(t => (t.gripes || "").trim()).length;
+      // VR-174: "worth reading" is the operative phrase — a tick is worth KNOWING and there
+      // is nothing to read in it, so it is counted as a take and not as a gripe.
+      const nGripes = notes.filter(grefHasGripe).length;
       stats.textContent = slugs.length
         ? `${slugs.length} game${slugs.length === 1 ? "" : "s"} · ${notes.length} take${notes.length === 1 ? "" : "s"} · ${nGripes} gripe${nGripes === 1 ? "" : "s"} worth reading`
         : "";
