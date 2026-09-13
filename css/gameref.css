@@ -156,6 +156,16 @@
   text-decoration: underline; }
 .gr-readmore:focus-visible { outline: 2px solid var(--magenta); outline-offset: 2px; }
 .gr-none { font-size: .82rem; color: var(--mute); font-style: italic; margin: 0; }
+/* VR-174. The rendered side of VR-173's tick, and it is deliberately NOT styled like
+   `.gr-none` above. That one is italic and muted because it describes an absence; this one
+   describes a claim somebody stood behind, and the two sitting in the same slot at the same
+   weight would undo the whole distinction. Upright, full text colour, and a tick that
+   carries no meaning of its own — the sentence says it, the mark just anchors it. */
+.gr-affirmed { display: flex; gap: .45rem; align-items: baseline; margin: 0;
+  font-size: .82rem; color: var(--white); line-height: 1.4; }
+.gr-affirmed-i { color: var(--magenta); flex: 0 0 auto; font-weight: 700; }
+/* With gripes also present the line is a footnote to them, not a competing headline. */
+.gr-quotewrap + .gr-affirmed, .gr-affirmed + .gr-quotewrap { margin-top: .55rem; }
 .gr-hidden { display: none; }
 .gr-more { margin-top: .5rem; background: none; border: none; padding: 0; cursor: pointer;
   font-size: .78rem; color: var(--magenta); text-decoration: underline; }

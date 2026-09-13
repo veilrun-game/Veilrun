@@ -912,6 +912,132 @@ var htmlSrc = fs.readFileSync(path.join(ROOT, "app.html"), "utf8");
 has(htmlSrc, 'id="gref-affirm"', "the checkbox exists in the modal markup");
 has(htmlSrc, 'type="checkbox"', "…and is a checkbox, not another text field");
 
+/* ---- 13. VR-174: an affirmed "no gripes" renders as a STATEMENT ----------
+   VR-173 made the tick possible. This is the half that makes it mean anything.
+
+   The failure guarded here is not a crash — it is the page quietly re-flattening the exact
+   distinction the tick was added to draw. BipolarCrayons, 8/17: *"I cannot put in elden ring
+   because the ONLY thing that 'takes me away' from it is that I have 1000hrs and I still
+   periodically play."* Rendered as "Nobody's said yet", that is byte-identical to the person
+   who could not be bothered to type anything, and the strongest opinion on the card reads as
+   the weakest.
+
+   The second half of this section pins the three COUNTS at zero, and that is the part worth
+   explaining. They already behaved correctly — they filter on non-empty text, so an empty
+   gripes box was never counted whatever the flag said. Nothing recorded that as intentional.
+   "Affirmations aren't showing up in the gripe count" is a plausible-sounding bug report, and
+   the fix for it would be wrong: a tick is a claim ABOUT gripes and is never itself a gripe.
+   These assertions exist so that change fails rather than ships. */
+function affirmedNote(who, loves, slug) {
+  return { slug: slug || "helldivers2", who: who, loves: loves === undefined ? "the weight of every step" : loves,
+    gripes: "", gripes_affirmed: true, tags: [], gripe_tags: [],
+    raw_name: slug === "seaofthieves" ? "Sea of Thieves" : "Helldivers 2",
+    created_at: "2026-08-15T10:00:00Z", updated_at: "2026-08-15T10:00:00Z" };
+}
+
+var aff1 = CARD("helldivers2", [affirmedNote("Todd")], fixtureRefs);
+hasnt(aff1, "Nobody's said yet", "affirmed: the gripe half stops reading as an absence");
+has(aff1, "nothing takes them out of it",
+  "affirmed: the claim is stated in words — an absence cannot be told from laziness, a sentence can");
+has(aff1, "Temper says nothing takes them out of it",
+  "affirmed: …and names the person, through the same identity collapse the quotes use");
+
+// One person and two people are different sentences, and getting the verb wrong is the kind
+// of thing nobody files but everybody notices.
+var aff2 = CARD("helldivers2", [affirmedNote("Todd"), affirmedNote("Jordan")], fixtureRefs);
+has(aff2, "say nothing takes them out of it", "affirmed: two people get the plural verb");
+hasnt(aff2, "says nothing takes them out of it", "affirmed: …and not the singular one as well");
+
+// Every other disclosure on this page caps what it can grow into. This one has to as well,
+// or ten affirmations become a paragraph of names in a slot built for a sentence.
+var affMany = CARD("helldivers2", ["Todd", "Jordan", "Ali", "Soviet", "Roadhouse", "Latch"]
+  .map(function (w) { return affirmedNote(w); }), fixtureRefs);
+has(affMany, "others say nothing takes them out of it", "affirmed: past three names it counts the rest instead");
+ok((affMany.match(/gr-affirmed/g) || []).length >= 1, "affirmed: the line is marked for styling");
+ok(affMany.length < aff2.length + 600, "affirmed: six affirmations do not render six times the markup");
+
+// THE RULE THE COUNTS ENCODE: a tick is not a gripe.
+has(aff1, '<span class="gr-stat-i" aria-hidden="true">⚑</span>0',
+  "affirmed: the ⚑ count on the collapsed face stays 0 — a tick is a claim about gripes, not one");
+has(aff1, '<span class="gr-stat-i" aria-hidden="true">♥</span>1',
+  "affirmed: …while the love they DID write still counts, so the take is not invisible");
+
+// The flag false, with the same empty box, must be untouched — this is the existing
+// loves-only behaviour (section 5) restated against the flag rather than its absence, so
+// "an empty box" and "an empty box someone stood behind" are provably different renders.
+var notAff = CARD("helldivers2", [{ slug: "helldivers2", who: "Todd", loves: "the drop-in drop-out",
+  gripes: "", gripes_affirmed: false, tags: [], gripe_tags: [], raw_name: "Helldivers 2",
+  created_at: "2026-08-15T10:00:00Z", updated_at: "2026-08-15T10:00:00Z" }], fixtureRefs);
+has(notAff, "Nobody's said yet", "unaffirmed empty gripes: still reads as an absence, because it is one");
+hasnt(notAff, "nothing takes them out of it", "unaffirmed empty gripes: no claim is put in their mouth");
+
+// A hand-edited row could carry the flag AND a gripe. VR-173 refuses that on the way in;
+// the render refuses to believe it on the way out, so one bad row cannot make a take count
+// as both a written gripe and a silent tick.
+var both = CARD("helldivers2", [{ slug: "helldivers2", who: "Todd", loves: "a", gripes: "the grind",
+  gripes_affirmed: true, tags: [], gripe_tags: [], raw_name: "Helldivers 2",
+  created_at: "2026-08-15T10:00:00Z", updated_at: "2026-08-15T10:00:00Z" }], fixtureRefs);
+has(both, "the grind", "flag + a written gripe: the gripe they typed wins");
+hasnt(both, "nothing takes them out of it", "…and the contradicting affirmation is not rendered too");
+has(both, '<span class="gr-stat-i" aria-hidden="true">⚑</span>1', "…and it counts once, as a gripe");
+
+/* The header count and the "Most gripes" sort both live inside renderReference(), which is
+   not exported. So drive it the way the page does — through the sort control — and read the
+   result back off the stub DOM. This is the only place either is reachable headlessly. */
+els = {};
+A.__grefSetCache(fixtureRefs, [
+  affirmedNote("Todd"), affirmedNote("Jordan"),
+  { slug: "seaofthieves", who: "Ali", loves: "the sailing", gripes: "the grind between voyages",
+    gripes_affirmed: false, tags: [], gripe_tags: [], raw_name: "Sea of Thieves",
+    created_at: "2026-08-15T10:00:00Z", updated_at: "2026-08-15T10:00:00Z" }
+]);
+A.grefSort("gripes");
+var statsLine = String(els["gref-stats"].textContent || "");
+has(statsLine, "1 gripe worth reading",
+  "affirmed: the header count counts WRITTEN gripes only — two ticks add nothing to it");
+has(statsLine, "3 takes", "affirmed: …while the people who ticked are still counted as takes");
+has(statsLine, "2 games", "affirmed: …and a game whose only takes are ticks is still a game on the page");
+// "Most gripes" must rank by gripes actually written, or a wall of affirmations floats to the
+// top of the one sort whose entire job is to surface what people complained about.
+var listHtml = String(els["gref-list"].innerHTML || "");
+ok(listHtml.indexOf("seaofthieves") !== -1 && listHtml.indexOf("helldivers2") !== -1,
+  "sort: both games render in the list");
+ok(listHtml.indexOf("seaofthieves") < listHtml.indexOf("helldivers2"),
+  "sort: under 'Most gripes' the game with one real gripe outranks the game with two ticks");
+
+/* ---- 13b. every colour this page asks for actually exists -----------------
+   Added while building VR-174, because VR-174 broke it. The affirmation line was written
+   against `var(--text)`, which is not a token this project has. CSS does not error on that —
+   it drops the declaration and the text inherits whatever the parent had, so the line renders,
+   looks approximately right in the one state you happen to look at, and is wrong everywhere
+   else. Nothing in the repo could see it: every other harness reads behaviour, and a colour
+   is not behaviour.
+   Cheap, and it generalises — any future rule added to this stylesheet is covered the day it
+   is written. */
+var cssSrc = fs.readFileSync(path.join(ROOT, "css/gameref.css"), "utf8");
+var tokenSrc = fs.readFileSync(path.join(ROOT, "css/tokens.css"), "utf8");
+var defined = {};
+(tokenSrc.match(/--[a-zA-Z0-9-]+\s*:/g) || []).forEach(function (d) {
+  defined[d.replace(/\s*:$/, "")] = true;
+});
+ok(Object.keys(defined).length > 5, "tokens.css parses into a usable set of custom properties");
+var usedTokens = {};
+(cssSrc.match(/var\(\s*--[a-zA-Z0-9-]+/g) || []).forEach(function (u) {
+  usedTokens[u.replace(/^var\(\s*/, "")] = true;
+});
+ok(Object.keys(usedTokens).length > 3, "gameref.css does use tokens rather than hard-coded colour");
+Object.keys(usedTokens).sort().forEach(function (t) {
+  // A `var(--x, fallback)` would be legitimate without a definition; this stylesheet uses
+  // none, and the day it does this assertion should be taught about them rather than relaxed.
+  ok(defined[t], "gameref.css uses " + t + ", which tokens.css defines — a typo here is " +
+     "silently dropped by CSS and inherits the wrong colour instead of failing");
+});
+// The affirmation and the absence must not resolve to the same treatment, or VR-174's whole
+// distinction is undone by a stylesheet edit that no behavioural check would notice.
+ok(/\.gr-affirmed\s*\{[^}]*color:/.test(cssSrc), ".gr-affirmed sets its own colour rather than inheriting the muted one");
+ok(!/\.gr-affirmed\s*\{[^}]*font-style:\s*italic/.test(cssSrc),
+   ".gr-affirmed is not italicised like .gr-none — a claim should not be dressed as an absence");
+
 /* ---- report ------------------------------------------------------------- */
 function report() {
   console.log("VEILRUN game-reference check");

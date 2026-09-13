@@ -64,15 +64,34 @@ var NO_DOCS_NEEDED = {
             "works and it lives in the repo where it belongs."
 };
 
-/* CLEARED 9/13 by the canon audit (VR-100) — VR-173 sat here for one day as acknowledged
-   DEBT and is now written up in `Design System.md`, under the progressive-disclosure section
-   it names. The entry asked to be deleted once that happened, and the stale-entry guard below
-   failed it the moment it was, which is the list policing itself working exactly as designed.
+/* CLEARED 9/13 at merge time — VR-173 and VR-174 are one decision collected and then
+   rendered, and both are now written up in `Design System.md`: VR-173 as its own section,
+   VR-174 as the rendering half plus a FIFTH row in the caps table. The stale-entry guard
+   failed each of them the moment its doc existed, which is the list policing itself.
 
-   Worth keeping the reason it was listed rather than written: the Producer would have been
-   folding its OWN work into canon, which is how canon stops being a record and starts being
-   an echo. The audit is a different thread with no stake in the build, so writing it here is
-   review rather than echo — that is the distinction, not "a week later". */
+   Keeping the reason they were listed rather than written: the Producer would have been
+   folding its OWN work into canon, which is how canon stops being a record and starts
+   being an echo. The canon audit is a different thread with no stake in the build, so
+   writing them up is review rather than echo. That is the distinction — not elapsed time.
+
+   The entry below is retained verbatim only as the record of what the debt actually said,
+   because its second half is the part no later thread can infer from the code.
+
+   "VR-174": "DEBT, opened by the Producer 9/12 and Jordan's to close. Same home as VR-173 — " +
+            "Design System.md, the Game Reference disclosure entry — and best written up with " +
+            "it, since the two are one decision collected and then rendered. Two durable " +
+            "halves. FIRST, the affirmation is a FIFTH cap on that page and the heading that " +
+            "counts them needs renumbering: three names, then three and a count, because the " +
+            "slot has no disclosure of its own to hide a tenth name behind. SECOND, and the " +
+            "part no later thread can infer from the code: a tick is a claim ABOUT gripes and " +
+            "is never itself a gripe, so it is deliberately absent from the flag count, the " +
+            "'Most gripes' sort and 'N gripes worth reading', while still counting as a take. " +
+            "Those three read correctly today only because they filter on non-empty text — " +
+            "'affirmations aren't showing in the gripe count' is a plausible bug report whose " +
+            "fix would be wrong, and the reason it is wrong lives here, not in the code. " +
+            "Listed rather than written because an agent folding its own work into canon is " +
+            "how canon stops being a record and starts being an echo. Delete once written up."
+*/
 
 /* CLEARED 8/30 — VR-109, VR-110, VR-120, VR-129 and VR-130 were listed here for
    about an hour and are now written up instead. Worth recording what put them here,
