@@ -61,16 +61,18 @@ function citedIn(text) {
 var NO_DOCS_NEEDED = {
   "VR-107": "NOT A GAP. Game Reference cover art — resolving Steam appids for 47 games is " +
             "asset sourcing, not a design decision. `_grefart.js` is the record of how it " +
-            "works and it lives in the repo where it belongs.",
-  "VR-173": "DEBT, opened by the Producer 9/12 and Jordan's to close. The affirmation rule " +
-            "belongs in Design System.md beside the Game Reference disclosure entry, and the " +
-            "durable half is the invariant a later thread cannot infer from the code: both " +
-            "halves stay required, the tick is the ONLY way past an empty gripes box, and a " +
-            "stored `true` therefore always implies the field beside it is empty — VR-174 " +
-            "renders on that promise. Listed rather than written because an agent folding its " +
-            "own work into canon is how canon stops being a record and starts being an echo. " +
-            "Delete this entry once it is written up."
+            "works and it lives in the repo where it belongs."
 };
+
+/* CLEARED 9/13 by the canon audit (VR-100) — VR-173 sat here for one day as acknowledged
+   DEBT and is now written up in `Design System.md`, under the progressive-disclosure section
+   it names. The entry asked to be deleted once that happened, and the stale-entry guard below
+   failed it the moment it was, which is the list policing itself working exactly as designed.
+
+   Worth keeping the reason it was listed rather than written: the Producer would have been
+   folding its OWN work into canon, which is how canon stops being a record and starts being
+   an echo. The audit is a different thread with no stake in the build, so writing it here is
+   review rather than echo — that is the distinction, not "a week later". */
 
 /* CLEARED 8/30 — VR-109, VR-110, VR-120, VR-129 and VR-130 were listed here for
    about an hour and are now written up instead. Worth recording what put them here,

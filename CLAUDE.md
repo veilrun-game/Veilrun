@@ -168,8 +168,22 @@ explicitly rather than omitting an item.
 
    **THE PIPELINE — a card's list IS its stage:**
    · **Building** → `🟣 In progress`.
-   · **Branch committed and pushed** → **move it to `🔀 In review` yourself**, and put the branch
-     name in a comment. Do not ask. Do not move it to Done — it is not live yet.
+   · **Branch committed and pushed** → **move it to `🔀 In review` yourself**. Do not ask. Do not
+     move it to Done — it is not live yet.
+     ⚠️ **REVISED 9/12 — this used to say "and put the branch name in a comment," and no agent could
+     ever do it.** The Trello connector's write tool has no comment action; its `action` enum is
+     `create · update · move · archive · mark_done · attach_label · detach_label` and nothing else.
+     Reading comments works (they ride along in a card `get`), so the gap is invisible until you try
+     to write one. **A standing instruction no agent can follow is worse than no instruction** — it
+     made every run end with an apology for a step that was never available.
+     **The replacement is to DERIVE the branch, not record it.** A card's branch is
+     **`vr-<number>-<slug>`**, always — `VR-174` → `vr-174-affirmed-renders`. That makes the branch
+     a lookup rather than a fact someone has to write down: `git branch -r --list 'origin/vr-174-*'`
+     answers it from the repo, which is the same move the merge check already makes. **Nothing goes
+     on the card at all** — not a comment, not a title prefix, not a description line. A board field
+     that restates what git already knows is one more thing that can drift.
+     **If a card ever needs two branches, the second is `vr-<number>-<slug>-2`** — still derivable
+     by the same glob.
    · **Branch merged into `main`** → **move it to `🟢 Done`.** This is derivable, never a question:
      `git branch --merged main` lists what has landed. **The Producer's sweep checks this every run**,
      so a card cannot sit in review after its branch is merged.
