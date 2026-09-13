@@ -484,6 +484,19 @@ the set look larger than it is. `_ship.js` excludes all three by name.
   you would be happy reading it at a guessable URL.** This is the reason the canon docs live in
   `Claude Access` (§1) rather than here: committing them would publish unreleased character kits,
   world lore and unratified proposals. Found the hard way on 8/30, one `git add` short.
+- ⚠️ **THERE ARE TWO PUBLIC HOSTS, NOT ONE (verified live 9/13).** Cloudflare Pages is the one this
+  file has always named. **A Netlify site serves the same repo at
+  `https://stirring-horse-1393ea.netlify.app`** — `/CLAUDE.md` returns this file there too.
+  **So a publish check run against one URL has checked half.** Nothing about the guards changes:
+  `_leakcheck.js` and `_pathcheck.js` police the repo's *contents*, which is host-independent, and
+  that is exactly why they still hold. But *"is this already public?"* is a two-URL question.
+  ⚠️ **Grepping the repo for deploy config finds nothing and proves nothing.** There is no
+  `netlify.toml` and no `_redirects` — the site is wired at Netlify's dashboard, against the GitHub
+  repo. **A second deploy can exist with no trace in the tree**, which is the transferable lesson:
+  the repo cannot tell you everywhere it is served from.
+  **It is kept deliberately** — Netlify posts a **deploy preview on every pull request**, so a
+  branch can be played before it is merged, which Pages does not offer. That preview is worth more
+  than having a single host. **Do not turn it off to tidy up.**
 - **Some lore is WITHHELD, and withheld means it cannot come into this repo.** Certain world
   material is deliberately unannounced — the crew is meant to meet it in a game, not in a
   changelog or a doc they stumble on. Because this repo is the public site, **material reaching
