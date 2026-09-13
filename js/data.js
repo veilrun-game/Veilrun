@@ -581,23 +581,24 @@ VEILRUN.counters = {
    was quiet. Metrics are only worth a slot if they moved or they're surprising; don't
    ship the same four every week out of habit. Never invent one. */
 VEILRUN.weekly = {
-  weekStart: "2026-08-30",
-  weekEnding: "2026-09-05",
-  headline: "The arena stopped fighting you — six fixes for one argument",
-  blurb: "Twelve of this week's fourteen notes were the Proving Ground, and six were the same argument: the camera and the character disagreeing about which way you meant. That is settled — the camera orbits him, move and look come apart, and as of today the crosshair aims the strike instead of his feet, which had quietly broken right-click in third person for three weeks. The husks arrive through the seam now, and take a second longer doing it, so a wave opens with more room. Quiet on your side: two sign-ins all week.",
+  weekStart: "2026-09-06",
+  weekEnding: "2026-09-12",
+  headline: "Three things the game used to do silently — and now says out loud",
+  blurb: "A theme, not a list. Press Execute at nothing and the game did nothing — no sound, no flicker — so a swing that missed and a button that was broken produced identical output, which is exactly the confusion that cost us a week in early September. A miss says so now, and shows you where the cone actually pointed. On a phone you can hold a button and drag to aim, with the real arc drawn on the ground. And an empty gripes box on the Game Reference is a checkbox you tick rather than a blank we can't read.",
   metrics: [
-    { label: "fixes for one argument between camera and character", value: 6 },
-    { label: "crew sign-ins this week, down from 14", value: 2 },
-    { label: "days since a new take landed in the Game Reference", value: 12 },
-    { label: "arena record still standing (best run this week: 1,024)", value: "3,382" }
+    { label: "things that were silent last week and are not now", value: 3 },
+    { label: "of you signed in — including Julian, for the first time", value: 2 },
+    { label: "votes cast on the Loom's three ideas since 28 Aug", value: 0 },
+    { label: "days until the Loom removes itself, un-voted", value: 5 }
   ],
-  /* No image, deliberately: no new art landed this week, and the week's work is motion
-     — blended locomotion, husks that search, a camera you can swing round — none of
-     which a still frame shows. The three gameplay views were all used in the last three
-     digests. `image` is individually skippable; weeklyHero() omits the <figure>. */
+  /* No image again, deliberately, and for a different reason than last week. This
+     week's work is all FEEDBACK — a sound on a whiff, a cone drawn under your thumb,
+     a checkbox. A still frame of any of it looks like a screenshot of nothing
+     happening, which is the precise thing that was wrong before. `image` is
+     individually skippable; weeklyHero() omits the <figure>. */
   highlights: [
-    { label: "Play the Proving Ground", href: "#games/arena-3d" },
-    { label: "The Loom and the Game Reference", href: "#reference" },
+    { label: "Swing at nothing on purpose", href: "#games/arena-3d" },
+    { label: "The Loom — three ideas waiting on a verdict", href: "#reference" },
     { label: "Everything that shipped this week", href: "#updates" }
   ]
 };
@@ -685,6 +686,7 @@ VEILRUN.loom = {
 };
 
 VEILRUN.updates = [
+  { date: "2026-09-13", title: "The Loom's three ideas were about to delete themselves. Nobody had voted on any of them", text: "**The Loom has been on the Game Reference page since 30 August with three ideas on it — The Thinning Line, Two Hands, Last Call — and the vote count on all three is zero.** Not low. Zero. Nobody has pressed ▲ or ▼ once.\n\n**And it was five days from removing itself.** The panel ages out after 21 days, deliberately: a confident summary that has stopped being true is worse than no summary, which is the same rule the weekly hero follows. Written on its own, that rule is right.\n\n**The trouble is the other rule, which is also right.** A week with no new takes is *skipped* rather than regenerated, because last week's ideas beat new ones manufactured from the same material. Since 28 August exactly **one** new game has been added to the reference — so there has been nothing to regenerate from.\n\n**Put the two together: the clock runs, nothing replaces the batch, and three ideas nobody ever decided on quietly disappear.** Neither rule's author could see the other one. That is now the most urgent card on the board.\n\n**The fix, once it lands: an idea leaves on a verdict, never on a clock.** The hero ages out because it summarises a week and stops being true. **An idea is a question, and a question does not expire because nobody answered it** — an unanswered one is the best argument there is for keeping it on screen. Ideas you promote or bury will still age out; ideas still waiting will stay, and you will be able to reach past batches.\n\n**Jordan also called the cadence, and he is right:** weekly was always optimistic. The Loom reads what you write about the games you play, and you do not write weekly. It is moving to monthly — which is roughly what it has been doing by accident anyway, and a thing that skips looks broken while a thing that runs monthly looks deliberate.\n\n**In the meantime, the fastest thing you can do is go and press a button.** Three ideas, ▲ or ▼, about ten seconds. ✎ Tell me more is there too, and it is not a vote — it never moves the score, it just asks the next batch to go deeper on that one.", cta: { label: "Open the Loom", href: "#reference" } },
   { date: "2026-09-12", title: "Game Reference: the page reads the tick back to you now",
     text: "**Earlier today the gripes box got an honest way out** — tick *\"nothing takes me out of it\"* and you no longer have to invent a complaint to file a take. **The page was still throwing it away.**\n\n**Tick it, and the card said “Nobody’s said yet.”** Which is the same six words it shows for somebody who could not be bothered to type anything. So the strongest thing anybody can say about a game on that page — *I have a thousand hours in this and there is genuinely nothing wrong with it* — rendered as the weakest. **The form collected the distinction and the page flattened it straight back out.**\n\n**Now it says who said it.** The gripe half of the card reads **“Temper says nothing takes them out of it”**, with a name on it, upright and in full text colour rather than the greyed-out italic an empty side gets. Past three people it names three and counts the rest, because every other thing on that page has a cap on how big it can grow and this one should not be the exception.\n\n**A tick is not a gripe, and nothing counts it as one.** It is not in the ⚑ number on the card. It is not in **“Most gripes”** — a game everyone loved has nothing to read, and floating it to the top of the one sort whose whole job is surfacing complaints would be backwards. It is not in **“N gripes worth reading”** either; *worth reading* is the operative phrase, and there is nothing to read in a tick. **It does still count as a take**, because a person did turn up and tell us something.\n\n**Nobody has ticked it yet** — the box has existed for a few hours and all 32 takes on the page predate it. **So this changes nothing you can see today.** It changes what happens the first time one of you means it, which was the part that was quietly broken.\n\n**If you skipped a game because the form would not let you say you have no complaints** — Elden Ring, and you know who you are — that game can go in now.",
     cta: { label: "Open the Game Reference", href: "#reference" } },

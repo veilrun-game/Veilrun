@@ -32,9 +32,9 @@
  * THIS NEVER EDITS CLAUDE.md. A checker that silently rewrites the thing it checks can
  * only ever agree with itself. It reports the gap; a human folds it.
  *
- * THE TWO TOOLS ARE EXCLUDED BY NAME. `_grefart.js` and `_pv.js` have no assertions
- * (CLAUDE.md §4). Running them proves nothing and counting them makes the green set
- * look larger than it is — which is the specific way a runner lies.
+ * THE TOOLS ARE EXCLUDED BY NAME. `_grefart.js`, `_pv.js` and `_roster.js` have no
+ * assertions (CLAUDE.md §4). Running them proves nothing and counting them makes the
+ * green set look larger than it is — which is the specific way a runner lies.
  *
  * SKIP IS NOT PASS, AND IT GETS ITS OWN COLUMN. `_docscheck.js` and `_leakcheck.js`
  * skip without the `Claude Access` mount; `_shroud.js` skips its render pass without
@@ -60,8 +60,11 @@ var ARGS = process.argv.slice(2);
 var STAGED = ARGS.indexOf("--staged") !== -1;
 var QUIET = ARGS.indexOf("--quiet") !== -1;
 
-/* Named in CLAUDE.md §4 as tools, not harnesses. Neither has a pass/fail. */
-var TOOLS = { "_grefart.js": 1, "_pv.js": 1 };
+/* Named in CLAUDE.md §4 as tools, not harnesses. None has a pass/fail.
+   `_roster.js` joined them on 9/13 (VR-181): it emits the canonical harness list
+   from `ls` for surfaces that cannot point at a command — Puzzle above all — and
+   asserts nothing, so counting it would be the exact lie described above. */
+var TOOLS = { "_grefart.js": 1, "_pv.js": 1, "_roster.js": 1 };
 
 var TIMEOUT_MS = 180000;
 

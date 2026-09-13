@@ -194,7 +194,10 @@ explicitly rather than omitting an item.
      shipped.**
 
    **Jordan's only step in this is the merge**, which is the one place a human judgement genuinely
-   belongs — it is the moment work becomes public.
+   belongs — it is the moment work becomes public. **As of 9/13 he does not do it unaided:
+   `branch-steward` (§3's delegate table) performs the merge into `main` up to but not including the
+   commit — conflicts resolved, `_ship.js` run on the MERGED tree, everything staged — so the step
+   left to him is approval rather than operation.**
    **A git hook cannot move the card** — the board needs credentials and §5 forbids them in this
    repo. The agent moves it on push; the sweep moves it on merge.
 5. **Canon docs** — fold durable decisions back into `_Project Knowledge/` **inside `Claude Access`**
@@ -232,6 +235,25 @@ item 5 easy to wave through.
 |---|---|---|
 | Run the harnesses | **`_ship.js`**, and the pre-commit hook already runs it | Deterministic. Never needed a language model, and a script cannot hallucinate a green. |
 | Items 1–5 against the diff, and the commit message | **`release-steward`** | Judgment. Item 5 asks whether a decision belongs in canon; item 3 asks whether a player can actually reach the thing. No script answers those. |
+| **Branch · commit · push · move the card · prepare the merge** | **`branch-steward`** *(added 9/13, VR-180)* | Execution. It takes the reviewed message and runs it, then merges the branch into `main` **up to but not including the commit**, so Jordan approves rather than operates. |
+
+⚠️ **`branch-steward` IS FULL AUTO BELOW `main` AND STOPS DEAD AT IT.** Branches, commits, pushes,
+branch-to-branch merges, mechanical conflict resolution and card movement all happen without asking.
+`git commit` on `main` and `git push origin main` are the two things it will refuse even when asked
+directly, because `main` is what Pages deploys — **the merge commit is the publish, and the publish
+is Jordan's.** Jordan chose this split explicitly on 9/13 when asked how far it should go.
+
+⚠️ **Why it exists, in one sentence: the 9/7 revision fixed the hand-off and left the LAST step —
+the only one that needs a person — as the one with no support at all.** On 9/13 Jordan started the
+VR-174 merge in GitHub Desktop, hit a one-file conflict that was purely mechanical (`main` had
+deleted a list entry, the branch had added a different one — both right, keep both), and stopped:
+*"I'm honestly feeling a bit over my head with the branches and how to merge things etc."* **Nothing
+on the board or in the repo said a half-finished merge was sitting in the working tree.** Which is
+why `branch-steward`'s Step 0, before it reads the request at all, is *check for a merge in progress*.
+
+⚠️ **`release-steward` hands off to it and never the reverse.** The reviewer stays read-only on git;
+the executor never reviews its own work. Red results are never handed over — a red changeset pushed
+to a branch is just a card in review that cannot be merged.
 
 ⚠️ **A green `_ship.js` is not a passed checklist.** It proves the code is sound; it says nothing
 about whether the release is visible on the site, reachable by a player, logged on the board, or
@@ -425,9 +447,9 @@ decision. **It found VR-109 on its first run** — shipped 8/16, touched the sit
 — now listed as acknowledged debt rather than a silent miss. It also parses `VR-131/132/133`,
 the house style for a multi-card subject, which a bare `/VR-\d+/` silently reads as one number.
 
-**TWO FILES AT THE ROOT ARE TOOLS, NOT HARNESSES.** Neither has a pass/fail and neither is ever in
+**THREE FILES AT THE ROOT ARE TOOLS, NOT HARNESSES.** None has a pass/fail and none is ever in
 the green-before-hand-off set — running them proves nothing, and counting them as harnesses makes
-the set look larger than it is.
+the set look larger than it is. `_ship.js` excludes all three by name.
 
 - `_grefart.js` — resolves Steam appids for game-reference covers. Run by hand. Report-only unless
   given `--write`.
@@ -435,6 +457,22 @@ the set look larger than it is.
   static preview to `/tmp/gref-preview.html` (VR-109). Run by hand. Prints one line and exits 0;
   **it has no assertions at all.** Named here as of VR-147 (8/31) — it had been at a public URL,
   described nowhere, since 8/16.
+- **`_roster.js` (added 9/13, VR-181) — emits the canonical harness roster from `ls`, with one line
+  per harness saying what it protects.** `--json` for machines, `--diff <file.json>` to compare
+  against what a surface currently lists, **in both directions** — missing entries are the failure
+  every previous roster had; **extra entries are the one nobody checked for**, where a deleted or
+  renamed harness leaves behind a step that reads as a gate nobody is running.
+
+  ⚠️ **It exists for Puzzle specifically, and the reasoning generalises.** Four of the six surfaces
+  that once listed harnesses are clean today because they **deleted the list** and pointed at
+  `node _ship.js`. **Puzzle cannot point at a command** — it is a diagram, and a validation diagram
+  with no harnesses in it is a diagram of nothing. So it is the one surface that legitimately needs
+  a roster, and therefore the one that must have it **generated rather than typed.** The agent that
+  syncs it never types a filename; every one of the five historical misses was a filename somebody
+  forgot to type.
+
+  ⚠️ **A harness with no description is LISTED as unexplained, never dropped.** The failure mode is
+  a loud gap instead of a short list — every previous roster failed by being short.
 
 ## 5. Tech guardrails
 
