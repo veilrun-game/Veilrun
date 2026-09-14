@@ -495,8 +495,14 @@ ok("the sampler poisons itself when the tab is hidden or unfocused",
    "every previous frame-rate reading came from a throttled tab");
 ok("auto-LOD refuses to decide on a tainted sample",
    /if \(PERF\.tainted\(\) \|\| PERF\.count\(\) < 60\) return;/.test(html));
+/* VR-189 moved the clamp arithmetic into ../_engine/clock.js, so the SHAPE this
+   asserts changed: `trueMs` is now taken off CLOCK.tick()'s unclamped `trueDt`
+   instead of being subtracted here. The RULE is unchanged, and the negative
+   clause is the half that actually enforces it — pushing `raw` is the mistake. */
 ok("the benchmark samples the UNCLAMPED frame time",
-   /var trueMs = now - last;/.test(html) && /PERF\.push\(trueMs\);/.test(html),
+   /var trueMs = clk\.trueDt \* 1000;/.test(html) &&
+   /PERF\.push\(trueMs\);/.test(html) &&
+   !/PERF\.push\(raw\)/.test(html),
    "clamping first would record a 900ms hitch as 250ms");
 ok("the benchmark pins the budget per pass, and one pass is an EMPTY arena",
    /HUSKLOD\.mode = \(P\.budget === "max"\) \? HUSKLOD\.max : P\.budget;/.test(html) &&

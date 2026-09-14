@@ -1621,6 +1621,7 @@ body.noanim.tuning .screen.on{transition:none}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="../_engine/clock.js"></script>
 <script>
 /* =========================================================================
    VEILRUN — Proving Ground (3D wave-survival arena, v0)
@@ -8564,13 +8565,18 @@ var BENCH = (function () {
 
 /* =============================== main loop ============================== */
 /* Fixed timestep for the sim, render decoupled — feel stays frame-rate
-   independent, and hit-stop freezes the sim without freezing the camera. */
+   independent, and hit-stop freezes the sim without freezing the camera.
+   VR-189: the accumulator/clamp/max-steps arithmetic that used to live only
+   here is now the shared `../_engine/clock.js` — CLOCK owns `acc`, `last` and
+   `gameTime`. `STEP`/`MAXSTEPS` stay as real local values (not a reference
+   through CLOCK) because `_strike.js` lifts this exact line out of the file
+   by regex and evaluates it standalone; a shared module never loads. */
 var STEP = 1 / 60, MAXSTEPS = 5;
-var acc = 0, last = performance.now(), gameTime = 0;
+var CLOCK = new VE.Clock({ step: STEP, maxSteps: MAXSTEPS, clamp: 0.25 });
+var gameTime = 0;
 var fpsT = 0, fpsN = 0, fpsEl = $("fps");
 
 function step(dt) {
-  gameTime += dt;
   if (game.running && player.alive) game.time += dt;
   updatePlayer(dt);
   updateEnemies(dt);
@@ -8583,20 +8589,17 @@ function frame(now) {
   /* VR-117: the sampler wants the frame the player actually got, so the true
      delta is taken BEFORE the clamp. The clamp exists to stop a tab-switch
      from teleporting the simulation; feeding it to the benchmark would quietly
-     record a 900ms hitch as 250ms. */
-  var trueMs = now - last;
-  var raw = Math.min(trueMs / 1000, 0.25);
-  last = now;
+     record a 900ms hitch as 250ms. CLOCK.tick() keeps that split — trueDt is
+     the unclamped value, raw is what the accumulator (and presentation) get. */
+  var clk = CLOCK.tick(now);
+  var trueMs = clk.trueDt * 1000;
+  var raw = clk.raw;
 
   // hit-stop and pause both freeze the simulation, never the rendering
-  if (game.paused) { acc = 0; }
+  if (game.paused) { CLOCK.acc = 0; }
   else if (game.hitStop > 0) { game.hitStop -= raw; }
-  else {
-    acc += raw;
-    var n = 0;
-    while (acc >= STEP && n < MAXSTEPS) { step(STEP); acc -= STEP; n++; }
-    if (n === MAXSTEPS) acc = 0;
-  }
+  else { CLOCK.accumulate(raw, step); }
+  gameTime = CLOCK.gameTime;
 
   /* VR-132 — the camera stick is a RATE, so it has to be integrated somewhere
      and pointermove is not that place: events stop arriving the moment the thumb

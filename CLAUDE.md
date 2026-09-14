@@ -368,11 +368,26 @@ in the folder before assuming:
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 
-**Site-level, seven at the repo root, all dependency-free and mutation-tested:** `_check.js` (the
+**Site-level, eight at the repo root, all dependency-free and mutation-tested:** `_check.js` (the
 `VEILRUN.games` manifest), `_hubcheck.js` (Hub states), `_updatescheck.js` (weekly-hero states),
 `_grefcheck.js` (Game Reference catalogue + matcher), `_docscheck.js` (ship-checklist item 5),
-`_leakcheck.js` (withheld lore, §5), `_pathcheck.js` (withheld *locations*, §5).
+`_leakcheck.js` (withheld lore, §5), `_pathcheck.js` (withheld *locations*, §5),
+`_clock.js` (the shared fixed-timestep clock, **42 checks**).
 Everything relevant must be green before hand-off.
+
+**`_clock.js` (added 9/14, VR-189) is the first harness that tests a REAL SHARED MODULE rather than
+code lifted out of an HTML file.** `games/_engine/clock.js` is UMD-lite, so the harness `require`s the
+actual class and drives it — no DOM, no game state, nothing to stub, and therefore no retyped copy that
+can drift from the thing it checks. Everything else here has to extract a marked block because the code
+it tests only exists inside a page.
+⚠️ **Two of its assertions were WRONG on the first run and the module was right**, which is worth
+recording because the failures looked identical to a broken refactor. One expected a 1.0s dt at
+`scale 0.5` to leave a remainder, when thirty owed steps hit `MAXSTEPS` and reset `acc` to 0 *by
+design* — it was measuring the cap while claiming to measure the scale. The other asserted
+`accumulate()` takes **13** steps to clear 0.20s. It takes **12**, carrying ~4.9e-17. **The 13-frame
+fact belongs to a COUNTDOWN** — `_strike.js` decrements a timer by `STEP` and twelve of them sum to
+0.19999999999999998, so the window costs a thirteenth frame. Same floating-point fact, opposite ends.
+**Assert each in the shape it actually takes.**
 
 **`_pathcheck.js` (added 9/7, VR-165) asks the question content-scanning CANNOT.** Its sibling asks
 whether a file *contains* something withheld; VR-164 proved that is not the whole question, because

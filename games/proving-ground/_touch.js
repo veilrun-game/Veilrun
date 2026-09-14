@@ -1961,8 +1961,11 @@ ok("opening from an already-paused run re-runs the panel decision",
    "otherwise the pause panel sits behind the sheet covering the arena");
 ok("and closing back into a run we did not freeze puts its panel back",
    /setPaused\(game\.paused\);   \/\/ already frozen when we arrived/.test(html));
+/* VR-189: the accumulator moved into ../_engine/clock.js, so the pause branch
+   zeroes CLOCK.acc rather than a local. The rule is identical — the freeze stops
+   the SIM, and the frame keeps rendering underneath it. */
 ok("rendering is untouched by the freeze",
-   /if \(game\.paused\) \{ acc = 0; \}/.test(html),
+   /if \(game\.paused\) \{ CLOCK\.acc = 0; \}/.test(html),
    "fog, the pixel grid and the three Shroud colours have to keep changing under your thumb");
 
 /* ======================================================================
