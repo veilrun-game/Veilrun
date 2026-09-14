@@ -478,9 +478,11 @@ decision. **It found VR-109 on its first run** — shipped 8/16, touched the sit
 — now listed as acknowledged debt rather than a silent miss. It also parses `VR-131/132/133`,
 the house style for a multi-card subject, which a bare `/VR-\d+/` silently reads as one number.
 
-**THREE FILES AT THE ROOT ARE TOOLS, NOT HARNESSES.** None has a pass/fail and none is ever in
-the green-before-hand-off set — running them proves nothing, and counting them as harnesses makes
-the set look larger than it is. `_ship.js` excludes all three by name.
+**FOUR FILES AT THE ROOT ARE TOOLS, NOT HARNESSES** *(three until 9/14)*. None has a pass/fail and
+none is ever in the green-before-hand-off set — running them proves nothing, and counting them as
+harnesses makes the set look larger than it is. `_ship.js` excludes every one of them by name.
+⚠️ **This sentence states a COUNT, so it goes stale silently.** `_ship.js` verifies the per-harness
+counts in §4 but not this one — adding a tool means editing this line in the same changeset.
 
 - `_grefart.js` — resolves Steam appids for game-reference covers. Run by hand. Report-only unless
   given `--write`.
@@ -493,6 +495,9 @@ the set look larger than it is. `_ship.js` excludes all three by name.
   against what a surface currently lists, **in both directions** — missing entries are the failure
   every previous roster had; **extra entries are the one nobody checked for**, where a deleted or
   renamed harness leaves behind a step that reads as a gate nobody is running.
+
+- **`_boardstate.js` (added 9/14, VR-207) — the fourth tool.** Prints what git says about which
+  cards shipped; `board-reconciler` is the only consumer. Its harness is `_board.js`.
 
   ⚠️ **It exists for Puzzle specifically, and the reasoning generalises.** Four of the six surfaces
   that once listed harnesses are clean today because they **deleted the list** and pointed at
