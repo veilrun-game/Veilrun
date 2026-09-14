@@ -390,6 +390,14 @@ harness pins all three *and* proves the naive version really would have been wro
 it on faith. The git reader is injectable for the same reason: the repo has no unmerged branches
 today, so the rule that a card whose branch already reached `main` is **shipped, not pending** would
 have had zero coverage until the first night it mattered.
+⚠️ **`🟣 In progress` is REPORT-ONLY to the reconciler, and that was learned the same day.** A dry
+run against the real board found four cards there that git calls shipped, and **two would have been
+moved wrongly**: `VR-100` is a *recurring* weekly canon audit whose card is permanent, and `VR-98`
+shipped its page on 8/15 with open work still on it. `VR-181` and `VR-182` genuinely were finished
+and unmoved. **Nothing in git distinguishes those two groups** — `🟣 In progress` means a person said
+they are working on something, git cannot see that claim, and so git does not get to overrule it.
+The reconciler reports the mismatch and moves nothing. Surfacing it was the requirement; moving it
+never was.
 
 **`_clock.js` (added 9/14, VR-189) is the first harness that tests a REAL SHARED MODULE rather than
 code lifted out of an HTML file.** `games/_engine/clock.js` is UMD-lite, so the harness `require`s the
@@ -478,10 +486,14 @@ decision. **It found VR-109 on its first run** — shipped 8/16, touched the sit
 — now listed as acknowledged debt rather than a silent miss. It also parses `VR-131/132/133`,
 the house style for a multi-card subject, which a bare `/VR-\d+/` silently reads as one number.
 
-**THREE FILES AT THE ROOT ARE TOOLS, NOT HARNESSES.** None has a pass/fail and none is ever in
+**FOUR FILES AT THE ROOT ARE TOOLS, NOT HARNESSES.** None has a pass/fail and none is ever in
 the green-before-hand-off set — running them proves nothing, and counting them as harnesses makes
-the set look larger than it is. `_ship.js` excludes all three by name.
+the set look larger than it is. `_ship.js` excludes all four by name.
 
+- **`_boardstate.js` (added 9/14, VR-207) — prints which VR numbers reached `origin/main` and which
+  sit on a pushed unmerged branch**, plus the commit that shipped each one. `--json` for the
+  `board-reconciler` agent, which is the only thing that acts on it. **It derives and it decides
+  nothing** — the harness over it is `_board.js`, which IS counted.
 - `_grefart.js` — resolves Steam appids for game-reference covers. Run by hand. Report-only unless
   given `--write`.
 - `_pv.js` — renders the real `__grefCard()` against the real CSS with a demo dataset and writes a
