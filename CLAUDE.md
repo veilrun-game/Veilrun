@@ -368,12 +368,28 @@ in the folder before assuming:
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 
-**Site-level, eight at the repo root, all dependency-free and mutation-tested:** `_check.js` (the
+**Site-level, nine at the repo root, all dependency-free and mutation-tested:** `_check.js` (the
 `VEILRUN.games` manifest), `_hubcheck.js` (Hub states), `_updatescheck.js` (weekly-hero states),
 `_grefcheck.js` (Game Reference catalogue + matcher), `_docscheck.js` (ship-checklist item 5),
 `_leakcheck.js` (withheld lore, §5), `_pathcheck.js` (withheld *locations*, §5),
-`_clock.js` (the shared fixed-timestep clock, **42 checks**).
+`_clock.js` (the shared fixed-timestep clock, **42 checks**),
+`_board.js` (card state derived from git, **50 checks**).
 Everything relevant must be green before hand-off.
+
+**`_board.js` (added 9/14, VR-207) is the harness over `_boardstate.js`, which is a TOOL and is
+excluded from the green set** alongside `_grefart.js`, `_pv.js` and `_roster.js`. `_boardstate.js`
+prints which VR numbers reached `origin/main` and which sit on a pushed unmerged branch; it decides
+nothing and moves nothing, and the `board-reconciler` agent reads it to move Trello cards.
+⚠️ **It exists because `branch-steward` only moves cards for git steps IT performs.** VR-189 was
+built, committed, pushed and deployed on 9/14, and its card sat in `🌙 Tonight` until a human noticed.
+Nothing was broken; nothing moved it either. Every hand-path has that hole, so card state stopped
+being asserted and started being derived.
+⚠️ **Its highest-value assertion is the slash run.** Commit `4f3bbdc` closes three cards in one
+subject — `(VR-180/181/182)`. A naive `/VR-\d+/` reads one and strands two, silently, forever. The
+harness pins all three *and* proves the naive version really would have been wrong rather than taking
+it on faith. The git reader is injectable for the same reason: the repo has no unmerged branches
+today, so the rule that a card whose branch already reached `main` is **shipped, not pending** would
+have had zero coverage until the first night it mattered.
 
 **`_clock.js` (added 9/14, VR-189) is the first harness that tests a REAL SHARED MODULE rather than
 code lifted out of an HTML file.** `games/_engine/clock.js` is UMD-lite, so the harness `require`s the

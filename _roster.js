@@ -51,7 +51,8 @@ var NOT_A_HARNESS = {
   "_grefart.js": "tool — resolves Steam appids for Game Reference covers. Run by hand.",
   "_pv.js":      "tool — renders a static Game Reference preview. No assertions at all.",
   "_ship.js":    "runner — discovers and runs every harness. Asserts nothing of its own.",
-  "_roster.js":  "generator — emits this roster. Asserts nothing of its own."
+  "_roster.js":  "generator — emits this roster. Asserts nothing of its own.",
+  "_boardstate.js": "tool — prints which VR numbers reached main and which sit on an unmerged branch. Derives, never decides. `_board.js` is its harness."
 };
 
 /* What each harness PROVES, and what BREAKS IF IT STOPS. Two fields, deliberately.
@@ -75,6 +76,12 @@ var NOT_A_HARNESS = {
    that tab was archived (VR-181). Full verbatim record:
    `Claude Access/Games/Veilrun/_Archive/Puzzle — Harnesses tab (archived 2026-09-13).md` */
 var PROTECTS = {
+  "_board.js": {
+    proves: "Card state derived from git — that a commit subject closing several cards at once (VR-180/181/182) yields all of them, and that a card whose branch already reached main counts as shipped rather than still in review.",
+    breaks: "The reconciler moves the wrong cards, or silently moves none. A board that looks maintained and is wrong is worse than the stale one it replaced — VR-189 sat in Tonight for two hours after it was live on the site, and a parser that drops a number would hide that forever instead of for an afternoon." },
+  "_clock.js": {
+    proves: "The shared fixed-timestep clock — the accumulator drains in whole steps, the max-steps clamp DISCARDS the overflow rather than carrying it, a scaled dt scales the accumulation and not the step, and the true frame delta is read BEFORE the clamp so the perf sampler sees the hitch the player got.",
+    breaks: "Feel stops being frame-rate independent, and it stops silently — the game still runs, it just runs differently on a 144Hz monitor than on the machine the balance numbers were tuned on. Carrying the overflow instead of dropping it turns one long frame into a spiral the sim never catches up from." },
   "_check.js": {
     proves: "The VEILRUN.games manifest — every play path and every level id resolves, and no preview or legacy label sits in versions[0], the node js/app.js actually opens.",
     breaks: "A game goes unreachable from the site, or a level id stops resolving and every board attached to it orphans. Promoting a preview to default silently opens the wrong build." },

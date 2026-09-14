@@ -63,8 +63,10 @@ var QUIET = ARGS.indexOf("--quiet") !== -1;
 /* Named in CLAUDE.md §4 as tools, not harnesses. None has a pass/fail.
    `_roster.js` joined them on 9/13 (VR-181): it emits the canonical harness list
    from `ls` for surfaces that cannot point at a command — Puzzle above all — and
-   asserts nothing, so counting it would be the exact lie described above. */
-var TOOLS = { "_grefart.js": 1, "_pv.js": 1, "_roster.js": 1 };
+   asserts nothing, so counting it would be the exact lie described above.
+   `_boardstate.js` joined them on 9/14 (VR-207): it prints what git says about which
+   cards shipped and stops. `_board.js` is the harness over it, and IS counted. */
+var TOOLS = { "_grefart.js": 1, "_pv.js": 1, "_roster.js": 1, "_boardstate.js": 1 };
 
 var TIMEOUT_MS = 180000;
 
