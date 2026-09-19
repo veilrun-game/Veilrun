@@ -581,24 +581,24 @@ VEILRUN.counters = {
    was quiet. Metrics are only worth a slot if they moved or they're surprising; don't
    ship the same four every week out of habit. Never invent one. */
 VEILRUN.weekly = {
-  weekStart: "2026-09-06",
-  weekEnding: "2026-09-12",
-  headline: "Three things the game used to do silently — and now says out loud",
-  blurb: "A theme, not a list. Press Execute at nothing and the game did nothing — no sound, no flicker — so a swing that missed and a button that was broken produced identical output, which is exactly the confusion that cost us a week in early September. A miss says so now, and shows you where the cone actually pointed. On a phone you can hold a button and drag to aim, with the real arc drawn on the ground. And an empty gripes box on the Game Reference is a checkbox you tick rather than a blank we can't read.",
+  weekStart: "2026-09-13",
+  weekEnding: "2026-09-18",
+  headline: "A week spent building the things that watch the project — and today the Loom runs out",
+  blurb: "Nothing you can play changed this week, and that is worth saying plainly. What changed is underneath: one shared clock instead of three copies of the same one, a generator that starts a new test from a shape that already works, and a tool that reads which cards actually shipped straight out of git rather than trusting the board. Useful, invisible. Meanwhile the Loom's three ideas hit day 21 today with no votes on any of them, and tomorrow the panel removes itself. The fix is written down and not built yet.",
   metrics: [
-    { label: "things that were silent last week and are not now", value: 3 },
-    { label: "of you signed in — including Julian, for the first time", value: 2 },
-    { label: "votes cast on the Loom's three ideas since 28 Aug", value: 0 },
-    { label: "days until the Loom removes itself, un-voted", value: 5 }
+    { label: "days left before the Loom deletes three ideas nobody voted on", value: 0 },
+    { label: "votes cast on those ideas since 28 Aug", value: 0 },
+    { label: "cards that reached the site this week with no entry in this feed", value: 5 },
+    { label: "automated checks green before this posted", value: 28 }
   ],
-  /* No image again, deliberately, and for a different reason than last week. This
-     week's work is all FEEDBACK — a sound on a whiff, a cone drawn under your thumb,
-     a checkbox. A still frame of any of it looks like a screenshot of nothing
-     happening, which is the precise thing that was wrong before. `image` is
-     individually skippable; weeklyHero() omits the <figure>. */
+  /* No image, and for the same structural reason as the last two weeks: the work was
+     tooling, and a still frame of a test harness is a screenshot of a terminal. No new
+     art landed this week either — `find assets -newermt 2026-09-11` returned nothing.
+     `image` is individually skippable; weeklyHero() omits the <figure> rather than
+     reaching for the cover art again. */
   highlights: [
-    { label: "Swing at nothing on purpose", href: "#games/arena-3d" },
-    { label: "The Loom — three ideas waiting on a verdict", href: "#reference" },
+    { label: "The Loom — last day to vote", href: "#reference" },
+    { label: "The Lab — where an idea you like is meant to land", href: "#lab" },
     { label: "Everything that shipped this week", href: "#updates" }
   ]
 };
