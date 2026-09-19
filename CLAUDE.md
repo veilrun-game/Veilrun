@@ -368,12 +368,16 @@ in the folder before assuming:
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 
-**Site-level, nine at the repo root, all dependency-free and mutation-tested:** `_check.js` (the
+**Site-level, ten at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
+except the newest: `_check.js` (the
 `VEILRUN.games` manifest), `_hubcheck.js` (Hub states), `_updatescheck.js` (weekly-hero states),
 `_grefcheck.js` (Game Reference catalogue + matcher), `_docscheck.js` (ship-checklist item 5),
 `_leakcheck.js` (withheld lore, §5), `_pathcheck.js` (withheld *locations*, §5),
 `_clock.js` (the shared fixed-timestep clock, **42 checks**),
-`_board.js` (card state derived from git, **50 checks**).
+`_board.js` (card state derived from git, **50 checks**),
+`_kit.js` (added 9/16, VR-196 — scaffolded by `_new.js` in `module` mode, awaiting VR-185's
+character kit schema; one trivial self-test today, not yet mutation-tested because there is nothing
+real in it to mutate).
 Everything relevant must be green before hand-off.
 
 **`_board.js` (added 9/14, VR-207) is the harness over `_boardstate.js`, which is a TOOL and is
@@ -486,11 +490,25 @@ decision. **It found VR-109 on its first run** — shipped 8/16, touched the sit
 — now listed as acknowledged debt rather than a silent miss. It also parses `VR-131/132/133`,
 the house style for a multi-card subject, which a bare `/VR-\d+/` silently reads as one number.
 
-**FOUR FILES AT THE ROOT ARE TOOLS, NOT HARNESSES** *(three until 9/14)*. None has a pass/fail and
+**FIVE FILES AT THE ROOT ARE TOOLS, NOT HARNESSES** *(four until 9/16)*. None has a pass/fail and
 none is ever in the green-before-hand-off set — running them proves nothing, and counting them as
 harnesses makes the set look larger than it is. `_ship.js` excludes every one of them by name.
 ⚠️ **This sentence states a COUNT, so it goes stale silently.** `_ship.js` verifies the per-harness
 counts in §4 but not this one — adding a tool means editing this line in the same changeset.
+
+- **`_new.js` (added 9/16, VR-196) — writes a harness SKELETON, not a harness itself.** Its sibling
+  is `_roster.js`: that one reports what harnesses already exist, read off `ls`; this one creates
+  what does not exist yet. Four modes, none invented for this card — `extract` (marked HTML block +
+  vm sandbox, the `_sim.js`/`_touch.js` shape), `exec` (lift a function out of an HTML file and run
+  it, the `_exec.js` shape), `binary` (parse a binary asset, the `_clipfit.js` shape), and `module`
+  (require a real shared module directly, the `_clock.js` shape). What it writes **passes trivially
+  out of the box** — one always-true self-test plus a TODO section that reports a `~` partial skip,
+  never a fail, until a human points it at a real target — so `node _ship.js` stays green the moment
+  a scaffold is generated, not only once someone finishes it. It also **refuses to overwrite** an
+  existing file, in keeping with §2's never-delete rule. `node _new.js kit --mode module --card
+  VR-185` produced `_kit.js` as the card's own proof the generator works end to end; `_kit.js` is
+  real, discovered by `_ship.js` and listed by `_roster.js`, and currently passes on its one trivial
+  check while it waits for VR-185 to give it something real to require.
 
 - **`_boardstate.js` (added 9/14, VR-207) — prints which VR numbers reached `origin/main` and which
   sit on a pushed unmerged branch**, plus the commit that shipped each one. `--json` for the

@@ -65,8 +65,11 @@ var QUIET = ARGS.indexOf("--quiet") !== -1;
    from `ls` for surfaces that cannot point at a command — Puzzle above all — and
    asserts nothing, so counting it would be the exact lie described above.
    `_boardstate.js` joined them on 9/14 (VR-207): it prints what git says about which
-   cards shipped and stops. `_board.js` is the harness over it, and IS counted. */
-var TOOLS = { "_grefart.js": 1, "_pv.js": 1, "_roster.js": 1, "_boardstate.js": 1 };
+   cards shipped and stops. `_board.js` is the harness over it, and IS counted.
+   `_new.js` joined them on 9/16 (VR-196): it writes a harness SKELETON — the file it
+   writes then joins the discovered set on its own once it exists — and has no
+   assertions of its own about anything it generates. */
+var TOOLS = { "_grefart.js": 1, "_pv.js": 1, "_roster.js": 1, "_boardstate.js": 1, "_new.js": 1 };
 
 var TIMEOUT_MS = 180000;
 

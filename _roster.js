@@ -52,7 +52,8 @@ var NOT_A_HARNESS = {
   "_pv.js":      "tool — renders a static Game Reference preview. No assertions at all.",
   "_ship.js":    "runner — discovers and runs every harness. Asserts nothing of its own.",
   "_roster.js":  "generator — emits this roster. Asserts nothing of its own.",
-  "_boardstate.js": "tool — prints which VR numbers reached main and which sit on an unmerged branch. Derives, never decides. `_board.js` is its harness."
+  "_boardstate.js": "tool — prints which VR numbers reached main and which sit on an unmerged branch. Derives, never decides. `_board.js` is its harness.",
+  "_new.js": "generator — writes a harness SKELETON (extract/exec/binary/module modes). Asserts nothing about what it generates; the generated file is its own harness once it exists."
 };
 
 /* What each harness PROVES, and what BREAKS IF IT STOPS. Two fields, deliberately.
@@ -103,6 +104,9 @@ var PROTECTS = {
   "_pathcheck.js": {
     proves: "Location rather than content — paths that must never be tracked, and the canon pointer stubs staying empty. Reads the INDEX, so it stops a bad `git add` at the hook. NEVER skips.",
     breaks: "A file that is perfectly clean of withheld terms goes world-readable anyway. VR-164: .claude/agents/release-steward.md scanned clean and was public at a guessable URL for a day." },
+  "_kit.js": {
+    proves: "Scaffolded from _new.js (VR-196) in `module` mode, awaiting VR-185's character kit schema. Today it proves only its own plumbing — one trivial self-test — and reports a partial skip until VR-185 gives it a real module to require.",
+    breaks: "Nothing yet — there is no real assertion here. Its purpose right now is proof that _new.js's generator produces a runnable, correctly-classified skeleton end to end; VR-185 replaces the TODO with the real bar." },
 
   "games/proving-ground/_sim.js": {
     proves: "Every deterministic number in the 3D game — wave schedule, damage, cooldowns, score — against the marked BALANCE block extracted from the HTML, never a retyped copy. Projects wave clear times.",
