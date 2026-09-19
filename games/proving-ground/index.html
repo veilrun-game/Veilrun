@@ -1622,6 +1622,7 @@ body.noanim.tuning .screen.on{transition:none}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="../_engine/clock.js"></script>
+<script src="../_engine/bus.js"></script>
 <script>
 /* =========================================================================
    VEILRUN — Proving Ground (3D wave-survival arena, v0)
@@ -4654,14 +4655,23 @@ function poseVesper(dt, t) {
 /* ============================== damage / death ========================== */
 var _grey = new THREE.Color(0x8e8ba0);
 var _white = new THREE.Color(0xF0EEFA);
-function damageEnemy(e, dmg, dx, dz, knock, heavy) {
-  if (!e.live || e.state === "die") return;
-  e.hp -= dmg;
-  e.flash = 0.11;
-  e.stagger = Math.max(e.stagger, C.enemyStagger);
-  e.kx += dx * knock; e.kz += dz * knock;
-  if (e.state === "wind" || e.state === "strike") { e.state = "rec"; e.t = 0; }
-  floatNumber(e.x, 1.85, e.z, String(Math.round(dmg)), heavy);
+
+/* VR-204 — the event bus's first real wire. `damageEnemy()` used to call
+   floatNumber(), two bursts and an AU cue by hand, in one function, and
+   `_exec.js` (VR-172) is the proof that a hand-threaded call site is exactly
+   the kind of thing a later edit forgets. Now it makes ONE call —
+   `HITBUS.emit("hit-landed", …)` — and the three effects below are
+   subscribers, not call sites. Nothing changes on screen: each subscriber
+   reproduces its old call, position and all, from `ev.e` (the live enemy
+   reference), the same way the inline code read `e.x`/`e.z` directly. */
+var HITBUS = new VE.Bus(["hit-landed"]);
+
+HITBUS.on("hit-landed", function (ev) {
+  floatNumber(ev.e.x, 1.85, ev.e.z, String(Math.round(ev.dmg)), ev.heavy);
+});
+
+HITBUS.on("hit-landed", function (ev) {
+  var e = ev.e, heavy = ev.heavy;
   burst(e.x, 1.25, e.z, heavy ? 12 : 7, 0xD65CDC, heavy ? 6.5 : 4.2, { scale: heavy ? 1.1 : 0.8, lifeScale: 0.75 });
   /* VR-104 — the contact bloom. Slow, large and very short-lived, which is
      what makes it read as a flash of light rather than as more spray: it is
@@ -4671,7 +4681,20 @@ function damageEnemy(e, dmg, dx, dz, knock, heavy) {
      is positioned at the hit rather than across the screen. */
   burst(e.x, 1.25, e.z, heavy ? 5 : 3, 0xFFF3FF, heavy ? 2.0 : 1.4,
         { scale: heavy ? 2.1 : 1.6, lifeScale: 0.26, grav: 0 });
-  if (heavy) AU.hitHeavy(); else AU.hit();
+});
+
+HITBUS.on("hit-landed", function (ev) {
+  if (ev.heavy) AU.hitHeavy(); else AU.hit();
+});
+
+function damageEnemy(e, dmg, dx, dz, knock, heavy) {
+  if (!e.live || e.state === "die") return;
+  e.hp -= dmg;
+  e.flash = 0.11;
+  e.stagger = Math.max(e.stagger, C.enemyStagger);
+  e.kx += dx * knock; e.kz += dz * knock;
+  if (e.state === "wind" || e.state === "strike") { e.state = "rec"; e.t = 0; }
+  HITBUS.emit("hit-landed", { e: e, dmg: dmg, heavy: !!heavy });
   if (e.hp <= 0) killEnemy(e, false);
 }
 function executeEnemy(e, fromVeil) {
