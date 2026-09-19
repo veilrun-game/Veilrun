@@ -368,7 +368,7 @@ in the folder before assuming:
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 
-**Site-level, eleven at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
+**Site-level, twelve at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
 except `_kit.js`: `_check.js` (the
 `VEILRUN.games` manifest), `_hubcheck.js` (Hub states), `_updatescheck.js` (weekly-hero states),
 `_grefcheck.js` (Game Reference catalogue + matcher), `_docscheck.js` (ship-checklist item 5),
@@ -378,8 +378,19 @@ except `_kit.js`: `_check.js` (the
 `_kit.js` (added 9/16, VR-196 — scaffolded by `_new.js` in `module` mode, awaiting VR-185's
 character kit schema; one trivial self-test today, not yet mutation-tested because there is nothing
 real in it to mutate),
-`_navcheck.js` (nav reachability, **23 checks**).
+`_navcheck.js` (nav reachability, **23 checks**),
+`_archetypes.js` (audience-archetype doc structure, **26 checks**).
 Everything relevant must be green before hand-off.
+
+**`_archetypes.js` (added 9/16, VR-208) checks the schema of a doc that does not exist yet.** The
+card is tagged `provable: no` about the only question that matters — no harness can tell a true
+archetype from a plausible one — so this one deliberately answers a smaller question: three entries,
+one per genre, each naming Wants / Leaves / Returns, each marked `hypothesis` or `evidenced` with
+evidence named when evidenced, and no archetype `.md` tracked in THIS repo (the doc belongs in
+`_Project Knowledge/`). Until VR-208's writing is done it reports a **`~` partial skip**, never a
+fail, and self-tests its schema against fixtures — **6/6 mutants killed**. The `##`/`**Key:**`
+delimiter syntax is this harness's proposal, not a sourced number, and is expected to be revisited
+once the doc exists.
 
 **`_navcheck.js` (added 9/16, VR-197) is the narrow provable slice pulled out of an otherwise
 `provable: no` card.** The full ask — is the site's IA *right* — needs Jordan's eye and the crew's
