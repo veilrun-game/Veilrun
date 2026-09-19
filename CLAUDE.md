@@ -368,8 +368,8 @@ in the folder before assuming:
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 
-**Site-level, ten at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
-except the newest: `_check.js` (the
+**Site-level, eleven at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
+except `_kit.js`: `_check.js` (the
 `VEILRUN.games` manifest), `_hubcheck.js` (Hub states), `_updatescheck.js` (weekly-hero states),
 `_grefcheck.js` (Game Reference catalogue + matcher), `_docscheck.js` (ship-checklist item 5),
 `_leakcheck.js` (withheld lore, §5), `_pathcheck.js` (withheld *locations*, §5),
@@ -377,8 +377,19 @@ except the newest: `_check.js` (the
 `_board.js` (card state derived from git, **50 checks**),
 `_kit.js` (added 9/16, VR-196 — scaffolded by `_new.js` in `module` mode, awaiting VR-185's
 character kit schema; one trivial self-test today, not yet mutation-tested because there is nothing
-real in it to mutate).
+real in it to mutate),
+`_navcheck.js` (nav reachability, **23 checks**).
 Everything relevant must be green before hand-off.
+
+**`_navcheck.js` (added 9/16, VR-197) is the narrow provable slice pulled out of an otherwise
+`provable: no` card.** The full ask — is the site's IA *right* — needs Jordan's eye and the crew's
+behaviour and stays exactly where it was. What reduces to a harness is only the wiring underneath
+it: every `#hash` link in `app.html`/`js/app.js` resolves to a route `route()` recognizes (it has
+no 404 path, so a stale link silently renders the Hub instead of failing loud), every view function
+is reachable, no two peer entries in `#navlinks` share an identical href, and the primary nav is
+provably one click from anywhere because `route()` only ever rewrites `#view`'s innerHTML. It reads
+these live off the router and markup rather than a retyped copy. **It would pass a genuinely bad
+IA that had no dead links** — quality was never the question it answers.
 
 **`_board.js` (added 9/14, VR-207) is the harness over `_boardstate.js`, which is a TOOL and is
 excluded from the green set** alongside `_grefart.js`, `_pv.js` and `_roster.js`. `_boardstate.js`
