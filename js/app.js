@@ -2359,8 +2359,16 @@ window.VApp = (function () {
            holding its slot until the next batch. Seeing your vote turn into something
            is the reward loop; yanking the idea off the page at the moment it succeeds
            throws that away.
-       4 · Stale/absent — past 21 days, or no valid batch, the panel removes itself.
-           Same silent-fallback discipline as the weekly hero.
+       4 · Absent — no valid, citable batch anywhere. Same silent-fallback discipline
+           as the weekly hero.
+
+     VR-183 (9/20): AN IDEA LEAVES ON A VERDICT, NEVER ON A CLOCK. The panel used to
+     blank itself whole past LOOM_MAX_AGE_DAYS, which deleted ideas nobody had voted on
+     yet — a question does not expire because nobody answered it. Age no longer removes
+     anything; only the vote thresholds do (archive), and a promoted idea never leaves.
+     `D.loom.previous[]` — same shape as the top-level batch — holds earlier weeks whose
+     ideas are still undecided, so a new batch folds in alongside the old one instead of
+     replacing it. LOOM_MAX_AGE_DAYS survives only as the documented pre-fix cliff.
 
      Every state is proven headlessly in _grefcheck.js §9. */
   const LOOM_MAX_AGE_DAYS = 21;
@@ -2449,6 +2457,7 @@ window.VApp = (function () {
            <button type="button" class="votebtn loom-vote loom-morebtn${idea.moreMine ? " on" : ""}" data-loom-more="${C.esc(idea.poll)}"
              onclick="VApp.loomMore('${C.esc(idea.poll)}')" aria-label="Ask for more detail on this idea">✎ Tell me more <span class="vc">${idea.more}</span></button>
            <span class="loom-net mute">net ${idea.net > 0 ? "+" : ""}${idea.net}</span>
+           <span class="loom-waited mute">waiting ${idea.days} day${idea.days === 1 ? "" : "s"}</span>
          </div>`;
     /* COLLAPSED BY DEFAULT (VR-145) — the same disclosure VR-109 gave the reference cards
        below, for the same reason: three ideas at full height is several screens before the
@@ -2477,6 +2486,20 @@ window.VApp = (function () {
     </li>`;
   }
 
+  // A batch is renderable if it carries a real weekOf and an ideas array; anything else is
+  // dropped on its own rather than blanking every OTHER batch alongside it (VR-183). The
+  // current top-level batch is index 0; `previous[]` — same shape — holds earlier weeks
+  // whose ideas are still undecided, so a new batch folds in rather than replacing them.
+  function loomBatches(l) {
+    if (!l || typeof l !== "object" || Array.isArray(l)) return [];
+    const out = [];
+    if (Array.isArray(l.ideas)) out.push({ weekOf: l.weekOf, takesRead: l.takesRead, people: l.people, ideas: l.ideas });
+    if (Array.isArray(l.previous)) {
+      l.previous.forEach(b => { if (b && typeof b === "object" && Array.isArray(b.ideas)) out.push(b); });
+    }
+    return out;
+  }
+
   function loomPanel(notes, now) {
     const takes = (notes || []).length;
     const people = new Set((notes || []).map(t => String(t.who || "").toLowerCase()).filter(Boolean)).size;
@@ -2491,27 +2514,35 @@ window.VApp = (function () {
     </div>`;
     }
 
-    /* ---- state 4: no batch, a malformed one, or a stale one → render nothing ---- */
-    const l = D.loom;
-    if (!l || typeof l !== "object" || Array.isArray(l)) return "";
-    const woven = weeklyDate(weeklyStr(l.weekOf));
-    if (!woven) return "";
+    const batches = loomBatches(D.loom);
+    if (!batches.length) return "";
+
     const ref = now || new Date();
     const today = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
-    const age = Math.round((today - woven) / 864e5);
-    if (age > LOOM_MAX_AGE_DAYS) return "";
-    // A weekOf well in the future means the generator wrote a bad date, not that we are
-    // early. Small skew is tolerated so a timezone can't blank the panel on a Friday.
-    if (age < -7) return "";
 
-    const ideas = (Array.isArray(l.ideas) ? l.ideas : [])
-      .map((raw, i) => loomIdea(raw, i, weeklyStr(l.weekOf)))
-      .filter(Boolean);
+    // Every batch is read independently — a bad date or a malformed batch drops only
+    // itself, never the ones folded in beside it. VR-183: no per-idea age check here
+    // either — an idea's `days` is recorded for display only, never for removal.
+    let ideas = [];
+    batches.forEach(b => {
+      const woven = weeklyDate(weeklyStr(b.weekOf));
+      if (!woven) return;
+      const age = Math.round((today - woven) / 864e5);
+      // A weekOf well in the future means the generator wrote a bad date, not that we are
+      // early. Small skew is tolerated so a timezone can't blank a batch on a Friday.
+      if (age < -7) return;
+      (Array.isArray(b.ideas) ? b.ideas : [])
+        .map((raw, i) => loomIdea(raw, i, weeklyStr(b.weekOf)))
+        .filter(Boolean)
+        .forEach(idea => { idea.days = age; ideas.push(idea); });
+    });
     if (!ideas.length) return "";                      // nothing could cite → say nothing
 
-    // −5 leaves the panel (recorded in the doc, never deleted). −3 sinks to the bottom,
-    // dimmed but readable and still votable. Stable partition, so a promoted idea and an
-    // untouched one both hold the slot they were woven into.
+    // −5 leaves the panel (recorded in the doc, never deleted) ON A VERDICT, never a
+    // clock. −3 sinks to the bottom, dimmed but readable and still votable. Neither check
+    // reads `days` — an idea nobody has voted on stays exactly where it landed no matter
+    // how long it waits. Stable partition, so a promoted idea and an untouched one both
+    // hold the slot they were woven into.
     const archived = ideas.filter(x => x.net <= LOOM_THRESHOLDS.archive && !x.promoted);
     const shown = ideas.filter(x => !(x.net <= LOOM_THRESHOLDS.archive && !x.promoted));
     if (!shown.length) return "";
@@ -2520,15 +2551,17 @@ window.VApp = (function () {
     const order = live.concat(sunk);
 
     const dm = { month: "short", day: "numeric" };
-    const read = (typeof l.takesRead === "number" && l.takesRead > 0) ? l.takesRead : takes;
-    const from = (typeof l.people === "number" && l.people > 0) ? l.people : people;
+    const latest = batches[0];
+    const woven = weeklyDate(weeklyStr(latest.weekOf)) || today;
+    const read = (typeof latest.takesRead === "number" && latest.takesRead > 0) ? latest.takesRead : takes;
+    const from = (typeof latest.people === "number" && latest.people > 0) ? latest.people : people;
 
     return `<div class="panel loom loom-live">
       <div class="eyebrow">The Loom · woven ${C.esc(woven.toLocaleDateString(undefined, dm))}</div>
-      <h3>${order.length === 1 ? "One idea" : order.length === 2 ? "Two ideas" : "Three ideas"}, read out of ${read} take${read === 1 ? "" : "s"} from ${from} of you</h3>
+      <h3>${order.length} idea${order.length === 1 ? "" : "s"}, read out of ${read} take${read === 1 ? "" : "s"} from ${from} of you</h3>
       <p class="mute loom-intro">Built from what you said you love, designed around what you said takes you out of a game. <strong>Every idea below quotes at least ${LOOM_MIN_CITATIONS} real takes, with names</strong> — one that can't doesn't get published. They're meant to be three different answers rather than one blended one, so expect them not to fit together.</p>
       <ol class="loom-ideas">${order.map(loomIdeaHtml).join("")}</ol>
-      <p class="loom-note mute">▲ <strong>Build this</strong> at ${LOOM_THRESHOLDS.promote > 0 ? "+" : ""}${LOOM_THRESHOLDS.promote} moves an idea into the Lab. ▼ <strong>Not it</strong> at ${LOOM_THRESHOLDS.deprioritise} dims it — reversible, one up-vote brings it back — and at ${LOOM_THRESHOLDS.archive} it leaves the panel. <strong>Archived never means deleted:</strong> it's kept in the VR-99 doc with the week it came from and its final score, because a good idea that arrived in a bad week should be findable later. ✎ <strong>Tell me more</strong> is not a vote and never touches the score — it asks Friday's batch to go deeper on that one, and the number beside it is how many of you asked.${archived.length ? ` <span class="loom-archived">${archived.length} archived this week.</span>` : ""}</p>
+      <p class="loom-note mute">▲ <strong>Build this</strong> at ${LOOM_THRESHOLDS.promote > 0 ? "+" : ""}${LOOM_THRESHOLDS.promote} moves an idea into the Lab. ▼ <strong>Not it</strong> at ${LOOM_THRESHOLDS.deprioritise} dims it — reversible, one up-vote brings it back — and at ${LOOM_THRESHOLDS.archive} it leaves the panel. <strong>Archived never means deleted:</strong> it's kept in the VR-99 doc with the week it came from and its final score, because a good idea that arrived in a bad week should be findable later. An idea waits here until you decide, never until a date passes. ✎ <strong>Tell me more</strong> is not a vote and never touches the score — it asks the next batch to go deeper on that one, and the number beside it is how many of you asked.${archived.length ? ` <span class="loom-archived">${archived.length} archived this week.</span>` : ""}</p>
     </div>`;
   }
 
