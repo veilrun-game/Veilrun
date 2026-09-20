@@ -368,7 +368,7 @@ in the folder before assuming:
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 
-**Site-level, twelve at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
+**Site-level, thirteen at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
 except `_kit.js`: `_check.js` (the
 `VEILRUN.games` manifest), `_hubcheck.js` (Hub states), `_updatescheck.js` (weekly-hero states),
 `_grefcheck.js` (Game Reference catalogue + matcher), `_docscheck.js` (ship-checklist item 5),
@@ -379,7 +379,8 @@ except `_kit.js`: `_check.js` (the
 character kit schema; one trivial self-test today, not yet mutation-tested because there is nothing
 real in it to mutate),
 `_navcheck.js` (nav reachability, **23 checks**),
-`_archetypes.js` (audience-archetype doc structure, **26 checks**).
+`_archetypes.js` (audience-archetype doc structure, **26 checks**),
+`_bus.js` (the shared synchronous event bus, **38 checks**).
 Everything relevant must be green before hand-off.
 
 **`_archetypes.js` (added 9/16, VR-208) checks the schema of a doc that does not exist yet.** The
@@ -438,6 +439,28 @@ design* — it was measuring the cap while claiming to measure the scale. The ot
 fact belongs to a COUNTDOWN** — `_strike.js` decrements a timer by `STEP` and twelve of them sum to
 0.19999999999999998, so the window costs a thirteenth frame. Same floating-point fact, opposite ends.
 **Assert each in the shape it actually takes.**
+
+**`_bus.js` (added 9/18, VR-204) is the second harness in the `_clock.js` family — a REAL SHARED
+MODULE, `require`d directly, never lifted.** `games/_engine/bus.js` is the synchronous, ordered
+publish/subscribe bus this card introduces to fix the structural version of VR-172's failure: a
+verb's effects threaded through call sites by hand, where a later edit forgets one. Section 1 proves
+the module itself — the event set is fixed and enumerable (`new Bus(["hit-landed"])`, not free-form
+strings), an unknown event throws rather than being silently swallowed, listeners fire in
+registration order within the same tick, and unsubscribe is symmetric (the returned function, or
+`off()` by reference, removes exactly one listener and nothing else — proven including the case
+where a listener unsubscribes itself mid-emit). Section 2 does not re-run the game — booting THREE.js
+for one function is what `_exec.js` already avoids — it **lifts** the real `HITBUS = new
+VE.Bus([...])` construction, the real `damageEnemy()` body and every real `HITBUS.on(...)`
+registration out of `proving-ground/index.html`, the same anchor-or-exit-2 contract as `_exec.js`,
+and proves every declared event has at least one subscriber and that `damageEnemy()` now emits
+instead of calling `floatNumber()` / `burst()` / `AU.hit()` by hand. **The harness was proven to
+actually catch a regression, not just pass one**: pulling the AU subscriber back out during review
+turned one check red immediately. Mutation-tested — an `emit()` that stops asserting the event is
+known (the exact free-form-bus failure this module exists to remove) and an unsubscribe turned into
+a no-op both diverge from the real module. **38 checks.** Everything past `hit-landed` — the other
+six observables VR-204's card names (hitstop, shake, telemetry, achievements) and every other call
+site in `damageEnemy()`'s neighbours — is explicitly out of scope; the card asks for one event
+routed end to end, not a rewrite.
 
 **`_pathcheck.js` (added 9/7, VR-165) asks the question content-scanning CANNOT.** Its sibling asks
 whether a file *contains* something withheld; VR-164 proved that is not the whole question, because
