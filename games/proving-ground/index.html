@@ -1624,6 +1624,7 @@ body.noanim.tuning .screen.on{transition:none}
 <script src="../_engine/clock.js"></script>
 <script src="../_engine/bus.js"></script>
 <script src="../_engine/motion.js"></script>
+<script src="../_engine/actions.js"></script>
 <script>
 /* =========================================================================
    VEILRUN — Proving Ground (3D wave-survival arena, v0)
@@ -5307,12 +5308,15 @@ if (TOUCH) {
      control is, while one that NAMES it never goes stale. The pad already
      carries the same four words under the same four icons, which is the join
      these characters were standing in for. */
+  // VR-191 — the four verb names render through the shared action registry
+  // (games/_engine/actions.js) rather than a hardcoded string, so a label
+  // change to the 3d-arena profile reaches this legend with no edit here.
   document.querySelector("#s-start .keys").innerHTML =
     '<b>Stick</b><span>Move</span>' +
-    '<b>Strike</b><span>Chains into a three-hit combo — hold to keep the chain going</span>' +
-    '<b>Execute</b><span>Finishes the wounded, refunds a Veilstep</span>' +
-    '<b>Veilstep</b><span>Blink through anything, two charges</span>' +
-    '<b>Stalk</b><span>A creep slow enough to keep the Shroud — tap on, tap off</span>' +
+    '<b>' + VE.Actions.promptFor("strike", "3d-arena").label + '</b><span>Chains into a three-hit combo — hold to keep the chain going</span>' +
+    '<b>' + VE.Actions.promptFor("execute", "3d-arena").label + '</b><span>Finishes the wounded, refunds a Veilstep</span>' +
+    '<b>' + VE.Actions.promptFor("veilstep", "3d-arena").label + '</b><span>Blink through anything, two charges</span>' +
+    '<b>' + VE.Actions.promptFor("stalk", "3d-arena").label + '</b><span>A creep slow enough to keep the Shroud — tap on, tap off</span>' +
     '<b>Drag</b><span>Look and aim, in third and first person — or use the small camera stick above the buttons</span>' +
     '<b>Top right</b><span>Pause the arena, change the camera view, or open Settings — where the pad can move to your other hand and change size</span>' +
     '<span class="hint">Stand perfectly still for a moment and the Shroud takes you — they lose you, and your next strike kills outright. Standing still is also how you die.</span>';

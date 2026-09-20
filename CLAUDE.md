@@ -368,7 +368,7 @@ in the folder before assuming:
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 
-**Site-level, fourteen at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
+**Site-level, fifteen at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
 except `_kit.js`: `_check.js` (the
 `VEILRUN.games` manifest), `_hubcheck.js` (Hub states), `_updatescheck.js` (weekly-hero states),
 `_grefcheck.js` (Game Reference catalogue + matcher), `_docscheck.js` (ship-checklist item 5),
@@ -380,7 +380,8 @@ except `_kit.js`: `_check.js` (the
 `_navcheck.js` (nav reachability, **23 checks**),
 `_archetypes.js` (audience-archetype doc structure, **26 checks**),
 `_bus.js` (the shared synchronous event bus, **38 checks**),
-`_motion.js` (the shared reduced-motion scales + camera-impulse bus, **51 checks**).
+`_motion.js` (the shared reduced-motion scales + camera-impulse bus, **51 checks**),
+`_actions.js` (the shared action registry + per-genre profiles, **74 checks**).
 Everything relevant must be green before hand-off.
 
 **`_archetypes.js` (added 9/16, VR-208) checks the schema of a doc that does not exist yet.** The
@@ -495,6 +496,24 @@ into the shared `Impulse` by `_billboard.js` and `_exec.js`, which lift the real
 `index.html` rather than retyping it — this file only proves the module those two consume. One 2D
 v2 game, `pair-level-v2`, raises an impulse when a turret's shot reaches Latch, reading the same
 `MOTION_FULL`/`MOTION_RED` data rather than inventing its own reduced-motion switch.
+
+**`_actions.js` (added 9/20, VR-191) is the fourth harness in the `_clock.js` family — a REAL
+SHARED MODULE, `require`d directly, never lifted.** `games/_engine/actions.js` is the action
+registry + per-genre profiles VR-46 §5 asked for and no surface ever got: one resolver,
+`promptFor(action, profile)`, over three named vocabularies (`2d-platformer` · `3d-arena` ·
+`narrative`) rather than the one universal set VR-46 §5 originally adopted and no code ever
+followed. **Section 1 proves the shape**, **Section 2 walks every profile's every declared action
+through the real resolver** rather than re-listing them by hand, so a fourth action added to a
+profile tomorrow is checked tomorrow with no edit to this file, **Section 3 pins the known shape of
+each genre** against the card's own list and proves the arena's glyphs name real `#i-strike`-style
+sprite ids already shipped in `proving-ground/index.html`, and **Section 4 proves resolution is
+exact** — an unknown profile, an unknown action, and an action that belongs to a *different*
+profile all return `null` rather than a guess. Mutation-tested — a profile silently dropping one of
+its own actions, and the `hasOwnProperty` guard removed (which would otherwise resolve
+`Object.prototype` members like `toString` as if they were actions), both diverge from the real
+module. **74 checks.** Wired to exactly one call site — Proving Ground's touch help legend — the
+same one-wire scope cut `_bus.js` made for its first event; full record and the VR-46 §5 reversal
+this generalises are in `_Project Knowledge/Action Registry & Per-Genre Profiles (VR-191).md`.
 
 **`_pathcheck.js` (added 9/7, VR-165) asks the question content-scanning CANNOT.** Its sibling asks
 whether a file *contains* something withheld; VR-164 proved that is not the whole question, because
