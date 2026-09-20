@@ -375,9 +375,8 @@ except `_kit.js`: `_check.js` (the
 `_leakcheck.js` (withheld lore, §5), `_pathcheck.js` (withheld *locations*, §5),
 `_clock.js` (the shared fixed-timestep clock, **42 checks**),
 `_board.js` (card state derived from git, **50 checks**),
-`_kit.js` (added 9/16, VR-196 — scaffolded by `_new.js` in `module` mode, awaiting VR-185's
-character kit schema; one trivial self-test today, not yet mutation-tested because there is nothing
-real in it to mutate),
+`_kit.js` (scaffolded 9/16 VR-196, filled in 9/20 VR-185 — the shared character kit schema,
+**21 checks**),
 `_navcheck.js` (nav reachability, **23 checks**),
 `_archetypes.js` (audience-archetype doc structure, **26 checks**),
 `_bus.js` (the shared synchronous event bus, **38 checks**).
@@ -461,6 +460,22 @@ a no-op both diverge from the real module. **38 checks.** Everything past `hit-l
 six observables VR-204's card names (hitstop, shake, telemetry, achievements) and every other call
 site in `damageEnemy()`'s neighbours — is explicitly out of scope; the card asks for one event
 routed end to end, not a rewrite.
+
+**`_kit.js` (scaffolded 9/16 VR-196, filled in 9/20 VR-185) proves the shared character kit
+schema — `games/_engine/kit.js` — with a real character, not a fixture.** The schema is one
+engine-neutral shape for a crew member's verbs, costs, charges, cones, ranges and clip names, so
+a second genre reads a character instead of reimplementing it; full write-up with Vesper as the
+worked example is `_Project Knowledge/Character Kit Schema (VR-185).md` (Claude Access — never
+this repo, §1). **Section 1 proves the schema's own rules against synthetic bad kits** — an arc
+outside 0–360, a clip absent from a GLB, an infinite cost, charges with no recharge, a duplicate
+verb id — each rejected with a message naming the actual violation. **Section 2 builds Vesper's
+real kit and proves it clean**, extracting `BALANCE`/`CLIPFIT` out of `games/proving-ground/index.html`
+the same way `_sim.js`/`_strike.js`/`_clipfit.js` already do (never a retyped copy) and reading
+Vesper's real animation names out of `assets/models/vesper.glb`, then asserting the built kit's
+numbers are the *same values* BALANCE holds — the round-trip the card asks for. **21 checks.**
+Wiring a game's runtime to consume this file live is explicitly out of scope: every game here is
+a standalone, no-build-step HTML file (§5), and there is no import path today that doesn't mean
+adding one — that is its own card, not this one.
 
 **`_pathcheck.js` (added 9/7, VR-165) asks the question content-scanning CANNOT.** Its sibling asks
 whether a file *contains* something withheld; VR-164 proved that is not the whole question, because
@@ -552,8 +567,8 @@ counts in §4 but not this one — adding a tool means editing this line in the 
   a scaffold is generated, not only once someone finishes it. It also **refuses to overwrite** an
   existing file, in keeping with §2's never-delete rule. `node _new.js kit --mode module --card
   VR-185` produced `_kit.js` as the card's own proof the generator works end to end; `_kit.js` is
-  real, discovered by `_ship.js` and listed by `_roster.js`, and currently passes on its one trivial
-  check while it waits for VR-185 to give it something real to require.
+  real, discovered by `_ship.js` and listed by `_roster.js`, and VR-185 (9/20) gave it something
+  real to require — `games/_engine/kit.js`, the shared character kit schema.
 
 - **`_boardstate.js` (added 9/14, VR-207) — prints which VR numbers reached `origin/main` and which
   sit on a pushed unmerged branch**, plus the commit that shipped each one. `--json` for the
