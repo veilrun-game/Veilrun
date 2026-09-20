@@ -368,7 +368,7 @@ in the folder before assuming:
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 
-**Site-level, thirteen at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
+**Site-level, fourteen at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
 except `_kit.js`: `_check.js` (the
 `VEILRUN.games` manifest), `_hubcheck.js` (Hub states), `_updatescheck.js` (weekly-hero states),
 `_grefcheck.js` (Game Reference catalogue + matcher), `_docscheck.js` (ship-checklist item 5),
@@ -379,7 +379,8 @@ except `_kit.js`: `_check.js` (the
 **21 checks**),
 `_navcheck.js` (nav reachability, **23 checks**),
 `_archetypes.js` (audience-archetype doc structure, **26 checks**),
-`_bus.js` (the shared synchronous event bus, **38 checks**).
+`_bus.js` (the shared synchronous event bus, **38 checks**),
+`_motion.js` (the shared reduced-motion scales + camera-impulse bus, **51 checks**).
 Everything relevant must be green before hand-off.
 
 **`_archetypes.js` (added 9/16, VR-208) checks the schema of a doc that does not exist yet.** The
@@ -476,6 +477,24 @@ numbers are the *same values* BALANCE holds — the round-trip the card asks for
 Wiring a game's runtime to consume this file live is explicitly out of scope: every game here is
 a standalone, no-build-step HTML file (§5), and there is no import path today that doesn't mean
 adding one — that is its own card, not this one.
+
+**`_motion.js` (added 9/20, VR-199) is the third harness in the `_clock.js` family — a REAL SHARED
+MODULE, `require`d directly, never lifted.** `games/_engine/motion.js` moves `MOTION_FULL` /
+`MOTION_RED` / `MOTION_KEYS` (VR-103's reduced-motion scales) off Proving Ground and onto data any
+game can read, and adds `Impulse` — a decaying camera-shake channel with a magnitude, a fixed decay
+window and a hard cap, generalising the hand-rolled `cam.shake`/`cam.shakeMag` timer Proving Ground
+used to keep to itself. **Section 1 proves the data**: five named channels, every one present and
+numeric on both `MOTION_FULL` and `MOTION_RED`, reduced motion zeroing `shake` and the hit vignette
+(`flash`) keeping its floor rather than going to zero. **Section 2 proves `Impulse` by execution** —
+the decay curve never rises before it reaches zero, a raise scaled to zero never starts a decay, and
+**the cap is a LATCH, not a sum**: a burst of several raises in the same tick lands on the largest
+one, never their total, which is the exact nausea a summing bus would cause. Mutation-tested — the
+latch turned into a sum, the cap clamp removed, and reduced motion's `shake` no longer zeroed all
+diverge from the real module. **51 checks.** Proving Ground's own `shake()` is proven to still call
+into the shared `Impulse` by `_billboard.js` and `_exec.js`, which lift the real function out of
+`index.html` rather than retyping it — this file only proves the module those two consume. One 2D
+v2 game, `pair-level-v2`, raises an impulse when a turret's shot reaches Latch, reading the same
+`MOTION_FULL`/`MOTION_RED` data rather than inventing its own reduced-motion switch.
 
 **`_pathcheck.js` (added 9/7, VR-165) asks the question content-scanning CANNOT.** Its sibling asks
 whether a file *contains* something withheld; VR-164 proved that is not the whole question, because

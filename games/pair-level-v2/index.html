@@ -99,6 +99,7 @@
 <script src="/games/pair-level/versions.js"></script>
 <script src="../_engine/engine.js"></script>
 <script src="../_engine/clock.js"></script>
+<script src="../_engine/motion.js"></script>
 <script>
 (function(){
   "use strict";
@@ -182,6 +183,16 @@
      0.55/tick, no dt argument), so driving it through CLOCK's accumulator
      fixes the dependency with no change to any tuned constant. */
   var CLOCK=new VE.Clock();
+
+  /* VR-199 — the shared camera-impulse bus. A shot reaching Latch raises a
+     small shake instead of the hit reading as silent; reduced motion (read
+     once at boot, the same MOTION_FULL/MOTION_RED data Proving Ground reads)
+     zeroes it exactly like every other channel on that bus. */
+  var PREFERS_REDUCED=(function(){ try{ return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); } catch(e){ return false; } })();
+  var MOTION_SHAKE=(PREFERS_REDUCED ? VE.Motion.MOTION_RED : VE.Motion.MOTION_FULL).shake;
+  var SHAKE=new VE.Motion.Impulse();
+  var shakeMag=0;
+  function rand(a,b){ return a+Math.random()*(b-a); }
 
   function bkey(w,x,y){ return w+","+x+","+y; }
   var blocks=function(t,w,tx,ty){ if(t==="solid") return true; if(t==="break") return !broken[bkey(w,tx,ty)]; return false; };
@@ -291,6 +302,7 @@
     if(W===0){ g.addColorStop(0,"#0f1620"); g.addColorStop(1,"#080610"); } else { g.addColorStop(0,"#160f22"); g.addColorStop(1,"#0a0610"); }
     ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
     cam.apply(ctx);
+    if(shakeMag>0) ctx.translate(rand(-shakeMag,shakeMag), rand(-shakeMag,shakeMag));
     for(var y=0;y<ROWS;y++)for(var x=0;x<COLS;x++){ var t=base[W][y][x], px=x*TILE, py=y*TILE;
       if(t==="solid"){ if(W===0) tile(px,py,"#243040","#141d2a"); else tile(px,py,"#2a2038","#171029"); }
       else if(t==="break"){ if(!broken[bkey(W,x,y)]){ tile(px,py,"#5a3a3a","#3a2323"); ctx.strokeStyle="rgba(232,120,90,.5)"; ctx.strokeRect(px+4,py+4,TILE-8,TILE-8); } } }
@@ -396,7 +408,7 @@
       // Anvil's BODY blocks shots — directional: whoever is behind him is safe (no bubble)
       if(A.world===s.world && A.x<s.x&&s.x<A.x+A.w && A.y<s.y&&s.y<A.y+A.h){ s.dead=true; sparks.push({x:s.x, y:s.y, vx:-s.vx*0.4, vy:-1.5, t:12, world:s.world}); return; }
       // Latch takes the hit if a shot reaches him (i.e. he wasn't behind Anvil)
-      if(L.world===s.world && L.x<s.x&&s.x<L.x+L.w&&L.y<s.y&&s.y<L.y+L.h){ softReset(); s.dead=true; }
+      if(L.world===s.world && L.x<s.x&&s.x<L.x+L.w&&L.y<s.y&&s.y<L.y+L.h){ softReset(); s.dead=true; SHAKE.raise(4, MOTION_SHAKE); }
     });
     shots=shots.filter(function(s){ return !s.dead; });
     sparks.forEach(function(k){ k.t--; k.x+=k.vx; k.y+=k.vy; k.vy+=0.3; }); sparks=sparks.filter(function(k){ return k.t>0; });
@@ -415,6 +427,7 @@
       updStatus();
       if(bothInExit()) win();
     }
+    shakeMag=SHAKE.update(clk.raw);
     cam.update(cur()); draw(); requestAnimationFrame(frame);
   }
 
