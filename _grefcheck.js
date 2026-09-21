@@ -296,11 +296,17 @@ has(h, "&lt;script&gt;", "escaping: it's rendered as visible text instead");
    can see going wrong. The gate opens on live data, so a regression here reads on the
    page as "the ideas panel is just gone this week" and nobody files that as a bug.
 
-   Every check pins `now`, so the batch in js/data.js ageing out on its own 21-day
-   cliff can never turn this harness red. */
+   Every check pins `now`, so nothing here depends on what today's real date is.
+
+   VR-183 (9/20): an idea leaves on a VERDICT, never on a clock — the 21-day cliff that
+   used to blank the WHOLE panel is gone. §9d below proves an un-voted idea survives
+   any age, a decided one (archived) still leaves on its vote regardless of age, a
+   promoted one never leaves, and a second `previous[]` batch is reachable alongside
+   the current one. */
 var L = A.__loomPanel;
 var LV = A.__loomVotes, LC = A.__loomConsts(), LO = A.__loomOpen;
 var FRESH = new Date(2026, 7, 30);          // 2 days after the shipped batch's weekOf
+var p1 = "loom-2026-08-28-1", p2 = "loom-2026-08-28-2", p3 = "loom-2026-08-28-3";
 
 // --- 9a. state 1: below the gate, the panel RENDERS. It recruits, so it must not hide.
 has(L([]), "Nothing woven yet", "loom: empty state renders (it recruits, so it must not hide)");
@@ -377,12 +383,52 @@ D.loom = { weekOf: "2026-08-28", ideas: [{ title: "", pitch: "p", builtFrom: [
   { who: "A", quote: "q1" }, { who: "B", quote: "q2" }, { who: "C", quote: "q3" }] }] };
 ok(L(ten, FRESH) === "", "floor: a titleless idea is dropped too — a well-cited blank is still blank");
 
-// --- 9d. state 4: staleness and malformed batches remove the panel entirely.
+// --- 9d. VR-183: an idea leaves on a VERDICT, never on a clock. Malformed batches
+// still remove themselves; UNDECIDED ideas no longer do, no matter how old they are.
 D.loom = realLoom;
 ok(L(ten, new Date(2026, 8, 17)) !== "", "ageing: at 20 days the batch is still current");
-ok(L(ten, new Date(2026, 8, 19)) === "", "ageing: past 21 days the panel REMOVES ITSELF — same rule as the weekly hero");
-ok(LC.MAX_AGE === 21, "ageing: the cliff is 21 days");
+LV({}, {});
+var farOld = L(ten, new Date(2028, 0, 1));                 // ~490 days, zero votes cast
+ok(farOld !== "", "VR-183: an UNDECIDED idea does not disappear on a date — the panel still renders");
+has(farOld, "Two Hands", "VR-183: the un-voted idea itself is still there, ~490 days later");
+ok(LC.MAX_AGE === 21, "the constant survives as documentation, not as a removal trigger");
 ok(L(ten, new Date(2026, 6, 1)) === "", "ageing: a weekOf far in the FUTURE is a bad date, not an early week");
+
+// A DECIDED idea still leaves on its verdict, however long ago that verdict landed.
+LV({}, (function () { var d = {}; d[p2] = 5; return d; })());
+var archivedOld = L(ten, new Date(2028, 0, 1));
+hasnt(archivedOld, "Two Hands", "VR-183: an ARCHIVED idea is still gone at ~490 days — the verdict removed it, not the clock");
+LV({}, {});
+D.loom = JSON.parse(JSON.stringify(realLoom));
+D.loom.ideas[1].promoted = { label: "Warded Sanctum", href: "#lab" };
+var promotedOld = L(ten, new Date(2028, 0, 1));
+has(promotedOld, "Two Hands", "VR-183: a PROMOTED idea still renders at ~490 days — it never expires");
+has(promotedOld, "IN THE LAB", "VR-183: …still carrying its badge");
+D.loom = realLoom;
+
+// Every idea decided against → the panel is ABSENT, never an empty shell.
+LV({}, (function () { var d = {}; d[p1] = 5; d[p2] = 5; d[p3] = 5; return d; })());
+ok(L(ten, FRESH) === "", "VR-183: every idea archived leaves nothing to show — absent, not an empty frame");
+LV({}, {});
+
+// A PREVIOUS batch is reachable alongside the current one — fold, not deletion.
+D.loom = JSON.parse(JSON.stringify(realLoom));
+D.loom.previous = [{ weekOf: "2026-07-01", takesRead: 12, people: 3, ideas: [
+  { title: "Older Idea", pitch: "p", builtFrom: [
+    { who: "A", quote: "q1" }, { who: "B", quote: "q2" }, { who: "C", quote: "q3" }] }
+] }];
+var multi = L(ten, FRESH);
+has(multi, "Older Idea", "VR-183: an idea from a PREVIOUS batch renders alongside the current one");
+has(multi, "loom-2026-07-01-1", "VR-183: the older batch keeps its own poll-id namespace");
+ok((multi.match(/loom-idea\b/g) || []).length === 4, "VR-183: three current ideas plus one older one, folded into one list");
+D.loom = realLoom;
+
+// Each idea says how long it has waited.
+LV({}, {});
+var waited = L(ten, new Date(2026, 8, 17));                // 20 days after weekOf 2026-08-28
+has(waited, "loom-waited", "VR-183: the panel names how long an idea has waited");
+has(waited, "waiting 20 days", "VR-183: …and the count is right");
+
 [null, undefined, {}, [], { weekOf: "2026-08-28" }, { weekOf: "not-a-date", ideas: realLoom.ideas },
  { weekOf: "2026-08-28", ideas: [] }, { weekOf: "2026-08-28", ideas: "three of them" }].forEach(function (bad, n) {
   D.loom = bad;
@@ -393,7 +439,6 @@ D.loom = realLoom;
 // --- 9e. the three thresholds. +3 / −3 / −5, and the gap between the last two is the point.
 ok(LC.THRESHOLDS.promote === 3 && LC.THRESHOLDS.deprioritise === -3 && LC.THRESHOLDS.archive === -5,
   "thresholds: +3 promotes, −3 deprioritises, −5 archives");
-var p1 = "loom-2026-08-28-1", p2 = "loom-2026-08-28-2", p3 = "loom-2026-08-28-3";
 // −3 dims but never hides: still on the page, still readable, still votable.
 LV({}, (function () { var d = {}; d[p2] = 3; return d; })());
 var dimmed = L(ten, FRESH);

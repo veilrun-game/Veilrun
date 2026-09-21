@@ -6,6 +6,9 @@
    Usage: node _billboard.js   (run from games/proving-ground/) */
 const fs = require("fs"), path = require("path"), vm = require("vm");
 const html = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
+// VR-199 moved MOTION_FULL/MOTION_RED/MOTION_KEYS onto the shared bus — require
+// the real module rather than regexing a literal that no longer lives in the HTML.
+const Motion = require(path.join(__dirname, "..", "_engine", "motion.js"));
 
 let fails = 0, checks = 0;
 const ok = (n, c, d) => { checks++; if (!c) { fails++; console.log("  FAIL  " + n + (d ? "  — " + d : "")); } else console.log("  ok    " + n + (d ? "  — " + d : "")); };
@@ -299,9 +302,9 @@ console.log("\n[reduced motion]");
    day it is added — including, and this is the point, the ones that prove it
    cannot reach the sim. A harness that has to be updated to stay honest is a
    harness that eventually isn't. */
-const MK = ((html.match(/var MOTION_KEYS = \[([^\]]*)\]/) || [])[1] || "")
-  .split(",").map(s => s.trim().replace(/^"|"$/g, "")).filter(Boolean);
-ok("MOTION_KEYS is declared in the game", MK.length >= 5, MK.join(", ") || "none found");
+const MK = Motion.MOTION_KEYS;
+ok("MOTION_KEYS is declared in the game", MK.length >= 5 &&
+   /var MOTION_KEYS = VE\.Motion\.MOTION_KEYS;/.test(html), MK.join(", ") || "none found");
 /* Anchored INSIDE the PREFERS_REDUCED initialiser, not merely present in the
    file: the live-change listener also names the media query, so a loose test
    here stays green while the boot-time seed is gutted. (Found by the mutation
@@ -317,17 +320,19 @@ ok("it seeds the defaults rather than overriding them",
    "the panel can always disagree with the system");
 ok("an explicit choice here outranks a later OS change",
    /if \(V\.mset\) return;/.test(html) && /V\.mset = true;/.test(html));
-const presetLine = n => (html.match(new RegExp("var MOTION_" + n + "\\s*=[^\\n]*")) || [""])[0];
+// VR-199: the values live in the real module now, not a retyped line in the HTML —
+// asserted against Motion.MOTION_FULL/MOTION_RED directly rather than a regexed line.
 ok("every axis has a full and a reduced value",
-   MK.length > 0 && ["FULL", "RED"].every(n =>
-     MK.every(k => new RegExp("\\b" + k + ":\\s*[\\d.]+").test(presetLine(n)))),
+   MK.length > 0 && ["MOTION_FULL", "MOTION_RED"].every(n =>
+     MK.every(k => typeof Motion[n][k] === "number")),
    "a scale with no reduced value is an effect the setting silently misses");
 ok("MOTION has exactly one writer", (html.match(/MOTION\[MOTION_KEYS\[\w+\]\] =/g) || []).length === 2,
    "the seed and the apply() branch — nothing else assigns a scale");
 
 /* Each damped primitive must actually consult its scale. Checked by name so a
    primitive that gets rewritten and silently drops the multiply fails here. */
-ok("shake() reads MOTION.shake", /function shake\(mag\) \{[\s\S]{0,200}?mag \*= MOTION\.shake;/.test(html));
+ok("shake() reads MOTION.shake", /function shake\(mag\) \{[\s\S]{0,200}?SHAKE\.raise\(mag, MOTION\.shake\);/.test(html),
+   "VR-199: the decay moved to VE.Motion.Impulse, but the scale multiply happens here still");
 ok("fovKick() reads MOTION.fov", /function fovKick\(v\) \{[\s\S]{0,260}?v \* MOTION\.fov;/.test(html));
 ok("ghost() reads MOTION.ghost", /function ghost\(x, z, yaw\) \{[\s\S]{0,300}?MOTION\.ghost <= 0\) return;/.test(html));
 ok("banner() reads MOTION.banner", /classList\.toggle\("still", MOTION\.banner <= 0\.5\)/.test(html));

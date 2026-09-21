@@ -79,7 +79,10 @@ var aimBody  = lift("AIM block",     /AIM:BEGIN[\s\S]*?-+ \*\/([\s\S]*?)\/\* AIM
 var srcExec  = lift("tryExecute()",  /\nfunction tryExecute\(\) \{[\s\S]*?\n\}/)[0];
 var srcClamp = lift("clamp()",       /\nvar clamp = function \(v, a, b\) \{[^\n]*\};/)[0];
 var mLunge   = lift("EXEC_LUNGE_T",  /\nvar EXEC_LUNGE_T = ([\d.]+);/);
-var srcRed   = lift("MOTION_RED",    /\nvar MOTION_RED  = (\{[^\n]*\});/)[1];
+// VR-199 lifted MOTION_RED onto the shared bus — require the real module
+// rather than lifting a literal out of the HTML, the same move _clock.js and
+// _bus.js already make for code portable enough not to need extracting.
+var Motion = require(path.join(__dirname, "..", "_engine", "motion.js"));
 
 /* The AU method names are LIFTED, not listed. `AU` is an IIFE whose returned
    object literal is the public surface; every key on it is a thing the player
@@ -118,7 +121,7 @@ vm.runInContext([srcClamp, aimBody, srcExec, "var EXEC_LUNGE_T = " + mLunge[1] +
                 sandbox, { filename: "index.html#EXEC" });
 
 var EXEC_LUNGE_T = +mLunge[1];
-var MOTION_RED = vm.runInContext("(" + srcRed + ")", sandbox);
+var MOTION_RED = Motion.MOTION_RED;
 /* Channels reduced motion switches OFF completely. A whiff whose whole tell
    lands in here is silent again for anyone who set the accessibility toggle,
    which is the same bug with a smaller blast radius. `fov` and `flash` survive
