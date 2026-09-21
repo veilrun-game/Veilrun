@@ -353,7 +353,7 @@ ok("hitStop is not scaled by any motion axis",
    /function hitStop\(ms\) \{ game\.hitStop = Math\.max\(game\.hitStop, ms \/ 1000\); \}/.test(html),
    "it freezes simulation time — scaling it from the panel would be a balance edit");
 {
-  const hurt = (html.match(/function hurtPlayer\(dmg\)[\s\S]*?\n\}/) || [""])[0];
+  const hurt = (html.match(/function hurtPlayer\([^)]*\)[\s\S]*?\n\}/) || [""])[0];
   ok("and no call site scales it either",
      !/hitStop\([^)]*MOTION/.test(html) && /hitStop\(70\);/.test(hurt),
      "the freeze is what carries the impact once shake is damped to nothing");

@@ -272,7 +272,7 @@ in the folder before assuming:
 - **2D pair track** — `games/<name>-v2/_sim.py` (Python physics sim).
 - **3D** — `games/proving-ground/_sim.js` (asserts against the marked `BALANCE` block extracted from
   the HTML), plus `_arena.js`, `_gauntlet.js`, `_billboard.js`, `_touch.js`, `_clipfit.js`,
-  `_shroud.js`, `_zoom.js`, `_strike.js`, `_exec.js` and `_check.js`. **`_arena.js` (added 9/3 with VR-148) judges the SHAPE OF
+  `_shroud.js`, `_zoom.js`, `_strike.js`, `_exec.js`, `_hitdir.js` and `_check.js`. **`_arena.js` (added 9/3 with VR-148) judges the SHAPE OF
   THE GROUND** rather than the numbers — six criteria per layout (reach · wedge · shroud · cheese ·
   blink · convergence). It is the external bar VR-154's generator gets scored against, and the reason
   VR-121 can add walls without anyone eyeballing whether the result is playable.
@@ -365,6 +365,20 @@ in the folder before assuming:
   through the real lifted `verbYaw()`, and proves that is the real one by making arcade and third
   disagree about the same husk. **The AU method names are read out of the file rather than listed**,
   so a sound added tomorrow is an observable here tomorrow with no edit to the harness.
+  **`_hitdir.js` (added 9/21 with VR-200) answers the second half of "did I hit" — where did that
+  come from.** A hit confirm already existed (`hitmark()`, VR-104); nothing answered incoming
+  direction, so a husk hitting from behind a wall or through a seam tear read as being hit by
+  nothing. `hitDirection()`, `camYaw()` and the `DDIR` pool constructor are lifted out of the HTML
+  in **19 checks**, never a retyped copy, and proven at execution: direction is computed from the
+  attacker's real position through the real `camYaw()`, arcade and third are proven to disagree
+  about the same attacker (and to agree when given the same yaw, ruling out a mode-independent
+  bug) — the identical discipline `_exec.js` holds `verbYaw()` to. **Pooled exactly like
+  ENEMIES/TELE/THIN** — two simultaneous hits from different directions both register in distinct
+  slots, a fifth hit while the pool of four is full is proven to actually land on a slot rather
+  than just leaving the live count unchanged (the first version of this check passed a mutant that
+  silently dropped the fifth hit — the count alone can't tell "reused" from "discarded"), and
+  `resetRun()` is proven to call the real `hitDirReset()` rather than a same-named stand-in.
+  **The indicator is a CSS border-triangle, not a colour** — the A11Y bar applied at creation.
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 

@@ -126,6 +126,24 @@ canvas{display:block}
   100%{opacity:0;transform:scale(calc(1 + .55 * var(--hmpop)))}}
 #hitmark.on{animation:hitmarkpop .22s ease-out}
 #hitmark.on.heavy{animation-duration:.3s}
+/* ---------- directional damage indicator (VR-200) --------------------------
+   "Did I hit" is hitmark(), above. This is the other half — "where did that
+   come from" — and the game has never answered it. A SHAPE, not a colour: an
+   arrow reads with colour vision removed, which a red glow alone would not.
+   Four instances, pooled exactly like ENEMIES/TELE/THIN, so two hits landing
+   from different directions in the same beat both show — resetRun() clears
+   all four via hitDirReset(). transform-origin sits at the crosshair's own
+   position (the arrow's apex, 92px below the arrow's top edge), so rotating
+   the element sweeps it around the ring while its apex stays pointed at
+   screen centre — the same trick a clock hand uses to point at the rim. */
+#hitdir{position:absolute;top:50%;left:50%;width:0;height:0;pointer-events:none}
+#hitdir .hd-i{position:absolute;left:-7px;top:-92px;width:0;height:0;opacity:0;
+  border-left:7px solid transparent;border-right:7px solid transparent;
+  border-top:16px solid rgba(232,87,79,.92);
+  filter:drop-shadow(0 0 5px rgba(232,87,79,.65));
+  transform-origin:7px 92px}
+@keyframes hitdirfade{0%{opacity:1}65%{opacity:.8}100%{opacity:0}}
+#hitdir .hd-i.on{animation:hitdirfade .7s ease-out}
 #vignette{position:absolute;inset:0;opacity:0;transition:opacity .18s ease;
   background:radial-gradient(ellipse at center,transparent 42%,rgba(200,40,60,.62) 100%)}
 #shroudv{position:absolute;inset:0;opacity:0;transition:opacity .35s ease;
@@ -1240,7 +1258,8 @@ body.noanim.tuning .screen.on{transition:none}
   </div>
   <div id="crosshair"></div>
   <div id="hitmark"><i></i><i></i><i></i><i></i></div>
-  
+  <div id="hitdir"><i class="hd-i"></i><i class="hd-i"></i><i class="hd-i"></i><i class="hd-i"></i></div>
+
 
 <div id="shroudv"></div>
   <div id="vignette"></div>
@@ -3937,6 +3956,55 @@ var HUD = {
   banner: $("banner"), dmg: $("dmgnum"), root: $("hud")
 };
 
+/* ============================ hit direction (VR-200) =====================
+   Pooled exactly like ENEMIES/TELE/THIN: a fixed-size array of {live, el,
+   clearT}, never allocated per hit. hitDirReset() is called from resetRun(). */
+var DDIR_MAX = 4;
+var DDIR = (function () {
+  var wrap = $("hitdir"), els = wrap ? wrap.querySelectorAll(".hd-i") : [];
+  var pool = [];
+  for (var i = 0; i < DDIR_MAX; i++) pool.push({ live: false, el: els[i] || null, clearT: null });
+  return pool;
+})();
+function hitDirReset() {
+  for (var i = 0; i < DDIR.length; i++) {
+    var d = DDIR[i];
+    if (d.clearT) clearTimeout(d.clearT);
+    d.live = false; d.clearT = null;
+    if (d.el) d.el.classList.remove("on");
+  }
+}
+/* The one answer to "which way is the CAMERA pointed", as distinct from
+   verbYaw() (which way is a VERB pointed) and player.yaw/player.aim (which
+   way the BODY faces). TPAD's private holdBasis() computes this identical
+   value for the touch stick's screen-relative aim; it lives in TPAD's own
+   closure so this is a second, deliberately tiny copy of the one-line
+   formula rather than a cross-module reach. */
+function camYaw() { return cam.mode === "arcade" ? ARC.yaw : mouse.yaw; }
+/* THE ARC-AND-THIRD-DISAGREE PROOF, same discipline verbYaw() is held to:
+   arcade's camera is the fixed ARC.yaw rig, third/first's is mouse.yaw, so
+   the same attacker resolves to a different screen angle in each — proven in
+   _hitdir.js by giving the two modes different yaws and checking the two
+   answers actually differ. Takes the attacker's REAL position, never a
+   retyped copy — the same rule _exec.js holds verbYaw() to. */
+function hitDirection(ax, az) {
+  var dx = ax - player.x, dz = az - player.z;
+  if (Math.abs(dx) < 1e-4 && Math.abs(dz) < 1e-4) return;   // on top of us — no direction to show
+  var rel = Math.atan2(dx, dz) - camYaw();
+  rel = Math.atan2(Math.sin(rel), Math.cos(rel));           // normalize to (-PI, PI]
+  var slot = -1;
+  for (var i = 0; i < DDIR.length; i++) if (!DDIR[i].live) { slot = i; break; }
+  if (slot === -1) slot = 0;   // pool exhausted — reuse the oldest rather than drop the newest silently
+  var d = DDIR[slot], el = d.el; if (!el) return;
+  d.live = true;
+  if (d.clearT) clearTimeout(d.clearT);
+  el.style.transform = "rotate(" + (rel * 180 / Math.PI).toFixed(2) + "deg)";
+  el.classList.remove("on");
+  void el.offsetWidth;                       // restart the animation mid-flight, same trick hitmark() uses
+  el.classList.add("on");
+  d.clearT = setTimeout(function () { d.live = false; }, 700);
+}
+
 /* ---- one readiness vocabulary, shared by the HUD pips and the touch pad ----
    VR-112. Both surfaces call THESE, rather than each deriving a fraction from
    player state, because the pad drifting away from the pips is exactly how a
@@ -4720,10 +4788,11 @@ function killEnemy(e, wasExecute) {
   burst(e.x, 1.1, e.z, 20, 0x9c9ab2, 3.4, { grav: -4.5, upScale: 1.5, lifeScale: 1.5, scale: 1.0 });
   TELE[ENEMIES.indexOf(e)].visible = false;
 }
-function hurtPlayer(dmg) {
+function hurtPlayer(dmg, ax, az) {
   if (player.iframe > 0 || !player.alive) return;
   player.hp -= dmg;
   player.iframe = C.iframeOnHit;
+  hitDirection(ax, az);
   // hitStop is NOT scaled here — see the VR-103 block above shake().
   AU.hurt(); shake(0.28); hitStop(70);
   /* VR-103 — damped, never removed. This is the only full-screen signal that
@@ -5024,7 +5093,7 @@ function updateEnemies(dt) {
       var lx = -Math.sin(e.yaw), lz = -Math.cos(e.yaw);
       var lspd = e.lunge ? 9.5 : 4.0;
       e.x += lx * lspd * dt; e.z += lz * lspd * dt;
-      if (e.t < C.enemyActive && dist < C.enemyReach + 0.65) hurtPlayer(C.enemyDmg);
+      if (e.t < C.enemyActive && dist < C.enemyReach + 0.65) hurtPlayer(C.enemyDmg, e.x, e.z);
       if (e.t >= C.enemyActive) { e.state = "rec"; e.t = 0; }
     } else { // rec
       e.t += dt;
@@ -5224,6 +5293,7 @@ function resetRun() {
   game.over = false; game.hitStop = 0; game.phase = "idle"; setPaused(false);
   TPAD.release();   // a latched Stalk must not survive into the next run
   HUD.vig.style.opacity = "0";
+  hitDirReset();
 }
 function startRun() {
   AU.boot();
