@@ -725,7 +725,7 @@ console.log("\n[husk ENTRANCE clips — VR-118]");
      `entryCrash ${CC.entryCrash} — Jordan's call: weighted toward the crash, never all of one`);
 
   ok("the odds are a BALANCE constant, not a literal at the call site",
-     /Math\.random\(\) < C\.entryCrash/.test(html),
+     /RNG\.pick\("spawn"\) < C\.entryCrash/.test(html),
      "a ratio typed where it is used is a ratio nobody can tune or sim");
 
   /* THE FIT ITSELF IS NOT CHECKED HERE, deliberately. The generic [fit] loop

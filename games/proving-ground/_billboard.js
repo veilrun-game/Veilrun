@@ -521,7 +521,7 @@ ok("the three beats cycle, and only their durations are random",
    /e\.beat = \(e\.beat === "walk"\) \?/.test(upd) &&
    /* BOTH assignments, not either: the mutation pass changed only the one
       inside the cycle and this check stayed green off the one at entry. */
-   (upd.match(/e\.beatT = rand\(C\.huskBeatMin, C\.huskBeatMax\)/g) || []).length === 2,
+   (upd.match(/e\.beatT = rand\(C\.huskBeatMin, C\.huskBeatMax(?:, "enemy")?\)/g) || []).length === 2,
    "a room of husks all dizzy on the same frame reads as choreography, not as losing you");
 ok("scanning and reeling do not translate",
    /e\.yaw \+= \(e\.beat === "dizzy" \? 2\.1 : 0\.7\) \* dt;/.test(upd),
@@ -530,7 +530,7 @@ ok("arriving at the guess ends the beat instead of marking time",
    /e\.beatT = Math\.min\(e\.beatT, 0\.35\);/.test(upd),
    "a husk standing on the spot playing a walk cycle is the moonwalk in a different costume");
 ok("giving up widens the guess to the whole arena",
-   /e\.searchT >= C\.huskSearchGiveUp[\s\S]{0,140}rand\(-A \+ 1\.5, A - 1\.5\)/.test(upd),
+   /e\.searchT >= C\.huskSearchGiveUp[\s\S]{0,140}rand\(-A \+ 1\.5, A - 1\.5, "enemy"\)/.test(upd),
    "otherwise they orbit your last position forever and the arena stops mattering");
 
 /* The LOD contract: three renderers, one read. */

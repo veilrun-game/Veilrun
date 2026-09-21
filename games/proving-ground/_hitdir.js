@@ -178,7 +178,7 @@ console.log("\n[resetRun clears it]");
      s.__els.every(function (e) { return !e._classes.on; }));
 }
 ok("resetRun() actually calls hitDirReset(), not a same-named stand-in",
-   /function resetRun\(\) \{[\s\S]*?hitDirReset\(\);[\s\S]*?\n\}/.test(html));
+   /function resetRun\([^)]*\) \{[\s\S]*?hitDirReset\(\);[\s\S]*?\n\}/.test(html));
 
 console.log("\n[static, anchored facts]");
 ok("hurtPlayer()'s sole call site passes the attacker's real position",

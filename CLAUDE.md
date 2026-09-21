@@ -272,7 +272,7 @@ in the folder before assuming:
 - **2D pair track** — `games/<name>-v2/_sim.py` (Python physics sim).
 - **3D** — `games/proving-ground/_sim.js` (asserts against the marked `BALANCE` block extracted from
   the HTML), plus `_arena.js`, `_gauntlet.js`, `_billboard.js`, `_touch.js`, `_clipfit.js`,
-  `_shroud.js`, `_zoom.js`, `_strike.js`, `_exec.js`, `_hitdir.js` and `_check.js`. **`_arena.js` (added 9/3 with VR-148) judges the SHAPE OF
+  `_shroud.js`, `_zoom.js`, `_strike.js`, `_exec.js`, `_hitdir.js`, `_rng.js` and `_check.js`. **`_arena.js` (added 9/3 with VR-148) judges the SHAPE OF
   THE GROUND** rather than the numbers — six criteria per layout (reach · wedge · shroud · cheese ·
   blink · convergence). It is the external bar VR-154's generator gets scored against, and the reason
   VR-121 can add walls without anyone eyeballing whether the result is playable.
@@ -379,6 +379,30 @@ in the folder before assuming:
   silently dropped the fifth hit — the count alone can't tell "reused" from "discarded"), and
   `resetRun()` is proven to call the real `hitDirReset()` rather than a same-named stand-in.
   **The indicator is a CSS border-triangle, not a colour** — the A11Y bar applied at creation.
+  **`_rng.js` (added 9/21 with VR-203) is the first harness for a shared engine module ALSO
+  proven live against the game that consumes it**, because a judge that has been fully
+  deterministic since VR-148 (`_arena.js`, its own `mulberry32(0x5EED01)` and friends) was
+  judging a game that was not — `index.html` called `Math.random` 11 times, so a layout the
+  judge could reproduce exactly belonged to an arena that couldn't be. **`_rng.js`'s Part 1
+  `require`s `games/_engine/rng.js` directly** (the `_clock.js`/`_bus.js`/`_motion.js`/
+  `_actions.js` contract — no DOM, nothing to stub) and proves the module itself: a seed
+  reproduces its sequence, a different seed diverges, and — the property that makes NAMED
+  streams the point rather than one shared generator — a `"spawn"` stream's sequence is
+  provably unaffected by an `"enemy"` stream drawing in between the same draws. **`_rng.js`'s
+  Part 2 lifts the real `spawnEnemy()` out of the HTML**, never a retyped copy, and drives it
+  against a stubbed THREE.js enemy pool the same way `_exec.js` stubs `tryExecute()`'s
+  dependencies, proving the same seed reproduces the same spawn positions and entrance
+  flavours through the ACTUAL game code, not just through the module in isolation. **`_rng.js`'s
+  Part 3 is a grep-style assertion, scoped to Proving Ground** — the card's own claim that "the
+  2D v2 games call Math.random zero times" turned out to be false for
+  `pair-level-v2/index.html`, found by running the check rather than trusting the card, and
+  reported as an out-of-scope finding rather than silently widened into a second card's fix.
+  **`mulberry32` moved out into the shared module and the judge was proven to produce
+  byte-identical output before and after** — a diff of a full run's stdout, not a re-reading of
+  the code. **`_rng.js` runs 11 checks in total**, mutation-tested: a hardcoded spawn side
+  passes every seed-reproducibility check (both runs are still equally wrong) and is only
+  caught by a dedicated edge-variety assertion, and collapsing the per-stream seed offset back
+  to one shared generator fails the stream-independence check directly.
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 

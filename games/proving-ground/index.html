@@ -1644,6 +1644,7 @@ body.noanim.tuning .screen.on{transition:none}
 <script src="../_engine/bus.js"></script>
 <script src="../_engine/motion.js"></script>
 <script src="../_engine/actions.js"></script>
+<script src="../_engine/rng.js"></script>
 <script>
 /* =========================================================================
    VEILRUN — Proving Ground (3D wave-survival arena, v0)
@@ -2056,7 +2057,17 @@ var HURT_SHOW_T  = 0.22;   // hurt: shown while iframe is within this of full
 var TAU = Math.PI * 2;
 var clamp = function (v, a, b) { return v < a ? a : (v > b ? b : v); };
 var lerp = function (a, b, t) { return a + (b - a) * t; };
-var rand = function (a, b) { return a + Math.random() * (b - a); };
+/* VR-203 — ONE seeded generator, not eleven scattered direct-random calls.
+   `RNG` exists from script load (floorTexture() below draws before any run
+   starts) and is reseeded per run in resetRun(), never reallocated, so a
+   test seam holding a reference to it keeps seeing the current run's draws.
+   Named streams so one system's draw count can never shift another's — a
+   fourth particle burst must not silently reseed the next enemy spawn.
+   `rand(a, b, stream)` defaults to the cosmetic "fx" stream; a caller whose
+   randomness is part of what a seed reproduces (spawn placement, enemy
+   behaviour) names its own stream explicitly. */
+var RNG = new VE.Rng(Date.now() >>> 0);
+var rand = function (a, b, stream) { return a + RNG.pick(stream || "fx") * (b - a); };
 // frame-rate independent damping toward a target
 var damp = function (a, b, lambda, dt) { return lerp(a, b, 1 - Math.exp(-lambda * dt)); };
 var shortAngle = function (a, b) { var d = (b - a) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return d; };
@@ -2097,7 +2108,7 @@ var AU = (function () {
     if (!noiseBuf) {
       noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 1.0, ctx.sampleRate);
       var d = noiseBuf.getChannelData(0);
-      for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      for (var i = 0; i < d.length; i++) d[i] = RNG.pick("audio") * 2 - 1;
     }
     var t0 = ctx.currentTime + (delay || 0);
     var s = ctx.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
@@ -2370,9 +2381,9 @@ function floorTexture() {
   var g = cv.getContext("2d");
   g.fillStyle = "#0d0b1a"; g.fillRect(0, 0, s, s);
   for (var i = 0; i < 4200; i++) {
-    var v = Math.random() * 28 | 0;
+    var v = RNG.pick("texture") * 28 | 0;
     g.fillStyle = "rgba(" + (22 + v) + "," + (19 + v) + "," + (44 + v) + ",.5)";
-    g.fillRect(Math.random() * s, Math.random() * s, 2, 2);
+    g.fillRect(RNG.pick("texture") * s, RNG.pick("texture") * s, 2, 2);
   }
   g.strokeStyle = "rgba(124,74,182,.20)"; g.lineWidth = 2;
   for (var k = 0; k <= 8; k++) {
@@ -2536,7 +2547,7 @@ function burst(x, y, z, n, color, speed, opt) {
   for (var i = 0; i < n; i++) {
     var p = parts[pIdx]; pIdx = (pIdx + 1) % PMAX;
     p.m.position.set(x, y, z);
-    var a = Math.random() * TAU, up = rand(opt.upMin != null ? opt.upMin : 0.15, 1.0);
+    var a = RNG.pick("fx") * TAU, up = rand(opt.upMin != null ? opt.upMin : 0.15, 1.0);
     var s = speed * rand(0.45, 1.25);
     p.vx = Math.cos(a) * s * (1 - up * 0.5);
     p.vz = Math.sin(a) * s * (1 - up * 0.5);
@@ -4816,7 +4827,7 @@ function spawnEnemy(spec) {
   // pick an edge point away from the player
   var x, z, tries = 0;
   do {
-    var side = Math.floor(Math.random() * 4), t = rand(-A + 1.2, A - 1.2);
+    var side = Math.floor(RNG.pick("spawn") * 4), t = rand(-A + 1.2, A - 1.2, "spawn");
     if (side === 0) { x = t; z = -A + 0.8; } else if (side === 1) { x = t; z = A - 0.8; }
     else if (side === 2) { x = -A + 0.8; z = t; } else { x = A - 0.8; z = t; }
     tries++;
@@ -4855,7 +4866,7 @@ function spawnEnemy(spec) {
      the launch point so the arc can be interpolated rather than integrated —
      a husk mid-entrance must land exactly where the sim thinks it is, and a
      velocity that anything else can nudge is how that stops being true. */
-  var crash = Math.random() < C.entryCrash;
+  var crash = RNG.pick("spawn") < C.entryCrash;
   e.entry = crash ? "fall" : "float";
   e.entryBeat = "in";
   var inward = Math.atan2(-x, -z);                  // toward the middle of the arena
@@ -4910,7 +4921,7 @@ function updateEnemies(dt) {
       e.eyeMat.color.lerp(_grey, 0.2);
       e.g.scale.set(1 - f * 0.35, 1 - f * 0.85, 1 - f * 0.35);
       e.g.position.y = -f * 0.15;
-      if (f < 1 && Math.random() < dt * 22) burst(e.x, rand(0.3, 1.6), e.z, 1, 0x9c9ab2, 1.6, { grav: -2, lifeScale: 1.6, scale: 0.7 });
+      if (f < 1 && RNG.pick("fx") < dt * 22) burst(e.x, rand(0.3, 1.6), e.z, 1, 0x9c9ab2, 1.6, { grav: -2, lifeScale: 1.6, scale: 0.7 });
       if (f >= 1) { e.live = false; e.g.visible = false; tele.visible = false; }
       continue;
     }
@@ -5012,7 +5023,7 @@ function updateEnemies(dt) {
         e.state = "seek"; e.t = 0; e.searchT = 0;      // re-acquired
       } else if (e.state === "seek" && e.lostT >= C.huskLoseT) {
         e.state = "search"; e.t = 0; e.searchT = 0;
-        e.beat = "walk"; e.beatT = rand(C.huskBeatMin, C.huskBeatMax);
+        e.beat = "walk"; e.beatT = rand(C.huskBeatMin, C.huskBeatMax, "enemy");
         /* Head for where they last SAW you, not where you are. Believing the
            search is honest depends on it never quietly tracking the truth. */
         e.patrolX = e.seekX; e.patrolZ = e.seekZ;
@@ -5026,16 +5037,16 @@ function updateEnemies(dt) {
          frame reads as choreography, which is the opposite of losing you. */
       e.searchT += dt; e.beatT -= dt;
       if (e.beatT <= 0) {
-        e.beat = (e.beat === "walk") ? (Math.random() < 0.5 ? "scan" : "dizzy") : "walk";
-        e.beatT = rand(C.huskBeatMin, C.huskBeatMax);
+        e.beat = (e.beat === "walk") ? (RNG.pick("enemy") < 0.5 ? "scan" : "dizzy") : "walk";
+        e.beatT = rand(C.huskBeatMin, C.huskBeatMax, "enemy");
         if (e.beat === "walk") {
           /* A new guess about where you went. After huskSearchGiveUp they stop
              guessing around your last position and pick anywhere in the arena —
              the difference between hunting and patrolling. */
           if (e.searchT >= C.huskSearchGiveUp) {
-            e.patrolX = rand(-A + 1.5, A - 1.5); e.patrolZ = rand(-A + 1.5, A - 1.5);
+            e.patrolX = rand(-A + 1.5, A - 1.5, "enemy"); e.patrolZ = rand(-A + 1.5, A - 1.5, "enemy");
           } else {
-            e.patrolX = e.seekX + rand(-4.5, 4.5); e.patrolZ = e.seekZ + rand(-4.5, 4.5);
+            e.patrolX = e.seekX + rand(-4.5, 4.5, "enemy"); e.patrolZ = e.seekZ + rand(-4.5, 4.5, "enemy");
           }
         }
       }
@@ -5276,7 +5287,16 @@ function awardPoints(event, pts, meta) {
   } catch (e) {}
 }
 
-function resetRun() {
+/* VR-203 — `seed` is a test/tooling seam, not a player-facing feature: the
+   run-seed UI and the daily seed are their own cards and both consume this.
+   Omitted, a run reseeds unpredictably exactly as it always has; passed, the
+   run's spawns and enemy AI become the reproducible sequence a seed implies.
+   Cosmetic streams (fx/audio/texture) are NOT reseeded here on purpose — the
+   floor texture and the noise buffer are drawn once at script load and stay
+   built for the page's lifetime, so reseeding them per run would do nothing
+   and claiming otherwise here would be a lie the code doesn't back up. */
+function resetRun(seed) {
+  RNG.reseed(seed != null ? seed : (Date.now() ^ (performance.now() * 1000 | 0)) >>> 0);
   player.x = 0; player.z = 6.5; player.vx = player.vz = 0; player.yaw = 0;   // facing into the arena
   player.hp = C.playerHp; player.iframe = 0; player.alive = true;
   player.atkStage = -1; player.nextStage = 0; player.atkPhase = ""; player.chainT = 0; player.queued = false;
@@ -6447,7 +6467,7 @@ var HUSKMODEL = (function () {
     setPhase(rig.mat, (e.mat.userData.vrPhase ? e.mat.userData.vrPhase.value : 0));
     // a fresh phase per attachment, so two husks that spawn together and pick
     // the same clip still do not breathe in step
-    rig.phase = Math.random() * TAU;
+    rig.phase = RNG.pick("fx") * TAU;
   }
   function detach(rig) {
     var e = rig.e;
