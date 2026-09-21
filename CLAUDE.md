@@ -368,7 +368,7 @@ in the folder before assuming:
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 
-**Site-level, fifteen at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
+**Site-level, sixteen at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
 except `_kit.js`: `_check.js` (the
 `VEILRUN.games` manifest), `_hubcheck.js` (Hub states), `_updatescheck.js` (weekly-hero states),
 `_grefcheck.js` (Game Reference catalogue + matcher), `_docscheck.js` (ship-checklist item 5),
@@ -381,7 +381,8 @@ except `_kit.js`: `_check.js` (the
 `_archetypes.js` (audience-archetype doc structure, **26 checks**),
 `_bus.js` (the shared synchronous event bus, **38 checks**),
 `_motion.js` (the shared reduced-motion scales + camera-impulse bus, **51 checks**),
-`_actions.js` (the shared action registry + per-genre profiles, **74 checks**).
+`_actions.js` (the shared action registry + per-genre profiles, **74 checks**),
+`_silent.js` (no-result UI states, VR-172's ruling applied to the interface, **17 checks**).
 Everything relevant must be green before hand-off.
 
 **`_archetypes.js` (added 9/16, VR-208) checks the schema of a doc that does not exist yet.** The
@@ -514,6 +515,30 @@ its own actions, and the `hasOwnProperty` guard removed (which would otherwise r
 module. **74 checks.** Wired to exactly one call site — Proving Ground's touch help legend — the
 same one-wire scope cut `_bus.js` made for its first event; full record and the VR-46 §5 reversal
 this generalises are in `_Project Knowledge/Action Registry & Per-Genre Profiles (VR-191).md`.
+
+**`_silent.js` (added 9/21, VR-205) is VR-172's ruling — "a whiff and a dead button were
+byte-identical to the player" — applied past the arena, to the site.** It found the same
+asymmetry in a different shape: every no-result control it inventoried already wrote
+explanatory text for a sighted mouse user (the gallery's empty filter, the per-game and
+crew leaderboards, the feedback open/resolved lists), but **none of those regions carried
+`aria-live`**, so replacing a loading placeholder with real text — including with nothing,
+in the board's case — was silent to a screen reader even while already visible on screen.
+**The board's "On me" / "On Claude" filter was silent on both channels**: a filter matching
+zero cards rendered a blank `.board` div with no fallback text at all, the literal VR-172
+bug transplanted into the UI. Two render paths — `views.board()`, `views.gallery()` — are
+proven **live**, through new `__renderBoard`/`__renderGallery` test seams on `VApp` (the
+`__renderHub` shape), never a retyped copy. **Three containers are proven differently, on
+purpose**: `#lb-board`, `#gboard-<id>`, `#fb-open-list` and `#fb-resolved-list` fill over
+the network (`VBackend`), so — the same contract `_shroud.js` uses for its render pass —
+there is no headless path to their filled state; the harness instead pins the one static,
+load-bearing fact that the shipped container already carries `aria-live` before any fetch
+ever completes, anchored to the literal markup so a future rename fails the check rather
+than going silently uncovered. **Mutation-tested against the board fix**: reverting it to
+the pre-card markup fails 4 of 17 checks. **17 checks.** Full inventory — including the
+no-result paths named and deliberately left alone, because they already had both channels
+(the gripes box) or have no reachable empty state (the sort dropdowns) — is in the file's
+own header comment rather than a separate doc, since the inventory has no reader besides
+the next thread editing this file.
 
 **`_pathcheck.js` (added 9/7, VR-165) asks the question content-scanning CANNOT.** Its sibling asks
 whether a file *contains* something withheld; VR-164 proved that is not the whole question, because
