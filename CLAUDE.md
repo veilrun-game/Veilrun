@@ -365,6 +365,22 @@ in the folder before assuming:
   through the real lifted `verbYaw()`, and proves that is the real one by making arcade and third
   disagree about the same husk. **The AU method names are read out of the file rather than listed**,
   so a sound added tomorrow is an observable here tomorrow with no edit to the harness.
+  **`_feel.js` (added 9/20 with VR-195) generalises `_exec.js`'s ruling past Execute — "no verb may
+  produce nothing" — to every verb the arena actually has.** It **discovers** the verb set from
+  `../_engine/actions.js`'s `"3d-arena"` profile (VR-191) rather than typing a list, in **71 checks**:
+  it reproduces `_exec.js`'s own verdict on Execute exactly (same scenario-space size, same 0 fails —
+  if the two ever disagree, `_feel.js` is the one that is wrong), then runs the identical
+  perceivable/costs-nothing/no-borrowed-tells test against **Veilstep, never checked this way
+  before**, and finds a real, un-fixed instance of the same bug: `veilstep()`'s
+  `if (player.stepCharges <= 0 || player.stepLock > 0) return;` is exactly as silent as pre-VR-172
+  Execute. **It is reported, not fixed here** — the card's own scope — and lives as two ALLOWED
+  entries citing **VR-210** (opened for the fix), the same fourth-state mechanism `_strike.js` uses
+  for VR-169's four defects: printed in full, never folded into a pass, and stale-checked (an entry
+  whose criterion starts passing fails as stale). **Camera, Pause and Stalk are discovered and
+  reported EXEMPT, by name** — a toggle or a continuous mechanic has no miss to be silent about, and
+  Strike's own known input-buffer gap stays where `_strike.js` already tracks it (`buf-wind`/
+  `buf-active`, VR-169) rather than being re-asserted as a second copy of one finding. It judges
+  itself against a synthetic always-silent verb on every run, the same `_exec.js` contract.
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 
