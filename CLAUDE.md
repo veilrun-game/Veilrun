@@ -384,7 +384,7 @@ in the folder before assuming:
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 
-**Site-level, sixteen at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
+**Site-level, seventeen at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
 except `_kit.js`: `_check.js` (the
 `VEILRUN.games` manifest), `_hubcheck.js` (Hub states), `_updatescheck.js` (weekly-hero states),
 `_grefcheck.js` (Game Reference catalogue + matcher), `_docscheck.js` (ship-checklist item 5),
@@ -398,7 +398,8 @@ except `_kit.js`: `_check.js` (the
 `_bus.js` (the shared synchronous event bus, **38 checks**),
 `_motion.js` (the shared reduced-motion scales + camera-impulse bus, **51 checks**),
 `_actions.js` (the shared action registry + per-genre profiles, **74 checks**),
-`_floattext.js` (the shared pooled floating-combat-text component, **44 checks**).
+`_floattext.js` (the shared pooled floating-combat-text component, **44 checks**),
+`_counter.js` (the shared easing counter, **44 checks**).
 Everything relevant must be green before hand-off.
 
 **`_floattext.js` (added 9/20, VR-201) is the fifth harness in the `_clock.js` family — a REAL
@@ -418,6 +419,26 @@ distinguishable from a normal hit by SIZE alone (≥25% larger, so colour remova
 cue) and that the base size clears the HUD's own measured smallest-text floor. Mutation-tested —
 the cap guard removed and `reset()` turned into a no-op both diverge from the real module. **44
 checks.**
+
+**`_counter.js` (added 9/20, VR-206) is the sixth harness in the `_clock.js` family — a REAL
+SHARED MODULE, `require`d directly, never lifted.** `games/_engine/counter.js` replaces the site's
+habit of writing a final value straight into the DOM — the run-over score, the leaderboard — with a
+number that ticks, per Jordan's 9/13 note that small satisfying moments matter. **Section 1** proves
+the module directly: `animateTo()`/`update()`/`skip()`, landing EXACTLY on the target (never
+`99.999`, because `_land()` always assigns `this.to` rather than trusting float accumulation to
+arrive there), a zero-duration or already-there target resolving synchronously, `onDone` firing
+exactly once with the final value, and **a retarget mid-tween starting from the counter's CURRENT
+value rather than the original `from`** — the card's own "does not fight itself" guarantee, proven
+by asserting the new tween's `from` equals the value at the moment of retarget. **Section 2** lifts
+Proving Ground's real wire out of the HTML (script tag, `SCORE_COUNTER` built from the real class,
+`endRun()` starting a tween to the real score and calling `skip()` under the exact same
+`MOTION.banner<=0.5` test the rest of the file already uses for reduced motion, the frame loop
+ticking it on wall time). **Section 3** lifts the leaderboard's wire out of `js/app.js`: a
+points-kind score renders a `data-pts` placeholder instead of the final number and
+`animateBoardCounters()` drives it through the real class with the same reduced-motion contract; a
+time-kind score is proven untouched, since counting up a clock digit-by-digit reads as broken rather
+than rewarding. Mutation-tested — landing no longer forced exact, a retarget keeping the stale
+`from`, and `skip()` no longer firing `onDone` all diverge from the real module. **44 checks.**
 
 **`_archetypes.js` (added 9/16, VR-208) checks the schema of a doc that does not exist yet.** The
 card is tagged `provable: no` about the only question that matters — no harness can tell a true

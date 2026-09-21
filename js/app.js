@@ -1368,6 +1368,38 @@ window.VApp = (function () {
     }
     return "time";
   }
+  // VR-206 — a points score ticks up to its final value instead of appearing
+  // whole; a time score (fmtTime) is left alone, since counting up "0:12.4"
+  // digit-by-digit reads as a broken clock rather than a reward. Reduced
+  // motion lands on the correct value immediately, same tick — never merely
+  // queued to become correct. Driven by wall time (Date.now, not the sim
+  // clock no site-shell code has), so it does not depend on anything else
+  // being mid-frame.
+  function animateBoardCounters(container) {
+    if (!window.VE || !window.VE.Counter) return;
+    const els = Array.prototype.slice.call(container.querySelectorAll("[data-pts]"));
+    if (!els.length) return;
+    const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const items = els.map(el => ({ el, counter: new VE.Counter(0), target: +el.dataset.pts }));
+    items.forEach(it => {
+      it.counter.animateTo(it.target, { duration: 0.8 });
+      if (reduced) it.counter.skip();
+      it.el.textContent = Math.round(it.counter.value) + " pts";
+    });
+    if (reduced) return;
+    let last = Date.now();
+    (function tick() {
+      const now = Date.now(), dt = (now - last) / 1000; last = now;
+      let anyActive = false;
+      items.forEach(it => {
+        if (!it.counter.active) return;
+        anyActive = true;
+        it.counter.update(dt);
+        it.el.textContent = Math.round(it.counter.value) + " pts";
+      });
+      if (anyActive) requestAnimationFrame(tick);
+    })();
+  }
   // Load one leaderboard (best run per person) for a game_id into a container.
   // gameId (the manifest id) is optional: when present we also fill that card's "where you stand" line,
   // which is the whole point of the level picker — knowing if this is one worth re-running.
@@ -1389,7 +1421,11 @@ window.VApp = (function () {
       const d = kind === "points" ? board[0].ms - s.ms : s.ms - board[0].ms;
       return `<span class="gb-gap">${kind === "points" ? Math.round(d) + " pts off" : (d / 1000).toFixed(1) + "s off"}</span>`;
     };
-    el.innerHTML = board.slice(0, 8).map((s, i) => `<div class="gb-row${s.who === me ? " me" : ""}"><span>${i + 1}. ${C.esc(s.who)}${s.who === me ? " (you)" : ""}${gapFor(s, i)}</span><span class="gb-t">${fmt(s.ms)}</span></div>`).join("");
+    // Points render as a data-carrying placeholder ("0 pts") that animateBoardCounters
+    // fills in; a time score's fmt() output goes straight in, unchanged.
+    const scoreCell = s => kind === "points" ? `<span class="gb-t" data-pts="${Math.round(s.ms)}">0 pts</span>` : `<span class="gb-t">${fmt(s.ms)}</span>`;
+    el.innerHTML = board.slice(0, 8).map((s, i) => `<div class="gb-row${s.who === me ? " me" : ""}"><span>${i + 1}. ${C.esc(s.who)}${s.who === me ? " (you)" : ""}${gapFor(s, i)}</span>${scoreCell(s)}</div>`).join("");
+    animateBoardCounters(el);
   }
   // ---- Leaderboard nav: Version → Combo → Level (dependent dropdowns) ----
   // Reads VEILRUN.games — the single manifest (VR-94). `versions` is what used to be

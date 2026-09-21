@@ -1626,6 +1626,7 @@ body.noanim.tuning .screen.on{transition:none}
 <script src="../_engine/motion.js"></script>
 <script src="../_engine/actions.js"></script>
 <script src="../_engine/floattext.js"></script>
+<script src="../_engine/counter.js"></script>
 <script>
 /* =========================================================================
    VEILRUN — Proving Ground (3D wave-survival arena, v0)
@@ -3972,6 +3973,19 @@ function banner(a, b) {
   void HUD.banner.offsetWidth;
   HUD.banner.classList.add("play");
 }
+/* VR-206 — the run-over score ticks instead of snapping. One shared Counter
+   (../_engine/counter.js), driven from the real frame loop so it keeps moving
+   through the hitStop the death itself just triggered. Reduced motion reads
+   the same MOTION.banner<=0.5 test the rest of this file already uses for
+   "is a pop-style animation on" — a ticked number is exactly that class of
+   motion — and calls skip() so the value is correct on the same frame it
+   appears rather than merely queued to become correct later. */
+var SCORE_COUNTER = new VE.Counter(0);
+function updateScoreCounter(dt) {
+  if (!SCORE_COUNTER.active) return;
+  SCORE_COUNTER.update(dt);
+  $("o-score").textContent = Math.round(SCORE_COUNTER.value);
+}
 var _v3 = new THREE.Vector3();
 /* VR-201 — floating combat text moved onto the shared pool (../_engine/
    floattext.js) rather than an element created and setTimeout-removed per
@@ -5300,7 +5314,11 @@ function endRun() {
     $("pausehint").classList.remove("on");
     $("helpfab").classList.remove("on");
     $("pausefab").classList.remove("on");
-    $("o-score").textContent = score;
+    // VR-206 — ticks up rather than appearing whole; reduced motion lands on
+    // the correct value the same frame instead of waiting for a tween to catch up.
+    SCORE_COUNTER.animateTo(score, { duration: 1.1 });
+    if (MOTION.banner <= 0.5) SCORE_COUNTER.skip();
+    $("o-score").textContent = Math.round(SCORE_COUNTER.value);
     $("o-best").textContent = isBest ? "New personal best" : "Personal best " + Math.max(best, score);
     $("o-wave").textContent = waves;
     $("o-kills").textContent = game.kills;
@@ -8677,6 +8695,7 @@ function frame(now) {
   updateRings(raw);
   updateAimArc(raw);   // VR-126 — presentation, so real frame time like the rest
   updateFloatText(raw);   // VR-201 — presentation, same reason: it moves nothing the sim tracks
+  updateScoreCounter(raw);   // VR-206 — wall time, so it keeps ticking through the death's own hitStop
   updateGhosts(raw);
   updateTears(raw);
   updateCamera(raw);
