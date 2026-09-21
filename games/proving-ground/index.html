@@ -1625,6 +1625,7 @@ body.noanim.tuning .screen.on{transition:none}
 <script src="../_engine/bus.js"></script>
 <script src="../_engine/motion.js"></script>
 <script src="../_engine/actions.js"></script>
+<script src="../_engine/floattext.js"></script>
 <script>
 /* =========================================================================
    VEILRUN — Proving Ground (3D wave-survival arena, v0)
@@ -3972,19 +3973,49 @@ function banner(a, b) {
   HUD.banner.classList.add("play");
 }
 var _v3 = new THREE.Vector3();
+/* VR-201 — floating combat text moved onto the shared pool (../_engine/
+   floattext.js) rather than an element created and setTimeout-removed per
+   hit: FLOATTEXT owns a fixed `FTMAX` slots, `ftEls[i]` is slot i's ONLY
+   renderer, and nothing is ever created or removed from #dmgnum after boot
+   — the same shape ENEMIES/TELE already use. A slot going dead just hides
+   its element; `updateFloatText()` (called from frame()) is what notices. */
+var FTMAX = 24;
+var FLOATTEXT = new VE.FloatText(FTMAX);
+var ftEls = [];
+(function () {
+  for (var i = 0; i < FTMAX; i++) {
+    var el = document.createElement("div");
+    el.style.display = "none";
+    HUD.dmg.appendChild(el);
+    ftEls.push(el);
+  }
+})();
 function floatNumber(x, y, z, text, crit) {
   _v3.set(x, y, z).project(camera);
   if (_v3.z > 1) return;
-  var el = document.createElement("div");
-  el.className = "fnum" + (crit ? " crit" : "") + (MOTION.banner <= 0.5 ? " still" : "");
+  var slot = FLOATTEXT.spawn(x, y, z, text, crit);
+  var el = ftEls[FLOATTEXT.slots.indexOf(slot)];
   el.textContent = text;
   // #dmgnum lives inside #hud, which is clipped to the stage on touch — so the
   // projection has to be scaled to the stage, not the window, or every damage
   // number lands low and to nobody in particular.
   el.style.left = ((_v3.x * 0.5 + 0.5) * viewW()) + "px";
   el.style.top = ((-_v3.y * 0.5 + 0.5) * viewH()) + "px";
-  HUD.dmg.appendChild(el);
-  setTimeout(function () { el.remove(); }, 720);
+  // Restarting the CSS animation on a REUSED element needs the "set to
+  // none, force reflow, clear" trick — a plain class change on an already-
+  // visible element does not replay a keyframe animation from 0%.
+  el.style.display = "none";
+  el.style.animation = "none";
+  void el.offsetWidth;
+  el.className = "fnum" + (crit ? " crit" : "") + (MOTION.banner <= 0.5 ? " still" : "");
+  el.style.animation = "";
+  el.style.display = "";
+}
+function updateFloatText(dt) {
+  FLOATTEXT.tick(dt);
+  for (var i = 0; i < FTMAX; i++) {
+    if (!FLOATTEXT.slots[i].live) ftEls[i].style.display = "none";
+  }
 }
 function hitStop(ms) { game.hitStop = Math.max(game.hitStop, ms / 1000); }
 function setPaused(p) {
@@ -5220,6 +5251,8 @@ function resetRun() {
   for (var i = 0; i < ENEMIES.length; i++) { ENEMIES[i].live = false; ENEMIES[i].g.visible = false; TELE[i].visible = false; }
   for (var t = 0; t < THIN.length; t++) { THIN[t].life = 0; THIN[t].mesh.visible = false; }
   for (var p = 0; p < PMAX; p++) { parts[p].life = 0; parts[p].m.visible = false; }
+  FLOATTEXT.reset();
+  for (var f = 0; f < FTMAX; f++) ftEls[f].style.display = "none";
   game.wave = 0; game.kills = 0; game.executes = 0; game.time = 0; game.score = 0;
   game.over = false; game.hitStop = 0; game.phase = "idle"; setPaused(false);
   TPAD.release();   // a latched Stalk must not survive into the next run
@@ -8643,6 +8676,7 @@ function frame(now) {
   updateParts(raw);
   updateRings(raw);
   updateAimArc(raw);   // VR-126 — presentation, so real frame time like the rest
+  updateFloatText(raw);   // VR-201 — presentation, same reason: it moves nothing the sim tracks
   updateGhosts(raw);
   updateTears(raw);
   updateCamera(raw);

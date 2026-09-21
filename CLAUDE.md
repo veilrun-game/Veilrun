@@ -368,7 +368,7 @@ in the folder before assuming:
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 
-**Site-level, fifteen at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
+**Site-level, sixteen at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
 except `_kit.js`: `_check.js` (the
 `VEILRUN.games` manifest), `_hubcheck.js` (Hub states), `_updatescheck.js` (weekly-hero states),
 `_grefcheck.js` (Game Reference catalogue + matcher), `_docscheck.js` (ship-checklist item 5),
@@ -381,8 +381,27 @@ except `_kit.js`: `_check.js` (the
 `_archetypes.js` (audience-archetype doc structure, **26 checks**),
 `_bus.js` (the shared synchronous event bus, **38 checks**),
 `_motion.js` (the shared reduced-motion scales + camera-impulse bus, **51 checks**),
-`_actions.js` (the shared action registry + per-genre profiles, **74 checks**).
+`_actions.js` (the shared action registry + per-genre profiles, **74 checks**),
+`_floattext.js` (the shared pooled floating-combat-text component, **44 checks**).
 Everything relevant must be green before hand-off.
+
+**`_floattext.js` (added 9/20, VR-201) is the fifth harness in the `_clock.js` family — a REAL
+SHARED MODULE, `require`d directly, never lifted.** `games/_engine/floattext.js` is the pooled
+floating-text component Proving Ground's own `floatNumber()` used to keep to itself: a DOM node
+created and `setTimeout`-removed per hit, unbounded in principle and with no way for a `resetRun()`
+to prove nothing is still pending. The shared pool is fixed-size, keyed the same way as
+`ENEMIES[]`/`TELE[]` — a `.live` flag per slot — and a spawn past the cap reuses the OLDEST live
+slot rather than growing. **Section 1** proves the pool mechanics against synthetic spawns; **Section
+2** proves the card's own two claims — a burst far larger than the cap never grows the pool, and
+`reset()` leaves nothing live; **Section 3** lifts Proving Ground's real wire out of the HTML
+(the script tag, `FLOATTEXT` built at the declared `FTMAX`, `floatNumber()` spawning from the pool
+instead of creating a DOM node, `resetRun()` clearing it) rather than a retyped copy; **Section 4**
+proves `pair-level-v2` — a second, canvas-drawing genre — raises one for real, not just links the
+script; **Section 5** reads the shipped `.fnum`/`.fnum.crit` CSS directly and asserts crit is
+distinguishable from a normal hit by SIZE alone (≥25% larger, so colour removal does not erase the
+cue) and that the base size clears the HUD's own measured smallest-text floor. Mutation-tested —
+the cap guard removed and `reset()` turned into a no-op both diverge from the real module. **44
+checks.**
 
 **`_archetypes.js` (added 9/16, VR-208) checks the schema of a doc that does not exist yet.** The
 card is tagged `provable: no` about the only question that matters — no harness can tell a true

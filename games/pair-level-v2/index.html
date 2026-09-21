@@ -100,6 +100,7 @@
 <script src="../_engine/engine.js"></script>
 <script src="../_engine/clock.js"></script>
 <script src="../_engine/motion.js"></script>
+<script src="../_engine/floattext.js"></script>
 <script>
 (function(){
   "use strict";
@@ -193,6 +194,11 @@
   var SHAKE=new VE.Motion.Impulse();
   var shakeMag=0;
   function rand(a,b){ return a+Math.random()*(b-a); }
+
+  /* VR-201 — the shared floating-text pool raises "HIT" over Latch the same
+     moment SHAKE fires, so a shot landing is readable and not just felt. One
+     pool is plenty for a level with a handful of turrets. */
+  var FLOATTEXT=new VE.FloatText(8);
 
   function bkey(w,x,y){ return w+","+x+","+y; }
   var blocks=function(t,w,tx,ty){ if(t==="solid") return true; if(t==="break") return !broken[bkey(w,tx,ty)]; return false; };
@@ -325,6 +331,14 @@
     if(cmdFlash>0){ var a2=cur(); ctx.strokeStyle="rgba(110,200,245,"+(cmdFlash/22)+")"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(a2.x+a2.w/2,a2.y+a2.h/2,(22-cmdFlash)*3+10,0,7); ctx.stroke(); ctx.lineWidth=1; cmdFlash--; }
     [A,L].forEach(function(o){ charBody(o, o.world!==W); });
     var act=cur(); if(act.world===W){ ctx.fillStyle="#fff"; ctx.beginPath(); ctx.moveTo(act.x+act.w/2,act.y-10); ctx.lineTo(act.x+act.w/2-6,act.y-20); ctx.lineTo(act.x+act.w/2+6,act.y-20); ctx.closePath(); ctx.fill(); }
+    // VR-201 — floating text: `slot.z` carries the world index here (spawn's
+    // 3rd arg), not a depth, since this game is flat; a slot from the OTHER
+    // world just doesn't draw this frame, same as everything else above.
+    FLOATTEXT.live().forEach(function(s){ if(s.z!==W) return;
+      ctx.globalAlpha=FLOATTEXT.alphaOf(s);
+      ctx.fillStyle=s.crit?"#e8c15a":"#ffffff"; ctx.font=(s.crit?"bold 14px":"12px")+" sans-serif";
+      ctx.textAlign="center"; ctx.fillText(s.text, s.x, s.y-FLOATTEXT.riseOf(s));
+      ctx.globalAlpha=1; });
   }
 
   function hint(){
@@ -408,7 +422,7 @@
       // Anvil's BODY blocks shots — directional: whoever is behind him is safe (no bubble)
       if(A.world===s.world && A.x<s.x&&s.x<A.x+A.w && A.y<s.y&&s.y<A.y+A.h){ s.dead=true; sparks.push({x:s.x, y:s.y, vx:-s.vx*0.4, vy:-1.5, t:12, world:s.world}); return; }
       // Latch takes the hit if a shot reaches him (i.e. he wasn't behind Anvil)
-      if(L.world===s.world && L.x<s.x&&s.x<L.x+L.w&&L.y<s.y&&s.y<L.y+L.h){ softReset(); s.dead=true; SHAKE.raise(4, MOTION_SHAKE); }
+      if(L.world===s.world && L.x<s.x&&s.x<L.x+L.w&&L.y<s.y&&s.y<L.y+L.h){ FLOATTEXT.spawn(L.x+L.w/2, L.y, L.world, "HIT", false); softReset(); s.dead=true; SHAKE.raise(4, MOTION_SHAKE); }
     });
     shots=shots.filter(function(s){ return !s.dead; });
     sparks.forEach(function(k){ k.t--; k.x+=k.vx; k.y+=k.vy; k.vy+=0.3; }); sparks=sparks.filter(function(k){ return k.t>0; });
@@ -428,6 +442,7 @@
       if(bothInExit()) win();
     }
     shakeMag=SHAKE.update(clk.raw);
+    FLOATTEXT.tick(clk.raw);
     cam.update(cur()); draw(); requestAnimationFrame(frame);
   }
 
