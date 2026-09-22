@@ -138,16 +138,11 @@ const TH = {
                           // husk field is FLAT and there is nothing to converge on.
 };
 
-/* Deterministic. A judge that gives a different verdict on the same layout is
-   not a bar, it is a coin. */
-function mulberry32(a) {
-  return function () {
-    a |= 0; a = a + 0x6D2B79F5 | 0;
-    let t = Math.imul(a ^ a >>> 15, 1 | a);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-}
+/* VR-203 — moved to games/_engine/rng.js so the game has the same generator
+   the judge always has, rather than a second one written for it. Consumed
+   unchanged: `_ship.js`'s CLAUDE.md-count check aside, the only way to know
+   this move was safe is that this file's own verdicts do not move either. */
+const mulberry32 = require(path.join(__dirname, "..", "_engine", "rng.js")).mulberry32;
 
 /* =========================================================================
    3 · GRID + GRAPH HELPERS

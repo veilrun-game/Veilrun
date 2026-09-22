@@ -162,7 +162,7 @@ function lift(html, label, re, bag) {
   ok("updateFloatText() is called from the frame loop",
      /updateFloatText\(raw\)/.test(pgHtml));
 
-  var resetM = lift(pgHtml, "resetRun()", /\nfunction resetRun\(\) \{[\s\S]*?\n\}/, fails);
+  var resetM = lift(pgHtml, "resetRun()", /\nfunction resetRun\([^)]*\) \{[\s\S]*?\n\}/, fails);
   if (resetM) {
     ok("resetRun() clears FLOATTEXT", /FLOATTEXT\.reset\(\)/.test(resetM[0]));
   }
