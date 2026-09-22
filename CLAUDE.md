@@ -272,7 +272,8 @@ in the folder before assuming:
 - **2D pair track** — `games/<name>-v2/_sim.py` (Python physics sim).
 - **3D** — `games/proving-ground/_sim.js` (asserts against the marked `BALANCE` block extracted from
   the HTML), plus `_arena.js`, `_gauntlet.js`, `_billboard.js`, `_touch.js`, `_clipfit.js`,
-  `_shroud.js`, `_zoom.js`, `_strike.js`, `_exec.js` and `_check.js`. **`_arena.js` (added 9/3 with VR-148) judges the SHAPE OF
+  `_shroud.js`, `_zoom.js`, `_strike.js`, `_exec.js`, `_hitdir.js`, `_rng.js`, `_pickup.js` and
+  `_check.js`. **`_arena.js` (added 9/3 with VR-148) judges the SHAPE OF
   THE GROUND** rather than the numbers — six criteria per layout (reach · wedge · shroud · cheese ·
   blink · convergence). It is the external bar VR-154's generator gets scored against, and the reason
   VR-121 can add walls without anyone eyeballing whether the result is playable.
@@ -365,10 +366,68 @@ in the folder before assuming:
   through the real lifted `verbYaw()`, and proves that is the real one by making arcade and third
   disagree about the same husk. **The AU method names are read out of the file rather than listed**,
   so a sound added tomorrow is an observable here tomorrow with no edit to the harness.
+  **`_hitdir.js` (added 9/21 with VR-200) answers the second half of "did I hit" — where did that
+  come from.** A hit confirm already existed (`hitmark()`, VR-104); nothing answered incoming
+  direction, so a husk hitting from behind a wall or through a seam tear read as being hit by
+  nothing. `hitDirection()`, `camYaw()` and the `DDIR` pool constructor are lifted out of the HTML
+  in **19 checks**, never a retyped copy, and proven at execution: direction is computed from the
+  attacker's real position through the real `camYaw()`, arcade and third are proven to disagree
+  about the same attacker (and to agree when given the same yaw, ruling out a mode-independent
+  bug) — the identical discipline `_exec.js` holds `verbYaw()` to. **Pooled exactly like
+  ENEMIES/TELE/THIN** — two simultaneous hits from different directions both register in distinct
+  slots, a fifth hit while the pool of four is full is proven to actually land on a slot rather
+  than just leaving the live count unchanged (the first version of this check passed a mutant that
+  silently dropped the fifth hit — the count alone can't tell "reused" from "discarded"), and
+  `resetRun()` is proven to call the real `hitDirReset()` rather than a same-named stand-in.
+  **The indicator is a CSS border-triangle, not a colour** — the A11Y bar applied at creation.
+  **`_rng.js` (added 9/21 with VR-203) is the first harness for a shared engine module ALSO
+  proven live against the game that consumes it**, because a judge that has been fully
+  deterministic since VR-148 (`_arena.js`, its own `mulberry32(0x5EED01)` and friends) was
+  judging a game that was not — `index.html` called `Math.random` 11 times, so a layout the
+  judge could reproduce exactly belonged to an arena that couldn't be. **`_rng.js`'s Part 1
+  `require`s `games/_engine/rng.js` directly** (the `_clock.js`/`_bus.js`/`_motion.js`/
+  `_actions.js` contract — no DOM, nothing to stub) and proves the module itself: a seed
+  reproduces its sequence, a different seed diverges, and — the property that makes NAMED
+  streams the point rather than one shared generator — a `"spawn"` stream's sequence is
+  provably unaffected by an `"enemy"` stream drawing in between the same draws. **`_rng.js`'s
+  Part 2 lifts the real `spawnEnemy()` out of the HTML**, never a retyped copy, and drives it
+  against a stubbed THREE.js enemy pool the same way `_exec.js` stubs `tryExecute()`'s
+  dependencies, proving the same seed reproduces the same spawn positions and entrance
+  flavours through the ACTUAL game code, not just through the module in isolation. **`_rng.js`'s
+  Part 3 is a grep-style assertion, scoped to Proving Ground** — the card's own claim that "the
+  2D v2 games call Math.random zero times" turned out to be false for
+  `pair-level-v2/index.html`, found by running the check rather than trusting the card, and
+  reported as an out-of-scope finding rather than silently widened into a second card's fix.
+  **`mulberry32` moved out into the shared module and the judge was proven to produce
+  byte-identical output before and after** — a diff of a full run's stdout, not a re-reading of
+  the code. **`_rng.js` runs 11 checks in total**, mutation-tested: a hardcoded spawn side
+  passes every seed-reproducibility check (both runs are still equally wrong) and is only
+  caught by a dedicated edge-variety assertion, and collapsing the per-stream seed offset back
+  to one shared generator fails the stream-independence check directly.
+  **`_pickup.js` (added 9/21 with VR-175) is the first harness for a verb that targets something
+  that ISN'T a husk.** Every verb before this one — Strike, Execute, Veilstep — resolved against
+  `ENEMIES[]`; the Proving Ground had no concept of a world object you approach and act on, so
+  VR-176 (consumables), VR-177 (weapon pickup) and VR-178 (chest) would each have built their own.
+  This is that substrate: a pooled `PICKUPS[]` (six, `.live` flag, cleared in `resetRun()`, the
+  `ENEMIES`/`TELE`/`THIN` shape) and a real `tryInteract()` bound to `E`, lifted out of the HTML —
+  never a retyped copy — in **19 checks**. Direction and reach resolve through the real `verbYaw()`,
+  the identical `_exec.js`/`_hitdir.js` discipline: a pickup dead ahead is claimed at all three
+  `cam.mode` values, and the same world spot claimed in arcade is proven MISSED in third when the
+  two modes are given opposite-facing yaws — arcade and third disagreeing about the same pickup,
+  not just about a husk. **VR-172's ruling, ported to a third verb**: a press with nothing in reach
+  is perceivable (`AU.interactMiss()`, `bladeFlash`), borrows none of a hit's tells (`hitStop`,
+  `shake`, `thinGround`, `damageEnemy`, `executeEnemy`), and — the verb having no cooldown to begin
+  with — costs nothing by never inventing one. Mutation-tested against the real file: removing the
+  shipped radius check passes a pickup 50x past `pickupReach`, caught by three of the bar's own
+  reach-boundary checks, not by a bespoke mutant test bolted on after the fact. **Deliberately
+  keyboard-only.** The touch pad's six slots are already spoken for and adding a seventh without a
+  design for which existing verb it would have to sit beside is exactly "what a pickup does" — the
+  card's own out-of-scope line — so `_touch.js` is untouched and mobile interact is left for whichever
+  follow-up card gives a pickup an actual effect.
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 
-**Site-level, fifteen at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
+**Site-level, sixteen at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
 except `_kit.js`: `_check.js` (the
 `VEILRUN.games` manifest), `_hubcheck.js` (Hub states), `_updatescheck.js` (weekly-hero states),
 `_grefcheck.js` (Game Reference catalogue + matcher), `_docscheck.js` (ship-checklist item 5),
@@ -381,7 +440,8 @@ except `_kit.js`: `_check.js` (the
 `_archetypes.js` (audience-archetype doc structure, **26 checks**),
 `_bus.js` (the shared synchronous event bus, **38 checks**),
 `_motion.js` (the shared reduced-motion scales + camera-impulse bus, **51 checks**),
-`_actions.js` (the shared action registry + per-genre profiles, **74 checks**).
+`_actions.js` (the shared action registry + per-genre profiles, **74 checks**),
+`_silent.js` (no-result UI states, VR-172's ruling applied to the interface, **17 checks**).
 Everything relevant must be green before hand-off.
 
 **`_archetypes.js` (added 9/16, VR-208) checks the schema of a doc that does not exist yet.** The
@@ -514,6 +574,30 @@ its own actions, and the `hasOwnProperty` guard removed (which would otherwise r
 module. **74 checks.** Wired to exactly one call site — Proving Ground's touch help legend — the
 same one-wire scope cut `_bus.js` made for its first event; full record and the VR-46 §5 reversal
 this generalises are in `_Project Knowledge/Action Registry & Per-Genre Profiles (VR-191).md`.
+
+**`_silent.js` (added 9/21, VR-205) is VR-172's ruling — "a whiff and a dead button were
+byte-identical to the player" — applied past the arena, to the site.** It found the same
+asymmetry in a different shape: every no-result control it inventoried already wrote
+explanatory text for a sighted mouse user (the gallery's empty filter, the per-game and
+crew leaderboards, the feedback open/resolved lists), but **none of those regions carried
+`aria-live`**, so replacing a loading placeholder with real text — including with nothing,
+in the board's case — was silent to a screen reader even while already visible on screen.
+**The board's "On me" / "On Claude" filter was silent on both channels**: a filter matching
+zero cards rendered a blank `.board` div with no fallback text at all, the literal VR-172
+bug transplanted into the UI. Two render paths — `views.board()`, `views.gallery()` — are
+proven **live**, through new `__renderBoard`/`__renderGallery` test seams on `VApp` (the
+`__renderHub` shape), never a retyped copy. **Three containers are proven differently, on
+purpose**: `#lb-board`, `#gboard-<id>`, `#fb-open-list` and `#fb-resolved-list` fill over
+the network (`VBackend`), so — the same contract `_shroud.js` uses for its render pass —
+there is no headless path to their filled state; the harness instead pins the one static,
+load-bearing fact that the shipped container already carries `aria-live` before any fetch
+ever completes, anchored to the literal markup so a future rename fails the check rather
+than going silently uncovered. **Mutation-tested against the board fix**: reverting it to
+the pre-card markup fails 4 of 17 checks. **17 checks.** Full inventory — including the
+no-result paths named and deliberately left alone, because they already had both channels
+(the gripes box) or have no reachable empty state (the sort dropdowns) — is in the file's
+own header comment rather than a separate doc, since the inventory has no reader besides
+the next thread editing this file.
 
 **`_pathcheck.js` (added 9/7, VR-165) asks the question content-scanning CANNOT.** Its sibling asks
 whether a file *contains* something withheld; VR-164 proved that is not the whole question, because

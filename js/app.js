@@ -643,7 +643,7 @@ window.VApp = (function () {
         ${C.sectionHeader("Part Three","Gallery")}
         <p class="mute" style="max-width:64ch;margin-top:1rem">${items.length} renders, grouped by character. Filter to anyone, choose a sort, then narrow to <strong>♥ My likes</strong> or <strong>★ Liked by anyone</strong>. Tap any image for the big view — then <strong>▦ All</strong> for a resizable grid.</p>
         <div class="filters">${dd}${sortSel}${favMine}${favAll}</div>
-        <div class="masonry" id="masonry">${grid}</div>
+        <div class="masonry" id="masonry" aria-live="polite">${grid}</div>
         ${more}
         <p class="mute" id="gal-count" style="text-align:center;margin-top:.8rem;font-size:.8rem">Showing ${shown.length} of ${filtered.length}</p>
       </div>`;
@@ -818,11 +818,11 @@ window.VApp = (function () {
         <div id="fb-stats" class="dash-stats cols-4" style="margin-top:1.5rem"><div class="dash-stat"><p class="mute">Loading…</p></div></div>
         <div class="panel" style="margin-top:1.5rem;border-color:var(--magenta)">
           <div class="eyebrow">Open / in progress</div>
-          <div id="fb-open-list" class="idea-list" style="margin-top:.8rem"><p class="mute" style="font-size:.85rem">Loading…</p></div>
+          <div id="fb-open-list" class="idea-list" style="margin-top:.8rem" aria-live="polite"><p class="mute" style="font-size:.85rem">Loading…</p></div>
         </div>
         <div class="panel" style="margin-top:1.5rem">
           <div class="eyebrow">Resolved</div>
-          <div id="fb-resolved-list" class="idea-list" style="margin-top:.8rem"><p class="mute" style="font-size:.85rem">Loading…</p></div>
+          <div id="fb-resolved-list" class="idea-list" style="margin-top:.8rem" aria-live="polite"><p class="mute" style="font-size:.85rem">Loading…</p></div>
         </div>
       </div>`;
     },
@@ -831,7 +831,7 @@ window.VApp = (function () {
       return `<div class="wrap section">
         ${C.sectionHeader("The crew","Leaderboard")}
         <p class="mute" style="max-width:62ch;margin-top:1rem">Who's shaping Veilrun the most. Points for contributing — <strong>feedback and <a href="#reference">game-reference takes</a> both count triple</strong>, plus likes, votes, and <strong>playing the prototypes</strong>: you earn points the first time you try a level, the first time you clear it, the first time you beat your own best on it, and any time you take #1 on a game's board. Each of those is a one-time award per level, and a reference take counts once per game however often you edit it — so the board measures what you've contributed rather than how many times you've replayed. Crew-only for now.</p>
-        <div id="lb-board" style="margin-top:1.5rem"><p class="mute">Loading…</p></div>
+        <div id="lb-board" style="margin-top:1.5rem" aria-live="polite"><p class="mute">Loading…</p></div>
       </div>`;
     },
 
@@ -922,13 +922,20 @@ window.VApp = (function () {
           </div>`).join("")}
         </div>`;
       }).join("");
+      // VR-205. A filter with nothing on it used to render a blank .board div — the same
+      // "whiff and a dead button look identical" failure VR-172 named, just in the UI
+      // instead of the arena. Name the empty state instead of leaving it silent.
+      const emptyBoard = f === "jordan" ? "Nothing on Jordan's plate right now."
+        : f === "claude" ? "Nothing on Claude's plate right now."
+        : "Nothing on the board right now.";
+      const boardBody = cols || `<p class="mute" style="padding:.5rem 0">${emptyBoard}</p>`;
       const fBtn = (v, label) => `<button class="dd-btn favtoggle ${f === v ? "active" : ""}" onclick="VApp.boardFilter('${v}')">${label}</button>`;
       const filters = `<div class="filters" style="margin-top:1rem">${fBtn("all", "Everything")}${fBtn("jordan", "On me")}${fBtn("claude", "On Claude")}</div>`;
       return `<div class="wrap section">
         ${C.sectionHeader("The plan","Board")}
         <p class="mute" style="max-width:64ch;margin-top:1rem">Where things stand — updated ${C.esc(b.updated)}. Tap <strong>On me</strong> to see just your plate. This mirrors our working board so everyone can see progress and what's coming.</p>
         ${filters}
-        <div class="board" style="margin-top:1.5rem">${cols}</div>
+        <div class="board" style="margin-top:1.5rem" aria-live="polite">${boardBody}</div>
         <div style="margin-top:1.2rem">${C.feedbackButton("Board / priorities")}</div>
       </div>`;
     },
@@ -1550,7 +1557,7 @@ window.VApp = (function () {
               <div class="eyebrow" style="margin:0">${g.scoreKind === "points" ? "Best scores · the crew" : "Best times · the crew"}</div>
               <span class="pc-scope mute" id="gbscope-${id}"></span>
             </div>
-            <div id="gboard-${id}" class="pc-rows"><p class="mute" style="font-size:.85rem">Loading…</p></div>
+            <div id="gboard-${id}" class="pc-rows" aria-live="polite"><p class="mute" style="font-size:.85rem">Loading…</p></div>
           </div>
         </div>
       </div>`;
@@ -3369,9 +3376,14 @@ window.VApp = (function () {
   // directly, then re-renders, so promoted / deprioritised / archived are all provable.
   const __loomVotes = (up, down) => { voteCounts = up || {}; voteDownCounts = down || {}; voteChoiceMine = {}; voteMine = new Set(); };
   const __loomConsts = () => ({ MAX_AGE: LOOM_MAX_AGE_DAYS, GATE: LOOM_GATE, MIN_CITATIONS: LOOM_MIN_CITATIONS, THRESHOLDS: LOOM_THRESHOLDS });
+  // VR-205 test seams for _silent.js — render the board's and gallery's no-result states
+  // headlessly, the same shape __renderHub already uses. Nothing in the page calls these.
+  const __renderBoard = (filter, boardData) => { boardState.filter = filter || "all"; if (boardData) D.board = boardData; return views.board(); };
+  const __renderGallery = (opts) => { Object.assign(galState, opts || {}); return views.gallery(); };
 
   return { init, route, toggleMenu, toggleDrop, signOut, __renderHub, __hubType, __renderUpdates, __weeklyHero, wkSkip,
     __grefSlug, __grefMatch, __grefCard, __grefSetCache, __loomPanel, __loomVotes, __loomConsts, __loomOpen,
+    __renderBoard, __renderGallery,
     grefOpen, grefClose, grefSubmit, grefWhoChange, grefNameChange, grefPick, grefMore, grefSort, grefToggle, grefHalf, grefExpand, grefArtFail, profileSaveName, pfToggleNameEdit, pfTogglePwEdit, pfChangePassword, profileMoveImg, profileMoveImgTo, pfDragStart, pfSaveOrder, pfDiscardOrder, pfHideImg, pfRestoreImg, feedback, fbClose, fbSubmit, fbWhoChange, crewView, synMode, synPick, galStep, galGo, galLike, galDropdown, galSetAll, galToggleFilter, galSort, galFavMode, galMore, lbOpen, lbStep, lbClose, lbLike, lbToggleMode, lbPick, lbSize, threatsView, labVote, loomVote, loomToggle, loomMore, boardFilter, counterVote, gameBoardVer, gameBoardCombo, gameBoardLevel };
 })();
 document.addEventListener("DOMContentLoaded", VApp.init);

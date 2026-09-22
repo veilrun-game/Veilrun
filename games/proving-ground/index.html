@@ -126,6 +126,24 @@ canvas{display:block}
   100%{opacity:0;transform:scale(calc(1 + .55 * var(--hmpop)))}}
 #hitmark.on{animation:hitmarkpop .22s ease-out}
 #hitmark.on.heavy{animation-duration:.3s}
+/* ---------- directional damage indicator (VR-200) --------------------------
+   "Did I hit" is hitmark(), above. This is the other half — "where did that
+   come from" — and the game has never answered it. A SHAPE, not a colour: an
+   arrow reads with colour vision removed, which a red glow alone would not.
+   Four instances, pooled exactly like ENEMIES/TELE/THIN, so two hits landing
+   from different directions in the same beat both show — resetRun() clears
+   all four via hitDirReset(). transform-origin sits at the crosshair's own
+   position (the arrow's apex, 92px below the arrow's top edge), so rotating
+   the element sweeps it around the ring while its apex stays pointed at
+   screen centre — the same trick a clock hand uses to point at the rim. */
+#hitdir{position:absolute;top:50%;left:50%;width:0;height:0;pointer-events:none}
+#hitdir .hd-i{position:absolute;left:-7px;top:-92px;width:0;height:0;opacity:0;
+  border-left:7px solid transparent;border-right:7px solid transparent;
+  border-top:16px solid rgba(232,87,79,.92);
+  filter:drop-shadow(0 0 5px rgba(232,87,79,.65));
+  transform-origin:7px 92px}
+@keyframes hitdirfade{0%{opacity:1}65%{opacity:.8}100%{opacity:0}}
+#hitdir .hd-i.on{animation:hitdirfade .7s ease-out}
 #vignette{position:absolute;inset:0;opacity:0;transition:opacity .18s ease;
   background:radial-gradient(ellipse at center,transparent 42%,rgba(200,40,60,.62) 100%)}
 #shroudv{position:absolute;inset:0;opacity:0;transition:opacity .35s ease;
@@ -1240,7 +1258,8 @@ body.noanim.tuning .screen.on{transition:none}
   </div>
   <div id="crosshair"></div>
   <div id="hitmark"><i></i><i></i><i></i><i></i></div>
-  
+  <div id="hitdir"><i class="hd-i"></i><i class="hd-i"></i><i class="hd-i"></i><i class="hd-i"></i></div>
+
 
 <div id="shroudv"></div>
   <div id="vignette"></div>
@@ -1625,6 +1644,7 @@ body.noanim.tuning .screen.on{transition:none}
 <script src="../_engine/bus.js"></script>
 <script src="../_engine/motion.js"></script>
 <script src="../_engine/actions.js"></script>
+<script src="../_engine/rng.js"></script>
 <script>
 /* =========================================================================
    VEILRUN — Proving Ground (3D wave-survival arena, v0)
@@ -1667,6 +1687,13 @@ var BAL = (function () {
     execKillCdRefund: 1.6,   // chain-kill flow loop
     execKillHeal: 8,
     execThinRadius: 2.5,     // ground thinned where an Execute lands — power has a price
+
+    // --- Pickups (VR-175): a world object the character can reach and claim ---
+    pickupReach: 2.2,        // units — deliberately shorter than execRange: a
+                             // pickup is stood on top of, not swung at
+    pickupArc: 140,          // degrees — wide on purpose. A pickup does not
+                             // dodge, so the acquire cone only has to rule out
+                             // "directly behind you", not aim like a weapon
 
     // --- Shroud (no button: emerges from standing still) ---
     shroudDelay: 1.15,       // sec of stillness before the veil takes you
@@ -2037,7 +2064,17 @@ var HURT_SHOW_T  = 0.22;   // hurt: shown while iframe is within this of full
 var TAU = Math.PI * 2;
 var clamp = function (v, a, b) { return v < a ? a : (v > b ? b : v); };
 var lerp = function (a, b, t) { return a + (b - a) * t; };
-var rand = function (a, b) { return a + Math.random() * (b - a); };
+/* VR-203 — ONE seeded generator, not eleven scattered direct-random calls.
+   `RNG` exists from script load (floorTexture() below draws before any run
+   starts) and is reseeded per run in resetRun(), never reallocated, so a
+   test seam holding a reference to it keeps seeing the current run's draws.
+   Named streams so one system's draw count can never shift another's — a
+   fourth particle burst must not silently reseed the next enemy spawn.
+   `rand(a, b, stream)` defaults to the cosmetic "fx" stream; a caller whose
+   randomness is part of what a seed reproduces (spawn placement, enemy
+   behaviour) names its own stream explicitly. */
+var RNG = new VE.Rng(Date.now() >>> 0);
+var rand = function (a, b, stream) { return a + RNG.pick(stream || "fx") * (b - a); };
 // frame-rate independent damping toward a target
 var damp = function (a, b, lambda, dt) { return lerp(a, b, 1 - Math.exp(-lambda * dt)); };
 var shortAngle = function (a, b) { var d = (b - a) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return d; };
@@ -2078,7 +2115,7 @@ var AU = (function () {
     if (!noiseBuf) {
       noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 1.0, ctx.sampleRate);
       var d = noiseBuf.getChannelData(0);
-      for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      for (var i = 0; i < d.length; i++) d[i] = RNG.pick("audio") * 2 - 1;
     }
     var t0 = ctx.currentTime + (delay || 0);
     var s = ctx.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
@@ -2106,6 +2143,13 @@ var AU = (function () {
        sound like air. */
     execMiss: function () { noise(0.13, 2900, 2.4, 0.075, "bandpass");
                             tone(900, 520, 0.11, "sine", 0.06, 0.01); },
+    // VR-175 — same VR-172 ruling, a third verb. A claim rings brighter than a
+    // hit ever does (nothing here is a weapon connecting); the miss borrows
+    // execMiss's shape (airy, no low end) but sits a third higher so the two
+    // verbs' whiffs are never confusable with each other either.
+    pickup:       function () { tone(660, 1100, 0.16, "sine", 0.20); tone(990, 1300, 0.12, "triangle", 0.10, 0.03); },
+    interactMiss: function () { noise(0.10, 3400, 2.6, 0.06, "bandpass");
+                                 tone(1150, 700, 0.09, "sine", 0.05, 0.01); },
     shroud:   function () { tone(520, 200, 0.5, "sine", 0.09); },
     hurt:     function () { tone(150, 60, 0.26, "sawtooth", 0.24); noise(0.14, 380, 0.7, 0.16, "lowpass"); },
     wave:     function () { tone(330, 330, 0.16, "triangle", 0.20); tone(495, 495, 0.34, "triangle", 0.18, 0.13); },
@@ -2351,9 +2395,9 @@ function floorTexture() {
   var g = cv.getContext("2d");
   g.fillStyle = "#0d0b1a"; g.fillRect(0, 0, s, s);
   for (var i = 0; i < 4200; i++) {
-    var v = Math.random() * 28 | 0;
+    var v = RNG.pick("texture") * 28 | 0;
     g.fillStyle = "rgba(" + (22 + v) + "," + (19 + v) + "," + (44 + v) + ",.5)";
-    g.fillRect(Math.random() * s, Math.random() * s, 2, 2);
+    g.fillRect(RNG.pick("texture") * s, RNG.pick("texture") * s, 2, 2);
   }
   g.strokeStyle = "rgba(124,74,182,.20)"; g.lineWidth = 2;
   for (var k = 0; k <= 8; k++) {
@@ -2517,7 +2561,7 @@ function burst(x, y, z, n, color, speed, opt) {
   for (var i = 0; i < n; i++) {
     var p = parts[pIdx]; pIdx = (pIdx + 1) % PMAX;
     p.m.position.set(x, y, z);
-    var a = Math.random() * TAU, up = rand(opt.upMin != null ? opt.upMin : 0.15, 1.0);
+    var a = RNG.pick("fx") * TAU, up = rand(opt.upMin != null ? opt.upMin : 0.15, 1.0);
     var s = speed * rand(0.45, 1.25);
     p.vx = Math.cos(a) * s * (1 - up * 0.5);
     p.vz = Math.sin(a) * s * (1 - up * 0.5);
@@ -2959,6 +3003,75 @@ function tearAt(x, z) {
   burst(x, 0.9, z, 10, 0xD65CDC, 3.2, { grav: -3, lifeScale: 0.9, scale: 0.8 });
   AU.tear();
 }
+
+/* ============================== pickups (VR-175) =========================
+   THE SUBSTRATE, not a pickup's effect — what any pickup DOES is out of
+   scope, per the card. Fixed-size pool, `.live` flag, cleared in resetRun(),
+   exactly the ENEMIES/TELE/THIN shape. VR-176 (consumables), VR-177 (weapon
+   pickup) and VR-178 (chest) all spawn into this pool via spawnPickup()
+   rather than each rolling their own. */
+var PICKUPS = [];
+(function () {
+  var geo = new THREE.OctahedronGeometry(0.22, 0);
+  var mat0 = new THREE.MeshStandardMaterial({ color: 0x7C4AB6, emissive: 0x7C4AB6, emissiveIntensity: 0.6, roughness: 0.4 });
+  for (var i = 0; i < 6; i++) {
+    var mesh = new THREE.Mesh(geo, mat0.clone());
+    mesh.visible = false; mesh.castShadow = true; scene.add(mesh);
+    PICKUPS.push({ mesh: mesh, live: false, x: 0, z: 0, spin: 0 });
+  }
+})();
+// Placeholder spot, so a pool entry has a visible-but-inert home before
+// anything claims it — mirrors ENEMIES starting every slot at (0,0) hidden.
+function spawnPickup(x, z) {
+  for (var i = 0; i < PICKUPS.length; i++) {
+    if (PICKUPS[i].live) continue;
+    var p = PICKUPS[i];
+    p.live = true; p.x = x; p.z = z; p.spin = 0;
+    p.mesh.position.set(x, 0.85, z); p.mesh.visible = true;
+    return p;
+  }
+  return null;   // pool exhausted — callers decide whether that's worth reporting
+}
+function updatePickups(dt) {
+  for (var i = 0; i < PICKUPS.length; i++) {
+    var p = PICKUPS[i]; if (!p.live) continue;
+    p.spin += dt * 1.4;
+    p.mesh.rotation.y = p.spin;
+    p.mesh.position.y = 0.85 + Math.sin(p.spin * 1.6) * 0.08;
+  }
+}
+/* THE ONE ANSWER to "is anything in reach", read through the real verbYaw()
+   exactly as tryExecute() reads it — an interact cone that pointed at the
+   legs instead of the camera would be VR-160's bug a second time. */
+function tryInteract() {
+  var aim = verbYaw();
+  var fx = -Math.sin(aim), fz = -Math.cos(aim);
+  var half = C.pickupArc * Math.PI / 360;
+  var best = null, bestD = 1e9;
+  for (var i = 0; i < PICKUPS.length; i++) {
+    var p = PICKUPS[i];
+    if (!p.live) continue;
+    var dx = p.x - player.x, dz = p.z - player.z, d2 = dx * dx + dz * dz;
+    if (d2 > C.pickupReach * C.pickupReach) continue;
+    var d = Math.sqrt(d2) || 0.0001;
+    if (Math.acos(clamp((dx / d) * fx + (dz / d) * fz, -1, 1)) > half) continue;
+    if (d < bestD) { bestD = d; best = p; }
+  }
+  if (!best) {
+    /* VR-172's ruling, a third verb: a press with nothing in reach must be
+       PERCEIVABLE, must COST NOTHING (no cooldown here to spend in the first
+       place, so there is nothing to guard except not inventing one), and must
+       NOT BORROW A HIT'S TELLS — no hitStop, no shake, no thinGround. */
+    AU.interactMiss();
+    bladeFlash(0.3);
+    var mx = player.x + fx * (C.pickupReach * 0.6), mz = player.z + fz * (C.pickupReach * 0.6);
+    burst(mx, 0.9, mz, 4, 0x7C4AB6, 1.2, { grav: -1.2, upScale: 0.4, scale: 0.4, lifeScale: 0.5 });
+    return;
+  }
+  best.live = false; best.mesh.visible = false;
+  AU.pickup();
+  burst(best.x, 1.0, best.z, 12, 0x7C4AB6, 3.4, { grav: -2, upScale: 0.9, lifeScale: 1.0, scale: 0.9 });
+}
 function updateTears(dt) {
   for (var i = 0; i < TEARS.length; i++) {
     var T = TEARS[i]; if (T.life <= 0) continue;
@@ -2973,7 +3086,7 @@ function updateTears(dt) {
 /* ================================ input ================================= */
 var keys = Object.create(null);
 var mouse = { yaw: 0, pitch: -0.12, locked: false, l: false, r: false };
-var pressed = { strike: false, exec: false, step: false };
+var pressed = { strike: false, exec: false, step: false, interact: false };
 
 /* Pointer lock is a mouse affordance and a touch device has none. Asking for it
    on a phone either rejects outright or never fires pointerlockchange — and the
@@ -3004,6 +3117,7 @@ window.addEventListener("keydown", function (e) {
   if (e.repeat) return;   // auto-repeat must not re-fire abilities
   if (k === " " || k === "shift") pressed.step = true;
   if (k === "q") pressed.exec = true;
+  if (k === "e") pressed.interact = true;   // VR-175 — free key, nothing else bound here
   if (k === "v") cycleCam();   // VR-113 — the key and the camera fab are one path
   if (k === "h") toggleHelp();
   if (k === "escape") { if (helpOpen()) { closeHelp(); return; }
@@ -3937,6 +4051,55 @@ var HUD = {
   banner: $("banner"), dmg: $("dmgnum"), root: $("hud")
 };
 
+/* ============================ hit direction (VR-200) =====================
+   Pooled exactly like ENEMIES/TELE/THIN: a fixed-size array of {live, el,
+   clearT}, never allocated per hit. hitDirReset() is called from resetRun(). */
+var DDIR_MAX = 4;
+var DDIR = (function () {
+  var wrap = $("hitdir"), els = wrap ? wrap.querySelectorAll(".hd-i") : [];
+  var pool = [];
+  for (var i = 0; i < DDIR_MAX; i++) pool.push({ live: false, el: els[i] || null, clearT: null });
+  return pool;
+})();
+function hitDirReset() {
+  for (var i = 0; i < DDIR.length; i++) {
+    var d = DDIR[i];
+    if (d.clearT) clearTimeout(d.clearT);
+    d.live = false; d.clearT = null;
+    if (d.el) d.el.classList.remove("on");
+  }
+}
+/* The one answer to "which way is the CAMERA pointed", as distinct from
+   verbYaw() (which way is a VERB pointed) and player.yaw/player.aim (which
+   way the BODY faces). TPAD's private holdBasis() computes this identical
+   value for the touch stick's screen-relative aim; it lives in TPAD's own
+   closure so this is a second, deliberately tiny copy of the one-line
+   formula rather than a cross-module reach. */
+function camYaw() { return cam.mode === "arcade" ? ARC.yaw : mouse.yaw; }
+/* THE ARC-AND-THIRD-DISAGREE PROOF, same discipline verbYaw() is held to:
+   arcade's camera is the fixed ARC.yaw rig, third/first's is mouse.yaw, so
+   the same attacker resolves to a different screen angle in each — proven in
+   _hitdir.js by giving the two modes different yaws and checking the two
+   answers actually differ. Takes the attacker's REAL position, never a
+   retyped copy — the same rule _exec.js holds verbYaw() to. */
+function hitDirection(ax, az) {
+  var dx = ax - player.x, dz = az - player.z;
+  if (Math.abs(dx) < 1e-4 && Math.abs(dz) < 1e-4) return;   // on top of us — no direction to show
+  var rel = Math.atan2(dx, dz) - camYaw();
+  rel = Math.atan2(Math.sin(rel), Math.cos(rel));           // normalize to (-PI, PI]
+  var slot = -1;
+  for (var i = 0; i < DDIR.length; i++) if (!DDIR[i].live) { slot = i; break; }
+  if (slot === -1) slot = 0;   // pool exhausted — reuse the oldest rather than drop the newest silently
+  var d = DDIR[slot], el = d.el; if (!el) return;
+  d.live = true;
+  if (d.clearT) clearTimeout(d.clearT);
+  el.style.transform = "rotate(" + (rel * 180 / Math.PI).toFixed(2) + "deg)";
+  el.classList.remove("on");
+  void el.offsetWidth;                       // restart the animation mid-flight, same trick hitmark() uses
+  el.classList.add("on");
+  d.clearT = setTimeout(function () { d.live = false; }, 700);
+}
+
 /* ---- one readiness vocabulary, shared by the HUD pips and the touch pad ----
    VR-112. Both surfaces call THESE, rather than each deriving a fraction from
    player state, because the pad drifting away from the pips is exactly how a
@@ -4568,6 +4731,7 @@ function updatePlayer(dt) {
   // inputs
   if (pressed.step) { pressed.step = false; veilstep(); }
   if (pressed.exec) { pressed.exec = false; tryExecute(); }
+  if (pressed.interact) { pressed.interact = false; tryInteract(); }
   if (pressed.strike || (mouse.l && player.atkStage < 0)) {
     pressed.strike = false;
     if (player.atkStage < 0) startStrike();
@@ -4720,10 +4884,11 @@ function killEnemy(e, wasExecute) {
   burst(e.x, 1.1, e.z, 20, 0x9c9ab2, 3.4, { grav: -4.5, upScale: 1.5, lifeScale: 1.5, scale: 1.0 });
   TELE[ENEMIES.indexOf(e)].visible = false;
 }
-function hurtPlayer(dmg) {
+function hurtPlayer(dmg, ax, az) {
   if (player.iframe > 0 || !player.alive) return;
   player.hp -= dmg;
   player.iframe = C.iframeOnHit;
+  hitDirection(ax, az);
   // hitStop is NOT scaled here — see the VR-103 block above shake().
   AU.hurt(); shake(0.28); hitStop(70);
   /* VR-103 — damped, never removed. This is the only full-screen signal that
@@ -4747,7 +4912,7 @@ function spawnEnemy(spec) {
   // pick an edge point away from the player
   var x, z, tries = 0;
   do {
-    var side = Math.floor(Math.random() * 4), t = rand(-A + 1.2, A - 1.2);
+    var side = Math.floor(RNG.pick("spawn") * 4), t = rand(-A + 1.2, A - 1.2, "spawn");
     if (side === 0) { x = t; z = -A + 0.8; } else if (side === 1) { x = t; z = A - 0.8; }
     else if (side === 2) { x = -A + 0.8; z = t; } else { x = A - 0.8; z = t; }
     tries++;
@@ -4786,7 +4951,7 @@ function spawnEnemy(spec) {
      the launch point so the arc can be interpolated rather than integrated —
      a husk mid-entrance must land exactly where the sim thinks it is, and a
      velocity that anything else can nudge is how that stops being true. */
-  var crash = Math.random() < C.entryCrash;
+  var crash = RNG.pick("spawn") < C.entryCrash;
   e.entry = crash ? "fall" : "float";
   e.entryBeat = "in";
   var inward = Math.atan2(-x, -z);                  // toward the middle of the arena
@@ -4841,7 +5006,7 @@ function updateEnemies(dt) {
       e.eyeMat.color.lerp(_grey, 0.2);
       e.g.scale.set(1 - f * 0.35, 1 - f * 0.85, 1 - f * 0.35);
       e.g.position.y = -f * 0.15;
-      if (f < 1 && Math.random() < dt * 22) burst(e.x, rand(0.3, 1.6), e.z, 1, 0x9c9ab2, 1.6, { grav: -2, lifeScale: 1.6, scale: 0.7 });
+      if (f < 1 && RNG.pick("fx") < dt * 22) burst(e.x, rand(0.3, 1.6), e.z, 1, 0x9c9ab2, 1.6, { grav: -2, lifeScale: 1.6, scale: 0.7 });
       if (f >= 1) { e.live = false; e.g.visible = false; tele.visible = false; }
       continue;
     }
@@ -4943,7 +5108,7 @@ function updateEnemies(dt) {
         e.state = "seek"; e.t = 0; e.searchT = 0;      // re-acquired
       } else if (e.state === "seek" && e.lostT >= C.huskLoseT) {
         e.state = "search"; e.t = 0; e.searchT = 0;
-        e.beat = "walk"; e.beatT = rand(C.huskBeatMin, C.huskBeatMax);
+        e.beat = "walk"; e.beatT = rand(C.huskBeatMin, C.huskBeatMax, "enemy");
         /* Head for where they last SAW you, not where you are. Believing the
            search is honest depends on it never quietly tracking the truth. */
         e.patrolX = e.seekX; e.patrolZ = e.seekZ;
@@ -4957,16 +5122,16 @@ function updateEnemies(dt) {
          frame reads as choreography, which is the opposite of losing you. */
       e.searchT += dt; e.beatT -= dt;
       if (e.beatT <= 0) {
-        e.beat = (e.beat === "walk") ? (Math.random() < 0.5 ? "scan" : "dizzy") : "walk";
-        e.beatT = rand(C.huskBeatMin, C.huskBeatMax);
+        e.beat = (e.beat === "walk") ? (RNG.pick("enemy") < 0.5 ? "scan" : "dizzy") : "walk";
+        e.beatT = rand(C.huskBeatMin, C.huskBeatMax, "enemy");
         if (e.beat === "walk") {
           /* A new guess about where you went. After huskSearchGiveUp they stop
              guessing around your last position and pick anywhere in the arena —
              the difference between hunting and patrolling. */
           if (e.searchT >= C.huskSearchGiveUp) {
-            e.patrolX = rand(-A + 1.5, A - 1.5); e.patrolZ = rand(-A + 1.5, A - 1.5);
+            e.patrolX = rand(-A + 1.5, A - 1.5, "enemy"); e.patrolZ = rand(-A + 1.5, A - 1.5, "enemy");
           } else {
-            e.patrolX = e.seekX + rand(-4.5, 4.5); e.patrolZ = e.seekZ + rand(-4.5, 4.5);
+            e.patrolX = e.seekX + rand(-4.5, 4.5, "enemy"); e.patrolZ = e.seekZ + rand(-4.5, 4.5, "enemy");
           }
         }
       }
@@ -5024,7 +5189,7 @@ function updateEnemies(dt) {
       var lx = -Math.sin(e.yaw), lz = -Math.cos(e.yaw);
       var lspd = e.lunge ? 9.5 : 4.0;
       e.x += lx * lspd * dt; e.z += lz * lspd * dt;
-      if (e.t < C.enemyActive && dist < C.enemyReach + 0.65) hurtPlayer(C.enemyDmg);
+      if (e.t < C.enemyActive && dist < C.enemyReach + 0.65) hurtPlayer(C.enemyDmg, e.x, e.z);
       if (e.t >= C.enemyActive) { e.state = "rec"; e.t = 0; }
     } else { // rec
       e.t += dt;
@@ -5207,7 +5372,16 @@ function awardPoints(event, pts, meta) {
   } catch (e) {}
 }
 
-function resetRun() {
+/* VR-203 — `seed` is a test/tooling seam, not a player-facing feature: the
+   run-seed UI and the daily seed are their own cards and both consume this.
+   Omitted, a run reseeds unpredictably exactly as it always has; passed, the
+   run's spawns and enemy AI become the reproducible sequence a seed implies.
+   Cosmetic streams (fx/audio/texture) are NOT reseeded here on purpose — the
+   floor texture and the noise buffer are drawn once at script load and stay
+   built for the page's lifetime, so reseeding them per run would do nothing
+   and claiming otherwise here would be a lie the code doesn't back up. */
+function resetRun(seed) {
+  RNG.reseed(seed != null ? seed : (Date.now() ^ (performance.now() * 1000 | 0)) >>> 0);
   player.x = 0; player.z = 6.5; player.vx = player.vz = 0; player.yaw = 0;   // facing into the arena
   player.hp = C.playerHp; player.iframe = 0; player.alive = true;
   player.atkStage = -1; player.nextStage = 0; player.atkPhase = ""; player.chainT = 0; player.queued = false;
@@ -5220,10 +5394,12 @@ function resetRun() {
   for (var i = 0; i < ENEMIES.length; i++) { ENEMIES[i].live = false; ENEMIES[i].g.visible = false; TELE[i].visible = false; }
   for (var t = 0; t < THIN.length; t++) { THIN[t].life = 0; THIN[t].mesh.visible = false; }
   for (var p = 0; p < PMAX; p++) { parts[p].life = 0; parts[p].m.visible = false; }
+  for (var pk = 0; pk < PICKUPS.length; pk++) { PICKUPS[pk].live = false; PICKUPS[pk].mesh.visible = false; }
   game.wave = 0; game.kills = 0; game.executes = 0; game.time = 0; game.score = 0;
   game.over = false; game.hitStop = 0; game.phase = "idle"; setPaused(false);
   TPAD.release();   // a latched Stalk must not survive into the next run
   HUD.vig.style.opacity = "0";
+  hitDirReset();
 }
 function startRun() {
   AU.boot();
@@ -6377,7 +6553,7 @@ var HUSKMODEL = (function () {
     setPhase(rig.mat, (e.mat.userData.vrPhase ? e.mat.userData.vrPhase.value : 0));
     // a fresh phase per attachment, so two husks that spawn together and pick
     // the same clip still do not breathe in step
-    rig.phase = Math.random() * TAU;
+    rig.phase = RNG.pick("fx") * TAU;
   }
   function detach(rig) {
     var e = rig.e;
@@ -8609,6 +8785,7 @@ function step(dt) {
   if (game.running && player.alive) game.time += dt;
   updatePlayer(dt);
   updateEnemies(dt);
+  updatePickups(dt);
   if (game.running) updateWaves(dt);
   updateThin(dt);
 }
