@@ -1688,6 +1688,13 @@ var BAL = (function () {
     execKillHeal: 8,
     execThinRadius: 2.5,     // ground thinned where an Execute lands — power has a price
 
+    // --- Pickups (VR-175): a world object the character can reach and claim ---
+    pickupReach: 2.2,        // units — deliberately shorter than execRange: a
+                             // pickup is stood on top of, not swung at
+    pickupArc: 140,          // degrees — wide on purpose. A pickup does not
+                             // dodge, so the acquire cone only has to rule out
+                             // "directly behind you", not aim like a weapon
+
     // --- Shroud (no button: emerges from standing still) ---
     shroudDelay: 1.15,       // sec of stillness before the veil takes you
     shroudBreakSpeed: 0.6,
@@ -2136,6 +2143,13 @@ var AU = (function () {
        sound like air. */
     execMiss: function () { noise(0.13, 2900, 2.4, 0.075, "bandpass");
                             tone(900, 520, 0.11, "sine", 0.06, 0.01); },
+    // VR-175 — same VR-172 ruling, a third verb. A claim rings brighter than a
+    // hit ever does (nothing here is a weapon connecting); the miss borrows
+    // execMiss's shape (airy, no low end) but sits a third higher so the two
+    // verbs' whiffs are never confusable with each other either.
+    pickup:       function () { tone(660, 1100, 0.16, "sine", 0.20); tone(990, 1300, 0.12, "triangle", 0.10, 0.03); },
+    interactMiss: function () { noise(0.10, 3400, 2.6, 0.06, "bandpass");
+                                 tone(1150, 700, 0.09, "sine", 0.05, 0.01); },
     shroud:   function () { tone(520, 200, 0.5, "sine", 0.09); },
     hurt:     function () { tone(150, 60, 0.26, "sawtooth", 0.24); noise(0.14, 380, 0.7, 0.16, "lowpass"); },
     wave:     function () { tone(330, 330, 0.16, "triangle", 0.20); tone(495, 495, 0.34, "triangle", 0.18, 0.13); },
@@ -2989,6 +3003,75 @@ function tearAt(x, z) {
   burst(x, 0.9, z, 10, 0xD65CDC, 3.2, { grav: -3, lifeScale: 0.9, scale: 0.8 });
   AU.tear();
 }
+
+/* ============================== pickups (VR-175) =========================
+   THE SUBSTRATE, not a pickup's effect — what any pickup DOES is out of
+   scope, per the card. Fixed-size pool, `.live` flag, cleared in resetRun(),
+   exactly the ENEMIES/TELE/THIN shape. VR-176 (consumables), VR-177 (weapon
+   pickup) and VR-178 (chest) all spawn into this pool via spawnPickup()
+   rather than each rolling their own. */
+var PICKUPS = [];
+(function () {
+  var geo = new THREE.OctahedronGeometry(0.22, 0);
+  var mat0 = new THREE.MeshStandardMaterial({ color: 0x7C4AB6, emissive: 0x7C4AB6, emissiveIntensity: 0.6, roughness: 0.4 });
+  for (var i = 0; i < 6; i++) {
+    var mesh = new THREE.Mesh(geo, mat0.clone());
+    mesh.visible = false; mesh.castShadow = true; scene.add(mesh);
+    PICKUPS.push({ mesh: mesh, live: false, x: 0, z: 0, spin: 0 });
+  }
+})();
+// Placeholder spot, so a pool entry has a visible-but-inert home before
+// anything claims it — mirrors ENEMIES starting every slot at (0,0) hidden.
+function spawnPickup(x, z) {
+  for (var i = 0; i < PICKUPS.length; i++) {
+    if (PICKUPS[i].live) continue;
+    var p = PICKUPS[i];
+    p.live = true; p.x = x; p.z = z; p.spin = 0;
+    p.mesh.position.set(x, 0.85, z); p.mesh.visible = true;
+    return p;
+  }
+  return null;   // pool exhausted — callers decide whether that's worth reporting
+}
+function updatePickups(dt) {
+  for (var i = 0; i < PICKUPS.length; i++) {
+    var p = PICKUPS[i]; if (!p.live) continue;
+    p.spin += dt * 1.4;
+    p.mesh.rotation.y = p.spin;
+    p.mesh.position.y = 0.85 + Math.sin(p.spin * 1.6) * 0.08;
+  }
+}
+/* THE ONE ANSWER to "is anything in reach", read through the real verbYaw()
+   exactly as tryExecute() reads it — an interact cone that pointed at the
+   legs instead of the camera would be VR-160's bug a second time. */
+function tryInteract() {
+  var aim = verbYaw();
+  var fx = -Math.sin(aim), fz = -Math.cos(aim);
+  var half = C.pickupArc * Math.PI / 360;
+  var best = null, bestD = 1e9;
+  for (var i = 0; i < PICKUPS.length; i++) {
+    var p = PICKUPS[i];
+    if (!p.live) continue;
+    var dx = p.x - player.x, dz = p.z - player.z, d2 = dx * dx + dz * dz;
+    if (d2 > C.pickupReach * C.pickupReach) continue;
+    var d = Math.sqrt(d2) || 0.0001;
+    if (Math.acos(clamp((dx / d) * fx + (dz / d) * fz, -1, 1)) > half) continue;
+    if (d < bestD) { bestD = d; best = p; }
+  }
+  if (!best) {
+    /* VR-172's ruling, a third verb: a press with nothing in reach must be
+       PERCEIVABLE, must COST NOTHING (no cooldown here to spend in the first
+       place, so there is nothing to guard except not inventing one), and must
+       NOT BORROW A HIT'S TELLS — no hitStop, no shake, no thinGround. */
+    AU.interactMiss();
+    bladeFlash(0.3);
+    var mx = player.x + fx * (C.pickupReach * 0.6), mz = player.z + fz * (C.pickupReach * 0.6);
+    burst(mx, 0.9, mz, 4, 0x7C4AB6, 1.2, { grav: -1.2, upScale: 0.4, scale: 0.4, lifeScale: 0.5 });
+    return;
+  }
+  best.live = false; best.mesh.visible = false;
+  AU.pickup();
+  burst(best.x, 1.0, best.z, 12, 0x7C4AB6, 3.4, { grav: -2, upScale: 0.9, lifeScale: 1.0, scale: 0.9 });
+}
 function updateTears(dt) {
   for (var i = 0; i < TEARS.length; i++) {
     var T = TEARS[i]; if (T.life <= 0) continue;
@@ -3003,7 +3086,7 @@ function updateTears(dt) {
 /* ================================ input ================================= */
 var keys = Object.create(null);
 var mouse = { yaw: 0, pitch: -0.12, locked: false, l: false, r: false };
-var pressed = { strike: false, exec: false, step: false };
+var pressed = { strike: false, exec: false, step: false, interact: false };
 
 /* Pointer lock is a mouse affordance and a touch device has none. Asking for it
    on a phone either rejects outright or never fires pointerlockchange — and the
@@ -3034,6 +3117,7 @@ window.addEventListener("keydown", function (e) {
   if (e.repeat) return;   // auto-repeat must not re-fire abilities
   if (k === " " || k === "shift") pressed.step = true;
   if (k === "q") pressed.exec = true;
+  if (k === "e") pressed.interact = true;   // VR-175 — free key, nothing else bound here
   if (k === "v") cycleCam();   // VR-113 — the key and the camera fab are one path
   if (k === "h") toggleHelp();
   if (k === "escape") { if (helpOpen()) { closeHelp(); return; }
@@ -4647,6 +4731,7 @@ function updatePlayer(dt) {
   // inputs
   if (pressed.step) { pressed.step = false; veilstep(); }
   if (pressed.exec) { pressed.exec = false; tryExecute(); }
+  if (pressed.interact) { pressed.interact = false; tryInteract(); }
   if (pressed.strike || (mouse.l && player.atkStage < 0)) {
     pressed.strike = false;
     if (player.atkStage < 0) startStrike();
@@ -5309,6 +5394,7 @@ function resetRun(seed) {
   for (var i = 0; i < ENEMIES.length; i++) { ENEMIES[i].live = false; ENEMIES[i].g.visible = false; TELE[i].visible = false; }
   for (var t = 0; t < THIN.length; t++) { THIN[t].life = 0; THIN[t].mesh.visible = false; }
   for (var p = 0; p < PMAX; p++) { parts[p].life = 0; parts[p].m.visible = false; }
+  for (var pk = 0; pk < PICKUPS.length; pk++) { PICKUPS[pk].live = false; PICKUPS[pk].mesh.visible = false; }
   game.wave = 0; game.kills = 0; game.executes = 0; game.time = 0; game.score = 0;
   game.over = false; game.hitStop = 0; game.phase = "idle"; setPaused(false);
   TPAD.release();   // a latched Stalk must not survive into the next run
@@ -8699,6 +8785,7 @@ function step(dt) {
   if (game.running && player.alive) game.time += dt;
   updatePlayer(dt);
   updateEnemies(dt);
+  updatePickups(dt);
   if (game.running) updateWaves(dt);
   updateThin(dt);
 }

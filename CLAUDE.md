@@ -272,7 +272,8 @@ in the folder before assuming:
 - **2D pair track** — `games/<name>-v2/_sim.py` (Python physics sim).
 - **3D** — `games/proving-ground/_sim.js` (asserts against the marked `BALANCE` block extracted from
   the HTML), plus `_arena.js`, `_gauntlet.js`, `_billboard.js`, `_touch.js`, `_clipfit.js`,
-  `_shroud.js`, `_zoom.js`, `_strike.js`, `_exec.js`, `_hitdir.js`, `_rng.js` and `_check.js`. **`_arena.js` (added 9/3 with VR-148) judges the SHAPE OF
+  `_shroud.js`, `_zoom.js`, `_strike.js`, `_exec.js`, `_hitdir.js`, `_rng.js`, `_pickup.js` and
+  `_check.js`. **`_arena.js` (added 9/3 with VR-148) judges the SHAPE OF
   THE GROUND** rather than the numbers — six criteria per layout (reach · wedge · shroud · cheese ·
   blink · convergence). It is the external bar VR-154's generator gets scored against, and the reason
   VR-121 can add walls without anyone eyeballing whether the result is playable.
@@ -403,6 +404,26 @@ in the folder before assuming:
   passes every seed-reproducibility check (both runs are still equally wrong) and is only
   caught by a dedicated edge-variety assertion, and collapsing the per-stream seed offset back
   to one shared generator fails the stream-independence check directly.
+  **`_pickup.js` (added 9/21 with VR-175) is the first harness for a verb that targets something
+  that ISN'T a husk.** Every verb before this one — Strike, Execute, Veilstep — resolved against
+  `ENEMIES[]`; the Proving Ground had no concept of a world object you approach and act on, so
+  VR-176 (consumables), VR-177 (weapon pickup) and VR-178 (chest) would each have built their own.
+  This is that substrate: a pooled `PICKUPS[]` (six, `.live` flag, cleared in `resetRun()`, the
+  `ENEMIES`/`TELE`/`THIN` shape) and a real `tryInteract()` bound to `E`, lifted out of the HTML —
+  never a retyped copy — in **19 checks**. Direction and reach resolve through the real `verbYaw()`,
+  the identical `_exec.js`/`_hitdir.js` discipline: a pickup dead ahead is claimed at all three
+  `cam.mode` values, and the same world spot claimed in arcade is proven MISSED in third when the
+  two modes are given opposite-facing yaws — arcade and third disagreeing about the same pickup,
+  not just about a husk. **VR-172's ruling, ported to a third verb**: a press with nothing in reach
+  is perceivable (`AU.interactMiss()`, `bladeFlash`), borrows none of a hit's tells (`hitStop`,
+  `shake`, `thinGround`, `damageEnemy`, `executeEnemy`), and — the verb having no cooldown to begin
+  with — costs nothing by never inventing one. Mutation-tested against the real file: removing the
+  shipped radius check passes a pickup 50x past `pickupReach`, caught by three of the bar's own
+  reach-boundary checks, not by a bespoke mutant test bolted on after the fact. **Deliberately
+  keyboard-only.** The touch pad's six slots are already spoken for and adding a seventh without a
+  design for which existing verb it would have to sit beside is exactly "what a pickup does" — the
+  card's own out-of-scope line — so `_touch.js` is untouched and mobile interact is left for whichever
+  follow-up card gives a pickup an actual effect.
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 
