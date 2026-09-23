@@ -1647,6 +1647,7 @@ body.noanim.tuning .screen.on{transition:none}
 <script src="../_engine/rng.js"></script>
 <script src="../_engine/floattext.js"></script>
 <script src="../_engine/counter.js"></script>
+<script src="../_engine/hitstop.js"></script>
 <script>
 /* =========================================================================
    VEILRUN — Proving Ground (3D wave-survival arena, v0)
@@ -4039,7 +4040,7 @@ function updateCamera(dt) {
 var game = {
   running: false, over: false,
   wave: 0, spec: null, toSpawn: 0, spawnT: 0, breather: 0, phase: "idle",
-  kills: 0, executes: 0, time: 0, score: 0, hitStop: 0, paused: false
+  kills: 0, executes: 0, time: 0, score: 0, paused: false
 };
 var HUD = {
   hpfill: $("hpfill"), hpghost: $("hpghost"), hpnum: $("hpnum"),
@@ -4203,7 +4204,13 @@ function updateFloatText(dt) {
     if (!FLOATTEXT.slots[i].live) ftEls[i].style.display = "none";
   }
 }
-function hitStop(ms) { game.hitStop = Math.max(game.hitStop, ms / 1000); }
+/* VR-198 — the latch (Math.max, never a sum) and the freeze itself now live in
+   the shared ../_engine/hitstop.js so a second game gets the same channel;
+   hitStop(ms) keeps its exact call-site shape so every existing call is
+   untouched. HITSTOP never reads MOTION and never will — see hitstop.js's
+   own header for why that has to stay a construction fact, not a comment. */
+var HITSTOP = new VE.HitStop();
+function hitStop(ms) { HITSTOP.raise(ms); }
 function setPaused(p) {
   game.paused = !!p;
   /* VR-114 — a quiet freeze. The sheet's detail stage exists to show the arena
@@ -5457,7 +5464,7 @@ function resetRun(seed) {
   FLOATTEXT.reset();
   for (var f = 0; f < FTMAX; f++) ftEls[f].style.display = "none";
   game.wave = 0; game.kills = 0; game.executes = 0; game.time = 0; game.score = 0;
-  game.over = false; game.hitStop = 0; game.phase = "idle"; setPaused(false);
+  game.over = false; game.phase = "idle"; setPaused(false); HITSTOP.reset();
   TPAD.release();   // a latched Stalk must not survive into the next run
   HUD.vig.style.opacity = "0";
   hitDirReset();
@@ -8868,8 +8875,11 @@ function frame(now) {
 
   // hit-stop and pause both freeze the simulation, never the rendering
   if (game.paused) { CLOCK.acc = 0; }
-  else if (game.hitStop > 0) { game.hitStop -= raw; }
-  else { CLOCK.accumulate(raw, step); }
+  else {
+    HITSTOP.update(raw);
+    CLOCK.scale = HITSTOP.active() ? 0 : 1;   // VR-198 — hit-stop now drives the shared clock's scale
+    CLOCK.accumulate(raw, step);
+  }
   gameTime = CLOCK.gameTime;
 
   /* VR-132 — the camera stick is a RATE, so it has to be integrated somewhere

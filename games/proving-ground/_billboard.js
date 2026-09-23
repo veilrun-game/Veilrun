@@ -348,10 +348,16 @@ ok("the still variants keep the same durations",
    it. hitStop pauses simulation time — a motion scale reaching it would let an
    accessibility control change how long a strike window really lasts, which is
    the TUNE-reaches-BALANCE failure this file exists to catch, arriving through
-   a door nobody was watching. */
-ok("hitStop is not scaled by any motion axis",
-   /function hitStop\(ms\) \{ game\.hitStop = Math\.max\(game\.hitStop, ms \/ 1000\); \}/.test(html),
+   a door nobody was watching.
+   VR-198 moved the latch/freeze itself onto the shared ../_engine/hitstop.js —
+   require the real module rather than regexing a literal that no longer lives
+   in the HTML, the same move VR-199 made for MOTION_FULL/MOTION_RED above. */
+const HitStopSrc = fs.readFileSync(path.join(__dirname, "..", "_engine", "hitstop.js"), "utf8");
+ok("hitstop.js never reads or requires MOTION",
+   !/\bMOTION\b/.test(HitStopSrc.replace(/\/\*[\s\S]*?\*\//g, "")),
    "it freezes simulation time — scaling it from the panel would be a balance edit");
+ok("index.html's hitStop(ms) delegates to the shared, unscaled HITSTOP.raise()",
+   /function hitStop\(ms\) \{ HITSTOP\.raise\(ms\); \}/.test(html));
 {
   const hurt = (html.match(/function hurtPlayer\([^)]*\)[\s\S]*?\n\}/) || [""])[0];
   ok("and no call site scales it either",

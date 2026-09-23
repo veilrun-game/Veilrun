@@ -466,7 +466,7 @@ in the folder before assuming:
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 
-**Site-level, seventeen at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
+**Site-level, eighteen at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
 except `_kit.js`: `_check.js` (the
 `VEILRUN.games` manifest), `_hubcheck.js` (Hub states), `_updatescheck.js` (weekly-hero states),
 `_grefcheck.js` (Game Reference catalogue + matcher), `_docscheck.js` (ship-checklist item 5),
@@ -482,7 +482,8 @@ except `_kit.js`: `_check.js` (the
 `_actions.js` (the shared action registry + per-genre profiles, **74 checks**),
 `_silent.js` (no-result UI states, VR-172's ruling applied to the interface, **17 checks**),
 `_floattext.js` (the shared pooled floating-combat-text component, **44 checks**),
-`_counter.js` (the shared easing counter, **44 checks**).
+`_counter.js` (the shared easing counter, **44 checks**),
+`_hitstop.js` (the shared budgeted hit-stop channel, **39 checks**).
 Everything relevant must be green before hand-off.
 
 **`_floattext.js` (added 9/20, VR-201) is the fifth harness in the `_clock.js` family — a REAL
@@ -653,6 +654,30 @@ into the shared `Impulse` by `_billboard.js` and `_exec.js`, which lift the real
 `index.html` rather than retyping it — this file only proves the module those two consume. One 2D
 v2 game, `pair-level-v2`, raises an impulse when a turret's shot reaches Latch, reading the same
 `MOTION_FULL`/`MOTION_RED` data rather than inventing its own reduced-motion switch.
+
+**`_hitstop.js` (added 9/22, VR-198) is a REAL SHARED MODULE, `require`d directly, never lifted —
+the same `_clock.js`/`_motion.js`/`_bus.js` shape.** `games/_engine/hitstop.js` promotes Proving
+Ground's `game.hitStop` bypass (`if (game.hitStop > 0) { game.hitStop -= raw; } else {
+CLOCK.accumulate(...) }`) into a budgeted freeze channel any game can raise, then drives
+`CLOCK.scale` (VR-189) from it instead of special-casing the accumulator — the 2D track had
+nothing like it at all before this, so a turret hit read as a floating number and a camera shake
+with no held frame. **Latch, not a sum** — `raise(ms)` takes the max of whatever is still counting
+down, mirroring `Impulse`'s own rule for the identical reason: two hits landing three frames apart
+must not freeze the game longer than either hit alone would. **A hard cap of 0.44s**, twice the
+largest real call site (220ms, the death freeze), the same "twice the largest call site" margin
+`Impulse` uses. **Never scaled by the motion group, by construction rather than by comment** —
+`hitstop.js` does not import, require or reference `MOTION` at all, which this harness greps for
+directly rather than trusting the `:3763` comment to stay true; `_billboard.js` (VR-91) carries the
+same assertion from Proving Ground's side, updated to require the real module instead of regexing
+a literal that no longer lives in the HTML, the move VR-199 already made there for
+`MOTION_FULL`/`MOTION_RED`. Section 5 lifts the real consumer wiring out of BOTH `index.html`
+files — the `_floattext.js` Section 4 shape — proving Proving Ground's `hitStop(ms)` delegates to
+it, the frame loop drives `CLOCK.scale` from `HITSTOP.active()`, `resetRun()` calls the real
+`reset()`, and every existing call site (78/46 strike, 90 execute, 130 exec-kill, 55 kill, 70 hurt,
+220 death) is untouched; and that `pair-level-v2` raises one at the real turret-hit call site and
+ticks it every frame, not only while a level is being played. Mutation-tested against the real
+module — the latch turned into a sum, the cap removed, and `update()`'s zero-floor removed all
+diverge from the real class. **39 checks.**
 
 **`_actions.js` (added 9/20, VR-191) is the fourth harness in the `_clock.js` family — a REAL
 SHARED MODULE, `require`d directly, never lifted.** `games/_engine/actions.js` is the action

@@ -101,6 +101,7 @@
 <script src="../_engine/clock.js"></script>
 <script src="../_engine/motion.js"></script>
 <script src="../_engine/floattext.js"></script>
+<script src="../_engine/hitstop.js"></script>
 <script>
 (function(){
   "use strict";
@@ -192,6 +193,11 @@
   var PREFERS_REDUCED=(function(){ try{ return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); } catch(e){ return false; } })();
   var MOTION_SHAKE=(PREFERS_REDUCED ? VE.Motion.MOTION_RED : VE.Motion.MOTION_FULL).shake;
   var SHAKE=new VE.Motion.Impulse();
+
+  /* VR-198 — the shared hit-stop channel. A shot reaching Latch now holds the
+     frame for a beat before softReset() takes over, the same weight Proving
+     Ground's own hits carry — never scaled by MOTION, same as there. */
+  var HITSTOP=new VE.HitStop();
   var shakeMag=0;
   function rand(a,b){ return a+Math.random()*(b-a); }
 
@@ -422,7 +428,7 @@
       // Anvil's BODY blocks shots — directional: whoever is behind him is safe (no bubble)
       if(A.world===s.world && A.x<s.x&&s.x<A.x+A.w && A.y<s.y&&s.y<A.y+A.h){ s.dead=true; sparks.push({x:s.x, y:s.y, vx:-s.vx*0.4, vy:-1.5, t:12, world:s.world}); return; }
       // Latch takes the hit if a shot reaches him (i.e. he wasn't behind Anvil)
-      if(L.world===s.world && L.x<s.x&&s.x<L.x+L.w&&L.y<s.y&&s.y<L.y+L.h){ FLOATTEXT.spawn(L.x+L.w/2, L.y, L.world, "HIT", false); softReset(); s.dead=true; SHAKE.raise(4, MOTION_SHAKE); }
+      if(L.world===s.world && L.x<s.x&&s.x<L.x+L.w&&L.y<s.y&&s.y<L.y+L.h){ FLOATTEXT.spawn(L.x+L.w/2, L.y, L.world, "HIT", false); HITSTOP.raise(90); softReset(); s.dead=true; SHAKE.raise(4, MOTION_SHAKE); }
     });
     shots=shots.filter(function(s){ return !s.dead; });
     sparks.forEach(function(k){ k.t--; k.x+=k.vx; k.y+=k.vy; k.vy+=0.3; }); sparks=sparks.filter(function(k){ return k.t>0; });
@@ -430,6 +436,8 @@
 
   function frame(ts){
     var clk=CLOCK.tick(ts);
+    HITSTOP.update(clk.raw);
+    CLOCK.scale=HITSTOP.active()?0:1;   // VR-198 — hit-stop drives the shared clock's scale, camera keeps rendering
     if(state==="play"){
       CLOCK.accumulate(clk.raw, simStep);
 

@@ -107,6 +107,9 @@ var PROTECTS = {
   "_kit.js": {
     proves: "Scaffolded from _new.js (VR-196) in `module` mode, awaiting VR-185's character kit schema. Today it proves only its own plumbing — one trivial self-test — and reports a partial skip until VR-185 gives it a real module to require.",
     breaks: "Nothing yet — there is no real assertion here. Its purpose right now is proof that _new.js's generator produces a runnable, correctly-classified skeleton end to end; VR-185 replaces the TODO with the real bar." },
+  "_hitstop.js": {
+    proves: "The shared budgeted hit-stop channel — raise() latches to the max of what is still counting down rather than summing, a hard cap bounds any single freeze, update() floors at zero on real (never sim-scaled) time, and it never reads MOTION at all. Lifts the real consumer wiring out of both proving-ground/index.html and pair-level-v2/index.html to prove each drives the shared clock's scale from it rather than a hand-rolled bypass.",
+    breaks: "Two close hits stack into a freeze that reads as a hang, or a reduced-motion setting quietly starts changing how long a strike window really lasts — the exact TUNE-reaches-BALANCE hazard `_billboard.js` exists to catch, arriving through a second game that never inherited the rule." },
   "_bus.js": {
     proves: "The shared synchronous event bus — named/enumerable events, publish/subscribe/unsubscribe, registration-order delivery, and that an unknown event throws rather than swallowing silently. Then lifts Proving Ground's real HITBUS wiring out of the HTML and proves every declared event has a subscriber and damageEnemy() emits rather than calling its old effects by hand.",
     breaks: "A verb's effect gets threaded through by hand again and a later edit forgets one call site — the exact VR-172 failure this bus exists to structurally rule out. An event declared with no subscriber is a call site somebody meant to move and did not." },
