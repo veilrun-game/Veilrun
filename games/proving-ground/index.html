@@ -4087,7 +4087,16 @@ function camYaw() { return cam.mode === "arcade" ? ARC.yaw : mouse.yaw; }
 function hitDirection(ax, az) {
   var dx = ax - player.x, dz = az - player.z;
   if (Math.abs(dx) < 1e-4 && Math.abs(dz) < 1e-4) return;   // on top of us — no direction to show
-  var rel = Math.atan2(dx, dz) - camYaw();
+  /* VR-211 fix. atan2(dx,dz) is the world angle you'd face to point AWAY from
+     the attacker, not toward them — forward(yaw)=(-sin,-cos), the convention
+     player.yaw/e.yaw already use (e.g. the enemy chase yaw at atan2(-dx,-dz)
+     a few hundred lines down), so "yaw pointing AT (dx,dz)" is atan2(-dx,-dz).
+     And CSS rotate() turns clockwise while this file's yaw turns the other
+     way — TPAD's holdTrack() documents the same pair inverted (screen angle
+     -> world yaw) at "atan2(dx,-dy) is the clockwise screen angle from up;
+     world yaw runs the other way, hence the subtraction". Composing both:
+     screen angle = camYaw() - atan2(-dx,-dz). */
+  var rel = camYaw() - Math.atan2(-dx, -dz);
   rel = Math.atan2(Math.sin(rel), Math.cos(rel));           // normalize to (-PI, PI]
   var slot = -1;
   for (var i = 0; i < DDIR.length; i++) if (!DDIR[i].live) { slot = i; break; }
@@ -4930,10 +4939,15 @@ function killEnemy(e, wasExecute) {
   TELE[ENEMIES.indexOf(e)].visible = false;
 }
 function hurtPlayer(dmg, ax, az) {
-  if (player.iframe > 0 || !player.alive) return;
+  if (!player.alive) return;
+  /* VR-211 ruling — i-frames gate DAMAGE, never the direction tell. They
+     exist to stop damage stacking, not to hide where a second attacker hit
+     you from; the old single early-return before hitDirection() meant only
+     the FIRST hit inside a 0.62s window could ever claim a pool slot. */
+  hitDirection(ax, az);
+  if (player.iframe > 0) return;
   player.hp -= dmg;
   player.iframe = C.iframeOnHit;
-  hitDirection(ax, az);
   // hitStop is NOT scaled here — see the VR-103 block above shake().
   AU.hurt(); shake(0.28); hitStop(70);
   /* VR-103 — damped, never removed. This is the only full-screen signal that

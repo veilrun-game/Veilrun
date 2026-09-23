@@ -370,7 +370,7 @@ in the folder before assuming:
   come from.** A hit confirm already existed (`hitmark()`, VR-104); nothing answered incoming
   direction, so a husk hitting from behind a wall or through a seam tear read as being hit by
   nothing. `hitDirection()`, `camYaw()` and the `DDIR` pool constructor are lifted out of the HTML
-  in **19 checks**, never a retyped copy, and proven at execution: direction is computed from the
+  in **31 checks**, never a retyped copy, and proven at execution: direction is computed from the
   attacker's real position through the real `camYaw()`, arcade and third are proven to disagree
   about the same attacker (and to agree when given the same yaw, ruling out a mode-independent
   bug) — the identical discipline `_exec.js` holds `verbYaw()` to. **Pooled exactly like
@@ -380,6 +380,19 @@ in the folder before assuming:
   silently dropped the fifth hit — the count alone can't tell "reused" from "discarded"), and
   `resetRun()` is proven to call the real `hitDirReset()` rather than a same-named stand-in.
   **The indicator is a CSS border-triangle, not a colour** — the A11Y bar applied at creation.
+  ⚠️ **VR-211 (9/22) found the bar green and the game wrong on two counts it shipped without
+  covering.** `hurtPlayer()`'s i-frame early-return sat BEFORE `hitDirection()`, so only the first
+  attacker inside any 0.62s window could ever claim a pool slot — the old "two simultaneous hits"
+  check called `hitDirection()` directly rather than the real caller and drove straight past it.
+  And the rotation formula pointed the wedge at the OPPOSITE side, invisibly, because its own
+  expected value was derived from the same formula it was checking. **The ruling: i-frames gate
+  damage, never the tell** — `hitDirection()` now runs unconditionally (given the player is alive)
+  and the damage/iframe-reset gate moved after it. The rotation now composes `camYaw()` with
+  `atan2(-dx,-dz)` (the "yaw pointing at" convention `e.yaw` already uses a few hundred lines down),
+  not `atan2(dx,dz) - camYaw()`. Section 3 now drives the two-hit proof through the real
+  `hurtPlayer()`; Section 4 names four screen positions (ahead/right/behind/left) independently of
+  the formula that produces them; Section 5 mutation-tests both defects by string-patching each
+  fixed function back to its exact shipped-broken shape and proving this bar turns red against it.
   **`_rng.js` (added 9/21 with VR-203) is the first harness for a shared engine module ALSO
   proven live against the game that consumes it**, because a judge that has been fully
   deterministic since VR-148 (`_arena.js`, its own `mulberry32(0x5EED01)` and friends) was
