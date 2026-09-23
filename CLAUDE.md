@@ -184,6 +184,12 @@ explicitly rather than omitting an item.
      that restates what git already knows is one more thing that can drift.
      **If a card ever needs two branches, the second is `vr-<number>-<slug>-2`** — still derivable
      by the same glob.
+     ⚠️ **A BATCH run's branch does not follow this shape (VR-212, 9/22).** `batch.sh` commits several
+     cards to one shared **`run/<date>`** branch, which carries no card number in its name at all — the
+     numbers live in the *commit subjects* on that branch instead, and anything deriving card state
+     (`_boardstate.js`, the reconciler) reads THOSE, never the branch name. Both shapes are real and
+     both stay supported: a hand-built card branch is `vr-<number>-<slug>`, a batch branch is
+     `run/<date>` holding several commits, each citing its own card in the subject.
    · **Branch merged into `main`** → **move it to `🟢 Done`.** This is derivable, never a question:
      `git branch --merged main` lists what has landed. **The Producer's sweep checks this every run**,
      so a card cannot sit in review after its branch is merged.
@@ -466,7 +472,7 @@ except `_kit.js`: `_check.js` (the
 `_grefcheck.js` (Game Reference catalogue + matcher), `_docscheck.js` (ship-checklist item 5),
 `_leakcheck.js` (withheld lore, §5), `_pathcheck.js` (withheld *locations*, §5),
 `_clock.js` (the shared fixed-timestep clock, **42 checks**),
-`_board.js` (card state derived from git, **50 checks**),
+`_board.js` (card state derived from git, **55 checks**),
 `_kit.js` (scaffolded 9/16 VR-196, filled in 9/20 VR-185 — the shared character kit schema,
 **21 checks**),
 `_navcheck.js` (nav reachability, **23 checks**),
@@ -551,6 +557,20 @@ harness pins all three *and* proves the naive version really would have been wro
 it on faith. The git reader is injectable for the same reason: the repo has no unmerged branches
 today, so the rule that a card whose branch already reached `main` is **shipped, not pending** would
 have had zero coverage until the first night it mattered.
+⚠️ **VR-212 (9/22) is that first night, and the rule was wrong on arrival — not for the reason the
+card guessed.** PR #5 sat open with three real cards on `run/2026-09-20-3` and `_boardstate.js`
+reported IN REVIEW as zero. The card's working theory was that the branch→card mapping expected
+`vr-<number>-<slug>` and choked on a dateful batch-branch name. **It never reads branch names for
+card numbers — it was the wrong theory.** The real bug: `derive()` built a revision range by
+string-concatenating `"<branch> ^origin/main"` into ONE argv element and handed it to a reader
+backed by `execFileSync`, which never runs a shell — git received one unparseable ref with a space
+in it, rejected it, and the branch was silently skipped, for every branch, regardless of its name.
+Fixed by a `subjectsInRange(includeRef, excludeRef)` reader that passes the two refs as separate
+arguments. **The synthetic-repo mock had been hiding this the whole time**: its `subjectsOn` parsed
+the combined string back apart with `ref.split(" ")[0]`, which the real, unmocked git call could
+never do — so the mock quietly implemented a call shape production never actually made work. The
+mock now matches the real interface split (`subjectsOn` for one ref, `subjectsInRange` for a range),
+so reverting the fix makes the mock reproduce the exact silent-skip failure rather than passing.
 ⚠️ **`🟣 In progress` is REPORT-ONLY to the reconciler, and that was learned the same day.** A dry
 run against the real board found four cards there that git calls shipped, and **two would have been
 moved wrongly**: `VR-100` is a *recurring* weekly canon audit whose card is permanent, and `VR-98`

@@ -30,6 +30,19 @@
  * exact failure class this file exists to end. `VR-97A` is the other one: a letter
  * suffix is a real card number.
  *
+ * VR-212 (9/22) — THIS WENT BLIND ON A REAL PR. PR #5 sat open with three cards on
+ * `run/2026-09-20-3` and `node _boardstate.js` reported IN REVIEW as zero. The card's own
+ * working theory going in was that the branch->card mapping expected the `vr-<number>-<slug>`
+ * shape and choked on a dateful batch-branch name — reasonable, since that was the only
+ * convention this file had ever seen. IT WAS WRONG. This file never reads a branch's name for
+ * card numbers; it only ever reads the commits ON it. The actual bug was one line up the
+ * call stack: `subjectsOn(branch + " ^origin/main")` concatenates a revision RANGE into a
+ * single string, and `execFileSync` never runs a shell — that string arrives at git as one
+ * unparseable ref with a space in it, git rejects it, `git()` catches the throw and returns
+ * null, and `derive()`'s `if (subs === null) continue;` skips the branch. Silently, for EVERY
+ * branch, regardless of its name. `subjectsInRange(includeRef, excludeRef)` passes the two
+ * refs as separate argv elements instead, which is the actual fix.
+ *
  * No dependencies. Run: node _boardstate.js [--json]
  */
 var cp = require("child_process");
@@ -81,6 +94,18 @@ function subjectsOn(ref) {
   return out === null ? null : out.split("\n").filter(Boolean);
 }
 
+/* VR-212 fix. `git()` shells out via execFileSync, which never invokes a shell —
+   a range built by string-concatenating "<ref> ^<exclude>" into ONE argv element
+   is not two revisions, it is one unparseable ref with a space in it, and git
+   rejects it. That is not a branch-NAME-shape bug (the card's own working theory
+   going in); it reproduces for `vr-###-slug` and `run/<date>` alike, and it
+   reproduces for any two refs at all — `includeRef` and `excludeRef` MUST be
+   separate argv elements. */
+function subjectsInRange(includeRef, excludeRef) {
+  var out = git(["log", "--format=%s", includeRef, "^" + excludeRef]);
+  return out === null ? null : out.split("\n").filter(Boolean);
+}
+
 /* Subject PLUS the short sha and date, oldest last (git log order).
    Used only to annotate a card as it lands in Done — "SHIPPED 9/14 (79f811e)" is the
    convention the board already uses, and a reconciler that moved cards without it would
@@ -106,7 +131,8 @@ function unmergedRemoteBranches() {
 
 /* The real reader. Swapped out wholesale by the harness. */
 function gitIO() {
-  return { subjectsOn: subjectsOn, unmergedBranches: unmergedRemoteBranches, commitsOn: commitsOn };
+  return { subjectsOn: subjectsOn, subjectsInRange: subjectsInRange,
+           unmergedBranches: unmergedRemoteBranches, commitsOn: commitsOn };
 }
 
 function derive(io) {
@@ -123,7 +149,7 @@ function derive(io) {
   var branches = {}, reviewSeen = {};
   var brs = io.unmergedBranches();
   for (var b = 0; b < brs.length; b++) {
-    var subs = io.subjectsOn(brs[b] + " ^origin/main");
+    var subs = io.subjectsInRange(brs[b], "origin/main");
     if (subs === null) continue;
     var ids = cardsInSubjects(subs).filter(function (id) { return !shippedSet[id]; });
     if (ids.length) {
@@ -160,6 +186,7 @@ function derive(io) {
 module.exports = {
   cardsInSubject: cardsInSubject,
   cardsInSubjects: cardsInSubjects,
+  subjectsInRange: subjectsInRange,
   derive: derive
 };
 
