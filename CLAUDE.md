@@ -476,7 +476,7 @@ except `_kit.js`: `_check.js` (the
 `_kit.js` (scaffolded 9/16 VR-196, filled in 9/20 VR-185 — the shared character kit schema,
 **21 checks**),
 `_navcheck.js` (nav reachability, **23 checks**),
-`_archetypes.js` (audience-archetype doc structure, **26 checks**),
+`_archetypes.js` (audience-archetype doc structure, **27 checks**),
 `_bus.js` (the shared synchronous event bus, **38 checks**),
 `_motion.js` (the shared reduced-motion scales + camera-impulse bus, **51 checks**),
 `_actions.js` (the shared action registry + per-genre profiles, **74 checks**),
@@ -523,15 +523,19 @@ time-kind score is proven untouched, since counting up a clock digit-by-digit re
 than rewarding. Mutation-tested — landing no longer forced exact, a retarget keeping the stale
 `from`, and `skip()` no longer firing `onDone` all diverge from the real module. **44 checks.**
 
-**`_archetypes.js` (added 9/16, VR-208) checks the schema of a doc that does not exist yet.** The
-card is tagged `provable: no` about the only question that matters — no harness can tell a true
-archetype from a plausible one — so this one deliberately answers a smaller question: three entries,
-one per genre, each naming Wants / Leaves / Returns, each marked `hypothesis` or `evidenced` with
-evidence named when evidenced, and no archetype `.md` tracked in THIS repo (the doc belongs in
-`_Project Knowledge/`). Until VR-208's writing is done it reports a **`~` partial skip**, never a
-fail, and self-tests its schema against fixtures — **6/6 mutants killed**. The `##`/`**Key:**`
-delimiter syntax is this harness's proposal, not a sourced number, and is expected to be revisited
-once the doc exists.
+**`_archetypes.js` (added 9/16, VR-208; the doc itself written 9/22) checks the schema of the
+audience-archetypes doc, never its truth.** The card is tagged `provable: no` about the only
+question that matters — no harness can tell a true archetype from a plausible one — so this one
+deliberately answers a smaller question: three entries, one per genre, each naming Wants / Leaves /
+Returns, each marked `hypothesis` or `evidenced` with evidence named when evidenced, and no
+archetype `.md` tracked in THIS repo (the doc lives in `_Project Knowledge/Audience Archetypes
+(VR-208).md`). **27 checks**, self-tested against fixtures — **6/6 mutants killed** — and now also
+against the real doc. **All three entries ship marked `hypothesis`**, deliberately: VEILRUN has no
+players at scale yet, and marking anything `evidenced` before real playtest or analytics data exists
+would be inventing the confidence the doc is supposed to be honest about lacking. Re-scoring
+RETURN's candidates against these three (DONE WHEN #5) stays Jordan's/the Council's call — the
+harness does not and cannot check it. The `##`/`**Key:**` delimiter syntax is this harness's
+proposal, not a sourced number, and is expected to be revisited now that a real doc uses it.
 
 **`_navcheck.js` (added 9/16, VR-197) is the narrow provable slice pulled out of an otherwise
 `provable: no` card.** The full ask — is the site's IA *right* — needs Jordan's eye and the crew's
