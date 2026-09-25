@@ -429,7 +429,7 @@ in the folder before assuming:
   VR-176 (consumables), VR-177 (weapon pickup) and VR-178 (chest) would each have built their own.
   This is that substrate: a pooled `PICKUPS[]` (six, `.live` flag, cleared in `resetRun()`, the
   `ENEMIES`/`TELE`/`THIN` shape) and a real `tryInteract()` bound to `E`, lifted out of the HTML —
-  never a retyped copy — in **19 checks**. Direction and reach resolve through the real `verbYaw()`,
+  never a retyped copy. Direction and reach resolve through the real `verbYaw()`,
   the identical `_exec.js`/`_hitdir.js` discipline: a pickup dead ahead is claimed at all three
   `cam.mode` values, and the same world spot claimed in arcade is proven MISSED in third when the
   two modes are given opposite-facing yaws — arcade and third disagreeing about the same pickup,
@@ -443,6 +443,22 @@ in the folder before assuming:
   design for which existing verb it would have to sit beside is exactly "what a pickup does" — the
   card's own out-of-scope line — so `_touch.js` is untouched and mobile interact is left for whichever
   follow-up card gives a pickup an actual effect.
+  **VR-187 (9/25) grew the substrate into a REGISTRY — reach · prompt · verb · state — any world
+  object registers into, rather than each of VR-176/177/178 rewriting `tryInteract()` for itself.**
+  A registered type declares its own `reach`/`arc` (read from `BALANCE`, never assumed shared) and
+  an `onInteract(p)` that returns whether the entry is CONSUMED (goes not-live, the `pickup` shape)
+  or STAYS live with its own `state` updated (the new `lever` shape) — one call, two outcomes, not
+  two branches in `tryInteract()`. **`lever` exists only to prove the contract is generic**, by being
+  shaped nothing like `pickup`: it carries a shorter, independently-tuned `leverReach`/`leverArc`,
+  it is never consumed, and it round-trips a boolean `state` across repeated claims instead of going
+  not-live. The harness proves genericity is actually exercised, not just declared: a lever placed
+  between `leverReach` and `pickupReach` is proven claimed by neither reach check sharing the other's
+  number, and a mutant that answers every type's reach with the one shared `C.pickupReach` constant
+  is proven to wrongly toggle that same lever's state — the bar `_kit.js`'s own "does the schema
+  actually get exercised" discipline, applied to a registry instead of a character sheet.
+  `resetRun()` now clears `state` alongside `.live`, so a lever left on does not survive into the
+  next run. **What either registered type's effect IS stays out of scope**, per the card — `lever`
+  is a proof of contract, not a build-mode feature. **30 checks.**
   **`_feel.js` (added 9/20 with VR-195) generalises `_exec.js`'s ruling past Execute — "no verb may
   produce nothing" — to every verb the arena actually has.** It **discovers** the verb set from
   `../_engine/actions.js`'s `"3d-arena"` profile (VR-191) rather than typing a list, in **71 checks**:
