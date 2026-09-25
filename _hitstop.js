@@ -148,12 +148,115 @@ var pl2Html = fs.readFileSync(PL2_PATH, "utf8");
      /<script src="\.\.\/_engine\/hitstop\.js"><\/script>/.test(pl2Html));
   ok("pair-level-v2 constructs a VE.HitStop channel",
      /var HITSTOP=new VE\.HitStop\(\);/.test(pl2Html));
-  ok("pair-level-v2 raises it at the turret-hit call site (not just constructs it)",
-     /HITSTOP\.raise\(90\); softReset\(\);/.test(pl2Html));
-  ok("pair-level-v2's frame loop drives CLOCK.scale from HITSTOP.active(), the same contract as Proving Ground",
-     /CLOCK\.scale=HITSTOP\.active\(\)\?0:1;/.test(pl2Html));
+  /* VR-198, second pass (9/24). This used to assert the literal text
+     `HITSTOP.raise(90); softReset();` — which is the bug, written down as the
+     bar. The freeze was raised and the level was reset on the same line, so
+     the held frame showed Latch back at his spawn and Jordan saw nothing. A
+     check that pins the call proves the call; it cannot see the picture. */
+  var hitLine = (pl2Html.match(/if\(L\.world===s\.world && L\.x<s\.x[^\n]*/) || [""])[0];
+  ok("the turret-hit call site hands off to caught() (not just constructs the channel)",
+     /\{ s\.dead=true; caught\(s\); \}/.test(hitLine), hitLine.slice(0, 90));
+  ok("the turret-hit call site never resets the level on the same line it raises the hold",
+     hitLine !== "" && !/softReset\(\)/.test(hitLine) && !/HITSTOP\.raise/.test(hitLine));
+  ok("pair-level-v2's frame loop settles a catch AFTER ticking the channel and BEFORE deciding the clock's scale",
+     /HITSTOP\.update\(clk\.raw\);\s*settleCaught\(\);[^\n]*\n\s*CLOCK\.scale=HITSTOP\.active\(\)\?0:1;/.test(pl2Html));
   ok("pair-level-v2 ticks HITSTOP every frame, not only while state===\"play\"",
-     /HITSTOP\.update\(clk\.raw\);/.test(pl2Html));
+     /HITSTOP\.update\(clk\.raw\);/.test(pl2Html) &&
+     pl2Html.indexOf("HITSTOP.update(clk.raw);") < pl2Html.indexOf('if(state==="play"){\n      CLOCK.accumulate'));
+  ok("reset() clears a pending catch and the channel, so R mid-hold never resets twice",
+     /caughtPending=false; HITSTOP\.reset\(\);/.test(pl2Html));
+  /* Found by the release-steward review, 9/24: input was gated only on
+     state==="play", so a Flip pressed as a dodge reflex inside the 220ms teleported
+     Latch while the frame was held — the held picture stopped being the impact. */
+  ok("no input reaches the game during the hold (isPlay is false while a catch is pending)",
+     /isPlay:function\(\)\{ return state==="play" && !caughtPending; \}/.test(pl2Html));
+  ok("catch-up steps owed in the same frame as the hit do not run past it",
+     /function simStep\(\)\{\n\s*if\(caughtPending\) return;/.test(pl2Html));
+  ok("a win cannot be recorded behind a pending catch",
+     /if\(bothInExit\(\) && !caughtPending\) win\(\);/.test(pl2Html));
+}
+
+/* 5b · EXECUTED, NOT READ. caught() and settleCaught() are lifted out of the
+   real HTML by name — never a retyped copy — and driven frame by frame at
+   1/60s against the REAL HitStop class. softReset() is a stub that records
+   WHEN it ran and WHERE Latch was standing at that moment, which is exactly
+   the question the first build got wrong: what is on screen while the world
+   holds still. */
+console.log("\n[pair-level-v2 — the held frame is the impact, driven by execution]");
+function liftFn(src, name) {
+  var at = src.indexOf("function " + name + "(");
+  if (at < 0) return null;
+  var i = src.indexOf("{", at), depth = 0;
+  for (; i < src.length; i++) {
+    if (src[i] === "{") depth++;
+    else if (src[i] === "}") { depth--; if (depth === 0) return src.slice(at, i + 1); }
+  }
+  return null;
+}
+var holdDecl = (pl2Html.match(/var CAUGHT_HOLD_MS=(\d+), caughtPending=false;/) || [])[1];
+var caughtSrc = liftFn(pl2Html, "caught"), settleSrc = liftFn(pl2Html, "settleCaught");
+ok("caught() and settleCaught() both lift out of the real file", !!(caughtSrc && settleSrc && holdDecl));
+
+/* Proving Ground's largest real call site IS the death freeze. A shot in Seam
+   Gate ends the attempt, so it must hold at least that long — read off PG's
+   own source, never a number typed here (the Bar Builder's provenance rule). */
+var pgCalls = (pgHtml.match(/hitStop\((\d+)\)/g) || []).map(function (m) { return +m.replace(/\D/g, ""); });
+var pgDeath = Math.max.apply(null, pgCalls.length ? pgCalls : [0]);
+ok("a caught Latch holds as long as a Proving Ground death (" + pgDeath + "ms, read from PG's source)",
+   +holdDecl === pgDeath && pgDeath > 0, "CAUGHT_HOLD_MS=" + holdDecl);
+
+function runCatch(caughtFn, settleFn) {
+  var box = {
+    HITSTOP: new HitStop(), L: { x: 480, y: 400, w: 22, h: 44, world: 1 }, sparks: [],
+    spawned: 0, resets: [],
+    FLOATTEXT: { spawn: function () { box.spawned++; } },
+    SHAKE: { raise: function () {} }, MOTION_SHAKE: 1
+  };
+  box.softReset = function () {
+    box.resets.push({ activeAtReset: box.HITSTOP.active(), x: box.L.x, frame: box.frame });
+    box.L.x = 48;                                        // the spawn — what the first build showed
+  };
+  vm.createContext(box);
+  vm.runInContext("var caughtPending=false, CAUGHT_HOLD_MS=" + (+holdDecl || 220) + ";\n" +
+                  caughtFn + "\n" + settleFn, box, { filename: "pair-level-v2#caught" });
+  var shot = { x: 490, y: 420, world: 1 };
+  box.frame = 0;
+  vm.runInContext("caught(shot)", Object.assign(box, { shot: shot }));
+  var heldAt = [];
+  for (var f = 1; f <= 40; f++) {
+    box.frame = f;
+    box.HITSTOP.update(1 / 60);
+    vm.runInContext("settleCaught()", box);
+    if (box.HITSTOP.active()) heldAt.push(box.L.x);
+  }
+  var resetsAfterHold = box.resets.length;
+  vm.runInContext("caught(shot); caught(shot)", box);    // a double hit inside one beat
+  return { box: box, heldAt: heldAt, resetsAfterHold: resetsAfterHold, doubleTime: box.HITSTOP.time };
+}
+if (caughtSrc && settleSrc) {
+  var R = runCatch(caughtSrc, settleSrc);
+  ok("the hold is live the instant Latch is caught", R.heldAt.length > 0);
+  ok("every held frame shows Latch where the shot landed, never at the spawn",
+     R.heldAt.length > 0 && R.heldAt.every(function (x) { return x === 480; }), JSON.stringify(R.heldAt.slice(0, 3)));
+  ok("the level resets exactly once per catch", R.resetsAfterHold === 1, "resets " + R.resetsAfterHold);
+  ok("the reset waits for the hold to run out — never while the world is frozen",
+     R.box.resets.every(function (r) { return r.activeAtReset === false; }));
+  var expectFrames = Math.ceil((+holdDecl / 1000) * 60 - 1e-9);
+  ok("the reset lands on the first frame after the hold (" + expectFrames + " frames at 60Hz), not before and not late",
+     R.box.resets[0] && Math.abs(R.box.resets[0].frame - expectFrames) <= 1, R.box.resets[0] && R.box.resets[0].frame);
+  ok("a second shot inside the same beat neither extends the hold nor raises a second HIT",
+     Math.abs(R.doubleTime - (+holdDecl / 1000)) < 1e-9 && R.box.spawned === 2,
+     "time " + R.doubleTime + ", HIT spawns " + R.box.spawned);
+  ok("impact sparks are left at the shot's position for the held frame",
+     R.box.sparks.length >= 1 && R.box.sparks.every(function (k) { return k.x === 490 && k.world === 1; }));
+
+  /* Mutant D — the first build's ordering, put back: reset inside caught(). */
+  var mutD = caughtSrc.replace("HITSTOP.raise(CAUGHT_HOLD_MS);", "HITSTOP.raise(CAUGHT_HOLD_MS); softReset();");
+  ok("mutant D source actually changed (anchor still matches)", mutD !== caughtSrc);
+  var RD = runCatch(mutD, settleSrc);
+  ok("MUTANT KILLED — resetting on the raise line holds the SPAWN on screen, the 9/24 bug",
+     RD.heldAt.length > 0 && RD.heldAt.every(function (x) { return x === 48; }) &&
+     RD.box.resets.some(function (r) { return r.activeAtReset === true; }));
 }
 
 /* =========================================================================

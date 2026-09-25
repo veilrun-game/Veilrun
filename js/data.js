@@ -363,28 +363,10 @@ VEILRUN.games = [
       "Stuck rather than dead? Reset the level. It costs you the clock, not the attempt."
     ],
     versions: [
-      { id: "v1", label: "v1 (current)",
-        controls: [
-          ["Arrows / A · D", "Move"],
-          ["Up / W / Space", "Jump"],
-          ["Tab or Shift", "Switch character"],
-          ["E or Enter", "Use the active character's ability"],
-          ["R", "Reset the level"],
-          ["On-screen pad", "Phones — slide between \u25c4 and \u25ba to change direction without lifting your thumb"]
-        ],
-        combos: [
-          { id: "anvil-latch", label: "Anvil + Latch", sub: "Flip & charge \u00b7 The Seam Gate", play: "games/pair-level/index.html",
-            levels: [ { id: "seam-gate", label: "Level 1" }, { id: "seam-gate-2", label: "Level 2" }, { id: "seam-gate-3", label: "Level 3" } ] },
-          { id: "cinder-vesper", label: "Cinder + Vesper", sub: "Stealth \u00b7 Shadow Run (has the first enemy)", play: "games/shadow-run/index.html",
-            levels: [ { id: "shadow-run", label: "Level 1" }, { id: "shadow-run-2", label: "Level 2" }, { id: "shadow-run-3", label: "Level 3" } ] },
-          { id: "rook-wren", label: "Rook + Wren", sub: "Telekinesis \u00b7 Uplift (launch + surge)", play: "games/uplift/index.html",
-            levels: [ { id: "uplift", label: "Level 1" }, { id: "uplift-2", label: "Level 2" }, { id: "uplift-3", label: "Level 3" } ] },
-          { id: "temper-citrine", label: "Temper + Citrine", sub: "Blades & arc \u00b7 Arcline (plant + power)", play: "games/arcline/index.html",
-            levels: [ { id: "arcline", label: "Level 1" }, { id: "arcline-2", label: "Level 2" }, { id: "arcline-3", label: "Level 3" } ] },
-          { id: "magpie-babel", label: "Magpie + Babel", sub: "Shield & command \u00b7 Runeway (shield + power the lift)", play: "games/runeway/index.html",
-            levels: [ { id: "runeway", label: "Level 1" }, { id: "runeway-2", label: "Level 2" }, { id: "runeway-2b", label: "Level 2-2" }, { id: "runeway-3", label: "Level 3" } ] }
-        ] },
-      { id: "v2", label: "v2 (preview)",
+      /* VR-215 (9/24, Jordan) — v2 is the default. It has one slice per pair where v1
+         has three levels, so v1 stays one pick away and says why it is worth opening.
+         Level ids untouched: they are game_scores.game_id, and no board migrates. */
+      { id: "v2", label: "v2 (current)",
         controls: [
           ["Arrow keys", "Move \u2014 up is jump"],
           ["Q / W / E", "Primary / Secondary / Signature \u2014 the buttons relabel per character"],
@@ -404,6 +386,27 @@ VEILRUN.games = [
             levels: [ { id: "shadow-run-v2", label: "Slice 1 \u2014 Quiet Catering" } ] },
           { id: "magpie-babel", label: "Magpie + Babel \u00b7 Cross the Seam", play: "games/runeway-v2/index.html",
             levels: [ { id: "runeway-v2", label: "Slice 1 \u2014 Cross the Seam" } ] }
+        ] },
+      { id: "v1", label: "v1 (classic \u00b7 16 levels)",
+        controls: [
+          ["Arrows / A · D", "Move"],
+          ["Up / W / Space", "Jump"],
+          ["Tab or Shift", "Switch character"],
+          ["E or Enter", "Use the active character's ability"],
+          ["R", "Reset the level"],
+          ["On-screen pad", "Phones — slide between \u25c4 and \u25ba to change direction without lifting your thumb"]
+        ],
+        combos: [
+          { id: "anvil-latch", label: "Anvil + Latch", sub: "Flip & charge \u00b7 The Seam Gate", play: "games/pair-level/index.html",
+            levels: [ { id: "seam-gate", label: "Level 1" }, { id: "seam-gate-2", label: "Level 2" }, { id: "seam-gate-3", label: "Level 3" } ] },
+          { id: "cinder-vesper", label: "Cinder + Vesper", sub: "Stealth \u00b7 Shadow Run (has the first enemy)", play: "games/shadow-run/index.html",
+            levels: [ { id: "shadow-run", label: "Level 1" }, { id: "shadow-run-2", label: "Level 2" }, { id: "shadow-run-3", label: "Level 3" } ] },
+          { id: "rook-wren", label: "Rook + Wren", sub: "Telekinesis \u00b7 Uplift (launch + surge)", play: "games/uplift/index.html",
+            levels: [ { id: "uplift", label: "Level 1" }, { id: "uplift-2", label: "Level 2" }, { id: "uplift-3", label: "Level 3" } ] },
+          { id: "temper-citrine", label: "Temper + Citrine", sub: "Blades & arc \u00b7 Arcline (plant + power)", play: "games/arcline/index.html",
+            levels: [ { id: "arcline", label: "Level 1" }, { id: "arcline-2", label: "Level 2" }, { id: "arcline-3", label: "Level 3" } ] },
+          { id: "magpie-babel", label: "Magpie + Babel", sub: "Shield & command \u00b7 Runeway (shield + power the lift)", play: "games/runeway/index.html",
+            levels: [ { id: "runeway", label: "Level 1" }, { id: "runeway-2", label: "Level 2" }, { id: "runeway-2b", label: "Level 2-2" }, { id: "runeway-3", label: "Level 3" } ] }
         ] },
       { id: "v0", label: "v0 (legacy)",
         combos: [
@@ -691,7 +694,9 @@ VEILRUN.loom = {
 };
 
 VEILRUN.updates = [
-  { date: "2026-09-23", games: ["pair-levels", "arena-3d"], title: "Seam Gate v2: getting shot holds for a beat now, not just a shake", text: "**Proving Ground has frozen the world for a fraction of a second on every real hit since the arena existed — a strike landing, an Execute connecting, dying.** It's the thing that makes a hit feel like it happened rather than just registering. The 2D games had the shake we added last week, and nothing else.\n\n**A turret catching Latch now holds the frame too**, the same beat Proving Ground's own hits carry, right before he resets to his last safe spot. It's a shared system now instead of arena-only, so the next 2D game that wants it doesn't rebuild it from scratch.\n\n**One rule carried over unchanged: nothing that pauses the fight is ever touched by the reduced-motion setting.** It exists to stop time, not to move — scaling it down would quietly make a strike window last longer or shorter depending on an accessibility toggle, which is never allowed to happen.\n\n**Nothing about either game's numbers moved.** Same damage, same timing, same solve.", cta: { label: "Open the Lab →", href: "#lab" } },
+  { date: "2026-09-24", games: ["arena-3d"], title: "Proving Ground starts in third person now, at full resolution", text: "**New runs open behind Vesper's shoulder instead of in the fixed arcade view.** Third person is the camera the arena plays best in; arcade is still there in Settings → View, or two presses of V.\n\n**The pixel grid is off by default.** It drew the arena at a fraction of your screen's real resolution — on a phone, a small fraction — which is why it could look soft there. The chunky look is still in Settings → Render → Pixel grid if you liked it.\n\n**If you'd already opened Settings before, you get both changes once.** Anything you set after that sticks.", cta: { label: "▶ Play Proving Ground", href: "#games/arena-3d" } },
+  { date: "2026-09-24", games: ["pair-levels"], title: "2D Pair Levels: v2 is the default now, and a Flip no longer drops Anvil on Latch", text: "**Pick a pair and you land in v2 now** — the analog stick, the ability buttons that relabel per character, the reworked kits. v2 is one slice per pair; v1's sixteen levels are still one pick away in the Version menu, marked classic, and every time you've posted there is still on its board.\n\n**Seam Gate v2: Latch's Flip used to drop Anvil right on top of him.** Anvil's body stops shots, so every Flip came with a free shield the level was never meant to hand out. The two of them now keep where they were standing relative to each other when they cross — and if Anvil's spot has no floor on the other side, he lands on the nearest solid ground on his own side, not on Latch.", cta: { label: "▶ Play 2D Pair Levels", href: "#games/pair-levels" } },
+  { date: "2026-09-23", games: ["pair-levels", "arena-3d"], title: "Seam Gate v2: getting shot holds for a beat now, not just a shake", text: "**Proving Ground has frozen the world for a fraction of a second on every real hit since the arena existed — a strike landing, an Execute connecting, dying.** It's the thing that makes a hit feel like it happened rather than just registering. The 2D games had the shake we added last week, and nothing else.\n\n**A turret catching Latch now holds the frame for a beat** — Latch lit up where the shot landed, sparks at the impact — before the level resets. It holds as long as Proving Ground does on a death, because in Seam Gate that is what a hit is. It's a shared system now instead of arena-only, so the next 2D game that wants it doesn't rebuild it from scratch.\n\n**One rule carried over unchanged: nothing that pauses the fight is ever touched by the reduced-motion setting.** It exists to stop time, not to move — scaling it down would quietly make a strike window last longer or shorter depending on an accessibility toggle, which is never allowed to happen.\n\n**Nothing about either game's numbers moved.** Same damage, same timing, same solve.", cta: { label: "Open the Lab →", href: "#lab" } },
   { date: "2026-09-23", games: ["arena-3d"], title: "Proving Ground: the hit-direction wedge could point at the wrong side entirely", text: "**Two problems with the wedge we shipped two days ago, and only one of them was visible.** It could flash pointing at the exact opposite side from whoever actually hit you — ahead read as behind, left read as right. And if a second attacker landed inside the brief invulnerability your first hit buys you, nothing showed for that second hit at all: the pool of four indicators was sitting there unused because the code never let a second hit reach it.\n\n**Both are fixed.** The wedge now points at the attacker's real position, checked in all three camera modes. And invulnerability still does exactly one job — stopping a second hit from doing damage — it no longer also hides where that hit came from.\n\n**Nothing about damage changed.** You still can't be hurt twice in the same instant; you can now see both hits when it happens.", cta: { label: "▶ Play Proving Ground", href: "#games/arena-3d" } },
   { date: "2026-09-21", games: ["arena-3d"], title: "Proving Ground: you can now tell when you got hit from behind", text: "**A hitmarker has told you when your own strike landed since the arena existed. Nothing ever told you where an enemy's hit came from.** In a room where husks come through seam tears and the walls block your view, getting hit from off-screen used to read as getting hit by nothing.\n\n**A wedge flashes on screen now, pointed at whoever just hit you.** It reads off your real camera angle, so it points the right way whether you're in arcade, third person or first person — and it's a shape, not just a colour, so it still works with colour vision turned off.\n\n**Two hits from different directions in the same moment both show.** Nothing about how much damage you take, or how the fight itself plays, has changed.", cta: { label: "▶ Play Proving Ground", href: "#games/arena-3d" } },
   { date: "2026-09-21", title: "A filtered board with nothing on it used to just... not show anything", text: "**Tap \"On me\" or \"On Claude\" on the Board page, and if nothing matched, you got a blank space where the board should be.** Not an error, not a message — just nothing, which looks exactly like the page failing to load. There was no way to tell \"you're all caught up\" from \"this is broken.\"\n\n**It says so now.** An empty filter reads \"Nothing on Jordan's plate right now\" (or Claude's, or the board's) instead of going silent.\n\n**And a handful of places that update without a page change now announce themselves properly** — the leaderboards, the gallery filter, and the feedback lists were all already writing the right text on screen, but screen readers had no way to know that text had just appeared. They do now.", cta: { label: "Open the Board →", href: "#board" } },

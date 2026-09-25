@@ -2,12 +2,11 @@
    Every Runeway build loads this and renders a dropdown from it, so the list stays
    consistent everywhere. The Lab's Magpie+Babel tile opens the DEFAULT (first) entry;
    other builds are reachable from this in-game Version dropdown.
-   NOTE: v1 stays the default on purpose while v2 (kit + controller preview) is being
-   proven. To promote v2: move it to the top here AND repoint the combo `play` in
-   js/data.js to /games/runeway-v2/index.html. Same pattern as pair-level/versions.js. */
+   v2 was promoted to default on 9/24 (VR-215): top of this array AND versions[0]
+   in js/data.js. Same pattern as pair-level/versions.js. */
 window.VR_VERSIONS = [
-  { id: "v1", name: "Runeway",                  url: "/games/runeway/index.html" },
-  { id: "v2", name: "Cross the Seam (preview)", url: "/games/runeway-v2/index.html" }
+  { id: "v2", name: "Cross the Seam",           url: "/games/runeway-v2/index.html" },   // VR-215 — default since 9/24
+  { id: "v1", name: "Runeway (4 levels)",       url: "/games/runeway/index.html" }
 ];
 (function () {
   var el = document.getElementById("verpick");

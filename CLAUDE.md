@@ -443,10 +443,6 @@ in the folder before assuming:
   design for which existing verb it would have to sit beside is exactly "what a pickup does" — the
   card's own out-of-scope line — so `_touch.js` is untouched and mobile interact is left for whichever
   follow-up card gives a pickup an actual effect.
-- **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
-  all six endings reachable), plus `_check.js`.
-
-**Site-level, sixteen at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
   **`_feel.js` (added 9/20 with VR-195) generalises `_exec.js`'s ruling past Execute — "no verb may
   produce nothing" — to every verb the arena actually has.** It **discovers** the verb set from
   `../_engine/actions.js`'s `"3d-arena"` profile (VR-191) rather than typing a list, in **71 checks**:
@@ -466,7 +462,7 @@ in the folder before assuming:
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 
-**Site-level, eighteen at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
+**Site-level, twenty at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
 except `_kit.js`: `_check.js` (the
 `VEILRUN.games` manifest), `_hubcheck.js` (Hub states), `_updatescheck.js` (weekly-hero states),
 `_grefcheck.js` (Game Reference catalogue + matcher), `_docscheck.js` (ship-checklist item 5),
@@ -483,7 +479,8 @@ except `_kit.js`: `_check.js` (the
 `_silent.js` (no-result UI states, VR-172's ruling applied to the interface, **17 checks**),
 `_floattext.js` (the shared pooled floating-combat-text component, **44 checks**),
 `_counter.js` (the shared easing counter, **44 checks**),
-`_hitstop.js` (the shared budgeted hit-stop channel, **39 checks**).
+`_hitstop.js` (the shared budgeted hit-stop channel, **55 checks**),
+`_cross.js` (the 2D engine's two-world crossing — where the carried mate lands, **21 checks**).
 Everything relevant must be green before hand-off.
 
 **`_floattext.js` (added 9/20, VR-201) is the fifth harness in the `_clock.js` family — a REAL
@@ -677,7 +674,34 @@ it, the frame loop drives `CLOCK.scale` from `HITSTOP.active()`, `resetRun()` ca
 220 death) is untouched; and that `pair-level-v2` raises one at the real turret-hit call site and
 ticks it every frame, not only while a level is being played. Mutation-tested against the real
 module — the latch turned into a sum, the cap removed, and `update()`'s zero-floor removed all
-diverge from the real class. **39 checks.**
+diverge from the real class.
+⚠️ **VR-198's first build passed this harness and failed Jordan's playtest (9/24).** Seam Gate v2
+raised the freeze and called `softReset()` on the same line, so the frame the world held was Latch
+already back at the spawn — and Section 5 asserted the literal text `HITSTOP.raise(90);
+softReset();`, i.e. **the bug, written down as the bar.** The second pass splits the hit into
+`caught()` (raise the hold, spawn the tells) and `settleCaught()` (reset only once the hold has run
+out), and Section 5b now **lifts both by name and drives them frame by frame at 1/60s against the
+real class**, with a `softReset()` stub that records where Latch stood when it ran: every held frame
+must show the impact, the reset must land on the first frame after the hold, and **mutant D — the
+first build's ordering put back — must show the spawn.** The hold is 220ms, read off Proving
+Ground's largest `hitStop()` call site (the death freeze) rather than typed, because a shot in Seam
+Gate ends the attempt. Same family as VR-211: **the thing that was checked was not the thing the
+player sees.** The release-steward review of that pass found one more route to the same failure —
+input was gated only on `state==="play"`, so a Flip pressed as a dodge reflex inside the hold
+teleported Latch while the frame was held; `isPlay`, `simStep()` and the win check now all stand down
+while a catch is pending. **55 checks.**
+
+**`_cross.js` (added 9/24, VR-214) runs the real `VE.World.cross()` against the real Seam Gate v2
+level.** `games/_engine/engine.js` is evaluated in a sandbox and the two maps plus Anvil's and
+Latch's body sizes are lifted out of `pair-level-v2/index.html`, never retyped. Until VR-214 a caller
+passing no `mateDX` got the mate dropped at the crosser's exact x, so every Flip stacked Anvil on
+Latch — and Anvil's body blocks shots, so every Flip was also a free bulwark (Jordan, 9/24). The mate
+now keeps its offset and its own feet line; a kept spot with no footing or inside a wall falls back
+to the nearest standable spot **on the mate's own side**, never on top of the crosser. It proves the
+offset kept both ways, a round trip as a no-op, the chasm fallback (footing · own side · no stack ·
+feet on Latch's line), and that an authored door (`atX` + `mateDX`, Runeway's rune column) lands
+exactly where it always did. Mutation-tested: the pre-VR-214 default put back stacks Anvil on Latch;
+trusting the kept spot without checking the ground drops him into the chasm. **21 checks.**
 
 **`_actions.js` (added 9/20, VR-191) is the fourth harness in the `_clock.js` family — a REAL
 SHARED MODULE, `require`d directly, never lifted.** `games/_engine/actions.js` is the action

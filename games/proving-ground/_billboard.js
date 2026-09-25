@@ -130,8 +130,68 @@ ok("you face where you move",
 ok("facing never rides the camera's yaw again",
    !/mouse\.yaw = Math\.atan2/.test(html),
    "the old arcade line is gone rather than living beside the new one");
-ok("pixel grid on by default", /var PIXEL = 4;/.test(html));
-ok("antialias off while pixelated", /antialias: PIXEL <= 1/.test(html), "smoothing at low res kills the effect");
+/* VR-216 (9/24, Jordan) — the default flipped. This line read "pixel grid on by
+   default" and asserted 4:1 from VR-91 until then; the grid itself is unchanged
+   and still one [ press or one Settings row away. */
+ok("pixel grid OFF by default (VR-216)", /var PIXEL = 1;/.test(html), "was 4:1 from VR-91 to 9/24");
+ok("third person is the default view (VR-216)", /map: MAPS\[0\]\.id, cam: "third",/.test(html), "arcade was the v1 default");
+{
+  /* The migration is what makes the new defaults reach the crew at all: save()
+     writes every key, so an untouched device still has arcade + 4:1 on disk.
+     Lifted by name and run, never retyped. */
+  const at = html.indexOf("function migrateDefaults(");
+  let depth = 0, i = html.indexOf("{", at), end = -1;
+  for (; at >= 0 && i < html.length; i++) { if (html[i] === "{") depth++; else if (html[i] === "}" && --depth === 0) { end = i + 1; break; } }
+  const src = end > 0 ? html.slice(at, end) : "";
+  ok("migrateDefaults() lifts out of the real file", !!src);
+  const dv = +((html.match(/\n\s*dv: (\d+),/) || [])[1]);
+  ok("the defaults version is declared on DEF", dv >= 2, "dv " + dv);
+  const run = (fnSrc, saved) => {
+    const DEF = { cam: "third", pixel: 1, dv: dv, fog: 0.03 };
+    const V = Object.assign({}, DEF, saved);
+    const box = {}; vm.createContext(box);
+    vm.runInContext(fnSrc + "\n;this.m = migrateDefaults;", box);
+    return { changed: box.m(saved, V, DEF), V };
+  };
+  if (src) {
+    const old = run(src, { cam: "arcade", pixel: 4, fog: 0.05, hand: "right" });
+    ok("a blob saved before VR-216 boots in third person with the grid off", old.changed && old.V.cam === "third" && +old.V.pixel === 1);
+    ok("…and every other saved setting is left exactly as it was", old.V.fog === 0.05 && old.V.hand === "right");
+    ok("…and is stamped, so it happens once", old.V.dv === dv);
+    const chose = run(src, { cam: "arcade", pixel: "4", dv: dv });
+    ok("a choice made AFTER the migration survives every reload", !chose.changed && chose.V.cam === "arcade" && chose.V.pixel === "4");
+    const fresh = run(src, {});
+    ok("a fresh device is untouched — it already starts on DEF", !fresh.changed);
+    const mut = src.replace("if (+saved.dv >= DEF.dv) return false;", "");
+    ok("mutant source actually changed (the once-only guard removed)", mut !== src);
+    const mchose = run(mut, { cam: "arcade", pixel: "4", dv: dv });
+    ok("MUTANT KILLED — without the guard, a player's later choice is overwritten on every boot", mchose.changed && mchose.V.cam === "third");
+  }
+}
+ok("antialias off while pixelated — decided from the grid this device BOOTS with", /antialias: BOOT_PIXEL <= 1/.test(html), "smoothing at low res kills the effect");
+{
+  /* VR-216 — antialias is fixed at renderer construction, before TUNE applies the
+     saved grid. With the default now OFF, deciding it from PIXEL would leave it on
+     for anyone who turns the grid back on. BOOT_PIXEL pre-reads the saved blob;
+     it must read TUNE's own key and honour TUNE's own defaults version. */
+  const ls = (html.match(/var LS = "([^"]+)";/) || [])[1];
+  const bootKey = (html.match(/var BOOT_PIXEL = [\s\S]*?localStorage\.getItem\("([^"]+)"\)/) || [])[1];
+  const bootDv = +((html.match(/return \(\+t\.dv >= (\d+) && \+t\.pixel > 1\)/) || [])[1]);
+  const defDv = +((html.match(/\n\s*dv: (\d+),/) || [])[1]);
+  ok("BOOT_PIXEL reads TUNE's own storage key", !!ls && bootKey === ls + "tune", bootKey + " vs " + ls + "tune");
+  ok("BOOT_PIXEL honours TUNE's defaults version", bootDv > 0 && bootDv === defDv, bootDv + " vs " + defDv);
+  const at = html.indexOf("var BOOT_PIXEL = (function () {");
+  const end = html.indexOf("})();", at);
+  const src = at >= 0 && end > at ? html.slice(at, end + 5) : "";
+  const boot = (blob) => { const store = blob == null ? {} : { [bootKey]: JSON.stringify(blob) };
+    const box = { PIXEL: 1, localStorage: { getItem: k => (k in store ? store[k] : null) } };
+    vm.createContext(box); vm.runInContext(src + "\n;this.out = BOOT_PIXEL;", box); return box.out; };
+  if (src) {
+    ok("a device that turned the grid back on boots pixelated, antialias off", boot({ dv: defDv, pixel: "4" }) === 4);
+    ok("a pre-VR-216 blob boots with the grid off (it is about to be migrated)", boot({ cam: "arcade", pixel: 4 }) === 1);
+    ok("a fresh device boots with the grid off", boot(null) === 1);
+  } else ok("BOOT_PIXEL lifts out of the real file", false);
+}
 ok("sprites switch to NearestFilter", /NearestFilter/.test(html));
 
 console.log("\n[yaw convention]");

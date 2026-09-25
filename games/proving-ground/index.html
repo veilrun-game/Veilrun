@@ -2278,10 +2278,28 @@ var MESH_PI = Math.PI;
    instead of art pasted onto 3D.
    PIXEL = css pixels per rendered pixel. 1 = off. Cycle live with [.
    Antialiasing is OFF while it's on: smoothing at low res is exactly the thing
-   that stops it looking like pixel art. -------------------------------------- */
-var PIXEL = 4;
+   that stops it looking like pixel art.
+   VR-216 (9/24, Jordan) — OFF by default now. 4:1 on a phone is a frame drawn at
+   roughly 1/8–1/12 of the screen's real resolution (a CSS pixel is already 2–3
+   device pixels there), which is the likeliest source of Toddlez's "quality on
+   mobile" note. The grid is one [ press or one Settings row away for anyone who
+   wants the VR-91 look back. -------------------------------------------------- */
+var PIXEL = 1;
 var PIXEL_STEPS = [1, 2, 3, 4, 6, 8];
-var renderer = new THREE.WebGLRenderer({ antialias: PIXEL <= 1, powerPreference: "high-performance" });
+/* VR-216 — antialiasing is fixed the moment the renderer is built, long before
+   TUNE applies the saved grid. Decided off the hard-coded default it would stay ON
+   for anyone who turns the grid back on — smoothing the low-res frame, the exact
+   thing that stops it reading as pixel art. So read what this device will boot
+   with: its saved grid if the blob is already on defaults version 2, otherwise
+   the default (a pre-VR-216 blob is about to be migrated to 1). The key and the
+   version are asserted equal to TUNE's own in _billboard.js. */
+var BOOT_PIXEL = (function () {
+  try {
+    var t = JSON.parse(localStorage.getItem("vr_arena_tune") || "{}") || {};
+    return (+t.dv >= 2 && +t.pixel > 1) ? +t.pixel : PIXEL;
+  } catch (e) { return PIXEL; }
+})();
+var renderer = new THREE.WebGLRenderer({ antialias: BOOT_PIXEL <= 1, powerPreference: "high-performance" });
 function applyPixelScale() {
   // --padh first: the HUD stays position:fixed and needs to know where the pad
   // starts, or the pip row and the Shroud label render behind the buttons. It's
@@ -6980,7 +6998,10 @@ if (typeof module !== "undefined" && module.exports) { module.exports.PRESETS = 
 var TUNE = (function () {
   var LSK = LS + "tune";
   var DEF = {
-    map: MAPS[0].id, cam: "arcade",
+    map: MAPS[0].id, cam: "third",   // VR-216 (9/24, Jordan) — "the better feeling of the examples"; arcade was the v1 default
+    /* VR-216 — the defaults version. Bumped only when a default changes AND
+       every existing device should receive it once; see migrateDefaults(). */
+    dv: 2,
     pitch: Math.round(ARC.pitch * 180 / Math.PI),
     /* Touch starts the arcade camera CLOSER (Jordan, 8/16 — "potentially start
        closer"). On a phone the character is the thing you're reading, and 13.5
@@ -7033,12 +7054,29 @@ var TUNE = (function () {
   };
   var V = {};
   for (var k in DEF) V[k] = DEF[k];
+  var saved = {};
   try {
-    var saved = JSON.parse(localStorage.getItem(LSK) || "{}");
+    saved = JSON.parse(localStorage.getItem(LSK) || "{}") || {};
     for (var k2 in saved) if (k2 in V) V[k2] = saved[k2];
   } catch (e) {}
 
   function save() { try { localStorage.setItem(LSK, JSON.stringify(V)); } catch (e) {} }
+
+  /* VR-216 — why a new default needs a migration here. save() writes the WHOLE
+     settings object, so every device that ever opened Settings has cam:"arcade"
+     and pixel:4 on disk whether anybody chose them or not — a changed DEF alone
+     would reach nobody in the crew. A device whose saved blob predates `dv` 2
+     takes the two new defaults ONCE and is stamped; anything picked after that
+     is a real choice and survives every reload. A fresh device has no blob and
+     already starts on DEF. Everything else in the blob is left exactly as saved.
+     Pure on purpose: _billboard.js lifts it by name and runs it. */
+  function migrateDefaults(saved, V, DEF) {
+    if (!saved || typeof saved !== "object" || !Object.keys(saved).length) return false;
+    if (+saved.dv >= DEF.dv) return false;
+    V.cam = DEF.cam; V.pixel = DEF.pixel; V.dv = DEF.dv;
+    return true;
+  }
+  if (migrateDefaults(saved, V, DEF)) save();
 
   /* VR-132 — the generalised form of the correction VR-113 had to make by hand
      for the camera mode. A stored value that is not one of the control's options
