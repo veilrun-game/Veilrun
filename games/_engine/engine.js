@@ -432,7 +432,17 @@
     //   base, blocks (required) · atX (explicit landing x — for rune/anchor doors;
     //   omit for a free flip, which snaps to nearest footing) · mateDX · carry (default true)
     // Returns false if a free flip found no footing (caller can show a hint).
+    //
+    // VR-214 — WHERE THE MATE LANDS. With an explicit `mateDX` (an authored door:
+    // Runeway's rune column) the mate lands at that offset, exactly as before.
+    // WITHOUT one, the mate used to land at `nx + 0` — on top of the crosser. In
+    // Seam Gate that stacked Anvil onto Latch on every flip, and Anvil's body
+    // blocks shots, so the flip handed Latch a free bulwark (Jordan, 9/24). The
+    // mate now KEEPS ITS OFFSET from the crosser and its own feet line; if that
+    // spot has no footing or is inside a wall on the other side, it takes the
+    // nearest footing on its own side, and never lands on top of the crosser.
     cross: function (o, mate, tw, opts) {
+      var ox0 = o.x;
       var base = opts.base, blocks = opts.blocks, feetY = o.y + o.h, nx = (opts.atX != null) ? opts.atX : o.x;
       if (opts.atX == null && opts.snap !== false) {
         var cx = nx + o.w / 2;
@@ -446,8 +456,48 @@
         }
       }
       o.world = tw; o.x = nx; o.vy = 0;
-      if (mate && opts.carry !== false) { mate.world = tw; mate.x = nx + (opts.mateDX || 0); mate.y = o.y; mate.vx = 0; mate.vy = 0; }
+      if (mate && opts.carry !== false) {
+        if (opts.mateDX != null) { mate.world = tw; mate.x = nx + opts.mateDX; mate.y = o.y; mate.vx = 0; mate.vy = 0; }
+        else World.keepFormation(o, mate, mate.x - ox0, tw, base, blocks);
+      }
       return true;
+    },
+    // Can a body of this size stand at (x, y) in `world` — not inside a wall,
+    // inside the level, with footing somewhere in the few tiles below its feet?
+    standable: function (base, world, x, y, w, h, blocks) {
+      if (x < 0 || x + w > COLS * TILE) return false;
+      var tx0 = Math.floor(x / TILE), tx1 = Math.floor((x + w - 1) / TILE);
+      var ty0 = Math.floor(y / TILE), ty1 = Math.floor((y + h - 1) / TILE);
+      for (var ty = ty0; ty <= ty1; ty++) for (var tx = tx0; tx <= tx1; tx++) {
+        if (ty >= 0 && World.solidAt(base, world, tx, ty, blocks)) return false;
+      }
+      return World.groundBelow(base, world, x + w / 2, y + h, blocks);
+    },
+    // VR-214 — place `mate` in world `tw` keeping offset `dx` from `o` (already
+    // landed). Order: the kept spot, as-is · the nearest standable spot within
+    // three tiles on the mate's own side, feet on the crosser's line · right
+    // beside the crosser on that side · finally the crosser's own footing, which
+    // is known-good because `o` is standing on it (the pre-VR-214 behaviour, now
+    // the last resort instead of the rule).
+    keepFormation: function (o, mate, dx, tw, base, blocks) {
+      var side = dx > 0 ? 1 : dx < 0 ? -1 : (o.face ? -o.face : -1);
+      var oc = o.x + o.w / 2, gap = (o.w + mate.w) / 2;
+      var feetOnO = o.y + o.h - mate.h;
+      function ownSide(x) { var d = (x + mate.w / 2) - oc; return d * side >= gap; }
+      var tries = [{ x: o.x + dx, y: mate.y, any: true }];
+      for (var d = 1; d <= 3; d++) {
+        tries.push({ x: o.x + dx - side * d * TILE, y: feetOnO });
+        tries.push({ x: o.x + dx + side * d * TILE, y: feetOnO });
+      }
+      tries.push({ x: side > 0 ? o.x + o.w + 3 : o.x - mate.w - 3, y: feetOnO });
+      var pick = null;
+      for (var i = 0; i < tries.length && !pick; i++) {
+        var t = tries[i];
+        if ((t.any || ownSide(t.x)) && World.standable(base, tw, t.x, t.y, mate.w, mate.h, blocks)) pick = t;
+      }
+      if (!pick) pick = { x: o.x + (o.w - mate.w) / 2, y: feetOnO };
+      mate.world = tw; mate.x = pick.x; mate.y = pick.y; mate.vx = 0; mate.vy = 0;
+      return pick;
     }
   };
 

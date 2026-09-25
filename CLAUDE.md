@@ -184,6 +184,12 @@ explicitly rather than omitting an item.
      that restates what git already knows is one more thing that can drift.
      **If a card ever needs two branches, the second is `vr-<number>-<slug>-2`** — still derivable
      by the same glob.
+     ⚠️ **A BATCH run's branch does not follow this shape (VR-212, 9/22).** `batch.sh` commits several
+     cards to one shared **`run/<date>`** branch, which carries no card number in its name at all — the
+     numbers live in the *commit subjects* on that branch instead, and anything deriving card state
+     (`_boardstate.js`, the reconciler) reads THOSE, never the branch name. Both shapes are real and
+     both stay supported: a hand-built card branch is `vr-<number>-<slug>`, a batch branch is
+     `run/<date>` holding several commits, each citing its own card in the subject.
    · **Branch merged into `main`** → **move it to `🟢 Done`.** This is derivable, never a question:
      `git branch --merged main` lists what has landed. **The Producer's sweep checks this every run**,
      so a card cannot sit in review after its branch is merged.
@@ -370,7 +376,7 @@ in the folder before assuming:
   come from.** A hit confirm already existed (`hitmark()`, VR-104); nothing answered incoming
   direction, so a husk hitting from behind a wall or through a seam tear read as being hit by
   nothing. `hitDirection()`, `camYaw()` and the `DDIR` pool constructor are lifted out of the HTML
-  in **19 checks**, never a retyped copy, and proven at execution: direction is computed from the
+  in **31 checks**, never a retyped copy, and proven at execution: direction is computed from the
   attacker's real position through the real `camYaw()`, arcade and third are proven to disagree
   about the same attacker (and to agree when given the same yaw, ruling out a mode-independent
   bug) — the identical discipline `_exec.js` holds `verbYaw()` to. **Pooled exactly like
@@ -380,6 +386,19 @@ in the folder before assuming:
   silently dropped the fifth hit — the count alone can't tell "reused" from "discarded"), and
   `resetRun()` is proven to call the real `hitDirReset()` rather than a same-named stand-in.
   **The indicator is a CSS border-triangle, not a colour** — the A11Y bar applied at creation.
+  ⚠️ **VR-211 (9/22) found the bar green and the game wrong on two counts it shipped without
+  covering.** `hurtPlayer()`'s i-frame early-return sat BEFORE `hitDirection()`, so only the first
+  attacker inside any 0.62s window could ever claim a pool slot — the old "two simultaneous hits"
+  check called `hitDirection()` directly rather than the real caller and drove straight past it.
+  And the rotation formula pointed the wedge at the OPPOSITE side, invisibly, because its own
+  expected value was derived from the same formula it was checking. **The ruling: i-frames gate
+  damage, never the tell** — `hitDirection()` now runs unconditionally (given the player is alive)
+  and the damage/iframe-reset gate moved after it. The rotation now composes `camYaw()` with
+  `atan2(-dx,-dz)` (the "yaw pointing at" convention `e.yaw` already uses a few hundred lines down),
+  not `atan2(dx,dz) - camYaw()`. Section 3 now drives the two-hit proof through the real
+  `hurtPlayer()`; Section 4 names four screen positions (ahead/right/behind/left) independently of
+  the formula that produces them; Section 5 mutation-tests both defects by string-patching each
+  fixed function back to its exact shipped-broken shape and proving this bar turns red against it.
   **`_rng.js` (added 9/21 with VR-203) is the first harness for a shared engine module ALSO
   proven live against the game that consumes it**, because a judge that has been fully
   deterministic since VR-148 (`_arena.js`, its own `mulberry32(0x5EED01)` and friends) was
@@ -424,10 +443,6 @@ in the folder before assuming:
   design for which existing verb it would have to sit beside is exactly "what a pickup does" — the
   card's own out-of-scope line — so `_touch.js` is untouched and mobile interact is left for whichever
   follow-up card gives a pickup an actual effect.
-- **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
-  all six endings reachable), plus `_check.js`.
-
-**Site-level, sixteen at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
   **`_feel.js` (added 9/20 with VR-195) generalises `_exec.js`'s ruling past Execute — "no verb may
   produce nothing" — to every verb the arena actually has.** It **discovers** the verb set from
   `../_engine/actions.js`'s `"3d-arena"` profile (VR-191) rather than typing a list, in **71 checks**:
@@ -447,23 +462,25 @@ in the folder before assuming:
 - **Narrative** — `games/rook-signal/validate.js` walks the story graph (no dead ends, no orphans,
   all six endings reachable), plus `_check.js`.
 
-**Site-level, seventeen at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
+**Site-level, twenty at the repo root** *(nine until 9/16)*, all dependency-free and mutation-tested
 except `_kit.js`: `_check.js` (the
 `VEILRUN.games` manifest), `_hubcheck.js` (Hub states), `_updatescheck.js` (weekly-hero states),
 `_grefcheck.js` (Game Reference catalogue + matcher), `_docscheck.js` (ship-checklist item 5),
 `_leakcheck.js` (withheld lore, §5), `_pathcheck.js` (withheld *locations*, §5),
 `_clock.js` (the shared fixed-timestep clock, **42 checks**),
-`_board.js` (card state derived from git, **50 checks**),
+`_board.js` (card state derived from git, **55 checks**),
 `_kit.js` (scaffolded 9/16 VR-196, filled in 9/20 VR-185 — the shared character kit schema,
 **21 checks**),
 `_navcheck.js` (nav reachability, **23 checks**),
-`_archetypes.js` (audience-archetype doc structure, **26 checks**),
+`_archetypes.js` (audience-archetype doc structure, **27 checks**),
 `_bus.js` (the shared synchronous event bus, **38 checks**),
 `_motion.js` (the shared reduced-motion scales + camera-impulse bus, **51 checks**),
 `_actions.js` (the shared action registry + per-genre profiles, **74 checks**),
 `_silent.js` (no-result UI states, VR-172's ruling applied to the interface, **17 checks**),
 `_floattext.js` (the shared pooled floating-combat-text component, **44 checks**),
-`_counter.js` (the shared easing counter, **44 checks**).
+`_counter.js` (the shared easing counter, **44 checks**),
+`_hitstop.js` (the shared budgeted hit-stop channel, **55 checks**),
+`_cross.js` (the 2D engine's two-world crossing — where the carried mate lands, **21 checks**).
 Everything relevant must be green before hand-off.
 
 **`_floattext.js` (added 9/20, VR-201) is the fifth harness in the `_clock.js` family — a REAL
@@ -504,15 +521,19 @@ time-kind score is proven untouched, since counting up a clock digit-by-digit re
 than rewarding. Mutation-tested — landing no longer forced exact, a retarget keeping the stale
 `from`, and `skip()` no longer firing `onDone` all diverge from the real module. **44 checks.**
 
-**`_archetypes.js` (added 9/16, VR-208) checks the schema of a doc that does not exist yet.** The
-card is tagged `provable: no` about the only question that matters — no harness can tell a true
-archetype from a plausible one — so this one deliberately answers a smaller question: three entries,
-one per genre, each naming Wants / Leaves / Returns, each marked `hypothesis` or `evidenced` with
-evidence named when evidenced, and no archetype `.md` tracked in THIS repo (the doc belongs in
-`_Project Knowledge/`). Until VR-208's writing is done it reports a **`~` partial skip**, never a
-fail, and self-tests its schema against fixtures — **6/6 mutants killed**. The `##`/`**Key:**`
-delimiter syntax is this harness's proposal, not a sourced number, and is expected to be revisited
-once the doc exists.
+**`_archetypes.js` (added 9/16, VR-208; the doc itself written 9/22) checks the schema of the
+audience-archetypes doc, never its truth.** The card is tagged `provable: no` about the only
+question that matters — no harness can tell a true archetype from a plausible one — so this one
+deliberately answers a smaller question: three entries, one per genre, each naming Wants / Leaves /
+Returns, each marked `hypothesis` or `evidenced` with evidence named when evidenced, and no
+archetype `.md` tracked in THIS repo (the doc lives in `_Project Knowledge/Audience Archetypes
+(VR-208).md`). **27 checks**, self-tested against fixtures — **6/6 mutants killed** — and now also
+against the real doc. **All three entries ship marked `hypothesis`**, deliberately: VEILRUN has no
+players at scale yet, and marking anything `evidenced` before real playtest or analytics data exists
+would be inventing the confidence the doc is supposed to be honest about lacking. Re-scoring
+RETURN's candidates against these three (DONE WHEN #5) stays Jordan's/the Council's call — the
+harness does not and cannot check it. The `##`/`**Key:**` delimiter syntax is this harness's
+proposal, not a sourced number, and is expected to be revisited now that a real doc uses it.
 
 **`_navcheck.js` (added 9/16, VR-197) is the narrow provable slice pulled out of an otherwise
 `provable: no` card.** The full ask — is the site's IA *right* — needs Jordan's eye and the crew's
@@ -538,6 +559,20 @@ harness pins all three *and* proves the naive version really would have been wro
 it on faith. The git reader is injectable for the same reason: the repo has no unmerged branches
 today, so the rule that a card whose branch already reached `main` is **shipped, not pending** would
 have had zero coverage until the first night it mattered.
+⚠️ **VR-212 (9/22) is that first night, and the rule was wrong on arrival — not for the reason the
+card guessed.** PR #5 sat open with three real cards on `run/2026-09-20-3` and `_boardstate.js`
+reported IN REVIEW as zero. The card's working theory was that the branch→card mapping expected
+`vr-<number>-<slug>` and choked on a dateful batch-branch name. **It never reads branch names for
+card numbers — it was the wrong theory.** The real bug: `derive()` built a revision range by
+string-concatenating `"<branch> ^origin/main"` into ONE argv element and handed it to a reader
+backed by `execFileSync`, which never runs a shell — git received one unparseable ref with a space
+in it, rejected it, and the branch was silently skipped, for every branch, regardless of its name.
+Fixed by a `subjectsInRange(includeRef, excludeRef)` reader that passes the two refs as separate
+arguments. **The synthetic-repo mock had been hiding this the whole time**: its `subjectsOn` parsed
+the combined string back apart with `ref.split(" ")[0]`, which the real, unmocked git call could
+never do — so the mock quietly implemented a call shape production never actually made work. The
+mock now matches the real interface split (`subjectsOn` for one ref, `subjectsInRange` for a range),
+so reverting the fix makes the mock reproduce the exact silent-skip failure rather than passing.
 ⚠️ **`🟣 In progress` is REPORT-ONLY to the reconciler, and that was learned the same day.** A dry
 run against the real board found four cards there that git calls shipped, and **two would have been
 moved wrongly**: `VR-100` is a *recurring* weekly canon audit whose card is permanent, and `VR-98`
@@ -616,6 +651,57 @@ into the shared `Impulse` by `_billboard.js` and `_exec.js`, which lift the real
 `index.html` rather than retyping it — this file only proves the module those two consume. One 2D
 v2 game, `pair-level-v2`, raises an impulse when a turret's shot reaches Latch, reading the same
 `MOTION_FULL`/`MOTION_RED` data rather than inventing its own reduced-motion switch.
+
+**`_hitstop.js` (added 9/22, VR-198) is a REAL SHARED MODULE, `require`d directly, never lifted —
+the same `_clock.js`/`_motion.js`/`_bus.js` shape.** `games/_engine/hitstop.js` promotes Proving
+Ground's `game.hitStop` bypass (`if (game.hitStop > 0) { game.hitStop -= raw; } else {
+CLOCK.accumulate(...) }`) into a budgeted freeze channel any game can raise, then drives
+`CLOCK.scale` (VR-189) from it instead of special-casing the accumulator — the 2D track had
+nothing like it at all before this, so a turret hit read as a floating number and a camera shake
+with no held frame. **Latch, not a sum** — `raise(ms)` takes the max of whatever is still counting
+down, mirroring `Impulse`'s own rule for the identical reason: two hits landing three frames apart
+must not freeze the game longer than either hit alone would. **A hard cap of 0.44s**, twice the
+largest real call site (220ms, the death freeze), the same "twice the largest call site" margin
+`Impulse` uses. **Never scaled by the motion group, by construction rather than by comment** —
+`hitstop.js` does not import, require or reference `MOTION` at all, which this harness greps for
+directly rather than trusting the `:3763` comment to stay true; `_billboard.js` (VR-91) carries the
+same assertion from Proving Ground's side, updated to require the real module instead of regexing
+a literal that no longer lives in the HTML, the move VR-199 already made there for
+`MOTION_FULL`/`MOTION_RED`. Section 5 lifts the real consumer wiring out of BOTH `index.html`
+files — the `_floattext.js` Section 4 shape — proving Proving Ground's `hitStop(ms)` delegates to
+it, the frame loop drives `CLOCK.scale` from `HITSTOP.active()`, `resetRun()` calls the real
+`reset()`, and every existing call site (78/46 strike, 90 execute, 130 exec-kill, 55 kill, 70 hurt,
+220 death) is untouched; and that `pair-level-v2` raises one at the real turret-hit call site and
+ticks it every frame, not only while a level is being played. Mutation-tested against the real
+module — the latch turned into a sum, the cap removed, and `update()`'s zero-floor removed all
+diverge from the real class.
+⚠️ **VR-198's first build passed this harness and failed Jordan's playtest (9/24).** Seam Gate v2
+raised the freeze and called `softReset()` on the same line, so the frame the world held was Latch
+already back at the spawn — and Section 5 asserted the literal text `HITSTOP.raise(90);
+softReset();`, i.e. **the bug, written down as the bar.** The second pass splits the hit into
+`caught()` (raise the hold, spawn the tells) and `settleCaught()` (reset only once the hold has run
+out), and Section 5b now **lifts both by name and drives them frame by frame at 1/60s against the
+real class**, with a `softReset()` stub that records where Latch stood when it ran: every held frame
+must show the impact, the reset must land on the first frame after the hold, and **mutant D — the
+first build's ordering put back — must show the spawn.** The hold is 220ms, read off Proving
+Ground's largest `hitStop()` call site (the death freeze) rather than typed, because a shot in Seam
+Gate ends the attempt. Same family as VR-211: **the thing that was checked was not the thing the
+player sees.** The release-steward review of that pass found one more route to the same failure —
+input was gated only on `state==="play"`, so a Flip pressed as a dodge reflex inside the hold
+teleported Latch while the frame was held; `isPlay`, `simStep()` and the win check now all stand down
+while a catch is pending. **55 checks.**
+
+**`_cross.js` (added 9/24, VR-214) runs the real `VE.World.cross()` against the real Seam Gate v2
+level.** `games/_engine/engine.js` is evaluated in a sandbox and the two maps plus Anvil's and
+Latch's body sizes are lifted out of `pair-level-v2/index.html`, never retyped. Until VR-214 a caller
+passing no `mateDX` got the mate dropped at the crosser's exact x, so every Flip stacked Anvil on
+Latch — and Anvil's body blocks shots, so every Flip was also a free bulwark (Jordan, 9/24). The mate
+now keeps its offset and its own feet line; a kept spot with no footing or inside a wall falls back
+to the nearest standable spot **on the mate's own side**, never on top of the crosser. It proves the
+offset kept both ways, a round trip as a no-op, the chasm fallback (footing · own side · no stack ·
+feet on Latch's line), and that an authored door (`atX` + `mateDX`, Runeway's rune column) lands
+exactly where it always did. Mutation-tested: the pre-VR-214 default put back stacks Anvil on Latch;
+trusting the kept spot without checking the ground drops him into the chasm. **21 checks.**
 
 **`_actions.js` (added 9/20, VR-191) is the fourth harness in the `_clock.js` family — a REAL
 SHARED MODULE, `require`d directly, never lifted.** `games/_engine/actions.js` is the action

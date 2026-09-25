@@ -111,12 +111,21 @@ ok("cardsInSubject preserves ORDER OF APPEARANCE and does not sort",
  * every branch assertion below would be vacuously true against the real one.
  * These four are the reconciler's actual judgement, driven directly. */
 
+/* VR-212. subjectsOn only ever answers "origin/main" here — NOT the old
+   `branch + " ^origin/main"` concatenation derive() used to send it. That shape
+   mirrors the real gitIO()'s two-reader split post-fix: a single ref goes through
+   subjectsOn, a RANGE goes through subjectsInRange as two separate arguments. If
+   derive() ever regresses to building a combined-string range and calling
+   subjectsOn with it, this mock returns null for it (no branch's ref string is
+   literally "origin/main") exactly as the real, unpatched git() call did when
+   execFileSync rejected the concatenated ref — so the branch goes missing from
+   inReview the same silent way it did in production, and the tests below catch it. */
 function fakeIO(main, branches) {
   return {
-    subjectsOn: function (ref) {
-      if (ref === "origin/main") return main;
-      var b = ref.split(" ")[0];
-      return branches[b] || [];
+    subjectsOn: function (ref) { return ref === "origin/main" ? main : null; },
+    subjectsInRange: function (includeRef, excludeRef) {
+      if (excludeRef !== "origin/main") return null;
+      return branches[includeRef] || [];
     },
     unmergedBranches: function () { return Object.keys(branches); }
   };
@@ -143,6 +152,44 @@ ok("A CARD WHOSE BRANCH ALREADY REACHED MAIN IS SHIPPED, NOT PENDING — the rul
 ok("and that emptied branch is dropped from the map rather than listed with nothing",
    Object.keys(dup.branches).length === 0,
    JSON.stringify(Object.keys(dup.branches)));
+
+/* VR-212 — THE REGRESSION, REPRODUCED. PR #5 sat open on `run/2026-09-20-3` with
+   three real cards and `node _boardstate.js` reported IN REVIEW as zero: this is
+   that shape, with a batch-runner branch name rather than a hand-built one, to
+   prove the fix is not scoped to `vr-<number>-<slug>` alone (DONE WHEN #4). */
+var batch = B.derive(fakeIO(
+  ["VR-189 · shipped"],
+  { "origin/run/2026-09-20-3": ["VR-206 · a", "VR-195 · b", "VR-201 · c"] }
+));
+ok("a run/<date> batch branch is read exactly like a vr-###-slug one — three cards, all IN REVIEW",
+   eq(batch.inReview, ["VR-195", "VR-201", "VR-206"]),
+   JSON.stringify(batch.inReview));
+
+/* THE MUTANT: derive() built a revision RANGE by string-concatenating
+   "<branch> ^origin/main" into one argv element and handing it to subjectsOn().
+   execFileSync never runs a shell, so that string reaches git as a single
+   unparseable ref — git rejects it, the real io returns null, and the branch is
+   silently skipped. Reproduced directly against the mock, no branch required:
+   the combined string is not the literal ref "origin/main", so subjectsOn
+   returns null for it, exactly as production did. */
+ok("MUTANT KILLED — subjectsOn() with the old concatenated range returns null, same as the real bug",
+   fakeIO(["x"], {}).subjectsOn("origin/run/2026-09-20-3 ^origin/main") === null);
+ok("...while subjectsInRange() with the two refs as separate arguments answers correctly",
+   eq(fakeIO(["x"], { "origin/run/2026-09-20-3": ["VR-1 · y"] })
+       .subjectsInRange("origin/run/2026-09-20-3", "origin/main"),
+      ["VR-1 · y"]));
+
+/* THE REAL GIT CALL, NOT A MOCK OF IT. `_boardstate.js` exports subjectsInRange
+   so this can prove the actual execFileSync path — not a retyped copy of it —
+   handles a genuine range without throwing, using refs this repo already has
+   (HEAD / HEAD~5) so no branch has to be created or deleted to prove it. */
+var realRange = B.subjectsInRange("HEAD", "HEAD~5");
+ok("subjectsInRange() against the real repo does not throw and returns an array",
+   Array.isArray(realRange), JSON.stringify(realRange));
+var oracle = cp.execFileSync("git", ["log", "--format=%s", "HEAD", "^HEAD~5"],
+                              { cwd: __dirname, encoding: "utf8" }).split("\n").filter(Boolean);
+ok("...and it agrees with an independently-issued git log over the same range",
+   eq(realRange, oracle), JSON.stringify(realRange) + " vs " + JSON.stringify(oracle));
 
 var none = B.derive(fakeIO(["Two public hosts, not one"], {}));
 ok("a repo with no card numbers derives cleanly rather than throwing",

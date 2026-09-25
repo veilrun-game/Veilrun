@@ -101,6 +101,7 @@
 <script src="../_engine/clock.js"></script>
 <script src="../_engine/motion.js"></script>
 <script src="../_engine/floattext.js"></script>
+<script src="../_engine/hitstop.js"></script>
 <script>
 (function(){
   "use strict";
@@ -192,6 +193,38 @@
   var PREFERS_REDUCED=(function(){ try{ return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); } catch(e){ return false; } })();
   var MOTION_SHAKE=(PREFERS_REDUCED ? VE.Motion.MOTION_RED : VE.Motion.MOTION_FULL).shake;
   var SHAKE=new VE.Motion.Impulse();
+
+  /* VR-198 — the shared hit-stop channel. A shot reaching Latch now holds the
+     frame for a beat before softReset() takes over, the same weight Proving
+     Ground's own hits carry — never scaled by MOTION, same as there. */
+  var HITSTOP=new VE.HitStop();
+
+  /* VR-198, second pass (9/24) — Jordan played the first build and the beat
+     never showed. It raised the freeze and called softReset() on the SAME
+     line, so the frame the world held was Latch already standing back at the
+     spawn: the freeze was real and it held the wrong picture. The harness
+     passed because it checked that the call happened, not what was on screen.
+
+     caught() now raises the hold and nothing else; settleCaught() runs once per
+     rendered frame and only resets the level once the hold has run out. So the
+     frame that stands still is the one where the shot lands — Latch where he
+     was hit, the impact sparks, the "HIT" rising off him.
+
+     220ms, not 90: a shot here ends the attempt, which makes it the 2D
+     equivalent of Proving Ground's DEATH freeze (hitStop(220)), not of a chip
+     hit. _hitstop.js reads PG's largest call site rather than retyping it. */
+  var CAUGHT_HOLD_MS=220, caughtPending=false;
+  function caught(s){
+    if(caughtPending) return;                     // already holding — a second shot in the same beat adds nothing
+    caughtPending=true;
+    FLOATTEXT.spawn(L.x+L.w/2, L.y-26, L.world, "HIT", false);   // above the name tag and the active arrow, or the held frame reads as a smudge
+    for(var i=0;i<6;i++) sparks.push({x:s.x, y:s.y, vx:(i-2.5)*0.9, vy:-1.2-i*0.3, t:12, world:s.world});
+    HITSTOP.raise(CAUGHT_HOLD_MS);
+    SHAKE.raise(4, MOTION_SHAKE);
+  }
+  function settleCaught(){
+    if(caughtPending && !HITSTOP.active()){ caughtPending=false; softReset(); }
+  }
   var shakeMag=0;
   function rand(a,b){ return a+Math.random()*(b-a); }
 
@@ -210,6 +243,7 @@
     A.x=spawnA.x*TILE+6; A.y=spawnA.y*TILE-A.h+TILE; A.vx=0; A.vy=0; A.face=1; A.world=0; A.chargeT=0; A.growT=0; A.crossCd=0;
     L.x=spawnL.x*TILE+8; L.y=spawnL.y*TILE-L.h+TILE; L.vx=0; L.vy=0; L.face=1; L.world=0; L.crossCd=0; L.bookmark=null; L.augmentT=0;
     active="A"; shots=[]; sparks=[]; broken={}; cmdFlash=0; flipFlash=0;
+    caughtPending=false; HITSTOP.reset();   // VR-198 — a manual reset mid-hold is the reset; nothing fires again after it
     turrets=turretDefs.map(function(t){ return {x:t.x*TILE+TILE/2, y:t.y*TILE+TILE/2, world:t.world, dir:-1, cd:40, disabled:false}; });
   }
 
@@ -258,7 +292,7 @@
 
   var ctl=VE.Controller.mount({
     mount:document.getElementById("pad"), activeKey:"A", chars:{ A:A, L:L },
-    isPlay:function(){ return state==="play"; },
+    isPlay:function(){ return state==="play" && !caughtPending; },   // VR-198 — an ability pressed during the hold must not move the held frame
     onStart:function(){ if(state==="play") started=true; },
     on:{
       jump:jump, primary:function(){useSlot("primary");}, secondary:function(){useSlot("secondary");},
@@ -330,6 +364,7 @@
     if(flipFlash>0){ ctx.strokeStyle="rgba(110,200,245,"+(flipFlash/20)+")"; ctx.lineWidth=2; ctx.strokeRect(L.x-6,L.y-6,L.w+12,L.h+12); ctx.lineWidth=1; flipFlash--; }
     if(cmdFlash>0){ var a2=cur(); ctx.strokeStyle="rgba(110,200,245,"+(cmdFlash/22)+")"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(a2.x+a2.w/2,a2.y+a2.h/2,(22-cmdFlash)*3+10,0,7); ctx.stroke(); ctx.lineWidth=1; cmdFlash--; }
     [A,L].forEach(function(o){ charBody(o, o.world!==W); });
+    if(caughtPending && L.world===W){ ctx.strokeStyle="rgba(255,96,72,.95)"; ctx.lineWidth=3; ctx.strokeRect(L.x-4,L.y-4,L.w+8,L.h+8); ctx.lineWidth=1; }   // VR-198 — the held frame says who was hit
     var act=cur(); if(act.world===W){ ctx.fillStyle="#fff"; ctx.beginPath(); ctx.moveTo(act.x+act.w/2,act.y-10); ctx.lineTo(act.x+act.w/2-6,act.y-20); ctx.lineTo(act.x+act.w/2+6,act.y-20); ctx.closePath(); ctx.fill(); }
     // VR-201 — floating text: `slot.z` carries the world index here (spawn's
     // 3rd arg), not a depth, since this game is flat; a slot from the OTHER
@@ -399,6 +434,7 @@
      display. Split out of frame() unchanged — same statements, same order —
      so the only thing that changed is the clock driving them. */
   function simStep(){
+    if(caughtPending) return;   // VR-198 — catch-up steps owed in the same frame as the hit do not run past it
     var o=cur();
     if(o===A && A.chargeT>0){ o.vx=A.face*CHARGE_SPD; }                              // Charge: locked-in dash
     else o.vx = held.left?-o.speed : held.right?o.speed : 0;
@@ -422,7 +458,7 @@
       // Anvil's BODY blocks shots — directional: whoever is behind him is safe (no bubble)
       if(A.world===s.world && A.x<s.x&&s.x<A.x+A.w && A.y<s.y&&s.y<A.y+A.h){ s.dead=true; sparks.push({x:s.x, y:s.y, vx:-s.vx*0.4, vy:-1.5, t:12, world:s.world}); return; }
       // Latch takes the hit if a shot reaches him (i.e. he wasn't behind Anvil)
-      if(L.world===s.world && L.x<s.x&&s.x<L.x+L.w&&L.y<s.y&&s.y<L.y+L.h){ FLOATTEXT.spawn(L.x+L.w/2, L.y, L.world, "HIT", false); softReset(); s.dead=true; SHAKE.raise(4, MOTION_SHAKE); }
+      if(L.world===s.world && L.x<s.x&&s.x<L.x+L.w&&L.y<s.y&&s.y<L.y+L.h){ s.dead=true; caught(s); }
     });
     shots=shots.filter(function(s){ return !s.dead; });
     sparks.forEach(function(k){ k.t--; k.x+=k.vx; k.y+=k.vy; k.vy+=0.3; }); sparks=sparks.filter(function(k){ return k.t>0; });
@@ -430,6 +466,9 @@
 
   function frame(ts){
     var clk=CLOCK.tick(ts);
+    HITSTOP.update(clk.raw);
+    settleCaught();                     // VR-198 — the level resets only once the held frame has been seen
+    CLOCK.scale=HITSTOP.active()?0:1;   // VR-198 — hit-stop drives the shared clock's scale, camera keeps rendering
     if(state==="play"){
       CLOCK.accumulate(clk.raw, simStep);
 
@@ -439,7 +478,7 @@
       timerEl.textContent=fmt(elapsed);
       if((performance.now?performance.now():Date.now())>flashUntil) hintEl.textContent=hint();
       updStatus();
-      if(bothInExit()) win();
+      if(bothInExit() && !caughtPending) win();
     }
     shakeMag=SHAKE.update(clk.raw);
     FLOATTEXT.tick(clk.raw);

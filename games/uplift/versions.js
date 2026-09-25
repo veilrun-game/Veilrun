@@ -1,12 +1,11 @@
 /* VEILRUN — Uplift version manifest (default first).
    Same pattern as the other games' versions.js: every Uplift build loads this and
    renders the #verpick dropdown. The Lab's Rook+Wren tile opens the DEFAULT (first)
-   entry; other builds are reachable from this dropdown. v1 stays default while v2
-   (kit + controller preview) is proven. To promote v2: move it to the top here AND
-   repoint the combo `play` in js/data.js. */
+   entry; other builds are reachable from this dropdown. v2 was promoted to default
+   on 9/24 (VR-215): top of this array AND versions[0] in js/data.js. */
 window.VR_VERSIONS = [
-  { id: "v1", name: "Uplift",                     url: "/games/uplift/index.html" },
-  { id: "v2", name: "Brains & Body (preview)",    url: "/games/uplift-v2/index.html" }
+  { id: "v2", name: "Brains & Body",              url: "/games/uplift-v2/index.html" },   // VR-215 — default since 9/24
+  { id: "v1", name: "Uplift (3 levels)",          url: "/games/uplift/index.html" }
 ];
 (function () {
   var el = document.getElementById("verpick");

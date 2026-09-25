@@ -1647,6 +1647,7 @@ body.noanim.tuning .screen.on{transition:none}
 <script src="../_engine/rng.js"></script>
 <script src="../_engine/floattext.js"></script>
 <script src="../_engine/counter.js"></script>
+<script src="../_engine/hitstop.js"></script>
 <script>
 /* =========================================================================
    VEILRUN — Proving Ground (3D wave-survival arena, v0)
@@ -2277,10 +2278,28 @@ var MESH_PI = Math.PI;
    instead of art pasted onto 3D.
    PIXEL = css pixels per rendered pixel. 1 = off. Cycle live with [.
    Antialiasing is OFF while it's on: smoothing at low res is exactly the thing
-   that stops it looking like pixel art. -------------------------------------- */
-var PIXEL = 4;
+   that stops it looking like pixel art.
+   VR-216 (9/24, Jordan) — OFF by default now. 4:1 on a phone is a frame drawn at
+   roughly 1/8–1/12 of the screen's real resolution (a CSS pixel is already 2–3
+   device pixels there), which is the likeliest source of Toddlez's "quality on
+   mobile" note. The grid is one [ press or one Settings row away for anyone who
+   wants the VR-91 look back. -------------------------------------------------- */
+var PIXEL = 1;
 var PIXEL_STEPS = [1, 2, 3, 4, 6, 8];
-var renderer = new THREE.WebGLRenderer({ antialias: PIXEL <= 1, powerPreference: "high-performance" });
+/* VR-216 — antialiasing is fixed the moment the renderer is built, long before
+   TUNE applies the saved grid. Decided off the hard-coded default it would stay ON
+   for anyone who turns the grid back on — smoothing the low-res frame, the exact
+   thing that stops it reading as pixel art. So read what this device will boot
+   with: its saved grid if the blob is already on defaults version 2, otherwise
+   the default (a pre-VR-216 blob is about to be migrated to 1). The key and the
+   version are asserted equal to TUNE's own in _billboard.js. */
+var BOOT_PIXEL = (function () {
+  try {
+    var t = JSON.parse(localStorage.getItem("vr_arena_tune") || "{}") || {};
+    return (+t.dv >= 2 && +t.pixel > 1) ? +t.pixel : PIXEL;
+  } catch (e) { return PIXEL; }
+})();
+var renderer = new THREE.WebGLRenderer({ antialias: BOOT_PIXEL <= 1, powerPreference: "high-performance" });
 function applyPixelScale() {
   // --padh first: the HUD stays position:fixed and needs to know where the pad
   // starts, or the pip row and the Shroud label render behind the buttons. It's
@@ -4039,7 +4058,7 @@ function updateCamera(dt) {
 var game = {
   running: false, over: false,
   wave: 0, spec: null, toSpawn: 0, spawnT: 0, breather: 0, phase: "idle",
-  kills: 0, executes: 0, time: 0, score: 0, hitStop: 0, paused: false
+  kills: 0, executes: 0, time: 0, score: 0, paused: false
 };
 var HUD = {
   hpfill: $("hpfill"), hpghost: $("hpghost"), hpnum: $("hpnum"),
@@ -4087,7 +4106,16 @@ function camYaw() { return cam.mode === "arcade" ? ARC.yaw : mouse.yaw; }
 function hitDirection(ax, az) {
   var dx = ax - player.x, dz = az - player.z;
   if (Math.abs(dx) < 1e-4 && Math.abs(dz) < 1e-4) return;   // on top of us — no direction to show
-  var rel = Math.atan2(dx, dz) - camYaw();
+  /* VR-211 fix. atan2(dx,dz) is the world angle you'd face to point AWAY from
+     the attacker, not toward them — forward(yaw)=(-sin,-cos), the convention
+     player.yaw/e.yaw already use (e.g. the enemy chase yaw at atan2(-dx,-dz)
+     a few hundred lines down), so "yaw pointing AT (dx,dz)" is atan2(-dx,-dz).
+     And CSS rotate() turns clockwise while this file's yaw turns the other
+     way — TPAD's holdTrack() documents the same pair inverted (screen angle
+     -> world yaw) at "atan2(dx,-dy) is the clockwise screen angle from up;
+     world yaw runs the other way, hence the subtraction". Composing both:
+     screen angle = camYaw() - atan2(-dx,-dz). */
+  var rel = camYaw() - Math.atan2(-dx, -dz);
   rel = Math.atan2(Math.sin(rel), Math.cos(rel));           // normalize to (-PI, PI]
   var slot = -1;
   for (var i = 0; i < DDIR.length; i++) if (!DDIR[i].live) { slot = i; break; }
@@ -4194,7 +4222,13 @@ function updateFloatText(dt) {
     if (!FLOATTEXT.slots[i].live) ftEls[i].style.display = "none";
   }
 }
-function hitStop(ms) { game.hitStop = Math.max(game.hitStop, ms / 1000); }
+/* VR-198 — the latch (Math.max, never a sum) and the freeze itself now live in
+   the shared ../_engine/hitstop.js so a second game gets the same channel;
+   hitStop(ms) keeps its exact call-site shape so every existing call is
+   untouched. HITSTOP never reads MOTION and never will — see hitstop.js's
+   own header for why that has to stay a construction fact, not a comment. */
+var HITSTOP = new VE.HitStop();
+function hitStop(ms) { HITSTOP.raise(ms); }
 function setPaused(p) {
   game.paused = !!p;
   /* VR-114 — a quiet freeze. The sheet's detail stage exists to show the arena
@@ -4930,10 +4964,15 @@ function killEnemy(e, wasExecute) {
   TELE[ENEMIES.indexOf(e)].visible = false;
 }
 function hurtPlayer(dmg, ax, az) {
-  if (player.iframe > 0 || !player.alive) return;
+  if (!player.alive) return;
+  /* VR-211 ruling — i-frames gate DAMAGE, never the direction tell. They
+     exist to stop damage stacking, not to hide where a second attacker hit
+     you from; the old single early-return before hitDirection() meant only
+     the FIRST hit inside a 0.62s window could ever claim a pool slot. */
+  hitDirection(ax, az);
+  if (player.iframe > 0) return;
   player.hp -= dmg;
   player.iframe = C.iframeOnHit;
-  hitDirection(ax, az);
   // hitStop is NOT scaled here — see the VR-103 block above shake().
   AU.hurt(); shake(0.28); hitStop(70);
   /* VR-103 — damped, never removed. This is the only full-screen signal that
@@ -5443,7 +5482,7 @@ function resetRun(seed) {
   FLOATTEXT.reset();
   for (var f = 0; f < FTMAX; f++) ftEls[f].style.display = "none";
   game.wave = 0; game.kills = 0; game.executes = 0; game.time = 0; game.score = 0;
-  game.over = false; game.hitStop = 0; game.phase = "idle"; setPaused(false);
+  game.over = false; game.phase = "idle"; setPaused(false); HITSTOP.reset();
   TPAD.release();   // a latched Stalk must not survive into the next run
   HUD.vig.style.opacity = "0";
   hitDirReset();
@@ -6959,7 +6998,10 @@ if (typeof module !== "undefined" && module.exports) { module.exports.PRESETS = 
 var TUNE = (function () {
   var LSK = LS + "tune";
   var DEF = {
-    map: MAPS[0].id, cam: "arcade",
+    map: MAPS[0].id, cam: "third",   // VR-216 (9/24, Jordan) — "the better feeling of the examples"; arcade was the v1 default
+    /* VR-216 — the defaults version. Bumped only when a default changes AND
+       every existing device should receive it once; see migrateDefaults(). */
+    dv: 2,
     pitch: Math.round(ARC.pitch * 180 / Math.PI),
     /* Touch starts the arcade camera CLOSER (Jordan, 8/16 — "potentially start
        closer"). On a phone the character is the thing you're reading, and 13.5
@@ -7012,12 +7054,29 @@ var TUNE = (function () {
   };
   var V = {};
   for (var k in DEF) V[k] = DEF[k];
+  var saved = {};
   try {
-    var saved = JSON.parse(localStorage.getItem(LSK) || "{}");
+    saved = JSON.parse(localStorage.getItem(LSK) || "{}") || {};
     for (var k2 in saved) if (k2 in V) V[k2] = saved[k2];
   } catch (e) {}
 
   function save() { try { localStorage.setItem(LSK, JSON.stringify(V)); } catch (e) {} }
+
+  /* VR-216 — why a new default needs a migration here. save() writes the WHOLE
+     settings object, so every device that ever opened Settings has cam:"arcade"
+     and pixel:4 on disk whether anybody chose them or not — a changed DEF alone
+     would reach nobody in the crew. A device whose saved blob predates `dv` 2
+     takes the two new defaults ONCE and is stamped; anything picked after that
+     is a real choice and survives every reload. A fresh device has no blob and
+     already starts on DEF. Everything else in the blob is left exactly as saved.
+     Pure on purpose: _billboard.js lifts it by name and runs it. */
+  function migrateDefaults(saved, V, DEF) {
+    if (!saved || typeof saved !== "object" || !Object.keys(saved).length) return false;
+    if (+saved.dv >= DEF.dv) return false;
+    V.cam = DEF.cam; V.pixel = DEF.pixel; V.dv = DEF.dv;
+    return true;
+  }
+  if (migrateDefaults(saved, V, DEF)) save();
 
   /* VR-132 — the generalised form of the correction VR-113 had to make by hand
      for the camera mode. A stored value that is not one of the control's options
@@ -8854,8 +8913,11 @@ function frame(now) {
 
   // hit-stop and pause both freeze the simulation, never the rendering
   if (game.paused) { CLOCK.acc = 0; }
-  else if (game.hitStop > 0) { game.hitStop -= raw; }
-  else { CLOCK.accumulate(raw, step); }
+  else {
+    HITSTOP.update(raw);
+    CLOCK.scale = HITSTOP.active() ? 0 : 1;   // VR-198 — hit-stop now drives the shared clock's scale
+    CLOCK.accumulate(raw, step);
+  }
   gameTime = CLOCK.gameTime;
 
   /* VR-132 — the camera stick is a RATE, so it has to be integrated somewhere
