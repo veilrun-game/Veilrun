@@ -1698,6 +1698,17 @@ var BAL = (function () {
                              // dodge, so the acquire cone only has to rule out
                              // "directly behind you", not aim like a weapon
 
+    // --- Interactables registry (VR-187): a SECOND registered type, with its
+    // own reach/arc rather than borrowing the pickup's — proves the registry
+    // is generic and not just Pickups wearing a new name ---
+    leverReach: 1.6, leverArc: 110,
+
+    // --- Consumables (VR-176): carried, then spent — a THIRD registered
+    // type ("heal"), and the first that is CONSUMED off the ground but not
+    // spent immediately ---
+    consumeCap: 3,           // max carried at once
+    consumeHealAmt: 10,      // matches the wave-clear heal already in updateWaves()
+
     // --- Shroud (no button: emerges from standing still) ---
     shroudDelay: 1.15,       // sec of stillness before the veil takes you
     shroudBreakSpeed: 0.6,
@@ -2758,7 +2769,9 @@ var player = {
   // execute
   execCd: 0, execLunge: 0,
   // shroud
-  still: 0, shroud: 0, veiled: false, stalking: false
+  still: 0, shroud: 0, veiled: false, stalking: false,
+  // consumables (VR-176)
+  carry: 0
 };
 var pBodyMat = new THREE.MeshStandardMaterial({ color: 0x201a35, roughness: 0.62, metalness: 0.28, transparent: true });
 var pCloakMat = new THREE.MeshStandardMaterial({ color: 0x4a2a8c, roughness: 0.88, metalness: 0.04, side: THREE.DoubleSide, transparent: true });
@@ -3038,45 +3051,75 @@ var PICKUPS = [];
   for (var i = 0; i < 6; i++) {
     var mesh = new THREE.Mesh(geo, mat0.clone());
     mesh.visible = false; mesh.castShadow = true; scene.add(mesh);
-    PICKUPS.push({ mesh: mesh, live: false, x: 0, z: 0, spin: 0 });
+    PICKUPS.push({ mesh: mesh, live: false, x: 0, z: 0, spin: 0, type: "pickup", state: null });
   }
 })();
-// Placeholder spot, so a pool entry has a visible-but-inert home before
-// anything claims it — mirrors ENEMIES starting every slot at (0,0) hidden.
-function spawnPickup(x, z) {
-  for (var i = 0; i < PICKUPS.length; i++) {
-    if (PICKUPS[i].live) continue;
-    var p = PICKUPS[i];
-    p.live = true; p.x = x; p.z = z; p.spin = 0;
-    p.mesh.position.set(x, 0.85, z); p.mesh.visible = true;
-    return p;
+/* INTERACT:BEGIN — extracted and EXECUTED by _pickup.js.
+   ============================= registry (VR-187) ==========================
+   Generalises the VR-175 substrate from one hardcoded type into a REGISTRY
+   any world object registers into: reach · prompt · verb · state. A type
+   declares its own `reach`/`arc` (read from BALANCE, never shared by
+   assumption), a `prompt` naming the verb for a future UI, and `onInteract`,
+   called once a claim resolves. `onInteract` returns whether the entry is
+   CONSUMED (goes not-live, the Pickup shape) or STAYS live with its own
+   STATE updated (the Lever shape) — one call, two outcomes, not two paths
+   through tryInteract(). What either type's effect IS stays out of scope,
+   per the card; `lever` exists only to prove the contract is generic.
+   ------------------------------------------------------------------------- */
+var INTERACT_TYPES = {
+  pickup: {
+    reach: C.pickupReach, arc: C.pickupArc, prompt: "Claim",
+    onInteract: function (p) {
+      AU.pickup();
+      burst(p.x, 1.0, p.z, 12, 0x7C4AB6, 3.4, { grav: -2, upScale: 0.9, lifeScale: 1.0, scale: 0.9 });
+      return true;
+    }
+  },
+  lever: {
+    reach: C.leverReach, arc: C.leverArc, prompt: "Pull",
+    onInteract: function (p) {
+      p.state = !p.state;
+      if (p.mesh && p.mesh.material) p.mesh.material.emissiveIntensity = p.state ? 1.2 : 0.6;
+      AU.pickup();
+      burst(p.x, 1.0, p.z, 6, 0x4AB67C, 2.2, { grav: -1.4, upScale: 0.6, lifeScale: 0.7, scale: 0.6 });
+      return false;
+    }
+  },
+  /* VR-176 — a THIRD registered type, and the first that gates on player
+     state rather than always being claimable: `available` reports false
+     once carry is at cap, so a full-capacity heal is treated as not there
+     at all — it is skipped in the search below rather than claimed and
+     silently voided, which is what leaves it sitting untouched on the
+     ground for the player to notice they are full. */
+  heal: {
+    reach: C.pickupReach, arc: C.pickupArc, prompt: "Claim",
+    available: function () { return player.carry < C.consumeCap; },
+    onInteract: function (p) {
+      player.carry++;
+      AU.pickup();
+      burst(p.x, 1.0, p.z, 12, 0x5CD68A, 3.4, { grav: -2, upScale: 0.9, lifeScale: 1.0, scale: 0.9 });
+      return true;
+    }
   }
-  return null;   // pool exhausted — callers decide whether that's worth reporting
-}
-function updatePickups(dt) {
-  for (var i = 0; i < PICKUPS.length; i++) {
-    var p = PICKUPS[i]; if (!p.live) continue;
-    p.spin += dt * 1.4;
-    p.mesh.rotation.y = p.spin;
-    p.mesh.position.y = 0.85 + Math.sin(p.spin * 1.6) * 0.08;
-  }
-}
+};
 /* THE ONE ANSWER to "is anything in reach", read through the real verbYaw()
    exactly as tryExecute() reads it — an interact cone that pointed at the
    legs instead of the camera would be VR-160's bug a second time. */
 function tryInteract() {
   var aim = verbYaw();
   var fx = -Math.sin(aim), fz = -Math.cos(aim);
-  var half = C.pickupArc * Math.PI / 360;
-  var best = null, bestD = 1e9;
+  var best = null, bestD = 1e9, bestDef = null;
   for (var i = 0; i < PICKUPS.length; i++) {
     var p = PICKUPS[i];
     if (!p.live) continue;
+    var def = INTERACT_TYPES[p.type] || INTERACT_TYPES.pickup;
+    if (def.available && !def.available(p)) continue;
     var dx = p.x - player.x, dz = p.z - player.z, d2 = dx * dx + dz * dz;
-    if (d2 > C.pickupReach * C.pickupReach) continue;
+    if (d2 > def.reach * def.reach) continue;
+    var half = def.arc * Math.PI / 360;
     var d = Math.sqrt(d2) || 0.0001;
     if (Math.acos(clamp((dx / d) * fx + (dz / d) * fz, -1, 1)) > half) continue;
-    if (d < bestD) { bestD = d; best = p; }
+    if (d < bestD) { bestD = d; best = p; bestDef = def; }
   }
   if (!best) {
     /* VR-172's ruling, a third verb: a press with nothing in reach must be
@@ -3089,9 +3132,50 @@ function tryInteract() {
     burst(mx, 0.9, mz, 4, 0x7C4AB6, 1.2, { grav: -1.2, upScale: 0.4, scale: 0.4, lifeScale: 0.5 });
     return;
   }
-  best.live = false; best.mesh.visible = false;
+  if (bestDef.onInteract(best)) { best.live = false; best.mesh.visible = false; }
+}
+/* INTERACT:END */
+/* CONSUME:BEGIN — extracted and EXECUTED by _pickup.js.
+   ============================= consumables (VR-176) ========================
+   THE SECOND HALF of a consumable's lifecycle — claim happens through the
+   registry above (type "heal"); this is the SPEND. Bound to R. A press with
+   an empty carry must be PERCEIVABLE, must COST NOTHING (no cooldown to
+   spend, so nothing to guard but not inventing one), and must NOT BORROW A
+   HIT'S TELLS — VR-172's ruling again, ported to a verb with no target in
+   the world at all rather than one that can be out of reach.
+   ------------------------------------------------------------------------- */
+function tryUseConsumable() {
+  if (player.carry <= 0) {
+    AU.interactMiss();
+    bladeFlash(0.2);
+    return;
+  }
+  player.carry--;
+  player.hp = Math.min(C.playerHp, player.hp + C.consumeHealAmt);
   AU.pickup();
-  burst(best.x, 1.0, best.z, 12, 0x7C4AB6, 3.4, { grav: -2, upScale: 0.9, lifeScale: 1.0, scale: 0.9 });
+  burst(player.x, 1.2, player.z, 10, 0x5CD68A, 2.6, { grav: -1.6, upScale: 0.7, lifeScale: 0.8, scale: 0.7 });
+}
+/* CONSUME:END */
+// Placeholder spot, so a pool entry has a visible-but-inert home before
+// anything claims it — mirrors ENEMIES starting every slot at (0,0) hidden.
+function spawnInteractable(x, z, type) {
+  for (var i = 0; i < PICKUPS.length; i++) {
+    if (PICKUPS[i].live) continue;
+    var p = PICKUPS[i];
+    p.live = true; p.x = x; p.z = z; p.spin = 0; p.type = type || "pickup"; p.state = null;
+    p.mesh.position.set(x, 0.85, z); p.mesh.visible = true;
+    return p;
+  }
+  return null;   // pool exhausted — callers decide whether that's worth reporting
+}
+function spawnPickup(x, z) { return spawnInteractable(x, z, "pickup"); }
+function updatePickups(dt) {
+  for (var i = 0; i < PICKUPS.length; i++) {
+    var p = PICKUPS[i]; if (!p.live) continue;
+    p.spin += dt * 1.4;
+    p.mesh.rotation.y = p.spin;
+    p.mesh.position.y = 0.85 + Math.sin(p.spin * 1.6) * 0.08;
+  }
 }
 function updateTears(dt) {
   for (var i = 0; i < TEARS.length; i++) {
@@ -3107,7 +3191,7 @@ function updateTears(dt) {
 /* ================================ input ================================= */
 var keys = Object.create(null);
 var mouse = { yaw: 0, pitch: -0.12, locked: false, l: false, r: false };
-var pressed = { strike: false, exec: false, step: false, interact: false };
+var pressed = { strike: false, exec: false, step: false, interact: false, use: false };
 
 /* Pointer lock is a mouse affordance and a touch device has none. Asking for it
    on a phone either rejects outright or never fires pointerlockchange — and the
@@ -3139,6 +3223,7 @@ window.addEventListener("keydown", function (e) {
   if (k === " " || k === "shift") pressed.step = true;
   if (k === "q") pressed.exec = true;
   if (k === "e") pressed.interact = true;   // VR-175 — free key, nothing else bound here
+  if (k === "r") pressed.use = true;        // VR-176 — spend a carried consumable
   if (k === "v") cycleCam();   // VR-113 — the key and the camera fab are one path
   if (k === "h") toggleHelp();
   if (k === "escape") { if (helpOpen()) { closeHelp(); return; }
@@ -4811,6 +4896,7 @@ function updatePlayer(dt) {
   if (pressed.step) { pressed.step = false; veilstep(); }
   if (pressed.exec) { pressed.exec = false; tryExecute(); }
   if (pressed.interact) { pressed.interact = false; tryInteract(); }
+  if (pressed.use) { pressed.use = false; tryUseConsumable(); }
   if (pressed.strike || (mouse.l && player.atkStage < 0)) {
     pressed.strike = false;
     if (player.atkStage < 0) startStrike();
@@ -5472,13 +5558,14 @@ function resetRun(seed) {
   player.stepCharges = C.stepCharges; player.stepTimer = 0; player.stepLock = 0;
   player.execCd = 0; player.execLunge = 0;
   player.still = 0; player.shroud = 0; player.veiled = false;
+  player.carry = 0;   // VR-176 — a carried consumable must not survive into the next run
   player.g.visible = cam.mode !== "first" && !playerSpriteReady();
   mouse.yaw = 0; mouse.pitch = -0.12; player.aim = player.yaw;   // VR-124 — facing resets with the body, not with the camera
   player.bodyYaw = player.yaw;   // VR-157 — and the body starts where the verbs do, never a frame behind
   for (var i = 0; i < ENEMIES.length; i++) { ENEMIES[i].live = false; ENEMIES[i].g.visible = false; TELE[i].visible = false; }
   for (var t = 0; t < THIN.length; t++) { THIN[t].life = 0; THIN[t].mesh.visible = false; }
   for (var p = 0; p < PMAX; p++) { parts[p].life = 0; parts[p].m.visible = false; }
-  for (var pk = 0; pk < PICKUPS.length; pk++) { PICKUPS[pk].live = false; PICKUPS[pk].mesh.visible = false; }
+  for (var pk = 0; pk < PICKUPS.length; pk++) { PICKUPS[pk].live = false; PICKUPS[pk].mesh.visible = false; PICKUPS[pk].state = null; }
   FLOATTEXT.reset();
   for (var f = 0; f < FTMAX; f++) ftEls[f].style.display = "none";
   game.wave = 0; game.kills = 0; game.executes = 0; game.time = 0; game.score = 0;
