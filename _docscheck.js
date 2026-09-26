@@ -61,7 +61,11 @@ function citedIn(text) {
 var NO_DOCS_NEEDED = {
   "VR-107": "NOT A GAP. Game Reference cover art — resolving Steam appids for 47 games is " +
             "asset sourcing, not a design decision. `_grefart.js` is the record of how it " +
-            "works and it lives in the repo where it belongs."
+            "works and it lives in the repo where it belongs.",
+  "VR-233": "NOT A GAP. Sign-in aliases are identity plumbing — which login name counts as " +
+            "which crew member — not world, character or mechanics canon. The record is the " +
+            "comment above `VEILRUN.crew` in js/data.js, and it names family members, which " +
+            "is one more reason it stays out of the shared canon docs."
 };
 
 /* CLEARED 9/13 at merge time — VR-173 and VR-174 are one decision collected and then
