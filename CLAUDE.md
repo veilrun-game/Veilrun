@@ -458,7 +458,19 @@ in the folder before assuming:
   actually get exercised" discipline, applied to a registry instead of a character sheet.
   `resetRun()` now clears `state` alongside `.live`, so a lever left on does not survive into the
   next run. **What either registered type's effect IS stays out of scope**, per the card — `lever`
-  is a proof of contract, not a build-mode feature. **30 checks.**
+  is a proof of contract, not a build-mode feature.
+  **VR-176 (9/25) is the registry's first CONSUMED-and-CARRIED type, and the first that gates
+  claiming on player state.** `heal` registers an `available()` predicate nothing before it
+  needed: at `consumeCap` (BALANCE), a heal is skipped in `tryInteract()`'s search entirely — left
+  live and untouched on the ground — rather than claimed and silently voided, which is what proves
+  capacity without a pickup that vanishes into nothing. Claiming raises `player.carry`; spending is
+  a second verb, `tryUseConsumable()` (bound to R), lifted the same way and held to the identical
+  VR-172 ruling: a press with nothing carried is perceivable (`AU.interactMiss()`, `bladeFlash`),
+  costs nothing, and borrows none of a hit's tells. **The heal amount is proven read from
+  `C.consumeHealAmt`, not retyped** — moving the constant to 37 inside the sandbox changes the
+  actual `player.hp` delta by the same 37, and healing is separately proven to clamp at
+  `C.playerHp` rather than overheal. `resetRun()` now clears `player.carry` alongside `.live` and
+  `state`, so a carried consumable does not survive into the next run. **51 checks.**
   **`_feel.js` (added 9/20 with VR-195) generalises `_exec.js`'s ruling past Execute — "no verb may
   produce nothing" — to every verb the arena actually has.** It **discovers** the verb set from
   `../_engine/actions.js`'s `"3d-arena"` profile (VR-191) rather than typing a list, in **71 checks**:

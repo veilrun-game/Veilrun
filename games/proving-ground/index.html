@@ -1703,6 +1703,12 @@ var BAL = (function () {
     // is generic and not just Pickups wearing a new name ---
     leverReach: 1.6, leverArc: 110,
 
+    // --- Consumables (VR-176): carried, then spent — a THIRD registered
+    // type ("heal"), and the first that is CONSUMED off the ground but not
+    // spent immediately ---
+    consumeCap: 3,           // max carried at once
+    consumeHealAmt: 10,      // matches the wave-clear heal already in updateWaves()
+
     // --- Shroud (no button: emerges from standing still) ---
     shroudDelay: 1.15,       // sec of stillness before the veil takes you
     shroudBreakSpeed: 0.6,
@@ -2763,7 +2769,9 @@ var player = {
   // execute
   execCd: 0, execLunge: 0,
   // shroud
-  still: 0, shroud: 0, veiled: false, stalking: false
+  still: 0, shroud: 0, veiled: false, stalking: false,
+  // consumables (VR-176)
+  carry: 0
 };
 var pBodyMat = new THREE.MeshStandardMaterial({ color: 0x201a35, roughness: 0.62, metalness: 0.28, transparent: true });
 var pCloakMat = new THREE.MeshStandardMaterial({ color: 0x4a2a8c, roughness: 0.88, metalness: 0.04, side: THREE.DoubleSide, transparent: true });
@@ -3076,6 +3084,22 @@ var INTERACT_TYPES = {
       burst(p.x, 1.0, p.z, 6, 0x4AB67C, 2.2, { grav: -1.4, upScale: 0.6, lifeScale: 0.7, scale: 0.6 });
       return false;
     }
+  },
+  /* VR-176 — a THIRD registered type, and the first that gates on player
+     state rather than always being claimable: `available` reports false
+     once carry is at cap, so a full-capacity heal is treated as not there
+     at all — it is skipped in the search below rather than claimed and
+     silently voided, which is what leaves it sitting untouched on the
+     ground for the player to notice they are full. */
+  heal: {
+    reach: C.pickupReach, arc: C.pickupArc, prompt: "Claim",
+    available: function () { return player.carry < C.consumeCap; },
+    onInteract: function (p) {
+      player.carry++;
+      AU.pickup();
+      burst(p.x, 1.0, p.z, 12, 0x5CD68A, 3.4, { grav: -2, upScale: 0.9, lifeScale: 1.0, scale: 0.9 });
+      return true;
+    }
   }
 };
 /* THE ONE ANSWER to "is anything in reach", read through the real verbYaw()
@@ -3089,6 +3113,7 @@ function tryInteract() {
     var p = PICKUPS[i];
     if (!p.live) continue;
     var def = INTERACT_TYPES[p.type] || INTERACT_TYPES.pickup;
+    if (def.available && !def.available(p)) continue;
     var dx = p.x - player.x, dz = p.z - player.z, d2 = dx * dx + dz * dz;
     if (d2 > def.reach * def.reach) continue;
     var half = def.arc * Math.PI / 360;
@@ -3110,6 +3135,27 @@ function tryInteract() {
   if (bestDef.onInteract(best)) { best.live = false; best.mesh.visible = false; }
 }
 /* INTERACT:END */
+/* CONSUME:BEGIN — extracted and EXECUTED by _pickup.js.
+   ============================= consumables (VR-176) ========================
+   THE SECOND HALF of a consumable's lifecycle — claim happens through the
+   registry above (type "heal"); this is the SPEND. Bound to R. A press with
+   an empty carry must be PERCEIVABLE, must COST NOTHING (no cooldown to
+   spend, so nothing to guard but not inventing one), and must NOT BORROW A
+   HIT'S TELLS — VR-172's ruling again, ported to a verb with no target in
+   the world at all rather than one that can be out of reach.
+   ------------------------------------------------------------------------- */
+function tryUseConsumable() {
+  if (player.carry <= 0) {
+    AU.interactMiss();
+    bladeFlash(0.2);
+    return;
+  }
+  player.carry--;
+  player.hp = Math.min(C.playerHp, player.hp + C.consumeHealAmt);
+  AU.pickup();
+  burst(player.x, 1.2, player.z, 10, 0x5CD68A, 2.6, { grav: -1.6, upScale: 0.7, lifeScale: 0.8, scale: 0.7 });
+}
+/* CONSUME:END */
 // Placeholder spot, so a pool entry has a visible-but-inert home before
 // anything claims it — mirrors ENEMIES starting every slot at (0,0) hidden.
 function spawnInteractable(x, z, type) {
@@ -3145,7 +3191,7 @@ function updateTears(dt) {
 /* ================================ input ================================= */
 var keys = Object.create(null);
 var mouse = { yaw: 0, pitch: -0.12, locked: false, l: false, r: false };
-var pressed = { strike: false, exec: false, step: false, interact: false };
+var pressed = { strike: false, exec: false, step: false, interact: false, use: false };
 
 /* Pointer lock is a mouse affordance and a touch device has none. Asking for it
    on a phone either rejects outright or never fires pointerlockchange — and the
@@ -3177,6 +3223,7 @@ window.addEventListener("keydown", function (e) {
   if (k === " " || k === "shift") pressed.step = true;
   if (k === "q") pressed.exec = true;
   if (k === "e") pressed.interact = true;   // VR-175 — free key, nothing else bound here
+  if (k === "r") pressed.use = true;        // VR-176 — spend a carried consumable
   if (k === "v") cycleCam();   // VR-113 — the key and the camera fab are one path
   if (k === "h") toggleHelp();
   if (k === "escape") { if (helpOpen()) { closeHelp(); return; }
@@ -4849,6 +4896,7 @@ function updatePlayer(dt) {
   if (pressed.step) { pressed.step = false; veilstep(); }
   if (pressed.exec) { pressed.exec = false; tryExecute(); }
   if (pressed.interact) { pressed.interact = false; tryInteract(); }
+  if (pressed.use) { pressed.use = false; tryUseConsumable(); }
   if (pressed.strike || (mouse.l && player.atkStage < 0)) {
     pressed.strike = false;
     if (player.atkStage < 0) startStrike();
@@ -5510,6 +5558,7 @@ function resetRun(seed) {
   player.stepCharges = C.stepCharges; player.stepTimer = 0; player.stepLock = 0;
   player.execCd = 0; player.execLunge = 0;
   player.still = 0; player.shroud = 0; player.veiled = false;
+  player.carry = 0;   // VR-176 — a carried consumable must not survive into the next run
   player.g.visible = cam.mode !== "first" && !playerSpriteReady();
   mouse.yaw = 0; mouse.pitch = -0.12; player.aim = player.yaw;   // VR-124 — facing resets with the body, not with the camera
   player.bodyYaw = player.yaw;   // VR-157 — and the body starts where the verbs do, never a frame behind

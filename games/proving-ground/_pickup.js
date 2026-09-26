@@ -20,7 +20,17 @@
    index.html and driven against recorders, never a retyped copy of any of
    them.
 
-   THE THINGS IT PROVES, per VR-175's and VR-187's own DONE WHEN:
+   VR-176 (this run) is the registry's first CONSUMED-and-CARRIED type:
+   `heal` is claimed off the ground into `player.carry` through the SAME
+   `tryInteract()` this file already lifts, gated by an `available()` check
+   nothing before it needed — a full-capacity heal is skipped in the search
+   entirely, so it is left live and untouched on the ground rather than
+   claimed and silently voided. Spending is a second verb, `tryUseConsumable()`
+   (bound to R), lifted the same way and held to the identical VR-172 ruling
+   the claim path already answers to: a press with nothing carried must be
+   perceivable, cost nothing, and borrow none of a hit's tells.
+
+   THE THINGS IT PROVES, per VR-175's, VR-187's and VR-176's own DONE WHEN:
      1 · A PICKUP INSIDE THE REACH RADIUS AND ARC IS CLAIMED; one outside
          either is not — at all three `cam.mode` values, through the real
          `verbYaw()`, the same arcade-and-third-disagree proof `_exec.js` and
@@ -43,6 +53,18 @@
          instead of the per-type `def.reach` still passes every PICKUP check
          and fails only the LEVER-specific reach check — proving genericity
          is actually tested, not just present in the source.
+     9 · A HEAL PICKUP IS CLAIMED INTO `player.carry`, AT ALL THREE `cam.mode`
+         VALUES — the same claim proof as `pickup`, on the type that actually
+         carries state forward rather than a lever's local toggle.
+    10 · CAPACITY IS ENFORCED WITHOUT SILENTLY VOIDING THE PICKUP — at cap, a
+         heal is skipped by `available()` and stays live, unclaimed.
+    11 · USING A CARRIED CONSUMABLE SPENDS EXACTLY ONE AND HEALS BY THE REAL
+         `C.consumeHealAmt`, PROVEN BY MOVING THE VALUE — never a retyped
+         number — and clamped at `C.playerHp`.
+    12 · USING WITH NOTHING CARRIED IS PERCEIVABLE, COSTS NOTHING, AND BORROWS
+         NONE OF A HIT'S TELLS — VR-172's ruling, ported to the spend half.
+    13 · `resetRun()` clears `player.carry` — a carried consumable must not
+         survive into the next run.
 
    Dependency-free. Usage:  node _pickup.js
    --------------------------------------------------------------------------- */
@@ -67,6 +89,7 @@ var balBody = lift("BALANCE block", /BALANCE:BEGIN[\s\S]*?-+ \*\/([\s\S]*?)\/\* 
 var aimBody = lift("AIM block", /AIM:BEGIN[\s\S]*?-+ \*\/([\s\S]*?)\/\* AIM:END/)[1];
 var srcClamp = lift("clamp()", /\nvar clamp = function \(v, a, b\) \{[^\n]*\};/)[0];
 var interactBody = lift("INTERACT block", /INTERACT:BEGIN[\s\S]*?-+ \*\/([\s\S]*?)\/\* INTERACT:END/)[1];
+var consumeBody = lift("CONSUME block", /CONSUME:BEGIN[\s\S]*?-+ \*\/([\s\S]*?)\/\* CONSUME:END/)[1];
 
 /* =========================================================================
    1 · LIFT + STUB, the same recorder shape _exec.js uses
@@ -88,8 +111,8 @@ function buildSandbox() {
   vm.runInContext(balBody, sandbox, { filename: "index.html#BALANCE" });
   var C = sandbox.module.exports.C;
   sandbox.C = C;
-  sandbox.player = { x: 0, z: 0, yaw: 0, aim: 0, atkStage: -1, execLunge: 0 };
-  vm.runInContext([srcClamp, aimBody, interactBody].join("\n"), sandbox, { filename: "index.html#PICKUP" });
+  sandbox.player = { x: 0, z: 0, yaw: 0, aim: 0, atkStage: -1, execLunge: 0, carry: 0, hp: C.playerHp };
+  vm.runInContext([srcClamp, aimBody, interactBody, consumeBody].join("\n"), sandbox, { filename: "index.html#PICKUP" });
   return sandbox;
 }
 
@@ -107,7 +130,7 @@ function fire(mode, pickups, seed) {
   s.PICKUPS = pickups.map(toPoolEntry);
   FX = [];
   s.tryInteract();
-  return { fx: FX.slice(), pickups: s.PICKUPS };
+  return { fx: FX.slice(), pickups: s.PICKUPS, player: p };
 }
 
 function aimOf(mode) { var s = buildSandbox(); s.cam.mode = mode; return s.verbYaw(); }
@@ -273,6 +296,108 @@ console.log("\n[self-test: the judge rejects a registry that fakes genericity]")
   ok("a registry that answers every type's reach with C.pickupReach wrongly toggles a far lever's state (and the per-type check above catches it)",
      s.PICKUPS[0].state === true, "a correct build leaves this lever's state===null; the mutant wrongly claims it");
 }
+
+/* =========================================================================
+   4 · CONSUMABLES (VR-176) — claim through the registry, spend as a verb
+   ========================================================================= */
+console.log("\n[a heal pickup is claimed into player.carry, at all three cam.mode values]");
+MODES.forEach(function (mode) {
+  var spot = ahead(mode, C0.pickupReach * 0.6);
+  var out = fire(mode, [{ x: spot.x, z: spot.z, type: "heal" }]);
+  ok(mode + ": a heal dead ahead, inside reach, is claimed and consumed off the ground",
+     out.pickups[0].live === false, "fx: " + out.fx.join(","));
+  ok(mode + ": claiming it raises player.carry from 0 to 1",
+     out.player.carry === 1);
+});
+
+console.log("\n[capacity is enforced without silently voiding the pickup]");
+{
+  var s = buildSandbox();
+  s.player.carry = s.C.consumeCap;   // already full
+  var spot = ahead("arcade", C0.pickupReach * 0.6);
+  s.PICKUPS = [toPoolEntry({ x: spot.x, z: spot.z, type: "heal" })];
+  FX = []; s.tryInteract();
+  ok("a heal in reach, claimed while at cap, stays live — skipped, not voided",
+     s.PICKUPS[0].live === true && s.player.carry === s.C.consumeCap);
+  ok("being at cap reads as a MISS (perceivable, no AU.pickup) since nothing else is in reach",
+     FX.indexOf("AU.interactMiss") !== -1 && FX.indexOf("AU.pickup") === -1);
+}
+{
+  // Three separate heals, cap == 3 (BALANCE): all three claimed one at a
+  // time proves the cap is read from C.consumeCap, not a hardcoded 3.
+  var s = buildSandbox();
+  var cap = s.C.consumeCap;
+  ok("BALANCE's consumeCap is what this run of claims is driven by",
+     cap > 0 && cap < 6);   // sanity: the pool itself only has 6 slots
+  for (var n = 0; n < cap; n++) {
+    var spot = ahead("arcade", C0.pickupReach * 0.6);
+    s.PICKUPS = [toPoolEntry({ x: spot.x, z: spot.z, type: "heal" })];
+    s.tryInteract();
+  }
+  ok("claiming exactly consumeCap heals fills carry to the cap, not past it",
+     s.player.carry === cap);
+  var spot2 = ahead("arcade", C0.pickupReach * 0.6);
+  s.PICKUPS = [toPoolEntry({ x: spot2.x, z: spot2.z, type: "heal" })];
+  FX = []; s.tryInteract();
+  ok("one more heal at cap is left live, carry does not exceed the cap",
+     s.PICKUPS[0].live === true && s.player.carry === cap);
+}
+
+console.log("\n[using a carried consumable spends exactly one and heals by C.consumeHealAmt]");
+{
+  var s = buildSandbox();
+  s.player.carry = 1;
+  s.player.hp = 40;
+  FX = []; s.tryUseConsumable();
+  ok("using spends exactly one",
+     s.player.carry === 0);
+  ok("using heals by the real C.consumeHealAmt, not a retyped number",
+     s.player.hp === 40 + s.C.consumeHealAmt);
+  ok("using plays AU.pickup and borrows none of a hit's tells",
+     FX.indexOf("AU.pickup") !== -1 &&
+     ["hitStop", "shake", "thinGround", "damageEnemy", "executeEnemy"].every(function (t) { return FX.indexOf(t) === -1; }),
+     "fx: " + FX.join(","));
+}
+{
+  // Move the value — the card's own bar — and watch the assertion follow.
+  var s = buildSandbox();
+  s.C.consumeHealAmt = 37;
+  s.player.carry = 1;
+  s.player.hp = 10;
+  s.tryUseConsumable();
+  ok("moving C.consumeHealAmt to 37 changes the actual heal by the same amount",
+     s.player.hp === 47);
+}
+{
+  var s = buildSandbox();
+  s.player.carry = 2;
+  s.player.hp = s.C.playerHp - 1;   // one point of damage from full
+  s.tryUseConsumable();
+  ok("healing clamps at C.playerHp, never overheals",
+     s.player.hp === s.C.playerHp);
+}
+
+console.log("\n[using with nothing carried is perceivable, costs nothing, and does not borrow a hit's tells]");
+{
+  var s = buildSandbox();
+  s.player.carry = 0;
+  var hpBefore = s.player.hp;
+  FX = []; s.tryUseConsumable();
+  ok("a press with an empty carry is perceivable",
+     FX.indexOf("AU.interactMiss") !== -1 && FX.indexOf("bladeFlash") !== -1,
+     "fx: " + FX.join(","));
+  ok("an empty-carry press never plays AU.pickup and never changes hp",
+     FX.indexOf("AU.pickup") === -1 && s.player.hp === hpBefore);
+  ok("an empty-carry press borrows none of a hit's tells",
+     ["hitStop", "shake", "thinGround", "damageEnemy", "executeEnemy"].every(function (t) { return FX.indexOf(t) === -1; }),
+     "fx: " + FX.join(","));
+  ok("carry never goes negative",
+     s.player.carry === 0);
+}
+
+console.log("\n[resetRun clears carry]");
+ok("resetRun() sets player.carry = 0",
+   /function resetRun\([^)]*\) \{[\s\S]*?player\.carry = 0[\s\S]*?\n\}/.test(html));
 
 console.log("\n==========================================================");
 console.log((fails.length ? "FAIL" : "PASS") + " — " + pass + " checks" + (fails.length ? ", " + fails.length + " failed" : ""));
