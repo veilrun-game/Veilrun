@@ -590,7 +590,7 @@ VEILRUN.weekly = {
   blurb: "Most of what changed this week you'll feel in the 2D games rather than the arena \u2014 the screen shake, the frozen beat when a turret catches you, the damage number floating off the hit. All three already existed in Proving Ground and lived inside its one file. They're shared components now, and Seam Gate v2 is the first to borrow them. Both games also open somewhere different: Proving Ground starts behind Vesper's shoulder at full resolution, and picking a pair lands you in v2. The Loom still has nobody's vote on it \u2014 it just no longer deletes itself over that.",
   metrics: [
     { label: "shared modules added to the engine folder this week \u2014 it held two", value: 8 },
-    { label: "sign-ins, from three of you; one person signed in the week before", value: 9 },
+    { label: "sign-ins, from three of you; nobody signed in at all the week before", value: 9 },
     { label: "arena runs posted \u2014 the first since 7 September", value: 5 },
     { label: "votes on the Loom's three ideas, 28 days after they went up", value: 0 }
   ],
