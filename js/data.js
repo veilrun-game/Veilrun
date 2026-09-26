@@ -584,24 +584,26 @@ VEILRUN.counters = {
    was quiet. Metrics are only worth a slot if they moved or they're surprising; don't
    ship the same four every week out of habit. Never invent one. */
 VEILRUN.weekly = {
-  weekStart: "2026-09-13",
-  weekEnding: "2026-09-18",
-  headline: "A week spent building the things that watch the project — and today the Loom runs out",
-  blurb: "Nothing you can play changed this week, and that is worth saying plainly. What changed is underneath: one shared clock instead of three copies of the same one, a generator that starts a new test from a shape that already works, and a tool that reads which cards actually shipped straight out of git rather than trusting the board. Useful, invisible. Meanwhile the Loom's three ideas hit day 21 today with no votes on any of them, and tomorrow the panel removes itself. The fix is written down and not built yet.",
+  weekStart: "2026-09-19",
+  weekEnding: "2026-09-25",
+  headline: "Proving Ground stopped keeping its good parts to itself \u2014 and both games open somewhere different now",
+  blurb: "Most of what changed this week you'll feel in the 2D games rather than the arena \u2014 the screen shake, the frozen beat when a turret catches you, the damage number floating off the hit. All three already existed in Proving Ground and lived inside its one file. They're shared components now, and Seam Gate v2 is the first to borrow them. Both games also open somewhere different: Proving Ground starts behind Vesper's shoulder at full resolution, and picking a pair lands you in v2. The Loom still has nobody's vote on it \u2014 it just no longer deletes itself over that.",
   metrics: [
-    { label: "days left before the Loom deletes three ideas nobody voted on", value: 0 },
-    { label: "votes cast on those ideas since 28 Aug", value: 0 },
-    { label: "cards that reached the site this week with no entry in this feed", value: 5 },
-    { label: "automated checks green before this posted", value: 28 }
+    { label: "shared modules added to the engine folder this week \u2014 it held two", value: 8 },
+    { label: "sign-ins, from three of you; one person signed in the week before", value: 9 },
+    { label: "arena runs posted \u2014 the first since 7 September", value: 5 },
+    { label: "votes on the Loom's three ideas, 28 days after they went up", value: 0 }
   ],
-  /* No image, and for the same structural reason as the last two weeks: the work was
-     tooling, and a still frame of a test harness is a screenshot of a terminal. No new
-     art landed this week either — `find assets -newermt 2026-09-11` returned nothing.
-     `image` is individually skippable; weeklyHero() omits the <figure> rather than
-     reaching for the cover art again. */
+  /* No image, fourth week running, and the reason has not changed: the work was shared
+     plumbing, and no new art landed — `find -newermt 2026-09-19` returned nothing under
+     `assets/` and nothing under `Art & Assets`. The only arena stills we own are July
+     concept frames, one of which is already this game's own card art, and reaching for
+     that is the exact thing this field is meant not to do. `image` is individually
+     skippable; weeklyHero() omits the <figure> rather than filling it. */
   highlights: [
-    { label: "The Loom — last day to vote", href: "#reference" },
-    { label: "The Lab — where an idea you like is meant to land", href: "#lab" },
+    { label: "Proving Ground \u2014 it opens in third person now", href: "#games/arena-3d" },
+    { label: "2D Pair Levels \u2014 v2 is what you land in", href: "#games/pair-levels" },
+    { label: "The Loom \u2014 three ideas, still nobody's call", href: "#reference" },
     { label: "Everything that shipped this week", href: "#updates" }
   ]
 };
