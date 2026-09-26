@@ -106,6 +106,30 @@ VEILRUN.threatMembers = {
   ]
 };
 
+/* SIGN-IN NAMES THAT ARE NOT GAMERTAGS (VR-233, 9/25).
+
+   `aliases[]` is how a display name in `logins`, `votes`, `game_scores` and friends
+   gets collapsed onto one crew member before anything counts it — app.js line ~1704
+   matches against [name, alias, player, id, gamingName, actualName, nickname,
+   ...aliases]. Two names were wrong on 8/10 and silently dropped a whole person from
+   every total, which is the failure this list exists to prevent.
+
+   ⚠️ "Jordan" IS BABEL, NOT JORDAN. Every other alias here is a gamertag, so this one
+   row breaks the pattern in the worst possible direction: Manafest signs in under his
+   own first name, which is also Jordan Kersey's — and Jordan is `jkrazy`, who is Latch.
+   Read it by eye and you fold Babel's activity onto Latch and lose a person. Left
+   unmapped it was merely invisible; mapped wrongly it would have been invisible AND
+   confident. Do not "tidy" this entry away.
+
+   TWO NAMES ARE DELIBERATELY NOT MAPPED, and this comment is the record so that a
+   later pass does not helpfully assign them to a character:
+     · `g`         — Jordan's uncle
+     · `big papa`  — Jordan's dad
+   They are family, not crew. There is no character they belong to, and inventing one
+   would put a fact on the site that is not true. They sign in, they show up in raw
+   counts, and they resolve to nobody on purpose. Whether a non-crew sign-in should
+   count toward a "people" figure in the weekly digest is Jordan's call and is not
+   settled here. */
 VEILRUN.crew = [
   {
     id: "saffron", name: "Cinder", player: "Zack", alias: "Soviet", accent: "var(--c-saffron)",
@@ -153,7 +177,7 @@ VEILRUN.crew = [
                  {name:"Threadlink: Sever", text:"With Latch (best friends): the hive mind — Execute through a marked target without line of sight."} ]
   },
   {
-    id: "citrine", name: "Citrine", player: "Julian", alias: "Mango", aliases: ["ItsBabyMango"], accent: "var(--c-citrine)",
+    id: "citrine", name: "Citrine", player: "Julian", alias: "Mango", aliases: ["ItsBabyMango", "Julian Cruz"], accent: "var(--c-citrine)",
     gamingName: "ItsBabyMango", actualName: "Julian", nickname: "Mango",
     img: "assets/img/citrine.webp",
     role: "Electrician / Trap Engineer", tagline: "Everything electrical — from a single device to a whole city.",
@@ -247,7 +271,7 @@ VEILRUN.crew = [
   {
     // "GloriousGlanz" is Manafest's sign-up name — confirmed by Jordan 8/10. Same class of bug as
     // Anvil's "Maddogg": without it his 6 sessions fell out of identityFor() and he read as dormant.
-    id: "babel", name: "Babel", player: "Manafest", alias: "Manafest", aliases: ["GloriousGlanz"], accent: "var(--c-babel)",
+    id: "babel", name: "Babel", player: "Manafest", alias: "Manafest", aliases: ["GloriousGlanz", "Jordan"], accent: "var(--c-babel)",
     gamingName: "ManafestDread", actualName: "Manafest", nickname: "Manafest", // real name is Jordan — omitted to avoid colliding with Latch's Jordan in identity matching (VR-64)
     img: "assets/img/babel.webp",
     role: "The Interpreter — linguist · commander · diplomat", tagline: "Fluent in every tongue of both halves; talks the world back together.",
