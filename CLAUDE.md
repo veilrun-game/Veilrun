@@ -127,6 +127,14 @@ live block from one that quietly expired. Kickoff prompts for individual cards l
   ⚠️ **Still scope the message to EVERYTHING uncommitted**, not just the last change — run
   `git status` and `git diff` first. Unchanged, and it is the part that catches work from an
   earlier session riding along.
+- **Every branch starts from `next` and lands back in `next` (VR-234, 9/26).** `next` is the one
+  integration branch: batch branches (`run/<date>`) and card branches (`vr-<number>-<slug>`) are cut
+  from `origin/next`, and once `_ship.js` is green **on the merged tree** they are merged into `next`
+  and `next` is pushed — full auto, because `next` is below `main`. **Jordan's only step is the one
+  standing PR, `next → main`, merged with "Create a merge commit"** (never squash: the Done sweep
+  reads the card commits out of `main`). **Why:** on 9/25 three branches from one evening were each
+  cut from `main`, and Jordan came back to three merges and no order to do them in. A red branch
+  never lands in `next` — `next` is what the next batch builds on, so it stays green.
 - **Never delete files — archive instead.** Ask before anything irreversible.
 - **Every character has a synergy with every other character**, in some form — depth varies with
   the relationship, and that asymmetry is the interesting part. **And every character can hold
@@ -201,9 +209,9 @@ explicitly rather than omitting an item.
 
    **Jordan's only step in this is the merge**, which is the one place a human judgement genuinely
    belongs — it is the moment work becomes public. **As of 9/13 he does not do it unaided:
-   `branch-steward` (§3's delegate table) performs the merge into `main` up to but not including the
-   commit — conflicts resolved, `_ship.js` run on the MERGED tree, everything staged — so the step
-   left to him is approval rather than operation.**
+   `branch-steward` (§3's delegate table) lands every branch in `next` — conflicts resolved,
+   `_ship.js` run on the MERGED tree — so the step left to him is one PR, `next → main` (VR-234, 9/26;
+   until then it staged each branch's merge into `main` one at a time).**
    **A git hook cannot move the card** — the board needs credentials and §5 forbids them in this
    repo. The agent moves it on push; the sweep moves it on merge.
 5. **Canon docs** — fold durable decisions back into `_Project Knowledge/` **inside `Claude Access`**
@@ -241,7 +249,7 @@ item 5 easy to wave through.
 |---|---|---|
 | Run the harnesses | **`_ship.js`**, and the pre-commit hook already runs it | Deterministic. Never needed a language model, and a script cannot hallucinate a green. |
 | Items 1–5 against the diff, and the commit message | **`release-steward`** | Judgment. Item 5 asks whether a decision belongs in canon; item 3 asks whether a player can actually reach the thing. No script answers those. |
-| **Branch · commit · push · move the card · prepare the merge** | **`branch-steward`** *(added 9/13, VR-180)* | Execution. It takes the reviewed message and runs it, then merges the branch into `main` **up to but not including the commit**, so Jordan approves rather than operates. |
+| **Branch · commit · push · move the card · prepare the merge** | **`branch-steward`** *(added 9/13, VR-180)* | Execution. It takes the reviewed message and runs it, then lands the branch in `next` (VR-234), so Jordan merges one PR, `next → main`, rather than operating. |
 
 ⚠️ **`branch-steward` IS FULL AUTO BELOW `main` AND STOPS DEAD AT IT.** Branches, commits, pushes,
 branch-to-branch merges, mechanical conflict resolution and card movement all happen without asking.
